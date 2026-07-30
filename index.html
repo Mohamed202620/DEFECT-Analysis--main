@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> h1 test
 <html lang="ar" dir="rtl" id="html-tag">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +8,7 @@
   <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#0E1117">
   
+  <!-- Tailwind CSS & Chart.js -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -25,10 +26,6 @@
       align-items: center; justify-content: center; gap: 4px; width: 100%;
     }
     .btn-action:active { transform: scale(0.96); }
-    .app-header { 
-      background: var(--card-bg); border-bottom: 1px solid var(--border-color); padding: 12px 16px; 
-      display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100;
-    }
   </style>
 </head>
 <body>
@@ -39,13 +36,15 @@
     <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
   </div>
 
+  <!-- حاوية التطبيق الرئيسية SPA -->
   <div id="app"></div>
 
-  <!-- ربط الـ Router الأساسي عبر type="module" -->
+  <!-- 🟢 نقطة الانطلاق الأساسية لربط الموديولات -->
   <script type="module">
     import { router } from './js/router.js';
 
     window.addEventListener('DOMContentLoaded', () => {
+      // إخفاء الشاشة الافتتاحية وفتح التطبيق
       setTimeout(() => {
         const splash = document.getElementById('splash');
         if (splash) {
