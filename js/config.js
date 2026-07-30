@@ -1,5 +1,5 @@
-// رابط Google Apps Script
-export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyVT9uoIJW0w_yxzpBFqFQzw2x_I2eualJzISuIqWbqtihCynohXaasyMOMcyFvXFE/exec";
+// رابط Google Apps Script المحدث
+export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz2O9L2NTyJvKQgUwzmFASSzoX7EIYd6H21g3J--bJYbdB-zsW2NYubv8WRw87GORni/exec";
 
 // الترجمات والنصوص النظامية
 export const translations = {
