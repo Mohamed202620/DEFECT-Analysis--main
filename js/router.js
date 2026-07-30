@@ -7,6 +7,7 @@ import { PMView } from './views/pmView.js';
 import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
+import { RegisterView } from './views/registerView.js';
 
 // 3. استيراد دوال العمليات المساعدة (Workflow)
 import { saveDefectData, handleDefectFile } from './workflow.js';
@@ -80,6 +81,8 @@ export function render() {
 
   if (currentPage === 'login') {
     app.innerHTML = LoginView();
+  } else if (currentPage === 'register') {
+    app.innerHTML = RegisterView();
   } else if (currentPage === 'home') {
     app.innerHTML = typeof HomeView === 'function' ? HomeView() : '';
     if (typeof window.initMainChart === 'function') window.initMainChart();
@@ -146,6 +149,12 @@ const LoginView = () => `
         <input id="loginPass" type="password" placeholder="كلمة السر" class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white text-sm focus:outline-none focus:border-blue-500"/>
       </div>
       <button id="loginBtn" onclick="window.doLogin()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg">دخول</button>
+
+      <button
+          onclick="window.navigateTo('register')"
+          class="w-full py-3 mt-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg">
+          ➕ إنشاء حساب جديد
+      </button>
     </div>
   </div>
 `;
@@ -193,11 +202,46 @@ export async function doLogin() {
   }
 }
 
+export async function registerUser() {
+
+  const data = {
+    action: "register",
+    name: document.getElementById("regName").value.trim(),
+    phone: document.getElementById("regPhone").value.trim(),
+    password: document.getElementById("regPass").value,
+    confirmPassword: document.getElementById("regPass2").value,
+    job: document.getElementById("regJob").value.trim(),
+    department: document.getElementById("regDepartment").value.trim(),
+    code: document.getElementById("regCode").value.trim()
+  };
+
+  if (
+    !data.name ||
+    !data.phone ||
+    !data.password ||
+    !data.confirmPassword ||
+    !data.job ||
+    !data.department ||
+    !data.code
+  ) {
+    alert("يرجى إدخال جميع البيانات");
+    return;
+  }
+
+  if (data.password !== data.confirmPassword) {
+    alert("كلمتا السر غير متطابقتين");
+    return;
+  }
+
+  alert("سيتم ربط التسجيل بالسيرفر في الخطوة التالية.");
+}
+
 // --- 4. ربط جميع الدوال بـ Window لضمان استجابة الأحداث ---
 window.navigateTo = navigateTo;
 window.toggleLanguage = toggleLanguage;
 window.toggleDarkMode = toggleDarkMode;
 window.doLogin = doLogin;
+window.registerUser = registerUser;
 window.logout = logout;
 window.contactSupport = contactSupport;
 window.saveDefectData = saveDefectData;
