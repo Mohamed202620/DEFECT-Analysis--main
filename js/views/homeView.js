@@ -1,121 +1,111 @@
-export const HomeViewModule = {
-  render: () => {
-    const userRole = localStorage.getItem('role') || 'مدير';
-    const userName = localStorage.getItem('name') || 'محمد حسن';
+export const HomeView = () => {
+  const t = translations[currentLang];
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const savedName = localStorage.getItem("name") || user.name || "مستخدم";
+  const savedRole = localStorage.getItem("role") || user.role || "tech";
 
-    return `
-      <!-- Header Bar -->
-      <div class="flex justify-between items-center p-3 bg-[#1E293B]/80 backdrop-blur rounded-xl mb-4 border border-gray-800">
-        <div class="flex items-center gap-2">
-          <span class="text-xs">👋 أهلاً: <b>${userName}</b></span>
-          <span class="text-[10px] bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-md border border-blue-700/50">(${userRole})</span>
+  const roleName =
+      savedRole === "admin"
+      ? (currentLang === "ar" ? "(مدير)" : "(Admin)")
+      : savedRole === "engineer"
+      ? (currentLang === "ar" ? "(مهندس)" : "(Engineer)")
+      : (currentLang === "ar" ? "(فني)" : "(Technician)");
+
+  return `
+  <div class="app-header">
+    <div class="text-xs font-bold flex items-center gap-2">
+      <img src="1000230635.png" class="w-6 h-6 object-contain rounded"/>
+      <span>
+        👋 ${t.welcome}
+        ${savedName}
+        <span class="font-normal opacity-70">
+          ${roleName}
+        </span>
+      </span>
+    </div>
+    <div class="flex gap-1.5 items-center">
+      <span class="btn-icon">
+        ${savedRole==="admin"?"👨‍💼 Admin":
+        savedRole==="engineer"?"👷 Engineer":"🔧 Technician"}
+      </span>
+      <button class="btn-icon" onclick="toggleLanguage()">${t.langBtn}</button>
+      <button class="btn-icon" onclick="toggleDarkMode()">🌙</button>
+    </div>
+  </div>
+
+  <div class="p-4 max-w-md mx-auto">
+    <div class="dashboard-card">
+      <div class="flex justify-between items-center text-xs font-bold mb-3">
+        <span>${t.dashTitle}</span>
+        <span class="opacity-60">${t.today}</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2 text-center mb-3">
+        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
+          <div class="text-lg font-bold text-orange-500">
+            ${dashboardData.open}
+          </div>
+          <div class="text-[10px] opacity-70">${t.openTickets}</div>
         </div>
-        <div class="flex items-center gap-2">
-          <button class="p-1.5 bg-[#0F172A] rounded-lg text-xs">🌙</button>
-          <button class="px-2 py-1 bg-[#0F172A] text-[10px] font-bold rounded-lg border border-gray-700">EN</button>
+        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
+          <div class="text-lg font-bold text-red-500">
+            ${dashboardData.closed}
+          </div>
+          <div class="text-[10px] opacity-70">تم الإصلاح</div>
+        </div>
+        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
+          <div class="text-lg font-bold text-blue-500">
+            ${dashboardData.today}
+          </div>
+          <div class="text-[10px] opacity-70">${t.todayDefects}</div>
+        </div>
+        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
+          <div class="text-lg font-bold text-green-500">
+            ${dashboardData.total}
+          </div>
+          <div class="text-[10px] opacity-70">
+            إجمالي البلاغات
+          </div>
         </div>
       </div>
-
-      <!-- Dashboard Dashboard / لوحة المتابعة -->
-      <div class="bg-[#1E293B] p-4 rounded-2xl border border-gray-800 mb-5 space-y-3">
-        <div class="flex justify-between items-center text-xs font-bold text-gray-300">
-          <span>📊 لوحة المتابعة</span>
-          <span class="text-[10px] text-gray-400">اليوم</span>
-        </div>
-
-        <!-- Metric Cards -->
-        <div class="grid grid-cols-3 gap-2">
-          <div class="bg-[#0F172A] p-2.5 rounded-xl border border-gray-800 text-center">
-            <div class="text-[15px] font-black text-amber-500">3</div>
-            <div class="text-[9px] text-gray-400 mt-0.5">بلاغات مفتوحة</div>
-          </div>
-          <div class="bg-[#0F172A] p-2.5 rounded-xl border border-gray-800 text-center">
-            <div class="text-[15px] font-black text-rose-500">5</div>
-            <div class="text-[9px] text-gray-400 mt-0.5">PM متاخرة</div>
-          </div>
-          <div class="bg-[#0F172A] p-2.5 rounded-xl border border-gray-800 text-center">
-            <div class="text-[15px] font-black text-blue-400">12</div>
-            <div class="text-[9px] text-gray-400 mt-0.5">عيوب اليوم</div>
-          </div>
-        </div>
-
-        <!-- Simple Chart Representation -->
-        <div class="h-24 bg-[#0F172A] rounded-xl p-2 flex items-end justify-around gap-2 border border-gray-800/80">
-          <div class="w-1/3 bg-orange-600 rounded-t-md h-full flex flex-col justify-end items-center pb-1">
-            <span class="text-[9px] text-white font-bold">8</span>
-          </div>
-          <div class="w-1/3 bg-blue-600 rounded-t-md h-3/4 flex flex-col justify-end items-center pb-1">
-            <span class="text-[9px] text-white font-bold">5</span>
-          </div>
-          <div class="w-1/3 bg-gray-600 rounded-t-md h-1/2 flex flex-col justify-end items-center pb-1">
-            <span class="text-[9px] text-white font-bold">3</span>
-          </div>
-        </div>
-        <div class="flex justify-around text-[9px] text-gray-400">
-          <span>ماكينة 2</span>
-          <span>خط الدهان 1</span>
-          <span>مكبس 4</span>
-        </div>
+      <div style="height: 130px;">
+        <canvas id="chartMachines"></canvas>
       </div>
+    </div>
 
-      <!-- Section 1: قسم الصيانة والمهام (الأزرار الأساسية الـ 5) -->
-      <div class="space-y-2 mb-5">
-        <div class="text-xs font-bold text-blue-400 flex items-center gap-1 mb-2">
-          🛠️ <span>قسم الصيانة والمهام</span>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-2.5">
-          <button onclick="router.navigateTo('report')" class="p-3.5 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-xl flex flex-col items-center justify-center gap-1.5 transition">
-            <span class="text-xl">🚨</span>
-            <span class="text-xs font-bold text-gray-200">1. تسجيل عطل / ملاحظة</span>
-          </button>
+    <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint}</div>
+    <div class="grid grid-cols-2 gap-2.5 mb-4">
+      ${ActionBtn('🚨', t.m1, 'report')}
+      ${ActionBtn('📝', t.m2, 'pm')}
+      ${ActionBtn('📋', t.m3, 'log')}
+      ${ActionBtn('🗓️', t.m4, 'schedule')}
+      <div class="col-span-2">${ActionBtn('📱', t.m5, 'qr')}</div>
+    </div>
 
-          <button onclick="router.navigateTo('suggestion')" class="p-3.5 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-xl flex flex-col items-center justify-center gap-1.5 transition">
-            <span class="text-xl">💡</span>
-            <span class="text-xs font-bold text-gray-200">2. تسجيل اقتراح جديد</span>
-          </button>
-        </div>
+    <div class="text-xs font-bold text-blue-400 mb-2">${t.secDefects}</div>
+    <div class="grid grid-cols-2 gap-2.5 mb-4">
+      ${ActionBtn('📷', t.d1, 'defect')}
+      ${ActionBtn('🤖', t.d2, 'ai')}
+      ${ActionBtn('📚', t.d3, 'kb')}
+      ${ActionBtn('📊', t.d4, 'stats')}
+      <div class="col-span-2">${ActionBtn('📄', t.d5, 'reports')}</div>
+    </div>
 
-        <button onclick="router.navigateTo('pm')" class="w-full p-3.5 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-xl flex items-center justify-center gap-2 transition">
-          <span class="text-xl">🛠️</span>
-          <span class="text-xs font-bold text-gray-200">3. أعمال الصيانة الوقائية PM</span>
-        </button>
+    ${savedRole === 'admin' ? `
+      <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers}</div>
+      ${ActionBtn('⚙️', t.u1, 'users')}
+    ` : ''}
+  </div>
 
-        <button onclick="router.navigateTo('reports')" class="w-full p-3.5 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-xl flex items-center justify-center gap-2 transition">
-          <span class="text-xl">📊</span>
-          <span class="text-xs font-bold text-gray-200">4. استخراج التقارير</span>
-        </button>
-
-        <button onclick="alert('جاري فتح الكاميرا لمسح الـ QR...')" class="w-full p-3.5 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-xl flex items-center justify-center gap-2 transition">
-          <span class="text-xl">📱</span>
-          <span class="text-xs font-bold text-gray-200">5. مسح QR الماكينة</span>
-        </button>
-      </div>
-
-      <!-- Section 2: قسم تحليل عيوب الإنتاج -->
-      <div class="space-y-2 mb-5 opacity-80">
-        <div class="text-xs font-bold text-amber-400 flex items-center gap-1 mb-2">
-          📦 <span>قسم تحليل عيوب الإنتاج</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2.5">
-          <button class="p-3 bg-[#1E293B] border border-gray-800 rounded-xl flex flex-col items-center gap-1">
-            <span class="text-lg">📷</span>
-            <span class="text-[11px] font-bold">تصوير عيب</span>
-          </button>
-          <button class="p-3 bg-[#1E293B] border border-gray-800 rounded-xl flex flex-col items-center gap-1">
-            <span class="text-lg">🤖</span>
-            <span class="text-[11px] font-bold">فحص AI</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Footer / الخروج -->
-      <div class="pt-4 border-t border-gray-800/80 text-center space-y-2">
-        <button onclick="location.reload()" class="text-xs text-rose-500 hover:underline font-bold">
-          تسجيل الخروج ➔
-        </button>
-        <div class="text-[10px] text-gray-500">© 2026 جميع الحقوق محفوظة | Mohamed Hassan</div>
-      </div>
-    `;
-  }
+  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2">
+    <button
+      onclick="contactSupport()"
+      class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
+      💬 تواصل مع الدعم الفني والتطوير
+    </button>
+    <button onclick="logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
+      ${t.logout}
+    </button>
+    <div>${t.copy}</div>
+  </footer>
+  `;
 };
