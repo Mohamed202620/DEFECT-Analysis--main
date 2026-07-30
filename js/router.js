@@ -61,6 +61,7 @@ export function logout() {
   localStorage.removeItem("name");
   localStorage.removeItem("job");
   localStorage.removeItem("role");
+  localStorage.removeItem("permissions");
   localStorage.removeItem("user");
   currentRole = '';
   currentPage = "login";
@@ -110,7 +111,19 @@ export function render() {
   } else if (currentPage === 'kb') {
     app.innerHTML = PageView('📚 قاعدة المعرفة للحلول', '<input placeholder="🔍 ابحث عن العيب أو طريقة الإصلاح..." class="w-full p-2.5 rounded-lg bg-[#1E293B] border border-gray-700 text-xs mb-3 text-white">');
   } else if (currentPage === 'users') {
-    app.innerHTML = PageView("👥 إدارة المستخدمين والصلاحيات", `<div class="p-4 text-center text-gray-400">قسم إدارة المستخدمين</div>`);
+    app.innerHTML = PageView(
+        "👥 إدارة المستخدمين والصلاحيات",
+        `
+        <div class="space-y-3">
+        <button
+        onclick="window.loadUsers()"
+        class="w-full bg-blue-600 rounded-lg p-3 font-bold">
+        عرض المستخدمين
+        </button>
+        <div id="usersContainer"></div>
+        </div>
+        `
+    );
   }
 }
 
@@ -188,6 +201,7 @@ export async function doLogin() {
       localStorage.setItem("name", result.name);
       localStorage.setItem("job", result.job);
       localStorage.setItem("role", result.role);
+      localStorage.setItem("permissions", result.permissions || "");
       localStorage.setItem("user", JSON.stringify(result));
 
       currentRole = result.role;
@@ -270,6 +284,52 @@ window.contactSupport = contactSupport;
 window.saveDefectData = saveDefectData;
 window.handleDefectFile = handleDefectFile;
 window.render = render;
+
+window.loadUsers = async function () {
+
+    const res = await fetch(GOOGLE_SCRIPT_URL,{
+        method:"POST",
+        headers:{
+            "Content-Type":"text/plain"
+        },
+        body:JSON.stringify({
+            action:"getUsers"
+        })
+    });
+
+    const data = await res.json();
+
+    if(data.status!="success") return;
+
+    let html="";
+
+    data.users.forEach(u=>{
+
+        html+=`
+        <div class="bg-[#1E293B] rounded-xl p-3 mb-3">
+
+            <div><b>${u.name}</b></div>
+
+            <div>${u.phone}</div>
+
+            <div>${u.role}</div>
+
+            <button
+            class="mt-3 w-full bg-green-600 p-2 rounded"
+            onclick="alert('الخطوة القادمة')">
+
+            تعديل الصلاحيات
+
+            </button>
+
+        </div>
+        `;
+
+    });
+
+    document.getElementById("usersContainer").innerHTML=html;
+
+}
 
 // --- 5. التشغيل عند جاهزية الصفحة ---
 window.addEventListener('DOMContentLoaded', () => {
