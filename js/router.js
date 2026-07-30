@@ -195,16 +195,17 @@ export async function doLogin() {
     });
 
     const result = await response.json();
+    console.log(result);
 
     if (result.status === "success") {
       localStorage.setItem("phone", phone);
       localStorage.setItem("name", result.name);
       localStorage.setItem("job", result.job);
-      localStorage.setItem("role", result.role);
+      localStorage.setItem("role", (result.role || "").toLowerCase());
       localStorage.setItem("permissions", result.permissions || "");
       localStorage.setItem("user", JSON.stringify(result));
 
-      currentRole = result.role;
+      currentRole = (result.role || "").toLowerCase();
       navigateTo("home");
     } else {
       if (btn) { btn.disabled = false; btn.innerHTML = "دخول"; }
@@ -339,7 +340,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (savedUser) {
     try {
       const user = JSON.parse(savedUser);
-      if (user && user.role) currentRole = user.role;
+      if (user && user.role) currentRole = (user.role || "").toLowerCase();
     } catch(e) {}
   }
 
