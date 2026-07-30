@@ -27,6 +27,9 @@ export const HomeView = () => {
       ? (currentLang === "ar" ? "(مهندس)" : "(Engineer)")
       : (currentLang === "ar" ? "(فني)" : "(Technician)");
 
+  // دالة فحص الصلاحية آمنة في حال عدم إتاحة window.can بعد
+  const canAccess = (perm) => (typeof window.can === 'function' ? window.can(perm) : true);
+
   return `
   <div class="app-header">
     <div class="text-xs font-bold flex items-center gap-2">
@@ -91,7 +94,7 @@ export const HomeView = () => {
     <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint || '🛠️ قسم الصيانة والمهام'}</div>
     <div class="grid grid-cols-2 gap-2.5 mb-4">
       ${ActionBtn('🚨', t.m1 || 'تسجيل بلاغ', 'report')}
-      ${ActionBtn('📝', t.m2 || 'تسجيل PM', 'pm')}
+      ${canAccess("pm") ? ActionBtn('📝', t.m2 || 'تسجيل PM', 'pm') : ''}
       ${ActionBtn('📋', t.m3 || 'سجل الصيانة', 'log')}
       ${ActionBtn('🗓️', t.m4 || 'الجدولة', 'schedule')}
       <div class="col-span-2">${ActionBtn('📱', t.m5 || 'مسح QR الماكينات', 'qr')}</div>
@@ -102,11 +105,11 @@ export const HomeView = () => {
       ${ActionBtn('📷', t.d1 || 'تصوير عيب', 'defect')}
       ${ActionBtn('🤖', t.d2 || 'فحص AI', 'ai')}
       ${ActionBtn('📚', t.d3 || 'قاعدة المعرفة', 'kb')}
-      ${ActionBtn('📊', t.d4 || 'الإحصائيات', 'stats')}
-      <div class="col-span-2">${ActionBtn('📄', t.d5 || 'تصدير التقارير', 'reports')}</div>
+      ${canAccess("stats") ? ActionBtn('📊', t.d4 || 'الإحصائيات', 'stats') : ''}
+      ${canAccess("reports") ? `<div class="col-span-2">${ActionBtn('📄', t.d5 || 'تصدير التقارير', 'reports')}</div>` : ''}
     </div>
 
-    ${savedRole === 'admin' ? `
+    ${canAccess("users") ? `
       <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers || '👥 إدارة المستخدمين'}</div>
       ${ActionBtn('⚙️', t.u1 || 'إدارة الصلاحيات والمستخدمين (للمدير فقط)', 'users')}
     ` : ''}

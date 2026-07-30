@@ -16,8 +16,18 @@ import { saveDefectData, handleDefectFile } from './workflow.js';
 export let currentPage = 'login';
 export let currentLang = 'ar';
 export let currentRole = '';
+export let currentPermissions = [];
 export let mainChart = null;
 export let statsChart = null;
+
+function hasPermission(permission){
+
+    if(currentRole === "admin")
+        return true;
+
+    return currentPermissions.includes(permission);
+
+}
 
 // مزامنة حالة اللغة والداتا على window فوراً
 window.currentLang = currentLang;
@@ -26,18 +36,36 @@ window.dashboardData = window.dashboardData || { open: 0, closed: 0, today: 0, t
 // --- الدوال الأساسية للتنقل واللغة ---
 
 export function navigateTo(page) {
-  if (page === "users" && currentRole !== "admin") {
-    alert("ليس لديك صلاحية الوصول لهذه الصفحة");
+
+  if (page === "users" && !hasPermission("users")) {
+    alert("ليس لديك صلاحية إدارة المستخدمين");
     return;
   }
+
+  if (page === "reports" && !hasPermission("reports")) {
+    alert("ليس لديك صلاحية عرض التقارير");
+    return;
+  }
+
+  if (page === "pm" && !hasPermission("pm")) {
+    alert("ليس لديك صلاحية تسجيل الصيانة");
+    return;
+  }
+
+  if (page === "stats" && !hasPermission("stats")) {
+    alert("ليس لديك صلاحية عرض الإحصائيات");
+    return;
+  }
+
   currentPage = page;
-  
-  if (page === "home" && typeof window.loadDashboard === 'function') {
+
+  if (page === "home" && typeof window.loadDashboard === "function") {
     window.loadDashboard();
   }
-  
+
   render();
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
+
 }
 
 export function toggleLanguage() {
@@ -64,6 +92,7 @@ export function logout() {
   localStorage.removeItem("permissions");
   localStorage.removeItem("user");
   currentRole = '';
+  currentPermissions = [];
   currentPage = "login";
   render();
 }
@@ -206,6 +235,11 @@ export async function doLogin() {
       localStorage.setItem("user", JSON.stringify(result));
 
       currentRole = (result.role || "").toLowerCase();
+      currentPermissions = (result.permissions || "")
+          .split(",")
+          .map(p => p.trim().toLowerCase())
+          .filter(p => p !== "");
+
       navigateTo("home");
     } else {
       if (btn) { btn.disabled = false; btn.innerHTML = "دخول"; }
@@ -285,6 +319,15 @@ window.contactSupport = contactSupport;
 window.saveDefectData = saveDefectData;
 window.handleDefectFile = handleDefectFile;
 window.render = render;
+
+window.can = function(permission){
+
+    if(currentRole === "admin")
+        return true;
+
+    return currentPermissions.includes(permission);
+
+}
 
 window.loadUsers = async function () {
 
@@ -380,6 +423,12 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const user = JSON.parse(savedUser);
       if (user && user.role) currentRole = (user.role || "").toLowerCase();
+      if (user && user.permissions) {
+        currentPermissions = (user.permissions || "")
+            .split(",")
+            .map(p => p.trim().toLowerCase())
+            .filter(p => p !== "");
+      }
     } catch(e) {}
   }
 
