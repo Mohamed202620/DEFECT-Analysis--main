@@ -1,4 +1,5 @@
-export const CONFIG = {
+// config.js - الثوابت والأنواع
+const CONFIG = {
   GOOGLE_SCRIPT_URL: "https://script.google.com/macros/s/AKfycbyVT9uoIJW0w_yxzpBFqFQzw2x_I2eualJzISuIqWbqtihCynohXaasyMOMcyFvXFE/exec",
   ROLES: {
     PROD_TECH: 'prod_tech',
@@ -7,5 +8,14 @@ export const CONFIG = {
     QC: 'qc',
     ADMIN: 'admin'
   },
-  SHIFTS: ['Green', 'Blue', 'Red']
+  SHIFTS: ['Green', 'Blue', 'Red'],
+  STATUSES: {
+    NEW: 'NEW',
+    APPROVED: 'APPROVED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    CONVERTED_PM: 'CONVERTED_PM',
+    REJECTED: 'REJECTED',
+    QC_REVIEW: 'QC_REVIEW',
+    CLOSED: 'CLOSED'
+  }
 };
