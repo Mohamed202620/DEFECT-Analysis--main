@@ -101,11 +101,3 @@ export const HomeView = () => {
       onclick="contactSupport()"
       class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
       💬 تواصل مع الدعم الفني والتطوير
-    </button>
-    <button onclick="logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
-      ${t.logout}
-    </button>
-    <div>${t.copy}</div>
-  </footer>
-  `;
-};
