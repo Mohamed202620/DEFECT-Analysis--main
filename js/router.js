@@ -233,7 +233,29 @@ export async function registerUser() {
     return;
   }
 
-  alert("سيتم ربط التسجيل بالسيرفر في الخطوة التالية.");
+  try {
+
+    const response = await fetch(GOOGLE_SCRIPT_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain"
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+
+    alert(result.message);
+
+    if (result.status === "success") {
+      window.navigateTo("login");
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("تعذر الاتصال بالخادم");
+  }
+
 }
 
 // --- 4. ربط جميع الدوال بـ Window لضمان استجابة الأحداث ---
