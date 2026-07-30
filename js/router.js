@@ -1,5 +1,6 @@
-// 1. استيراد الإعدادات والترجمات
+// 1. استيراد الإعدادات والترجمات والخدمات
 import { GOOGLE_SCRIPT_URL, translations } from './config.js';
+import { login } from './auth/login.js';
 
 // 2. استيراد الواجهات من مجلد views الفرعي
 import { HomeView } from './views/homeView.js';
@@ -32,6 +33,44 @@ function hasPermission(permission){
 // مزامنة حالة اللغة والداتا على window فوراً
 window.currentLang = currentLang;
 window.dashboardData = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
+
+// --- دالة التوجيه والعرض الخارجية ---
+export function renderPage(page, PageView, LogContent, currentLang) {
+
+    if (page === "login") {
+        return LoginView();
+    }
+
+    if (page === "register") {
+        return RegisterView();
+    }
+
+    if (page === "home") {
+        return HomeView();
+    }
+
+    if (page === "report") {
+        return ReportView();
+    }
+
+    if (page === "pm") {
+        return PMView();
+    }
+
+    if (page === "reports") {
+        return ReportsView();
+    }
+
+    if (page === "suggestion") {
+        return SuggestionView();
+    }
+
+    if (page === "log") {
+        return PageView("📋 سجل الصيانة", LogContent());
+    }
+
+    return "";
+}
 
 // --- الدوال الأساسية للتنقل واللغة ---
 
@@ -109,25 +148,16 @@ export function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  if (currentPage === 'login') {
-    app.innerHTML = LoginView();
-  } else if (currentPage === 'register') {
-    app.innerHTML = RegisterView();
-  } else if (currentPage === 'home') {
-    app.innerHTML = typeof HomeView === 'function' ? HomeView() : '';
-    if (typeof window.initMainChart === 'function') window.initMainChart();
-  } else if (currentPage === 'report') {
-    app.innerHTML = typeof ReportView === 'function' ? ReportView() : '';
-  } else if (currentPage === 'pm') {
-    app.innerHTML = typeof PMView === 'function' ? PMView() : '';
+  // استدعاء renderPage لصفحات النظام المحددة
+  const pageHtml = renderPage(currentPage, PageView, LogContent, currentLang);
+
+  if (pageHtml) {
+    app.innerHTML = pageHtml;
+    if (currentPage === 'home' && typeof window.initMainChart === 'function') {
+      window.initMainChart();
+    }
   } else if (currentPage === 'defect') {
     app.innerHTML = typeof DefectView === 'function' ? DefectView() : '';
-  } else if (currentPage === 'reports') {
-    app.innerHTML = typeof ReportsView === 'function' ? ReportsView() : '';
-  } else if (currentPage === 'suggestion') {
-    app.innerHTML = typeof SuggestionView === 'function' ? SuggestionView() : '';
-  } else if (currentPage === 'log') {
-    app.innerHTML = PageView('📋 سجل الصيانة والبلاغات', LogContent());
   } else if (currentPage === 'schedule') {
     app.innerHTML = PageView('📅 جدولة الصيانة', '<div class="bg-[#1E293B] p-6 rounded-xl border border-gray-800 text-center text-xs text-gray-400">📅 لا يوجد خطط صيانة متأخرة للأسبوع الحالي.</div>');
   } else if (currentPage === 'qr') {
@@ -217,13 +247,8 @@ export async function doLogin() {
   }
 
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "login", phone: phone, password: pass })
-    });
-
-    const result = await response.json();
+    const result = await login(phone, pass);
+    
     console.log(result);
 
     if (result.status === "success") {
