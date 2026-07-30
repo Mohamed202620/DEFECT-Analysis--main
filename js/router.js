@@ -251,9 +251,10 @@ export async function registerUser() {
       window.navigateTo("login");
     }
 
-  } catch (err) {
-    console.error(err);
+  } catch (e) {
+
     alert("تعذر الاتصال بالخادم");
+
   }
 
 }
