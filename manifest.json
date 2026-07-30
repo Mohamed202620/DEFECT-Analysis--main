@@ -1,23 +1,23 @@
 {
-  "name": "MAINTENANCE & DEFECT ANALYSIS SYSTEM",
-  "short_name": "MAINTENANCE",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#0E1117",
-  "theme_color": "#0E1117",
-  "lang": "en",
+  "short_name": "MaintSystem",
+  "name": "MAINTENANCE & DEFECT SYSTEM V1.0",
   "icons": [
     {
       "src": "1000230635.png",
-      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "sizes": "192x192"
     },
     {
       "src": "1000230635.png",
-      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "sizes": "512x512"
     }
-  ]
+  ],
+  "start_url": "./index.html",
+  "background_color": "#0E1117",
+  "theme_color": "#0E1117",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar"
 }

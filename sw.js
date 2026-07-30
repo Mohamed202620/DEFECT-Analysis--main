@@ -1,54 +1,44 @@
-const CACHE_NAME = 'defect-app-v2';
-
-// قائمة الموديولات والملفات المراد تخزينها للعمل Off-line
+const CACHE_NAME = 'maint-system-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './1000230635.png',
-  './js/config.js',
-  './js/router.js',
-  './js/workflow.js',
-  './js/views/homeView.js',
-  './js/views/reportView.js',
-  './js/views/suggestionView.js',
-  './js/views/pmView.js',
-  './js/views/reportsView.js'
+  'https://cdn.tailwindcss.com',
+  'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// 1. تثبيت الـ Service Worker وتخزين الملفات
-self.addEventListener('install', (event) => {
-  self.skipWaiting();
-  event.waitUntil(
+// Install Event
+self.addEventListener('install', (e) => {
+  e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
+  self.skipWaiting();
 });
 
-// 2. تفعيل الـ Service Worker وتنظيف الكاش القديم
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
+// Activate Event
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((keys) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
+        keys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    })
   );
+  self.clients.claim();
 });
 
-// 3. جلب الملفات من الكاش في حالة عدم وجود إنترنت
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request);
+// Fetch Event
+self.addEventListener('fetch', (e) => {
+  e.respondWith(
+    caches.match(e.request).then((cachedResponse) => {
+      return cachedResponse || fetch(e.request);
     })
   );
 });
