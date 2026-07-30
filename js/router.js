@@ -317,7 +317,7 @@ window.loadUsers = async function () {
 
             <button
             class="mt-3 w-full bg-green-600 p-2 rounded"
-            onclick="window.editPermissions('${u.phone}')">
+            onclick="window.editPermissions('${u.phone}','${u.role}')">
 
             تعديل الصلاحيات
 
@@ -332,14 +332,21 @@ window.loadUsers = async function () {
 
 }
 
-window.editPermissions = async function(phone){
+window.editPermissions = async function(phone,currentRole){
 
     const role = prompt(
-        "اكتب الصلاحية الجديدة:\nadmin\nengineer\ntech",
-        "tech"
+        "أدخل الدور الجديد:\nadmin\nengineer\ntech",
+        currentRole
     );
 
     if(!role) return;
+
+    const permissions = prompt(
+        "أدخل الصلاحيات\nمثال:\nall\nأو\nreports,pm,users",
+        "all"
+    );
+
+    if(permissions===null) return;
 
     const res = await fetch(GOOGLE_SCRIPT_URL,{
         method:"POST",
@@ -347,9 +354,10 @@ window.editPermissions = async function(phone){
             "Content-Type":"text/plain"
         },
         body:JSON.stringify({
-            action:"updateRole",
+            action:"updatePermissions",
             phone:phone,
-            role:role.toLowerCase()
+            role:role.toLowerCase(),
+            permissions:permissions
         })
     });
 
@@ -357,7 +365,10 @@ window.editPermissions = async function(phone){
 
     alert(data.message);
 
-    window.loadUsers();
+    if(data.status=="success"){
+        window.loadUsers();
+    }
+
 }
 
 // --- 5. التشغيل عند جاهزية الصفحة ---
