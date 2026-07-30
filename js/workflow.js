@@ -1,3 +1,9 @@
+import { GOOGLE_SCRIPT_URL } from './config.js';
+import { navigateTo } from './router.js';
+
+// مصفوفة حفظ الصور محلية داخل وحدة العمليات
+export let defectImages = [null, null, null];
+
 // دالة ضغط الصور قبل الرفع
 export function compressImage(file, maxWidth, quality, callback) {
   const reader = new FileReader();
@@ -24,7 +30,7 @@ export function compressImage(file, maxWidth, quality, callback) {
   };
 }
 
-// دالة التعامل مع فتح واختيار ملفات الصور
+// دالة التعامل مع فتح وااختيار ملفات الصور
 export function handleDefectFile(e, index) {
   const file = e.target.files[0];
   if (!file) return;
@@ -57,20 +63,23 @@ export async function saveDefectData() {
     return;
   }
 
-  const name = document.getElementById("defectName").value.trim();
+  const nameEl = document.getElementById("defectName");
+  const name = nameEl ? nameEl.value.trim() : "";
   if (!name) {
     alert("⚠️ يرجى إدخال اسم العيب");
     return;
   }
 
   const btn = document.getElementById("submitBtn");
-  btn.disabled = true;
-  btn.innerHTML = "⏳ جاري الحفظ والإرسال...";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ جاري الحفظ والإرسال...";
+  }
 
-  const line = document.getElementById("lineSelect").value;
-  const stage = document.getElementById("stageSelect").value;
-  const location = document.getElementById("defectLocation").value.trim();
-  const description = document.getElementById("defectDesc").value.trim();
+  const line = document.getElementById("lineSelect")?.value || "";
+  const stage = document.getElementById("stageSelect")?.value || "";
+  const location = document.getElementById("defectLocation")?.value.trim() || "";
+  const description = document.getElementById("defectDesc")?.value.trim() || "";
 
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
   const phone = localStorage.getItem("phone") || currentUser.phone || "";
@@ -109,13 +118,17 @@ export async function saveDefectData() {
       defectImages = [null, null, null]; // إعادة ضبط المصفوفة
       navigateTo('home');
     } else {
-      btn.disabled = false;
-      btn.innerHTML = "✅ حفظ وإرسال";
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = "✅ حفظ وإرسال";
+      }
       alert('❌ حدث خطأ أثناء الحفظ: ' + (result.message || 'خطأ غير معروف'));
     }
   } catch (error) {
-    btn.disabled = false;
-    btn.innerHTML = "✅ حفظ وإرسال";
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = "✅ حفظ وإرسال";
+    }
     alert('❌ خطأ: ' + error.message);
   }
 }

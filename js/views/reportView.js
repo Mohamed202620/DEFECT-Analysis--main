@@ -22,4 +22,18 @@ export const ReportFormFields = () => `
   </div>
 `;
 
-export const ReportView = () => FormPage('🚨 تسجيل بلاغ عطل جديد', ReportFormFields(), 'تم إرسال البلاغ بنجاح #1024 ✅');
+export const ReportView = () => `
+  <div class="p-4 max-w-md mx-auto">
+    <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
+      ⬅️ ${window.currentLang === 'en' ? 'Back Home' : 'رجوع للرئيسية'}
+    </button>
+    <h2 class="text-base font-bold mb-4 text-blue-400">🚨 تسجيل بلاغ عطل جديد</h2>
+    
+    <form onsubmit="alert('تم إرسال البلاغ بنجاح #1024 ✅'); window.navigateTo('home'); return false;" class="space-y-4">
+      ${ReportFormFields()}
+      <button type="submit" class="w-full p-3 bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl font-bold text-xs text-white transition">
+        حفظ وإرسال ✅
+      </button>
+    </form>
+  </div>
+`;

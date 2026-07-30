@@ -16,4 +16,18 @@ export const PMFormFields = () => `
   </div>
 `;
 
-export const PMView = () => FormPage('📝 تسجيل صيانة وقائية (PM)', PMFormFields(), 'تم حفظ نموذج PM بنجاح ✅');
+export const PMView = () => `
+  <div class="p-4 max-w-md mx-auto">
+    <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold">
+      ⬅️ ${window.currentLang === 'en' ? 'Back Home' : 'رجوع للرئيسية'}
+    </button>
+    <h2 class="text-base font-bold mb-4 text-blue-400">📝 تسجيل صيانة وقائية (PM)</h2>
+    
+    <form onsubmit="alert('تم حفظ نموذج PM بنجاح ✅'); window.navigateTo('home'); return false;" class="space-y-4">
+      ${PMFormFields()}
+      <button type="submit" class="w-full p-3 bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl font-bold text-xs text-white transition">
+        حفظ وإرسال ✅
+      </button>
+    </form>
+  </div>
+`;
