@@ -1,12 +1,12 @@
 // 1. استيراد الإعدادات والترجمات
 import { GOOGLE_SCRIPT_URL, translations } from './config.js';
 
-// 2. استيراد الواجهات (Views)
-import { HomeView } from './homeView.js';
-import { PMView } from './pmView.js';
-import { ReportView } from './reportView.js';
-import { ReportsView } from './reportsView.js';
-import { SuggestionView } from './suggestionView.js';
+// 2. استيراد الواجهات من مجلد views الفرعي (تم تصحيح المسارات هنا)
+import { HomeView } from './views/homeView.js';
+import { PMView } from './views/pmView.js';
+import { ReportView } from './views/reportView.js';
+import { ReportsView } from './views/reportsView.js';
+import { SuggestionView } from './views/suggestionView.js';
 
 // 3. استيراد دوال العمليات المساعدة (Workflow)
 import { saveDefectData, handleDefectFile } from './workflow.js';
@@ -56,7 +56,7 @@ export function logout() {
 }
 
 export function contactSupport() {
-  window.open("https://wa.me/201000000000", "_blank"); // ضع رقم الواتساب هنا
+  window.open("https://wa.me/201000000000", "_blank");
 }
 
 // --- دالة العرض الرئيسية (Render) ---
@@ -64,9 +64,7 @@ export function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  // هنا يمكنك إضافة الشرط لعرض الصفحة المطلوبة حسب قيمة currentPage
   if (currentPage === 'login') {
-    // عرض صفحة الدخول (أو استدعى دالة LoginView لو كانت معرفة)
     app.innerHTML = `
       <div class="p-6 max-w-sm mx-auto text-center mt-10">
         <h2 class="text-xl font-bold mb-4">تسجيل الدخول</h2>

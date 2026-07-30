@@ -1,8 +1,22 @@
+import { translations } from '../config.js';
+import { currentLang } from '../router.js';
+
+// دالة مسبقة لإنشاء الأزرار لمنع حدوث Undefined Error
+const ActionBtn = (icon, label, target) => `
+  <button class="btn-action" onclick="navigateTo('${target}')">
+    <span class="text-xl">${icon}</span>
+    <span class="text-xs font-semibold mt-1">${label}</span>
+  </button>
+`;
+
 export const HomeView = () => {
-  const t = translations[currentLang];
+  const t = translations[currentLang] || translations['ar'];
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const savedName = localStorage.getItem("name") || user.name || "مستخدم";
   const savedRole = localStorage.getItem("role") || user.role || "tech";
+
+  // حماية بيانات الـ Dashboard من الـ Crash
+  const data = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
 
   const roleName =
       savedRole === "admin"
@@ -16,7 +30,7 @@ export const HomeView = () => {
     <div class="text-xs font-bold flex items-center gap-2">
       <img src="1000230635.png" class="w-6 h-6 object-contain rounded"/>
       <span>
-        👋 ${t.welcome}
+        👋 ${t.welcome || 'مرحباً'}
         ${savedName}
         <span class="font-normal opacity-70">
           ${roleName}
@@ -28,7 +42,7 @@ export const HomeView = () => {
         ${savedRole==="admin"?"👨‍💼 Admin":
         savedRole==="engineer"?"👷 Engineer":"🔧 Technician"}
       </span>
-      <button class="btn-icon" onclick="toggleLanguage()">${t.langBtn}</button>
+      <button class="btn-icon" onclick="toggleLanguage()">${t.langBtn || '🌐'}</button>
       <button class="btn-icon" onclick="toggleDarkMode()">🌙</button>
     </div>
   </div>
@@ -36,31 +50,31 @@ export const HomeView = () => {
   <div class="p-4 max-w-md mx-auto">
     <div class="dashboard-card">
       <div class="flex justify-between items-center text-xs font-bold mb-3">
-        <span>${t.dashTitle}</span>
-        <span class="opacity-60">${t.today}</span>
+        <span>${t.dashTitle || 'لوحة التحكم'}</span>
+        <span class="opacity-60">${t.today || 'اليوم'}</span>
       </div>
       <div class="grid grid-cols-4 gap-2 text-center mb-3">
         <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
           <div class="text-lg font-bold text-orange-500">
-            ${dashboardData.open}
+            ${data.open}
           </div>
-          <div class="text-[10px] opacity-70">${t.openTickets}</div>
+          <div class="text-[10px] opacity-70">${t.openTickets || 'مفتوح'}</div>
         </div>
         <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
           <div class="text-lg font-bold text-red-500">
-            ${dashboardData.closed}
+            ${data.closed}
           </div>
           <div class="text-[10px] opacity-70">تم الإصلاح</div>
         </div>
         <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
           <div class="text-lg font-bold text-blue-500">
-            ${dashboardData.today}
+            ${data.today}
           </div>
-          <div class="text-[10px] opacity-70">${t.todayDefects}</div>
+          <div class="text-[10px] opacity-70">${t.todayDefects || 'عطال اليوم'}</div>
         </div>
         <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
           <div class="text-lg font-bold text-green-500">
-            ${dashboardData.total}
+            ${data.total}
           </div>
           <div class="text-[10px] opacity-70">
             إجمالي البلاغات
@@ -72,27 +86,27 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint}</div>
+    <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint || 'الصيانة'}</div>
     <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('🚨', t.m1, 'report')}
-      ${ActionBtn('📝', t.m2, 'pm')}
-      ${ActionBtn('📋', t.m3, 'log')}
-      ${ActionBtn('🗓️', t.m4, 'schedule')}
-      <div class="col-span-2">${ActionBtn('📱', t.m5, 'qr')}</div>
+      ${ActionBtn('🚨', t.m1 || 'إبلاغ', 'report')}
+      ${ActionBtn('📝', t.m2 || 'صيانة وقائية', 'pm')}
+      ${ActionBtn('📋', t.m3 || 'سجل الأعطال', 'log')}
+      ${ActionBtn('🗓️', t.m4 || 'الجدول', 'schedule')}
+      <div class="col-span-2">${ActionBtn('📱', t.m5 || 'مسح QR', 'qr')}</div>
     </div>
 
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secDefects}</div>
+    <div class="text-xs font-bold text-blue-400 mb-2">${t.secDefects || 'تحليل العيوب'}</div>
     <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('📷', t.d1, 'defect')}
-      ${ActionBtn('🤖', t.d2, 'ai')}
-      ${ActionBtn('📚', t.d3, 'kb')}
-      ${ActionBtn('📊', t.d4, 'stats')}
-      <div class="col-span-2">${ActionBtn('📄', t.d5, 'reports')}</div>
+      ${ActionBtn('📷', t.d1 || 'تسجيل عيب', 'defect')}
+      ${ActionBtn('🤖', t.d2 || 'تحليل ذكي', 'ai')}
+      ${ActionBtn('📚', t.d3 || 'المعرفة', 'kb')}
+      ${ActionBtn('📊', t.d4 || 'إحصائيات', 'stats')}
+      <div class="col-span-2">${ActionBtn('📄', t.d5 || 'التقارير', 'reports')}</div>
     </div>
 
     ${savedRole === 'admin' ? `
-      <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers}</div>
-      ${ActionBtn('⚙️', t.u1, 'users')}
+      <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers || 'المستخدمين'}</div>
+      ${ActionBtn('⚙️', t.u1 || 'إدارة المستخدمين', 'users')}
     ` : ''}
   </div>
 
@@ -103,9 +117,9 @@ export const HomeView = () => {
       💬 تواصل مع الدعم الفني والتطوير
     </button>
     <button onclick="logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
-      ${t.logout}
+      ${t.logout || 'تسجيل الخروج'}
     </button>
-    <div>${t.copy}</div>
+    <div>${t.copy || ''}</div>
   </footer>
   `;
 };
