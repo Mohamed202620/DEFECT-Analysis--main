@@ -272,7 +272,7 @@ export async function doLogin() {
       alert(result.message || "بيانات الدخول غير صحيحة");
     }
   } catch (e) {
-    if (btn) { btn.disabled = false; btn.innerHTML = "دخول"; }
+    if (btn) { btn.disabled = false; btn.innerHTML = "خطأ في الاتصال بالسيرفر"; }
     alert("خطأ في الاتصال بالسيرفر");
   }
 }
@@ -443,6 +443,34 @@ window.editPermissions = async function(phone,currentRole){
 window.saveIssue = function () {
     alert("الخطوة القادمة: ربط البلاغ بـ Google Sheets");
 }
+
+document.addEventListener("change", function (e) {
+
+    if (e.target.id === "cameraImage" || e.target.id === "galleryImage") {
+
+        const file = e.target.files[0];
+
+        if (!file) return;
+
+        document.getElementById("imageName").innerHTML = file.name;
+
+        const reader = new FileReader();
+
+        reader.onload = function () {
+
+            const img = document.getElementById("previewImage");
+
+            img.src = reader.result;
+
+            img.classList.remove("hidden");
+
+        };
+
+        reader.readAsDataURL(file);
+
+    }
+
+});
 
 // --- 5. التشغيل عند جاهزية الصفحة ---
 window.addEventListener('DOMContentLoaded', () => {
