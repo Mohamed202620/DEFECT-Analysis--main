@@ -91,27 +91,65 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint || '🛠️ قسم الصيانة والمهام'}</div>
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('🚨', t.m1 || 'تسجيل بلاغ', 'report')}
-      ${canAccess("pm") ? ActionBtn('📝', t.m2 || 'تسجيل PM', 'pm') : ''}
-      ${ActionBtn('📋', t.m3 || 'سجل الصيانة', 'log')}
-      ${ActionBtn('🗓️', t.m4 || 'الجدولة', 'schedule')}
-      <div class="col-span-2">${ActionBtn('📱', t.m5 || 'مسح QR الماكينات', 'qr')}</div>
+    <!-- قسم الصيانة -->
+    <div class="text-xs font-bold text-blue-400 mb-2">
+    🛠️ قسم الصيانة والمهام
     </div>
 
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secDefects || '📦 قسم تحليل عيوب الإنتاج'}</div>
     <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('📷', t.d1 || 'تصوير عيب', 'defect')}
-      ${ActionBtn('🤖', t.d2 || 'فحص AI', 'ai')}
-      ${ActionBtn('📚', t.d3 || 'قاعدة المعرفة', 'kb')}
-      ${canAccess("stats") ? ActionBtn('📊', t.d4 || 'الإحصائيات', 'stats') : ''}
-      ${canAccess("reports") ? `<div class="col-span-2">${ActionBtn('📄', t.d5 || 'تصدير التقارير', 'reports')}</div>` : ''}
+
+    ${ActionBtn('🚨','تسجيل عطل أو ملاحظة','issue')}
+
+    ${ActionBtn('💡','تسجيل اقتراح','suggestion')}
+
+    ${canAccess("pm") ? ActionBtn('📝','أعمال الصيانة الوقائية PM','pm') : ''}
+
+    ${canAccess("reports") ? ActionBtn('📊','التقارير والتصدير','reports') : ''}
+
+    <div class="col-span-2">
+    ${ActionBtn('📱','مسح QR الماكينة','qr')}
     </div>
+
+    </div>
+
+    <!-- قسم تحليل العيوب -->
+
+    <div class="text-xs font-bold text-blue-400 mb-2">
+    📦 قسم تحليل عيوب الإنتاج
+    </div>
+
+    <div class="grid grid-cols-2 gap-2.5 mb-4">
+
+    ${ActionBtn('📷','تصوير عيب','defect')}
+
+    ${ActionBtn('🤖','اكتشاف العيب','ai')}
+
+    ${ActionBtn('📚','قاعدة المعرفة','kb')}
+
+    ${canAccess("stats") ? ActionBtn('📈','الإحصائيات','stats') : ''}
+
+    </div>
+
+    <!-- الإدارة -->
 
     ${canAccess("users") ? `
-      <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers || '👥 إدارة المستخدمين'}</div>
-      ${ActionBtn('⚙️', t.u1 || 'إدارة الصلاحيات والمستخدمين (للمدير فقط)', 'users')}
+
+    <div class="text-xs font-bold text-blue-400 mb-2">
+    👨‍💼 إدارة النظام
+    </div>
+
+    <div class="grid grid-cols-2 gap-2.5">
+
+    ${ActionBtn('👥','المستخدمون','users')}
+
+    ${ActionBtn('🏭','الماكينات','machines')}
+
+    ${ActionBtn('⏳','الطلبات','requests')}
+
+    ${ActionBtn('⚙️','الإعدادات','settings')}
+
+    </div>
+
     ` : ''}
   </div>
 
