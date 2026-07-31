@@ -1,130 +1,187 @@
-import { translations } from '../config.js';
+export const IssueView = () => `
+<div class="p-4 max-w-md mx-auto space-y-4">
 
-// دالة إنشاء الأزرار مع التأكد من الربط بـ window لضمان عمل الأزرار
-const ActionBtn = (icon, label, target) => `
-  <div class="btn-action" onclick="window.navigateTo('${target}')">
-    <span class="text-xl">${icon}</span>
-    <span class="text-xs font-semibold mt-1">${label}</span>
-  </div>
-`;
-
-export const HomeView = () => {
-  // جلب اللغة الحالية المعتمدة في النظام
-  const currentLang = window.currentLang || 'ar';
-  const t = translations[currentLang] || translations['ar'];
-  
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const savedName = localStorage.getItem("name") || user.name || "مستخدم";
-  const savedRole = localStorage.getItem("role") || user.role || "tech";
-
-  // حماية بيانات الـ Dashboard من الـ Crash
-  const data = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
-
-  const roleName =
-      savedRole === "admin"
-      ? (currentLang === "ar" ? "(مدير)" : "(Admin)")
-      : savedRole === "engineer"
-      ? (currentLang === "ar" ? "(مهندس)" : "(Engineer)")
-      : (currentLang === "ar" ? "(فني)" : "(Technician)");
-
-  // دالة فحص الصلاحية آمنة في حال عدم إتاحة window.can بعد
-  const canAccess = (perm) => (typeof window.can === 'function' ? window.can(perm) : true);
-
-  return `
-  <div class="app-header">
-    <div class="text-xs font-bold flex items-center gap-2">
-      <img src="1000230635.png" class="w-6 h-6 object-contain rounded"/>
-      <span>
-        👋 ${t.welcome || 'أهلاً:'}
-        ${savedName}
-        <span class="font-normal opacity-70">
-          ${roleName}
-        </span>
-      </span>
-    </div>
-    <div class="flex gap-1.5 items-center">
-      <span class="btn-icon">
-        ${savedRole==="admin"?"👨‍💼 Admin":
-        savedRole==="engineer"?"👷 Engineer":"🔧 Technician"}
-      </span>
-      <button class="btn-icon" onclick="window.toggleLanguage()">${t.langBtn || 'EN'}</button>
-      <button class="btn-icon" onclick="window.toggleDarkMode()">🌙</button>
-    </div>
-  </div>
-
-  <div class="p-4 max-w-md mx-auto">
-    <div class="dashboard-card">
-      <div class="flex justify-between items-center text-xs font-bold mb-3">
-        <span>${t.dashTitle || '📊 لوحة المتابعة'}</span>
-        <span class="opacity-60">${t.today || 'اليوم'}</span>
-      </div>
-      <div class="grid grid-cols-4 gap-2 text-center mb-3">
-        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
-          <div class="text-lg font-bold text-orange-500">
-            ${data.open}
-          </div>
-          <div class="text-[10px] opacity-70">${t.openTickets || 'بلاغات مفتوحة'}</div>
-        </div>
-        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
-          <div class="text-lg font-bold text-red-500">
-            ${data.closed}
-          </div>
-          <div class="text-[10px] opacity-70">تم الإصلاح</div>
-        </div>
-        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
-          <div class="text-lg font-bold text-blue-500">
-            ${data.today}
-          </div>
-          <div class="text-[10px] opacity-70">${t.todayDefects || 'عيوب اليوم'}</div>
-        </div>
-        <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
-          <div class="text-lg font-bold text-green-500">
-            ${data.total}
-          </div>
-          <div class="text-[10px] opacity-70">
-            إجمالي البلاغات
-          </div>
-        </div>
-      </div>
-      <div style="height: 130px;">
-        <canvas id="chartMachines"></canvas>
-      </div>
-    </div>
-
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secMaint || '🛠️ قسم الصيانة والمهام'}</div>
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('🚨', t.m1 || 'تسجيل بلاغ', 'report')}
-      ${canAccess("pm") ? ActionBtn('📝', t.m2 || 'تسجيل PM', 'pm') : ''}
-      ${ActionBtn('📋', t.m3 || 'سجل الصيانة', 'log')}
-      ${ActionBtn('🗓️', t.m4 || 'الجدولة', 'schedule')}
-      <div class="col-span-2">${ActionBtn('📱', t.m5 || 'مسح QR الماكينات', 'qr')}</div>
-    </div>
-
-    <div class="text-xs font-bold text-blue-400 mb-2">${t.secDefects || '📦 قسم تحليل عيوب الإنتاج'}</div>
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-      ${ActionBtn('📷', t.d1 || 'تصوير عيب', 'defect')}
-      ${ActionBtn('🤖', t.d2 || 'فحص AI', 'ai')}
-      ${ActionBtn('📚', t.d3 || 'قاعدة المعرفة', 'kb')}
-      ${canAccess("stats") ? ActionBtn('📊', t.d4 || 'الإحصائيات', 'stats') : ''}
-      ${canAccess("reports") ? `<div class="col-span-2">${ActionBtn('📄', t.d5 || 'تصدير التقارير', 'reports')}</div>` : ''}
-    </div>
-
-    ${canAccess("users") ? `
-      <div class="text-xs font-bold text-blue-400 mb-2">${t.secUsers || '👥 إدارة المستخدمين'}</div>
-      ${ActionBtn('⚙️', t.u1 || 'إدارة الصلاحيات والمستخدمين (للمدير فقط)', 'users')}
-    ` : ''}
-  </div>
-
-  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2">
     <button
-      onclick="window.contactSupport()"
-      class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
-      💬 تواصل مع الدعم الفني والتطوير
+        onclick="window.navigateTo('home')"
+        class="bg-gray-700 px-3 py-2 rounded-lg text-white">
+        ⬅ رجوع
     </button>
-    <button onclick="window.logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
-      ${t.logout || 'تسجيل الخروج ➔'}
-    </button>
-    <div>${t.copy || ''}</div>
-  </footer>
-  `;
-};
+
+    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-700">
+
+        <h2 class="text-xl font-bold text-blue-400 mb-4">
+            📝 تسجيل عطل أو ملاحظة
+        </h2>
+
+        <!-- الخط -->
+
+        <label class="block mb-2 text-sm font-bold">
+            الخط
+        </label>
+
+        <select id="issueLine"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+            <option value="">اختر الخط</option>
+            <option>Line 1</option>
+            <option>Line 2</option>
+
+        </select>
+
+        <!-- الماكينة -->
+
+        <label class="block mb-2 text-sm font-bold">
+            الماكينة
+        </label>
+
+        <select id="issueMachine"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+            <option value="">اختر الماكينة</option>
+
+            <option>Coil Handling</option>
+            <option>Baler</option>
+            <option>Cupper</option>
+            <option>Bodymaker</option>
+            <option>Trimmer</option>
+            <option>Washer</option>
+            <option>Decorator</option>
+            <option>Spray</option>
+            <option>IBO</option>
+            <option>Necker</option>
+            <option>Palletizer</option>
+            <option>Depalletizer</option>
+            <option>Front End Line Control</option>
+            <option>Mid Line Control</option>
+            <option>Back End Line Control</option>
+
+        </select>
+
+        <!-- نوع البلاغ -->
+
+        <label class="block mb-2 text-sm font-bold">
+            نوع البلاغ
+        </label>
+
+        <div class="flex gap-5 mb-4">
+
+            <label>
+                <input
+                    type="radio"
+                    name="issueType"
+                    value="Breakdown"
+                    checked>
+
+                عطل
+            </label>
+
+            <label>
+
+                <input
+                    type="radio"
+                    name="issueType"
+                    value="Observation">
+
+                ملاحظة
+
+            </label>
+
+        </div>
+
+        <!-- نوع العطل -->
+
+        <label class="block mb-2 text-sm font-bold">
+            نوع العطل
+        </label>
+
+        <select id="issueCategory"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+            <option value="">اختر النوع</option>
+
+            <option>⚡ كهرباء</option>
+            <option>⚙ ميكانيكا</option>
+            <option>💻 برمجة</option>
+            <option>🦺 Safety</option>
+
+        </select>
+
+        <!-- وصف المشكلة -->
+
+        <label class="block mb-2 text-sm font-bold">
+            وصف المشكلة
+        </label>
+
+        <textarea
+            id="issueDescription"
+            rows="4"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4"
+            placeholder="اكتب وصف المشكلة"></textarea>
+
+        <!-- اقتراح الحل -->
+
+        <label class="block mb-2 text-sm font-bold">
+            اقتراح الحل (اختياري)
+        </label>
+
+        <textarea
+            id="issueSuggestion"
+            rows="3"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4"
+            placeholder="اقتراح الحل"></textarea>
+
+        <!-- بيانات المبلغ -->
+
+        <div class="bg-[#0F172A] rounded-xl p-3 border border-gray-700 mb-4">
+
+            <div class="mb-2">
+                👤
+                <b>المبلغ:</b>
+                ${localStorage.getItem("name") || ""}
+            </div>
+
+            <div class="mb-2">
+                💼
+                <b>الوظيفة:</b>
+                ${localStorage.getItem("job") || ""}
+            </div>
+
+            <div class="mb-2">
+                📅
+                <b>التاريخ:</b>
+                ${new Date().toLocaleString()}
+            </div>
+
+        </div>
+
+        <!-- الصورة -->
+
+        <label class="block mb-2 text-sm font-bold">
+
+            صورة (اختياري)
+
+        </label>
+
+        <input
+            id="issueImage"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="w-full mb-5 text-sm">
+
+        <!-- حفظ -->
+
+        <button
+
+            onclick="window.saveIssue()"
+
+            class="w-full py-3 bg-blue-600 rounded-xl font-bold text-white">
+
+            💾 حفظ وإرسال البلاغ
+
+        </button>
+
+    </div>
+
+</div>
+`;

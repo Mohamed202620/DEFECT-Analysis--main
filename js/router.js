@@ -9,6 +9,7 @@ import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
 import { RegisterView } from './views/registerView.js';
+import { IssueView } from './views/issueView.js';
 
 // 3. استيراد دوال العمليات المساعدة (Workflow)
 import { saveDefectData, handleDefectFile } from './workflow.js';
@@ -156,8 +157,8 @@ export function render() {
     if (currentPage === 'home' && typeof window.initMainChart === 'function') {
       window.initMainChart();
     }
-  } else if (currentPage === 'defect') {
-    app.innerHTML = typeof DefectView === 'function' ? DefectView() : '';
+  } else if (currentPage === 'issue') {
+    app.innerHTML = IssueView();
   } else if (currentPage === 'schedule') {
     app.innerHTML = PageView('📅 جدولة الصيانة', '<div class="bg-[#1E293B] p-6 rounded-xl border border-gray-800 text-center text-xs text-gray-400">📅 لا يوجد خطط صيانة متأخرة للأسبوع الحالي.</div>');
   } else if (currentPage === 'qr') {
@@ -437,6 +438,10 @@ window.editPermissions = async function(phone,currentRole){
         window.loadUsers();
     }
 
+}
+
+window.saveIssue = function () {
+    alert("الخطوة القادمة: ربط البلاغ بـ Google Sheets");
 }
 
 // --- 5. التشغيل عند جاهزية الصفحة ---
