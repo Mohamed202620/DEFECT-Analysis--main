@@ -57,6 +57,22 @@ export const IssueView = () => `
 
         </select>
 
+        <!-- درجة الأولوية -->
+
+        <label class="block mb-2 text-sm font-bold">
+        درجة الأولوية
+        </label>
+
+        <select
+        id="issuePriority"
+        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+        <option value="High">🔴 عالية</option>
+        <option value="Medium" selected>🟡 متوسطة</option>
+        <option value="Low">🟢 منخفضة</option>
+
+        </select>
+
         <!-- نوع البلاغ -->
 
         <label class="block mb-2 text-sm font-bold">
@@ -120,6 +136,18 @@ export const IssueView = () => `
             class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4"
             placeholder="اكتب وصف المشكلة"></textarea>
 
+        <!-- مكان العطل داخل الماكينة -->
+
+        <label class="block mb-2 text-sm font-bold">
+        مكان العطل داخل الماكينة
+        </label>
+
+        <input
+        id="issueLocation"
+        type="text"
+        placeholder="مثال: Main Motor - Sensor - Bearing"
+        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
         <!-- اقتراح الحل -->
 
         <label class="block mb-2 text-sm font-bold">
@@ -145,6 +173,11 @@ export const IssueView = () => `
         <div>🔵 <b>الشيفت:</b> ${localStorage.getItem("shift") || ""}</div>
 
         <div>📅 <b>التاريخ:</b> ${new Date().toLocaleString("ar-EG")}</div>
+
+        <div>
+        🆔 <b>رقم البلاغ:</b>
+        ${Date.now()}
+        </div>
 
         </div>
 
@@ -187,9 +220,33 @@ export const IssueView = () => `
 
         </div>
 
+        <div
+        id="imageName"
+        class="text-center text-xs text-gray-400 mb-3">
+
+        لم يتم اختيار صورة
+
+        </div>
+
         <img
         id="previewImage"
         class="hidden rounded-xl border border-gray-700 w-full mb-4"/>
+
+        <!-- حالة البلاغ -->
+
+        <label class="block mb-2 text-sm font-bold">
+
+        حالة البلاغ
+
+        </label>
+
+        <input
+
+        value="🟡 مفتوح"
+
+        readonly
+
+        class="w-full p-3 rounded-lg bg-[#111827] border border-gray-700 text-yellow-400 mb-4">
 
         <!-- حفظ -->
 
