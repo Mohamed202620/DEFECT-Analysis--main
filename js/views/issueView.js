@@ -95,14 +95,16 @@ export const IssueView = () => `
         </label>
 
         <select id="issueCategory"
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
 
-            <option value="">اختر النوع</option>
+        <option value="">اختر نوع العطل</option>
 
-            <option>⚡ كهرباء</option>
-            <option>⚙ ميكانيكا</option>
-            <option>💻 برمجة</option>
-            <option>🦺 Safety</option>
+        <option>⚡ كهرباء</option>
+        <option>⚙️ ميكانيكا</option>
+        <option>💻 برمجة</option>
+        <option>🛡️ Safety</option>
+        <option>📦 جودة</option>
+        <option>❓ أخرى</option>
 
         </select>
 
@@ -132,52 +134,72 @@ export const IssueView = () => `
 
         <!-- بيانات المبلغ -->
 
-        <div class="bg-[#0F172A] rounded-xl p-3 border border-gray-700 mb-4">
+        <div class="bg-[#0F172A] rounded-xl p-3 border border-gray-700 mb-4 space-y-2">
 
-            <div class="mb-2">
-                👤
-                <b>المبلغ:</b>
-                ${localStorage.getItem("name") || ""}
-            </div>
+        <div>👤 <b>المبلغ:</b> ${localStorage.getItem("name") || ""}</div>
 
-            <div class="mb-2">
-                💼
-                <b>الوظيفة:</b>
-                ${localStorage.getItem("job") || ""}
-            </div>
+        <div>💼 <b>الوظيفة:</b> ${localStorage.getItem("job") || ""}</div>
 
-            <div class="mb-2">
-                📅
-                <b>التاريخ:</b>
-                ${new Date().toLocaleString()}
-            </div>
+        <div>🏢 <b>القسم:</b> ${localStorage.getItem("department") || ""}</div>
+
+        <div>🔵 <b>الشيفت:</b> ${localStorage.getItem("shift") || ""}</div>
+
+        <div>📅 <b>التاريخ:</b> ${new Date().toLocaleString("ar-EG")}</div>
 
         </div>
 
         <!-- الصورة -->
 
         <label class="block mb-2 text-sm font-bold">
-
-            صورة (اختياري)
-
+        صورة (اختياري)
         </label>
 
+        <div class="grid grid-cols-2 gap-2 mb-4">
+
         <input
-            id="issueImage"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            class="w-full mb-5 text-sm">
+        id="cameraImage"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="hidden">
+
+        <button
+        onclick="document.getElementById('cameraImage').click()"
+        class="bg-blue-600 rounded-lg p-3 text-white font-bold">
+
+        📷 تصوير
+
+        </button>
+
+        <input
+        id="galleryImage"
+        type="file"
+        accept="image/*"
+        class="hidden">
+
+        <button
+        onclick="document.getElementById('galleryImage').click()"
+        class="bg-gray-700 rounded-lg p-3 text-white font-bold">
+
+        🖼️ المعرض
+
+        </button>
+
+        </div>
+
+        <img
+        id="previewImage"
+        class="hidden rounded-xl border border-gray-700 w-full mb-4"/>
 
         <!-- حفظ -->
 
         <button
 
-            onclick="window.saveIssue()"
+        onclick="window.confirmIssue()"
 
-            class="w-full py-3 bg-blue-600 rounded-xl font-bold text-white">
+        class="w-full py-3 bg-blue-600 rounded-xl font-bold text-white">
 
-            💾 حفظ وإرسال البلاغ
+        💾 حفظ وإرسال البلاغ
 
         </button>
 
