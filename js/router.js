@@ -62,7 +62,7 @@ export function renderPage(page, PageView, LogContent, currentLang) {
         return ReportsView();
     }
 
-    if (page === "suggestion") {
+    if (page === "suggestion" || page === "suggestions") {
         return SuggestionView();
     }
 
@@ -157,6 +157,8 @@ export function render() {
     if (currentPage === 'home' && typeof window.initMainChart === 'function') {
       window.initMainChart();
     }
+  } else if (currentPage === 'suggestions' || currentPage === 'suggestion') {
+    app.innerHTML = SuggestionView();
   } else if (currentPage === 'issue') {
     app.innerHTML = IssueView();
   } else if (currentPage === 'schedule') {
