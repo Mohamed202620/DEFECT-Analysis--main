@@ -1,15 +1,29 @@
-<div class="text-xs font-bold text-blue-400 mb-2">
-📦 قسم تحليل عيوب الإنتاج
+export const QualityView = () => `
+<div class="p-4 max-w-md mx-auto">
+
+<h2 class="text-blue-400 font-bold mb-3">
+📦 تحليل العيوب
+</h2>
+
+<div class="grid grid-cols-2 gap-3">
+
+<div class="btn-action" onclick="window.navigateTo('defect')">
+📷<br>تصوير عيب
 </div>
 
-<div class="grid grid-cols-2 gap-2.5 mb-4">
+<div class="btn-action" onclick="window.navigateTo('ai')">
+🤖<br>اكتشاف العيب
+</div>
 
-${ActionBtn('📷','تصوير عيب','defect')}
+<div class="btn-action" onclick="window.navigateTo('kb')">
+📚<br>قاعدة المعرفة
+</div>
 
-${ActionBtn('🤖','اكتشاف العيب','ai')}
-
-${ActionBtn('📚','قاعدة المعرفة','kb')}
-
-${canAccess("stats") ? ActionBtn('📈','الإحصائيات','stats') : ''}
+<div class="btn-action" onclick="window.navigateTo('stats')">
+📈<br>الإحصائيات
+</div>
 
 </div>
+
+</div>
+`;
