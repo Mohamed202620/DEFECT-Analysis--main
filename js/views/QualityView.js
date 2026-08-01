@@ -1,3 +1,5 @@
+import { BottomNav } from "../components/BottomNav.js";
+
 export const QualityView = () => `
 <div class="p-4 max-w-md mx-auto">
 
@@ -26,4 +28,8 @@ export const QualityView = () => `
 </div>
 
 </div>
+
+<div style="height:80px"></div>
+
+${BottomNav("quality")}
 `;
