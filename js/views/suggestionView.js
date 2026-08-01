@@ -31,6 +31,47 @@ export const SuggestionView = () => {
 
       <!-- تصنيف الكايزن -->
       <div>
+      <label class="block mb-2 text-sm font-bold">
+رقم الخط <span class="text-red-500">*</span>
+</label>
+
+<select
+id="suggestionLine"
+class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+<option value="">اختر الخط...</option>
+
+<option>Line 1</option>
+<option>Line 2</option>
+
+</select>
+<label class="block mb-2 text-sm font-bold">
+الماكينة <span class="text-red-500">*</span>
+</label>
+
+<select
+id="suggestionMachine"
+class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+
+<option value="">اختر الماكينة...</option>
+
+<option>Coil Handling</option>
+<option>Baler</option>
+<option>Cupper</option>
+<option>Bodymaker</option>
+<option>Trimmer</option>
+<option>Washer</option>
+<option>Decorator</option>
+<option>Spray</option>
+<option>IBO</option>
+<option>Necker</option>
+<option>Palletizer</option>
+<option>Depalletizer</option>
+<option>Front End Line Control</option>
+<option>Mid Line Line Control</option>
+<option>Back End Line Control</option>
+
+</select>
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Improvement Category' : 'تصنيف التحسين (مجال الكايزن)'} <span class="text-red-400">*</span>
         </label>
