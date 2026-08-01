@@ -11,6 +11,7 @@ const ActionBtn = (icon, label, target) => `
 export const HomeView = () => {
   // جلب اللغة الحالية المعتمدة في النظام
   const currentLang = window.currentLang || 'ar';
+  const isEn = currentLang === 'en';
   const t = translations[currentLang] || translations['ar'];
   
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -100,7 +101,7 @@ export const HomeView = () => {
 
     ${ActionBtn('🚨','تسجيل عطل أو ملاحظة','issue')}
 
-    ${ActionBtn('💡','تسجيل اقتراح','suggestion')}
+    ${ActionBtn('💡', isEn ? 'Kaizen Suggestions' : 'نظام كايزن', 'suggestions')}
 
     ${canAccess("pm") ? ActionBtn('📝','أعمال الصيانة الوقائية PM','pm') : ''}
 
