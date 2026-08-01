@@ -53,8 +53,7 @@ export const HomeView = () => {
     </div>
   </div>
 
-  <!-- تم إضافة pb-28 لمنع غطاء البار السفلي على أزرار الفوتر -->
-  <div class="p-4 max-w-md mx-auto pb-28">
+  <div class="p-4 max-w-md mx-auto">
     <div class="dashboard-card">
       <div class="flex justify-between items-center text-xs font-bold mb-3">
         <span>${t.dashTitle || '📊 لوحة المتابعة'}</span>
@@ -92,70 +91,11 @@ export const HomeView = () => {
         <canvas id="chartMachines"></canvas>
       </div>
     </div>
-
-    <!-- قسم الصيانة -->
-    <div class="text-xs font-bold text-blue-400 mb-2">
-    🛠️ قسم الصيانة والمهام
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-
-    ${ActionBtn('🚨','تسجيل عطل أو ملاحظة','issue')}
-
-    ${ActionBtn('💡', isEn ? 'Kaizen Suggestions' : 'نظام كايزن', 'suggestions')}
-
-    ${canAccess("pm") ? ActionBtn('📝','أعمال الصيانة الوقائية PM','pm') : ''}
-
-    ${canAccess("reports") ? ActionBtn('📊','التقارير والتصدير','reports') : ''}
-
-    <div class="col-span-2">
-    ${ActionBtn('📱','مسح QR الماكينة','qr')}
-    </div>
-
-    </div>
-
-    <!-- قسم تحليل العيوب -->
-
-    <div class="text-xs font-bold text-blue-400 mb-2">
-    📦 قسم تحليل عيوب الإنتاج
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-
-    ${ActionBtn('📷','تصوير عيب','defect')}
-
-    ${ActionBtn('🤖','اكتشاف العيب','ai')}
-
-    ${ActionBtn('📚','قاعدة المعرفة','kb')}
-
-    ${canAccess("stats") ? ActionBtn('📈','الإحصائيات','stats') : ''}
-
-    </div>
-
-    <!-- الإدارة -->
-
-    ${canAccess("users") ? `
-
-    <div class="text-xs font-bold text-blue-400 mb-2">
-    👨‍💼 إدارة النظام
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5">
-
-    ${ActionBtn('👥','المستخدمون','users')}
-
-    ${ActionBtn('🏭','الماكينات','machines')}
-
-    ${ActionBtn('⏳','الطلبات','requests')}
-
-    ${ActionBtn('⚙️','الإعدادات','settings')}
-
-    </div>
-
-    ` : ''}
   </div>
 
-  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2 pb-24">
+  <div style="height:80px"></div>
+
+  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2">
     <button
       onclick="window.contactSupport()"
       class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg cursor-pointer">
@@ -167,38 +107,48 @@ export const HomeView = () => {
     <div>${t.copy || ''}</div>
   </footer>
 
-  <!-- Bottom Navigation (شريط التنقل السفلي المعدل للاستجابة) -->
-  <div class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-700 z-[999]">
+  <div class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-700 z-50">
+
       <div class="grid grid-cols-4 text-center">
 
-          <div onclick="window.navigateTo('home')" class="py-3 text-blue-400 cursor-pointer select-none active:opacity-70">
-              <div class="text-xl">🏠</div>
-              <div class="text-[11px]">${isEn ? 'Home' : 'الرئيسية'}</div>
-          </div>
+          <button
+              onclick="window.navigateTo('home')"
+              class="py-3 text-blue-400 cursor-pointer">
 
-          <div onclick="window.navigateTo('maintenance')" class="py-3 text-gray-400 hover:text-white cursor-pointer select-none active:opacity-70">
-              <div class="text-xl">🛠️</div>
-              <div class="text-[11px]">${isEn ? 'Maintenance' : 'الصيانة'}</div>
-          </div>
+              <div class="text-2xl">🏠</div>
+              <div class="text-xs">الرئيسية</div>
 
-          <div onclick="window.navigateTo('quality')" class="py-3 text-gray-400 hover:text-white cursor-pointer select-none active:opacity-70">
-              <div class="text-xl">📦</div>
-              <div class="text-[11px]">${isEn ? 'Defects' : 'العيوب'}</div>
-          </div>
+          </button>
 
-          ${canAccess("users") ? `
-          <div onclick="window.navigateTo('system')" class="py-3 text-gray-400 hover:text-white cursor-pointer select-none active:opacity-70">
-              <div class="text-xl">👨‍💼</div>
-              <div class="text-[11px]">${isEn ? 'System' : 'الإدارة'}</div>
-          </div>
-          ` : `
-          <div onclick="window.navigateTo('settings')" class="py-3 text-gray-400 hover:text-white cursor-pointer select-none active:opacity-70">
-              <div class="text-xl">⚙️</div>
-              <div class="text-[11px]">${isEn ? 'Settings' : 'الإعدادات'}</div>
-          </div>
-          `}
+          <button
+              onclick="window.navigateTo('maintenance')"
+              class="py-3 cursor-pointer">
+
+              <div class="text-2xl">🛠️</div>
+              <div class="text-xs">الصيانة</div>
+
+          </button>
+
+          <button
+              onclick="window.navigateTo('quality')"
+              class="py-3 cursor-pointer">
+
+              <div class="text-2xl">📦</div>
+              <div class="text-xs">العيوب</div>
+
+          </button>
+
+          <button
+              onclick="window.navigateTo('system')"
+              class="py-3 cursor-pointer">
+
+              <div class="text-2xl">👨‍💼</div>
+              <div class="text-xs">الإدارة</div>
+
+          </button>
 
       </div>
+
   </div>
   `;
 };
