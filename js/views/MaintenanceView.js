@@ -1,3 +1,5 @@
+import { BottomNav } from "../components/BottomNav.js";
+
 export const MaintenanceView = () => `
 <div class="p-4 max-w-md mx-auto">
 
@@ -30,4 +32,8 @@ export const MaintenanceView = () => `
 </div>
 
 </div>
+
+<div style="height:80px"></div>
+
+${BottomNav("maintenance")}
 `;
