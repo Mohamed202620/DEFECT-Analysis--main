@@ -1,19 +1,33 @@
-<div class="text-xs font-bold text-blue-400 mb-2">
-🛠️ قسم الصيانة والمهام
+export const MaintenanceView = () => `
+<div class="p-4 max-w-md mx-auto">
+
+<h2 class="text-blue-400 font-bold mb-3">
+🛠️ قسم الصيانة
+</h2>
+
+<div class="grid grid-cols-2 gap-3">
+
+<div class="btn-action" onclick="window.navigateTo('issue')">
+🚨<br>تسجيل عطل
 </div>
 
-<div class="grid grid-cols-2 gap-2.5 mb-4">
+<div class="btn-action" onclick="window.navigateTo('suggestions')">
+💡<br>نظام كايزن
+</div>
 
-${ActionBtn('🚨','تسجيل عطل أو ملاحظة','issue')}
+<div class="btn-action" onclick="window.navigateTo('pm')">
+📝<br>الصيانة الوقائية
+</div>
 
-${ActionBtn('💡', isEn ? 'Kaizen Suggestions' : 'نظام كايزن', 'suggestions')}
+<div class="btn-action" onclick="window.navigateTo('reports')">
+📊<br>التقارير
+</div>
 
-${canAccess("pm") ? ActionBtn('📝','أعمال الصيانة الوقائية PM','pm') : ''}
-
-${canAccess("reports") ? ActionBtn('📊','التقارير والتصدير','reports') : ''}
-
-<div class="col-span-2">
-${ActionBtn('📱','مسح QR الماكينة','qr')}
+<div class="col-span-2 btn-action" onclick="window.navigateTo('qr')">
+📱<br>QR الماكينة
 </div>
 
 </div>
+
+</div>
+`;
