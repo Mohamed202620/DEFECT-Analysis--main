@@ -2,9 +2,9 @@ import { translations } from '../config.js';
 
 // دالة إنشاء الأزرار مع التأكد من الربط بـ window لضمان عمل الأزرار
 const ActionBtn = (icon, label, target) => `
-  <div class="btn-action" onclick="window.navigateTo('${target}')">
-    <span class="text-xl">${icon}</span>
-    <span class="text-xs font-semibold mt-1">${label}</span>
+  <div class="btn-action cursor-pointer p-3 bg-[#0E1117] border border-gray-800 rounded-xl flex flex-col items-center justify-center hover:border-blue-500 transition active:scale-95" onclick="window.navigateTo('${target}')">
+    <span class="text-2xl mb-1">${icon}</span>
+    <span class="text-xs font-semibold text-center">${label}</span>
   </div>
 `;
 
@@ -28,11 +28,9 @@ export const HomeView = () => {
       ? (currentLang === "ar" ? "(مهندس)" : "(Engineer)")
       : (currentLang === "ar" ? "(فني)" : "(Technician)");
 
-  // دالة فحص الصلاحية آمنة في حال عدم إتاحة window.can بعد
-  const canAccess = (perm) => (typeof window.can === 'function' ? window.can(perm) : true);
-
   return `
-  <div class="app-header">
+  <!-- الهيدر العلوي -->
+  <div class="app-header flex justify-between items-center p-3 bg-[#111827] border-b border-gray-800">
     <div class="text-xs font-bold flex items-center gap-2">
       <img src="1000230635.png" class="w-6 h-6 object-contain rounded"/>
       <span>
@@ -44,17 +42,20 @@ export const HomeView = () => {
       </span>
     </div>
     <div class="flex gap-1.5 items-center">
-      <span class="btn-icon">
+      <span class="btn-icon text-xs bg-gray-800 px-2 py-1 rounded">
         ${savedRole==="admin"?"👨‍💼 Admin":
         savedRole==="engineer"?"👷 Engineer":"🔧 Technician"}
       </span>
-      <button class="btn-icon" onclick="window.toggleLanguage()">${t.langBtn || 'EN'}</button>
-      <button class="btn-icon" onclick="window.toggleDarkMode()">🌙</button>
+      <button class="btn-icon p-1 bg-gray-800 rounded" onclick="window.toggleLanguage()">${t.langBtn || 'EN'}</button>
+      <button class="btn-icon p-1 bg-gray-800 rounded" onclick="window.toggleDarkMode()">🌙</button>
     </div>
   </div>
 
-  <div class="p-4 max-w-md mx-auto pb-20">
-    <div class="dashboard-card">
+  <!-- محتوى الصفحة الرئيسية -->
+  <div class="p-4 max-w-md mx-auto pb-24">
+    
+    <!-- كارت الإحصائيات -->
+    <div class="dashboard-card bg-[#111827] p-3 rounded-xl border border-gray-800 mb-4">
       <div class="flex justify-between items-center text-xs font-bold mb-3">
         <span>${t.dashTitle || '📊 لوحة المتابعة'}</span>
         <span class="opacity-60">${t.today || 'اليوم'}</span>
@@ -92,101 +93,55 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <!-- قسم الصيانة -->
+    <!-- أزرار الإجراءات السريعة الهامة فقط -->
     <div class="text-xs font-bold text-blue-400 mb-2">
-    🛠️ ${isEn ? 'Maintenance & Tasks Section' : 'قسم الصيانة والمهام'}
+      ⚡ ${isEn ? 'Quick Actions' : 'إجراءات سريعة'}
     </div>
 
     <div class="grid grid-cols-2 gap-2.5 mb-4">
-
-    ${ActionBtn('🚨', isEn ? 'Report Issue' : 'تسجيل عطل أو ملاحظة','issue')}
-
-    ${ActionBtn('💡', isEn ? 'Kaizen Suggestions' : 'نظام كايزن', 'suggestions')}
-
-    ${canAccess("pm") ? ActionBtn('📝', isEn ? 'Preventive Maint. (PM)' : 'أعمال الصيانة الوقائية PM','pm') : ''}
-
-    ${canAccess("reports") ? ActionBtn('📊', isEn ? 'Reports & Export' : 'التقارير والتصدير','reports') : ''}
-
-    <div class="col-span-2">
-    ${ActionBtn('📱', isEn ? 'Scan Machine QR' : 'مسح QR الماكينة','qr')}
+      ${ActionBtn('🚨', isEn ? 'Report Issue' : 'تسجيل عطل أو ملاحظة', 'issue')}
+      ${ActionBtn('📷', isEn ? 'Capture Defect' : 'تصوير عيب', 'defect')}
+      
+      <div class="col-span-2">
+        ${ActionBtn('📱', isEn ? 'Scan Machine QR' : 'مسح QR الماكينة', 'qr')}
+      </div>
     </div>
 
-    </div>
-
-    <!-- قسم تحليل العيوب -->
-
-    <div class="text-xs font-bold text-blue-400 mb-2">
-    📦 ${isEn ? 'Defects Analysis Section' : 'قسم تحليل عيوب الإنتاج'}
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5 mb-4">
-
-    ${ActionBtn('📷', isEn ? 'Capture Defect' : 'تصوير عيب','defect')}
-
-    ${ActionBtn('🤖', isEn ? 'AI Detection' : 'اكتشاف العيب','ai')}
-
-    ${ActionBtn('📚', isEn ? 'Knowledge Base' : 'قاعدة المعرفة','kb')}
-
-    ${canAccess("stats") ? ActionBtn('📈', isEn ? 'Statistics' : 'الإحصائيات','stats') : ''}
-
-    </div>
-
-    <!-- الإدارة -->
-
-    ${canAccess("users") ? `
-
-    <div class="text-xs font-bold text-blue-400 mb-2">
-    👨‍💼 ${isEn ? 'System Management' : 'إدارة النظام'}
-    </div>
-
-    <div class="grid grid-cols-2 gap-2.5">
-
-    ${ActionBtn('👥', isEn ? 'Users' : 'المستخدمون','users')}
-
-    ${ActionBtn('🏭', isEn ? 'Machines' : 'الماكينات','machines')}
-
-    ${ActionBtn('⏳', isEn ? 'Requests' : 'الطلبات','requests')}
-
-    ${ActionBtn('⚙️', isEn ? 'Settings' : 'الإعدادات','settings')}
-
-    </div>
-
-    ` : ''}
+    <!-- الفوتر مع زر التواصل والدعم -->
+    <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2">
+      <button
+        onclick="window.contactSupport()"
+        class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
+        💬 ${isEn ? 'Contact Support & Development' : 'تواصل مع الدعم الفني والتطوير'}
+      </button>
+      <button onclick="window.logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
+        ${t.logout || 'تسجيل الخروج ➔'}
+      </button>
+      <div>${t.copy || ''}</div>
+    </footer>
   </div>
 
-  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2 pb-24">
-    <button
-      onclick="window.contactSupport()"
-      class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
-      💬 ${isEn ? 'Contact Support & Development' : 'تواصل مع الدعم الفني والتطوير'}
-    </button>
-    <button onclick="window.logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
-      ${t.logout || 'تسجيل الخروج ➔'}
-    </button>
-    <div>${t.copy || ''}</div>
-  </footer>
-
-  <!-- Bottom Navigation -->
+  <!-- Bottom Navigation (شريط التنقل السفلي الثابت) -->
   <div class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-700 z-50">
       <div class="grid grid-cols-4 text-center">
-          <button onclick="window.navigateTo('home')" class="py-3 text-blue-400">
+          <button onclick="window.navigateTo('home')" class="py-2.5 text-blue-400 flex flex-col items-center justify-center">
               <div class="text-xl">🏠</div>
-              <div class="text-[11px]">${isEn ? 'Home' : 'الرئيسية'}</div>
+              <div class="text-[10px] font-medium">${isEn ? 'Home' : 'الرئيسية'}</div>
           </button>
 
-          <button onclick="window.navigateTo('maintenance')" class="py-3 text-gray-400 hover:text-white">
+          <button onclick="window.navigateTo('maintenance')" class="py-2.5 text-gray-400 hover:text-white flex flex-col items-center justify-center">
               <div class="text-xl">🛠️</div>
-              <div class="text-[11px]">${isEn ? 'Maintenance' : 'الصيانة'}</div>
+              <div class="text-[10px] font-medium">${isEn ? 'Maintenance' : 'الصيانة'}</div>
           </button>
 
-          <button onclick="window.navigateTo('quality')" class="py-3 text-gray-400 hover:text-white">
+          <button onclick="window.navigateTo('quality')" class="py-2.5 text-gray-400 hover:text-white flex flex-col items-center justify-center">
               <div class="text-xl">📦</div>
-              <div class="text-[11px]">${isEn ? 'Defects' : 'العيوب'}</div>
+              <div class="text-[10px] font-medium">${isEn ? 'Defects' : 'العيوب'}</div>
           </button>
 
-          <button onclick="window.navigateTo('system')" class="py-3 text-gray-400 hover:text-white">
+          <button onclick="window.navigateTo('system')" class="py-2.5 text-gray-400 hover:text-white flex flex-col items-center justify-center">
               <div class="text-xl">👨‍💼</div>
-              <div class="text-[11px]">${isEn ? 'System' : 'الإدارة'}</div>
+              <div class="text-[10px] font-medium">${isEn ? 'System' : 'الإدارة'}</div>
           </button>
       </div>
   </div>
