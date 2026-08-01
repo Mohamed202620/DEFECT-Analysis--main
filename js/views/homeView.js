@@ -53,7 +53,7 @@ export const HomeView = () => {
     </div>
   </div>
 
-  <div class="p-4 max-w-md mx-auto">
+  <div class="p-4 max-w-md mx-auto pb-20">
     <div class="dashboard-card">
       <div class="flex justify-between items-center text-xs font-bold mb-3">
         <span>${t.dashTitle || '📊 لوحة المتابعة'}</span>
@@ -70,7 +70,7 @@ export const HomeView = () => {
           <div class="text-lg font-bold text-red-500">
             ${data.closed}
           </div>
-          <div class="text-[10px] opacity-70">تم الإصلاح</div>
+          <div class="text-[10px] opacity-70">${isEn ? 'Repaired' : 'تم الإصلاح'}</div>
         </div>
         <div class="bg-[#0E1117] p-2 rounded-lg border border-gray-800">
           <div class="text-lg font-bold text-blue-500">
@@ -83,7 +83,7 @@ export const HomeView = () => {
             ${data.total}
           </div>
           <div class="text-[10px] opacity-70">
-            إجمالي البلاغات
+            ${isEn ? 'Total Tickets' : 'إجمالي البلاغات'}
           </div>
         </div>
       </div>
@@ -94,21 +94,21 @@ export const HomeView = () => {
 
     <!-- قسم الصيانة -->
     <div class="text-xs font-bold text-blue-400 mb-2">
-    🛠️ قسم الصيانة والمهام
+    🛠️ ${isEn ? 'Maintenance & Tasks Section' : 'قسم الصيانة والمهام'}
     </div>
 
     <div class="grid grid-cols-2 gap-2.5 mb-4">
 
-    ${ActionBtn('🚨','تسجيل عطل أو ملاحظة','issue')}
+    ${ActionBtn('🚨', isEn ? 'Report Issue' : 'تسجيل عطل أو ملاحظة','issue')}
 
     ${ActionBtn('💡', isEn ? 'Kaizen Suggestions' : 'نظام كايزن', 'suggestions')}
 
-    ${canAccess("pm") ? ActionBtn('📝','أعمال الصيانة الوقائية PM','pm') : ''}
+    ${canAccess("pm") ? ActionBtn('📝', isEn ? 'Preventive Maint. (PM)' : 'أعمال الصيانة الوقائية PM','pm') : ''}
 
-    ${canAccess("reports") ? ActionBtn('📊','التقارير والتصدير','reports') : ''}
+    ${canAccess("reports") ? ActionBtn('📊', isEn ? 'Reports & Export' : 'التقارير والتصدير','reports') : ''}
 
     <div class="col-span-2">
-    ${ActionBtn('📱','مسح QR الماكينة','qr')}
+    ${ActionBtn('📱', isEn ? 'Scan Machine QR' : 'مسح QR الماكينة','qr')}
     </div>
 
     </div>
@@ -116,18 +116,18 @@ export const HomeView = () => {
     <!-- قسم تحليل العيوب -->
 
     <div class="text-xs font-bold text-blue-400 mb-2">
-    📦 قسم تحليل عيوب الإنتاج
+    📦 ${isEn ? 'Defects Analysis Section' : 'قسم تحليل عيوب الإنتاج'}
     </div>
 
     <div class="grid grid-cols-2 gap-2.5 mb-4">
 
-    ${ActionBtn('📷','تصوير عيب','defect')}
+    ${ActionBtn('📷', isEn ? 'Capture Defect' : 'تصوير عيب','defect')}
 
-    ${ActionBtn('🤖','اكتشاف العيب','ai')}
+    ${ActionBtn('🤖', isEn ? 'AI Detection' : 'اكتشاف العيب','ai')}
 
-    ${ActionBtn('📚','قاعدة المعرفة','kb')}
+    ${ActionBtn('📚', isEn ? 'Knowledge Base' : 'قاعدة المعرفة','kb')}
 
-    ${canAccess("stats") ? ActionBtn('📈','الإحصائيات','stats') : ''}
+    ${canAccess("stats") ? ActionBtn('📈', isEn ? 'Statistics' : 'الإحصائيات','stats') : ''}
 
     </div>
 
@@ -136,34 +136,59 @@ export const HomeView = () => {
     ${canAccess("users") ? `
 
     <div class="text-xs font-bold text-blue-400 mb-2">
-    👨‍💼 إدارة النظام
+    👨‍💼 ${isEn ? 'System Management' : 'إدارة النظام'}
     </div>
 
     <div class="grid grid-cols-2 gap-2.5">
 
-    ${ActionBtn('👥','المستخدمون','users')}
+    ${ActionBtn('👥', isEn ? 'Users' : 'المستخدمون','users')}
 
-    ${ActionBtn('🏭','الماكينات','machines')}
+    ${ActionBtn('🏭', isEn ? 'Machines' : 'الماكينات','machines')}
 
-    ${ActionBtn('⏳','الطلبات','requests')}
+    ${ActionBtn('⏳', isEn ? 'Requests' : 'الطلبات','requests')}
 
-    ${ActionBtn('⚙️','الإعدادات','settings')}
+    ${ActionBtn('⚙️', isEn ? 'Settings' : 'الإعدادات','settings')}
 
     </div>
 
     ` : ''}
   </div>
 
-  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2">
+  <footer class="text-center p-4 text-[11px] opacity-60 border-t border-gray-800 mt-6 space-y-2 pb-24">
     <button
       onclick="window.contactSupport()"
       class="w-full py-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-xs text-white transition shadow-lg">
-      💬 تواصل مع الدعم الفني والتطوير
+      💬 ${isEn ? 'Contact Support & Development' : 'تواصل مع الدعم الفني والتطوير'}
     </button>
     <button onclick="window.logout()" class="w-full py-2 bg-red-600 hover:bg-red-700 active:scale-95 rounded-lg font-bold text-xs text-white transition my-2">
       ${t.logout || 'تسجيل الخروج ➔'}
     </button>
     <div>${t.copy || ''}</div>
   </footer>
+
+  <!-- Bottom Navigation -->
+  <div class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-700 z-50">
+      <div class="grid grid-cols-4 text-center">
+          <button onclick="window.navigateTo('home')" class="py-3 text-blue-400">
+              <div class="text-xl">🏠</div>
+              <div class="text-[11px]">${isEn ? 'Home' : 'الرئيسية'}</div>
+          </button>
+
+          <button onclick="window.navigateTo('maintenance')" class="py-3 text-gray-400 hover:text-white">
+              <div class="text-xl">🛠️</div>
+              <div class="text-[11px]">${isEn ? 'Maintenance' : 'الصيانة'}</div>
+          </button>
+
+          <button onclick="window.navigateTo('quality')" class="py-3 text-gray-400 hover:text-white">
+              <div class="text-xl">📦</div>
+              <div class="text-[11px]">${isEn ? 'Defects' : 'العيوب'}</div>
+          </button>
+
+          <button onclick="window.navigateTo('system')" class="py-3 text-gray-400 hover:text-white">
+              <div class="text-xl">👨‍💼</div>
+              <div class="text-[11px]">${isEn ? 'System' : 'الإدارة'}</div>
+          </button>
+      </div>
+  </div>
   `;
 };
