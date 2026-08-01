@@ -1,19 +1,29 @@
-${canAccess("users") ? `
+export const SystemView = () => `
+<div class="p-4 max-w-md mx-auto">
 
-<div class="text-xs font-bold text-blue-400 mb-2">
+<h2 class="text-blue-400 font-bold mb-3">
 👨‍💼 إدارة النظام
+</h2>
+
+<div class="grid grid-cols-2 gap-3">
+
+<div class="btn-action" onclick="window.navigateTo('users')">
+👥<br>المستخدمون
 </div>
 
-<div class="grid grid-cols-2 gap-2.5">
+<div class="btn-action" onclick="window.navigateTo('machines')">
+🏭<br>الماكينات
+</div>
 
-${ActionBtn('👥','المستخدمون','users')}
+<div class="btn-action" onclick="window.navigateTo('requests')">
+⏳<br>الطلبات
+</div>
 
-${ActionBtn('🏭','الماكينات','machines')}
-
-${ActionBtn('⏳','الطلبات','requests')}
-
-${ActionBtn('⚙️','الإعدادات','settings')}
+<div class="btn-action" onclick="window.navigateTo('settings')">
+⚙️<br>الإعدادات
+</div>
 
 </div>
 
-` : ''}
+</div>
+`;
