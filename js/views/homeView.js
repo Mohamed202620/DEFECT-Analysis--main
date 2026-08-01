@@ -1,4 +1,5 @@
 import { translations } from '../config.js';
+import { BottomNav } from "../components/BottomNav.js";
 
 // دالة إنشاء الأزرار مع التأكد من الربط بـ window لضمان عمل الأزرار
 const ActionBtn = (icon, label, target) => `
@@ -107,48 +108,6 @@ export const HomeView = () => {
     <div>${t.copy || ''}</div>
   </footer>
 
-  <div class="fixed bottom-0 left-0 right-0 bg-[#111827] border-t border-gray-700 z-50">
-
-      <div class="grid grid-cols-4 text-center">
-
-          <button
-              onclick="window.navigateTo('home')"
-              class="py-3 text-blue-400 cursor-pointer">
-
-              <div class="text-2xl">🏠</div>
-              <div class="text-xs">الرئيسية</div>
-
-          </button>
-
-          <button
-              onclick="window.navigateTo('maintenance')"
-              class="py-3 cursor-pointer">
-
-              <div class="text-2xl">🛠️</div>
-              <div class="text-xs">الصيانة</div>
-
-          </button>
-
-          <button
-              onclick="window.navigateTo('quality')"
-              class="py-3 cursor-pointer">
-
-              <div class="text-2xl">📦</div>
-              <div class="text-xs">العيوب</div>
-
-          </button>
-
-          <button
-              onclick="window.navigateTo('system')"
-              class="py-3 cursor-pointer">
-
-              <div class="text-2xl">👨‍💼</div>
-              <div class="text-xs">الإدارة</div>
-
-          </button>
-
-      </div>
-
-  </div>
+  ${BottomNav("home")}
   `;
 };
