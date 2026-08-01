@@ -10,6 +10,9 @@ import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
 import { RegisterView } from './views/registerView.js';
 import { IssueView } from './views/issueView.js';
+import { MaintenanceView } from './views/MaintenanceView.js';
+import { QualityView } from './views/QualityView.js';
+import { SystemView } from './views/SystemView.js';
 
 // 3. استيراد دوال العمليات المساعدة (Workflow)
 import { saveDefectData, handleDefectFile } from './workflow.js';
@@ -48,6 +51,18 @@ export function renderPage(page, PageView, LogContent, currentLang) {
 
     if (page === "home") {
         return HomeView();
+    }
+
+    if (page === "maintenance") {
+        return MaintenanceView();
+    }
+
+    if (page === "quality") {
+        return QualityView();
+    }
+
+    if (page === "system") {
+        return SystemView();
     }
 
     if (page === "report") {
@@ -252,8 +267,6 @@ export async function doLogin() {
   try {
     const result = await login(phone, pass);
     
-    console.log(result);
-
     if (result.status === "success") {
       localStorage.setItem("phone", phone);
       localStorage.setItem("name", result.name);
