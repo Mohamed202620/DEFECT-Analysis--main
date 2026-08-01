@@ -92,6 +92,55 @@ export const HomeView = () => {
         <canvas id="chartMachines"></canvas>
       </div>
     </div>
+
+    <!-- الأقسام الرئيسية -->
+    <div class="grid grid-cols-2 gap-4 mt-5">
+
+      <div onclick="window.navigateTo('maintenance')"
+      class="bg-[#1E293B] rounded-3xl p-6 text-center border border-blue-700 active:scale-95 transition cursor-pointer">
+        <div class="text-5xl mb-3">🛠️</div>
+        <div class="font-bold text-lg">
+          قسم الصيانة
+        </div>
+        <div class="text-xs opacity-70 mt-2">
+          الأعطال - PM - كايزن - QR
+        </div>
+      </div>
+
+      <div onclick="window.navigateTo('quality')"
+      class="bg-[#1E293B] rounded-3xl p-6 text-center border border-green-700 active:scale-95 transition cursor-pointer">
+        <div class="text-5xl mb-3">📦</div>
+        <div class="font-bold text-lg">
+          قسم الجودة
+        </div>
+        <div class="text-xs opacity-70 mt-2">
+          تحليل العيوب والذكاء الصناعي
+        </div>
+      </div>
+
+      <div onclick="window.navigateTo('system')"
+      class="bg-[#1E293B] rounded-3xl p-6 text-center border border-orange-700 active:scale-95 transition cursor-pointer">
+        <div class="text-5xl mb-3">⚙️</div>
+        <div class="font-bold text-lg">
+          إدارة النظام
+        </div>
+        <div class="text-xs opacity-70 mt-2">
+          المستخدمون والإعدادات
+        </div>
+      </div>
+
+      <div onclick="window.navigateTo('reports')"
+      class="bg-[#1E293B] rounded-3xl p-6 text-center border border-purple-700 active:scale-95 transition cursor-pointer">
+        <div class="text-5xl mb-3">📊</div>
+        <div class="font-bold text-lg">
+          التقارير
+        </div>
+        <div class="text-xs opacity-70 mt-2">
+          الإحصائيات والتصدير
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <div style="height:80px"></div>
