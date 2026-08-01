@@ -1,6 +1,37 @@
 export const SuggestionView = () => {
   const isEn = window.currentLang === 'en';
 
+  // معالجة عملية الإرسال
+  window.handleKaizenSubmit = (event) => {
+    event.preventDefault();
+
+    const data = {
+      title: document.getElementById("suggestionTitle").value,
+      line: document.getElementById("suggestionLine").value,
+      machine: document.getElementById("suggestionMachine").value,
+      category: document.getElementById("suggestionCategory").value,
+      problem: document.getElementById("suggestionProblem").value,
+      solution: document.getElementById("suggestionSolution").value,
+      impact: document.getElementById("suggestionImpact").value,
+
+      // بيانات المستخدم تُرسل تلقائياً
+      name: localStorage.getItem("name"),
+      job: localStorage.getItem("job"),
+      department: localStorage.getItem("department"),
+      shift: localStorage.getItem("shift"),
+      role: localStorage.getItem("role"),
+      phone: localStorage.getItem("phone"),
+
+      anonymous: document.getElementById("anonymousSuggestion").checked,
+      date: new Date().toISOString()
+    };
+
+    console.log("Kaizen Data Submitted:", data);
+
+    alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
+    window.navigateTo('home');
+  };
+
   return `
   <div class="p-4 max-w-lg mx-auto">
     <!-- زر الرجوع -->
@@ -19,63 +50,53 @@ export const SuggestionView = () => {
     </div>
     
     <!-- نموذج الكايزن -->
-    <form onsubmit="event.preventDefault(); alert('${isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅'}'); window.navigateTo('home');" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
+    <form onsubmit="window.handleKaizenSubmit(event)" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
       
       <!-- عنوان المقترح -->
       <div>
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Suggestion Title / Idea' : 'عنوان المقترح / الفكرة'} <span class="text-red-400">*</span>
         </label>
-        <input type="text" required placeholder="${isEn ? 'e.g., Reduce packing time...' : 'مثال: تقليل وقت التغليف...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
+        <input type="text" id="suggestionTitle" required placeholder="${isEn ? 'e.g., Reduce packing time...' : 'مثال: تقليل وقت التغليف...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
       </div>
 
       <!-- تصنيف الكايزن -->
       <div>
-      <label class="block mb-2 text-sm font-bold">
-رقم الخط <span class="text-red-500">*</span>
-</label>
+        <label class="block mb-2 text-sm font-bold">
+          ${isEn ? 'Line Number' : 'رقم الخط'} <span class="text-red-500">*</span>
+        </label>
+        <select id="suggestionLine" required class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+          <option value="">${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
+          <option>Line 1</option>
+          <option>Line 2</option>
+        </select>
 
-<select
-id="suggestionLine"
-class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+        <label class="block mb-2 text-sm font-bold">
+          ${isEn ? 'Machine' : 'الماكينة'} <span class="text-red-500">*</span>
+        </label>
+        <select id="suggestionMachine" required class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
+          <option value="">${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
+          <option>Coil Handling</option>
+          <option>Baler</option>
+          <option>Cupper</option>
+          <option>Bodymaker</option>
+          <option>Trimmer</option>
+          <option>Washer</option>
+          <option>Decorator</option>
+          <option>Spray</option>
+          <option>IBO</option>
+          <option>Necker</option>
+          <option>Palletizer</option>
+          <option>Depalletizer</option>
+          <option>Front End Line Control</option>
+          <option>Mid Line Line Control</option>
+          <option>Back End Line Control</option>
+        </select>
 
-<option value="">اختر الخط...</option>
-
-<option>Line 1</option>
-<option>Line 2</option>
-
-</select>
-<label class="block mb-2 text-sm font-bold">
-الماكينة <span class="text-red-500">*</span>
-</label>
-
-<select
-id="suggestionMachine"
-class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4">
-
-<option value="">اختر الماكينة...</option>
-
-<option>Coil Handling</option>
-<option>Baler</option>
-<option>Cupper</option>
-<option>Bodymaker</option>
-<option>Trimmer</option>
-<option>Washer</option>
-<option>Decorator</option>
-<option>Spray</option>
-<option>IBO</option>
-<option>Necker</option>
-<option>Palletizer</option>
-<option>Depalletizer</option>
-<option>Front End Line Control</option>
-<option>Mid Line Line Control</option>
-<option>Back End Line Control</option>
-
-</select>
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Improvement Category' : 'تصنيف التحسين (مجال الكايزن)'} <span class="text-red-400">*</span>
         </label>
-        <select required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
+        <select id="suggestionCategory" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
           <option value="" disabled selected>${isEn ? 'Select category...' : 'اختر التصنيف...'}</option>
           <option value="productivity">${isEn ? '⏱️ Efficiency & Productivity' : '⏱️ زيادة الإنتاجية والكفاءة'}</option>
           <option value="quality">${isEn ? '🎯 Quality Improvement' : '🎯 تحسين الجودة'}</option>
@@ -90,7 +111,7 @@ class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Current Situation (The Problem)' : 'الوضع الحالي (المشكلة / الهدر)'} <span class="text-red-400">*</span>
         </label>
-        <textarea required placeholder="${isEn ? 'Describe current problem or waste...' : 'صف المشكلة الحالية أو الهدر الموجود...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500"></textarea>
+        <textarea id="suggestionProblem" required placeholder="${isEn ? 'Describe current problem or waste...' : 'صف المشكلة الحالية أو الهدر الموجود...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500"></textarea>
       </div>
 
       <!-- الحل المقترح -->
@@ -98,7 +119,7 @@ class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Proposed Kaizen Solution' : 'الحل المقترح (طريقة التحسين)'} <span class="text-red-400">*</span>
         </label>
-        <textarea required placeholder="${isEn ? 'Describe your proposed solution...' : 'اكتب خطوات الحل أو الفكرة الجديدة...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500"></textarea>
+        <textarea id="suggestionSolution" required placeholder="${isEn ? 'Describe your proposed solution...' : 'اكتب خطوات الحل أو الفكرة الجديدة...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500"></textarea>
       </div>
 
       <!-- الأثر المتوقع -->
@@ -106,7 +127,7 @@ class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Expected Impact (Optional)' : 'الأثر المتوقع (اختياري)'}
         </label>
-        <input type="text" placeholder="${isEn ? 'e.g., Saves 15 mins daily, reduces defects...' : 'مثال: توفير 15 دقيقة يومياً، تقليل الأخطاء...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
+        <input type="text" id="suggestionImpact" placeholder="${isEn ? 'e.g., Saves 15 mins daily, reduces defects...' : 'مثال: توفير 15 دقيقة يومياً، تقليل الأخطاء...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500">
       </div>
 
       <!-- مرفقات وصور -->
@@ -114,13 +135,13 @@ class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white mb-4
         <label class="block text-xs font-bold text-gray-300 mb-1">
           ${isEn ? 'Attach Photo / File (Optional)' : 'إرفاق صورة أو مستند (قبل / بعد)'}
         </label>
-        <input type="file" accept="image/*,.pdf" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-blue-400 hover:file:bg-gray-700 cursor-pointer">
+        <input type="file" id="suggestionFile" accept="image/*,.pdf" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-blue-400 hover:file:bg-gray-700 cursor-pointer">
       </div>
 
       <!-- إرسال مجهول -->
       <div class="flex items-center gap-2 pt-1">
-        <input type="checkbox" id="anonymous" class="rounded bg-[#0E1117] border-gray-700 text-blue-600 focus:ring-0">
-        <label for="anonymous" class="text-xs text-gray-400 cursor-pointer">
+        <input type="checkbox" id="anonymousSuggestion" class="rounded bg-[#0E1117] border-gray-700 text-blue-600 focus:ring-0">
+        <label for="anonymousSuggestion" class="text-xs text-gray-400 cursor-pointer">
           ${isEn ? 'Submit anonymously' : 'إرسال المقترح بدون إظهار اسمي'}
         </label>
       </div>
