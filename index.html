@@ -91,22 +91,9 @@ window.addEventListener("unhandledrejection", function (e) {
 </script>
 
 <script type="module">
-import "./js/router.js";
-
-console.log("✅ router loaded");
-
-window.onerror = function(message, source, line, col, error){
-    alert(
-`ERROR:
-${message}
-
-FILE:
-${source}
-
-LINE:
-${line}`
-    );
-};
-</script> 
+    alert("بدأ تحميل router");
+    import "./js/router.js";
+    alert("تم تحميل router");
+</script>
 </body>
 </html>
