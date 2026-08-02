@@ -90,9 +90,11 @@ export const HomeView = () => {
         ${t.langBtn || 'EN'}
       </button>
       
-      <!-- زر الوضع الليلي المحدث مع دالة لتحديث الثيم فوريًا -->
-      <button class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:opacity-80 transition text-sm" onclick="if(window.toggleDarkMode) { window.toggleDarkMode(); }">
-        🌙
+      <!-- زر الوضع الليلي المحدث -->
+      <button
+      class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer"
+      onclick="window.toggleDarkMode()">
+      🌙
       </button>
       
       <button class="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all shadow-sm" 
@@ -137,11 +139,15 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <h3 class="text-sm font-bold mb-3 px-2 flex items-center gap-2" style="color: var(--app-text)">⚡ الوصول السريع</h3>
+    <!-- الجزء الخاص بالأزرار السريعة المحدث -->
+    <h3 class="text-sm font-bold mb-3 px-2 flex items-center gap-2" style="color: var(--app-text)">
+    ⚡ الوصول السريع
+    </h3>
+
     <div class="grid grid-cols-3 gap-3 mb-8">
-      ${QuickActionBtn('🚨', 'تسجيل عطل', 'maintenance_new')}
-      ${QuickActionBtn('📷', 'تصوير عيب', 'quality_new')}
-      ${QuickActionBtn('📱', 'مسح QR', 'qr_scan')}
+      ${QuickActionBtn('🚨', 'تسجيل عطل', 'maintenance')}
+      ${QuickActionBtn('📷', 'تصوير عيب', 'quality')}
+      ${QuickActionBtn('📱', 'مسح QR', 'qr')}
     </div>
 
     <!-- الفوتر -->
@@ -157,6 +163,8 @@ export const HomeView = () => {
       </div>
     </div>
   </div>
+
+  <div class="pb-24"></div>
 
   ${BottomNav("home")}
   `;
