@@ -1,8 +1,9 @@
-// 1. استيراد الإعدادات والترجمات والخدمات
-import { GOOGLE_SCRIPT_URL, translations } from './config.js';
+// 1. استيراد الإعدادات والترجمات والواجهات (Views)
+import { translations } from './config.js';
 import { login } from './auth/login.js';
+import { fetchUsers, updatePermissionsApi, registerUserApi } from './services/api.js';
 
-// 2. استيراد الواجهات من مجلد views الفرعي
+// استيراد الواجهات من مجلد views الفرعي
 import { HomeView } from './views/homeView.js';
 import { PMView } from './views/pmView.js';
 import { ReportView } from './views/reportView.js';
@@ -26,12 +27,9 @@ export let mainChart = null;
 export let statsChart = null;
 
 function hasPermission(permission){
-
     if(currentRole === "admin")
         return true;
-
     return currentPermissions.includes(permission);
-
 }
 
 // مزامنة حالة اللغة والداتا على window فوراً
@@ -40,73 +38,34 @@ window.dashboardData = window.dashboardData || { open: 0, closed: 0, today: 0, t
 
 // --- دالة التوجيه والعرض الخارجية ---
 export function renderPage(page, PageView, LogContent, currentLang) {
-
-    if (page === "login") {
-        return LoginView();
-    }
-
-    if (page === "register") {
-        return RegisterView();
-    }
-
-    if (page === "home") {
-        return HomeView();
-    }
-
-    if (page === "maintenance") {
-        return MaintenanceView();
-    }
-
-    if (page === "quality") {
-        return QualityView();
-    }
-
-    if (page === "system") {
-        return SystemView();
-    }
-
-    if (page === "report") {
-        return ReportView();
-    }
-
-    if (page === "pm") {
-        return PMView();
-    }
-
-    if (page === "reports") {
-        return ReportsView();
-    }
-
-    if (page === "suggestion" || page === "suggestions") {
-        return SuggestionView();
-    }
-
-    if (page === "log") {
-        return PageView("📋 سجل الصيانة", LogContent());
-    }
-
+    if (page === "login") return LoginView();
+    if (page === "register") return RegisterView();
+    if (page === "home") return HomeView();
+    if (page === "maintenance") return MaintenanceView();
+    if (page === "quality") return QualityView();
+    if (page === "system") return SystemView();
+    if (page === "report") return ReportView();
+    if (page === "pm") return PMView();
+    if (page === "reports") return ReportsView();
+    if (page === "suggestion" || page === "suggestions") return SuggestionView();
+    if (page === "log") return PageView("📋 سجل الصيانة", LogContent());
     return "";
 }
 
 // --- الدوال الأساسية للتنقل واللغة ---
-
 export function navigateTo(page) {
-
   if (page === "users" && !hasPermission("users")) {
     alert("ليس لديك صلاحية إدارة المستخدمين");
     return;
   }
-
   if (page === "reports" && !hasPermission("reports")) {
     alert("ليس لديك صلاحية عرض التقارير");
     return;
   }
-
   if (page === "pm" && !hasPermission("pm")) {
     alert("ليس لديك صلاحية تسجيل الصيانة");
     return;
   }
-
   if (page === "stats" && !hasPermission("stats")) {
     alert("ليس لديك صلاحية عرض الإحصائيات");
     return;
@@ -120,12 +79,11 @@ export function navigateTo(page) {
 
   render();
   window.scrollTo(0,0);
-
 }
 
 export function toggleLanguage() {
   currentLang = currentLang === 'ar' ? 'en' : 'ar';
-  window.currentLang = currentLang; // تحديث الحالة العامة
+  window.currentLang = currentLang;
   
   const htmlTag = document.getElementById('html-tag');
   if (htmlTag) {
@@ -134,21 +92,19 @@ export function toggleLanguage() {
   }
   render();
 }
+
 export function toggleDarkMode() {
-  // تبديل الكلاس dark في الـ body والـ html
   const isDark = document.body.classList.toggle('dark');
   document.documentElement.classList.toggle('dark', isDark);
-  
-  // حفظ الحالة
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
 
-  // تحديث سمات الألوان المباشرة للعناصر النشطة حالياً بدون إعادة تحميل الصفحة بالكامل
   if (isDark) {
     document.body.style.setProperty('--app-main-bg', '#0f172a');
   } else {
     document.body.style.setProperty('--app-main-bg', '#f3f4f6');
   }
 }
+
 export function logout() {
   localStorage.removeItem("phone");
   localStorage.removeItem("name");
@@ -174,7 +130,6 @@ export function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  // استدعاء renderPage لصفحات النظام المحددة
   const pageHtml = renderPage(currentPage, PageView, LogContent, currentLang);
 
   if (pageHtml) {
@@ -202,11 +157,7 @@ export function render() {
         "👥 إدارة المستخدمين والصلاحيات",
         `
         <div class="space-y-3">
-        <button
-        onclick="window.loadUsers()"
-        class="w-full bg-blue-600 rounded-lg p-3 font-bold">
-        عرض المستخدمين
-        </button>
+        <button onclick="window.loadUsers()" class="w-full bg-blue-600 rounded-lg p-3 font-bold">عرض المستخدمين</button>
         <div id="usersContainer"></div>
         </div>
         `
@@ -250,15 +201,14 @@ const LoginView = () => `
       </div>
       <button id="loginBtn" onclick="window.doLogin()" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg">دخول</button>
 
-      <button
-          onclick="window.navigateTo('register')"
-          class="w-full py-3 mt-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg">
+      <button onclick="window.navigateTo('register')" class="w-full py-3 mt-3 bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg">
           ➕ إنشاء حساب جديد
       </button>
     </div>
   </div>
 `;
 
+// --- دوال العمليات المربطوة بالـ API الخارجي ---
 export async function doLogin() {
   const phone = document.getElementById("loginPhone")?.value.trim();
   const pass = document.getElementById("loginPass")?.value.trim();
@@ -303,9 +253,7 @@ export async function doLogin() {
 }
 
 export async function registerUser() {
-
   const data = {
-    action: "register",
     name: document.getElementById("regName").value.trim(),
     phone: document.getElementById("regPhone").value.trim(),
     password: document.getElementById("regPass").value,
@@ -315,15 +263,7 @@ export async function registerUser() {
     code: document.getElementById("regCode").value.trim()
   };
 
-  if (
-    !data.name ||
-    !data.phone ||
-    !data.password ||
-    !data.confirmPassword ||
-    !data.job ||
-    !data.department ||
-    !data.code
-  ) {
+  if (!data.name || !data.phone || !data.password || !data.confirmPassword || !data.job || !data.department || !data.code) {
     alert("يرجى إدخال جميع البيانات");
     return;
   }
@@ -334,32 +274,17 @@ export async function registerUser() {
   }
 
   try {
-
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify(data)
-    });
-
-    const result = await response.json();
-
+    const result = await registerUserApi(data);
     alert(result.message);
-
     if (result.status === "success") {
       window.navigateTo("login");
     }
-
   } catch (e) {
-
     alert("تعذر الاتصال بالخادم");
-
   }
-
 }
 
-// --- 4. ربط جميع الدوال بـ Window لضمان استجابة الأحداث ---
+// --- 4. ربط الدوال بـ Window لضمان استجابة الأحداث ---
 window.navigateTo = navigateTo;
 window.toggleLanguage = toggleLanguage;
 window.toggleDarkMode = toggleDarkMode;
@@ -372,97 +297,45 @@ window.handleDefectFile = handleDefectFile;
 window.render = render;
 
 window.can = function(permission){
-
-    if(currentRole === "admin")
-        return true;
-
+    if(currentRole === "admin") return true;
     return currentPermissions.includes(permission);
-
 }
 
 window.loadUsers = async function () {
+    const data = await fetchUsers();
+    if(data.status !== "success") return;
 
-    const res = await fetch(GOOGLE_SCRIPT_URL,{
-        method:"POST",
-        headers:{
-            "Content-Type":"text/plain"
-        },
-        body:JSON.stringify({
-            action:"getUsers"
-        })
-    });
-
-    const data = await res.json();
-
-    if(data.status!="success") return;
-
-    let html="";
-
-    data.users.forEach(u=>{
-
-        html+=`
-        <div class="bg-[#1E293B] rounded-xl p-3 mb-3">
-
+    let html = "";
+    data.users.forEach(u => {
+        html += `
+        <div class="bg-[#1E293B] rounded-xl p-3 mb-3 text-white text-xs">
             <div><b>${u.name}</b></div>
-
             <div>${u.phone}</div>
-
             <div>${u.role}</div>
-
-            <button
-            class="mt-3 w-full bg-green-600 p-2 rounded"
-            onclick="window.editPermissions('${u.phone}','${u.role}')">
-
+            <button class="mt-3 w-full bg-green-600 p-2 rounded text-white font-bold" onclick="window.editPermissions('${u.phone}','${u.role}')">
             تعديل الصلاحيات
-
             </button>
-
         </div>
         `;
-
     });
 
-    document.getElementById("usersContainer").innerHTML=html;
-
+    const container = document.getElementById("usersContainer");
+    if (container) container.innerHTML = html;
 }
 
-window.editPermissions = async function(phone,currentRole){
-
-    const role = prompt(
-        "أدخل الدور الجديد:\nadmin\nengineer\ntech",
-        currentRole
-    );
-
+window.editPermissions = async function(phone, currentRoleVal){
+    const role = prompt("أدخل الدور الجديد:\nadmin\nengineer\ntech", currentRoleVal);
     if(!role) return;
 
-    const permissions = prompt(
-        "أدخل الصلاحيات\nمثال:\nall\nأو\nreports,pm,users",
-        "all"
-    );
+    const permissions = prompt("أدخل الصلاحيات\nمثال:\nall\nأو\nreports,pm,users", "all");
+    if(permissions === null) return;
 
-    if(permissions===null) return;
-
-    const res = await fetch(GOOGLE_SCRIPT_URL,{
-        method:"POST",
-        headers:{
-            "Content-Type":"text/plain"
-        },
-        body:JSON.stringify({
-            action:"updatePermissions",
-            phone:phone,
-            role:role.toLowerCase(),
-            permissions:permissions
-        })
-    });
-
-    const data = await res.json();
-
+    const data = await updatePermissionsApi(phone, role.toLowerCase(), permissions);
     alert(data.message);
 
-    if(data.status=="success"){
+    if(data.status === "success"){
         window.loadUsers();
     }
-
 }
 
 window.saveIssue = function () {
@@ -470,31 +343,23 @@ window.saveIssue = function () {
 }
 
 document.addEventListener("change", function (e) {
-
     if (e.target.id === "cameraImage" || e.target.id === "galleryImage") {
-
         const file = e.target.files[0];
-
         if (!file) return;
 
-        document.getElementById("imageName").innerHTML = file.name;
+        const nameEl = document.getElementById("imageName");
+        if (nameEl) nameEl.innerHTML = file.name;
 
         const reader = new FileReader();
-
         reader.onload = function () {
-
             const img = document.getElementById("previewImage");
-
-            img.src = reader.result;
-
-            img.classList.remove("hidden");
-
+            if (img) {
+                img.src = reader.result;
+                img.classList.remove("hidden");
+            }
         };
-
         reader.readAsDataURL(file);
-
     }
-
 });
 
 // --- 5. التشغيل عند جاهزية الصفحة ---
@@ -519,6 +384,14 @@ window.addEventListener('DOMContentLoaded', () => {
     currentPage = 'home';
   } else {
     currentPage = 'login';
+  }
+
+  // تفعيل الثيم المحفوظ مسبقاً فور الفتح
+  const savedTheme = localStorage.getItem('theme');
+  if (savedTheme === 'dark') {
+    document.body.classList.add('dark');
+    document.documentElement.classList.add('dark');
+    document.body.style.setProperty('--app-main-bg', '#0f172a');
   }
 
   render();
