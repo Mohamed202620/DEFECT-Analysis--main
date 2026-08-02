@@ -28,9 +28,7 @@ export const HomeView = () => {
   return `
   <style>
     :root {
-      /* لون الخلفية الأساسي للشاشة بالكامل */
       --app-main-bg: #f3f4f6; 
-      
       --app-header-bg: rgba(255, 255, 255, 0.95);
       --app-card-bg: #ffffff;
       --app-card-inner: #f9fafb;
@@ -45,10 +43,9 @@ export const HomeView = () => {
       --app-icon-bg: #f3f4f6;
     }
     
-    .dark, body.dark, .dark-mode, [data-theme="dark"] {
-      /* لون الخلفية الأساسي للشاشة بالكامل في الوضع الليلي */
+    /* دعم شامل لكل احتمالات كلاسات الوضع الليلي في تطبيقك */
+    .dark, body.dark, .dark-mode, [data-theme="dark"], html.dark, html[data-theme="dark"] {
       --app-main-bg: #0f172a; 
-      
       --app-header-bg: rgba(14, 17, 23, 0.9);
       --app-card-bg: rgba(30, 41, 59, 0.4);
       --app-card-inner: rgba(0, 0, 0, 0.2);
@@ -63,7 +60,6 @@ export const HomeView = () => {
       --app-icon-bg: rgba(255, 255, 255, 0.05);
     }
 
-    /* إجبار خلفية الموقع بالكامل على التغير لتجنب التعارض في الصورة */
     body, html, #app, .app-container {
       background-color: var(--app-main-bg) !important;
       transition: background-color 0.3s ease;
@@ -93,7 +89,9 @@ export const HomeView = () => {
       <button class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:opacity-80 transition text-xs font-bold" onclick="window.toggleLanguage()">
         ${t.langBtn || 'EN'}
       </button>
-      <button class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:opacity-80 transition text-sm" onclick="window.toggleDarkMode()">
+      
+      <!-- زر الوضع الليلي المحدث مع دالة لتحديث الثيم فوريًا -->
+      <button class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:opacity-80 transition text-sm" onclick="if(window.toggleDarkMode) { window.toggleDarkMode(); }">
         🌙
       </button>
       
