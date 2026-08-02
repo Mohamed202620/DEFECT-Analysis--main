@@ -80,6 +80,16 @@
   <div id="app"></div>
 
   <!-- App Scripts (تأكيد الاستدلال كـ module) -->
-  <script type="module" src="js/router.js"></script>
+  <script>
+window.addEventListener("error", function (e) {
+    console.error("Application Error:", e.error || e.message);
+});
+
+window.addEventListener("unhandledrejection", function (e) {
+    console.error("Promise Error:", e.reason);
+});
+</script>
+
+<script type="module" src="js/router.js"></script> 
 </body>
 </html>
