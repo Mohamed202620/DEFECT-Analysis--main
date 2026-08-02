@@ -25,6 +25,10 @@ export const HomeView = () => {
       ? (currentLang === "ar" ? "مهندس" : "Engineer")
       : (currentLang === "ar" ? "فني" : "Technician");
 
+  // تحديد أيقونة الوضع الليلي بناءً على الحالة المحفوظة
+  const isDarkMode = localStorage.getItem('theme') === 'dark';
+  const themeIcon = isDarkMode ? '☀️' : '🌙';
+
   return `
   <style>
     :root {
@@ -90,11 +94,11 @@ export const HomeView = () => {
         ${t.langBtn || 'EN'}
       </button>
       
-      <!-- زر الوضع الليلي المحدث -->
+      <!-- زر الوضع الليلي المحدث بأيقونة تفاعلية وتحديث فوري للواجهة -->
       <button
-      class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer"
-      onclick="window.toggleDarkMode()">
-      🌙
+        class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer"
+        onclick="window.toggleDarkMode(); window.render();">
+        ${themeIcon}
       </button>
       
       <button class="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all shadow-sm" 
