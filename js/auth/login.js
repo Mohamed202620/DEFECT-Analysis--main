@@ -1,11 +1,26 @@
-import { apiRequest } from "../services/api.js";
+// استيراد دالة الاتصال العامة
+import { apiRequest } from '../services/api.js';
 
-export async function login(phone, password) {
+/**
+ * خدمة تسجيل الدخول
+ * @param {string} phone - رقم الموبايل
+ * @param {string} pass - كلمة السر
+ * @returns {Promise<Object>} - نتيجة عملية تسجيل الدخول
+ */
+export async function login(phone, pass) {
+  if (!phone || !pass) {
+    return {
+      status: "error",
+      message: "أدخل رقم الموبايل وكلمة السر"
+    };
+  }
 
-    return await apiRequest({
-        action: "login",
-        phone,
-        password
-    });
+  // إرسال طلب تسجيل الدخول للسيرفر
+  const result = await apiRequest({
+    action: "login", // تأكد من مطابقتها للـ Backend في Google Apps Script
+    phone: phone,
+    password: pass
+  });
 
+  return result;
 }
