@@ -176,7 +176,7 @@ const LogContent = () => `
       <tr class="border-b border-gray-800/50"><td class="p-2.5 font-mono">#1023</td><td class="p-2.5">خط الدهان 1</td><td class="p-2.5 text-green-400 font-bold">تم الإصلاح 🟢</td></tr>
     </table>
   </div>
-';
+`; // تم تعديل علامة التنصيص المفردة هنا إلى (Backtick)
 
 
 // --- دوال العمليات المربطوة بالـ API الخارجي ---
@@ -375,4 +375,4 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 800);
 });
-alert("router loaded"); 
+// تم إزالة alert("router loaded"); من هنا لعدم إزعاج المستخدم
