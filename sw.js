@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maint-system-v1';
+const CACHE_NAME = 'maint-system-v1'; // تم تعديل Const إلى const
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,17 +8,18 @@ const ASSETS_TO_CACHE = [
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
 
-// Install Event
+// حدث التثبيت (Install Event)
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // محاولة إضافة الملفات للكاش
+      return cache.addAll(ASSETS_TO_CACHE).catch(err => console.error("فشل إضافة بعض الملفات للكاش:", err));
     })
   );
-  self.skipWaiting();
+  self.skipWaiting(); // تفعيل النسخة الجديدة فوراً
 });
 
-// Activate Event
+// حدث التفعيل (Activate Event) لتنظيف الكاش القديم
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => {
@@ -31,11 +32,12 @@ self.addEventListener('activate', (e) => {
       );
     })
   );
-  self.clients.claim();
+  self.clients.claim(); // السيطرة على كل الصفحات المفتوحة فوراً
 });
 
-// Fetch Event
+// حدث جلب البيانات (Fetch Event)
 self.addEventListener('fetch', (e) => {
+  // استراتيجية Cache-First: ابحث في الكاش أولاً، وإن لم تجده اطلبه من الإنترنت
   e.respondWith(
     caches.match(e.request).then((cachedResponse) => {
       return cachedResponse || fetch(e.request);
