@@ -7,22 +7,40 @@ export const BottomNav = (activeTab) => {
   ];
 
   return `
-    <div class="fixed bottom-4 left-4 right-4 bg-white/95 dark:bg-[#0E1117]/90 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-3xl flex justify-around items-center p-2 shadow-[0_10px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_30px_rgba(0,0,0,0.5)] z-50">
+    <style>
+      :root {
+        --nav-bg: rgba(255, 255, 255, 0.95);
+        --nav-border: #e5e7eb;
+        --nav-item-hover: #f3f4f6;
+        --nav-active-bg: #eff6ff; 
+        --nav-active-border: #bfdbfe; 
+        --nav-active-text: #1d4ed8; 
+        --nav-text: #6b7280;
+      }
+      .dark, body.dark, .dark-mode, [data-theme="dark"] {
+        --nav-bg: rgba(14, 17, 23, 0.95);
+        --nav-border: rgba(255, 255, 255, 0.1);
+        --nav-item-hover: rgba(255, 255, 255, 0.05);
+        --nav-active-bg: rgba(59, 130, 246, 0.2);
+        --nav-active-border: rgba(59, 130, 246, 0.3);
+        --nav-active-text: #93c5fd; 
+        --nav-text: #9ca3af;
+      }
+      
+      .dyn-nav { background-color: var(--nav-bg); border-color: var(--nav-border); }
+      .dyn-nav-item { border-color: transparent; color: var(--nav-text); }
+      .dyn-nav-item:hover { background-color: var(--nav-item-hover); }
+      .dyn-nav-active { background-color: var(--nav-active-bg); border-color: var(--nav-active-border); color: var(--nav-active-text); }
+    </style>
+
+    <div class="dyn-nav fixed bottom-4 left-4 right-4 backdrop-blur-xl border rounded-3xl flex justify-around items-center p-2 shadow-lg z-50 transition-colors duration-300">
       ${navItems.map(item => {
         const isActive = activeTab === item.id;
         
-        // الألوان تختلف حسب الحالة (نشط/غير نشط) وحسب الوضع (فاتح/ليلي)
-        const activeContainerClass = isActive 
-          ? 'bg-blue-100 dark:bg-blue-500/20 border-blue-200 dark:border-blue-500/30 scale-110 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
-          : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5 hover:scale-105';
-          
-        const activeIconClass = isActive 
-          ? 'text-3xl drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]' 
-          : 'text-2xl opacity-80 dark:opacity-70';
-          
-        const activeTextClass = isActive 
-          ? 'text-blue-700 dark:text-blue-300 font-bold' 
-          : 'text-gray-500 dark:text-gray-400 font-medium';
+        // استخدام الكلاسات المربوطة بالمتغيرات
+        const activeContainerClass = isActive ? 'dyn-nav-active scale-110 shadow-sm' : 'dyn-nav-item hover:scale-105';
+        const activeIconClass = isActive ? 'text-3xl drop-shadow-sm' : 'text-2xl opacity-80';
+        const activeTextClass = isActive ? 'font-bold' : 'font-medium';
 
         return `
           <div onclick="window.navigateTo('${item.id}')" 
