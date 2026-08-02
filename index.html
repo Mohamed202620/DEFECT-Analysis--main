@@ -79,21 +79,36 @@
   <!-- App Main Container -->
   <div id="app"></div>
 
-  <!-- App Scripts (تأكيد الاستدلال كـ module) -->
+  <!-- App Scripts -->
   <script>
-window.addEventListener("error", function (e) {
-    console.error("Application Error:", e.error || e.message);
-});
+    // تتبع أخطاء التطبيق
+    window.addEventListener("error", function (e) {
+        console.error("Application Error:", e.error || e.message);
+    });
 
-window.addEventListener("unhandledrejection", function (e) {
-    console.error("Promise Error:", e.reason);
-});
-</script>
+    window.addEventListener("unhandledrejection", function (e) {
+        console.error("Promise Error:", e.reason);
+    });
 
-<script type="module">
-    alert("بدأ تحميل router");
-    import "./js/router.js";
-    alert("تم تحميل router");
-</script>
+    // تسجيل الـ Service Worker لتفعيل خصائص الـ PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          })
+          .catch(err => {
+            console.error('ServiceWorker registration failed: ', err);
+          });
+      });
+    }
+  </script>
+
+  <!-- تحميل ملف التوجيه الأساسي -->
+  <script type="module">
+      console.log("جاري تحميل router...");
+      import "./js/router.js";
+      console.log("تم تحميل router بنجاح.");
+  </script>
 </body>
 </html>
