@@ -136,7 +136,17 @@ export function toggleLanguage() {
 }
 
 export function toggleDarkMode() {
-  document.body.classList.toggle('light-mode');
+  // التبديل بين الوضع الليلي والوضع الفاتح على مستوى الـ body والمستند بالكامل
+  const isDark = document.body.classList.toggle('dark');
+  document.documentElement.classList.toggle('dark', isDark);
+  
+  // حفظ تفضيل المستخدم في التخزين المحلي
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+
+  // إعادة تصيير الصفحة فوراً لتحديث الألوان والمتغيرات
+  render();
+}
+
 }
 
 export function logout() {
