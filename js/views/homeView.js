@@ -1,11 +1,11 @@
 import { translations } from '../config.js';
 import { BottomNav } from "../components/BottomNav.js";
 
-// دالة أزرار الوصول السريع
+// دالة أزرار الوصول السريع متوافقة مع الوضعين
 const QuickActionBtn = (icon, label, target) => `
-  <div class="bg-[#1E293B]/60 backdrop-blur-md rounded-2xl p-4 text-center border border-white/10 active:scale-95 transition-all cursor-pointer hover:bg-white/10 shadow-sm" onclick="window.navigateTo('${target}')">
+  <div class="bg-white dark:bg-[#1E293B]/60 backdrop-blur-md rounded-2xl p-4 text-center border border-gray-200 dark:border-white/10 active:scale-95 transition-all cursor-pointer hover:bg-gray-50 dark:hover:bg-white/10 shadow-sm" onclick="window.navigateTo('${target}')">
     <div class="text-3xl mb-2 drop-shadow-md">${icon}</div>
-    <div class="font-bold text-xs text-gray-200">${label}</div>
+    <div class="font-bold text-xs text-gray-800 dark:text-gray-200">${label}</div>
   </div>
 `;
 
@@ -27,26 +27,25 @@ export const HomeView = () => {
       : (currentLang === "ar" ? "فني" : "Technician");
 
   return `
-  <!-- الهيدر -->
-  <div class="flex justify-between items-center p-4 border-b border-white/10 bg-[#0E1117]/80 backdrop-blur-xl sticky top-0 z-50">
+  <!-- الهيدر متوافق مع الوضعين -->
+  <div class="flex justify-between items-center p-4 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#0E1117]/80 backdrop-blur-xl sticky top-0 z-50">
     <div class="flex items-center gap-3">
-      <img src="1000230635.png" class="w-8 h-8 object-contain rounded-full border border-white/20 shadow-sm"/>
+      <img src="1000230635.png" class="w-8 h-8 object-contain rounded-full border border-gray-200 dark:border-white/20 shadow-sm"/>
       <div class="flex flex-col">
-        <span class="text-xs font-bold text-gray-100">👋 ${t.welcome || 'أهلاً'} ${savedName}</span>
-        <span class="text-[10px] text-gray-400">${roleName}</span>
+        <span class="text-xs font-bold text-gray-800 dark:text-gray-100">👋 ${t.welcome || 'أهلاً'} ${savedName}</span>
+        <span class="text-[10px] text-gray-500 dark:text-gray-400">${roleName}</span>
       </div>
     </div>
     
     <div class="flex gap-2 items-center">
-      <button class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition text-xs font-bold" onclick="window.toggleLanguage()">
+      <button class="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition text-xs font-bold text-gray-700 dark:text-white" onclick="window.toggleLanguage()">
         ${t.langBtn || 'EN'}
       </button>
-      <button class="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-white/10 transition text-sm" onclick="window.toggleDarkMode()">
+      <button class="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-center cursor-pointer hover:bg-gray-200 dark:hover:bg-white/10 transition text-sm" onclick="window.toggleDarkMode()">
         🌙
       </button>
       
-      <!-- زر تسجيل الخروج المُحسن (أيقونة احترافية واضحة) -->
-      <button class="w-8 h-8 rounded-full bg-red-500/20 border border-red-500/40 text-red-400 flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.2)]" onclick="window.logout()" title="${t.logout || 'تسجيل الخروج'}">
+      <button class="w-8 h-8 rounded-full bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/40 text-red-500 dark:text-red-400 flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all shadow-[0_0_10px_rgba(239,68,68,0.2)]" onclick="window.logout()" title="${t.logout || 'تسجيل الخروج'}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
         </svg>
@@ -56,29 +55,29 @@ export const HomeView = () => {
 
   <div class="p-4 max-w-md mx-auto pb-28">
     
-    <!-- كارت الإحصائيات -->
-    <div class="bg-[#1E293B]/40 backdrop-blur-lg rounded-3xl p-5 border border-white/5 mb-6 shadow-lg">
+    <!-- كارت الإحصائيات متوافق مع الوضعين -->
+    <div class="bg-white dark:bg-[#1E293B]/40 backdrop-blur-lg rounded-3xl p-5 border border-gray-200 dark:border-white/5 mb-6 shadow-lg">
       <div class="flex justify-between items-center text-xs font-bold mb-5">
-        <span class="text-gray-200">${t.dashTitle || '📊 لوحة المتابعة'}</span>
-        <span class="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full text-[10px]">${t.today || 'اليوم'}</span>
+        <span class="text-gray-800 dark:text-gray-200">${t.dashTitle || '📊 لوحة المتابعة'}</span>
+        <span class="bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-300 px-3 py-1 rounded-full text-[10px] font-bold">${t.today || 'اليوم'}</span>
       </div>
       
       <div class="grid grid-cols-4 gap-2 text-center mb-5">
-        <div class="bg-black/20 p-3 rounded-2xl border border-white/5">
-          <div class="text-xl font-black text-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]">${data.open}</div>
-          <div class="text-[9px] text-gray-400 mt-1">${t.openTickets || 'مفتوحة'}</div>
+        <div class="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm dark:shadow-none">
+          <div class="text-xl font-black text-orange-500 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]">${data.open}</div>
+          <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">${t.openTickets || 'مفتوحة'}</div>
         </div>
-        <div class="bg-black/20 p-3 rounded-2xl border border-white/5">
-          <div class="text-xl font-black text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">${data.closed}</div>
-          <div class="text-[9px] text-gray-400 mt-1">إصلاح</div>
+        <div class="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm dark:shadow-none">
+          <div class="text-xl font-black text-red-500 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">${data.closed}</div>
+          <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">إصلاح</div>
         </div>
-        <div class="bg-black/20 p-3 rounded-2xl border border-white/5">
-          <div class="text-xl font-black text-blue-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">${data.today}</div>
-          <div class="text-[9px] text-gray-400 mt-1">${t.todayDefects || 'العيوب'}</div>
+        <div class="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm dark:shadow-none">
+          <div class="text-xl font-black text-blue-500 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">${data.today}</div>
+          <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">${t.todayDefects || 'العيوب'}</div>
         </div>
-        <div class="bg-black/20 p-3 rounded-2xl border border-white/5">
-          <div class="text-xl font-black text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]">${data.total}</div>
-          <div class="text-[9px] text-gray-400 mt-1">الإجمالي</div>
+        <div class="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm dark:shadow-none">
+          <div class="text-xl font-black text-green-500 drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(34,197,94,0.5)]">${data.total}</div>
+          <div class="text-[9px] text-gray-500 dark:text-gray-400 mt-1">الإجمالي</div>
         </div>
       </div>
       <div style="height: 130px;" class="w-full">
@@ -86,22 +85,23 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <h3 class="text-sm font-bold mb-3 text-gray-300 px-2 flex items-center gap-2">⚡ الوصول السريع</h3>
+    <!-- عنوان الوصول السريع متوافق مع الوضعين -->
+    <h3 class="text-sm font-bold mb-3 text-gray-800 dark:text-gray-300 px-2 flex items-center gap-2">⚡ الوصول السريع</h3>
     <div class="grid grid-cols-3 gap-3 mb-8">
       ${QuickActionBtn('🚨', 'تسجيل عطل', 'maintenance_new')}
       ${QuickActionBtn('📷', 'تصوير عيب', 'quality_new')}
       ${QuickActionBtn('📱', 'مسح QR', 'qr_scan')}
     </div>
 
-    <!-- الفوتر الجديد (تم إبراز زر الدعم الفني) -->
+    <!-- الفوتر متوافق مع الوضعين -->
     <div class="flex flex-col items-center space-y-4 mt-6">
       <button
         onclick="window.contactSupport()"
-        class="flex items-center justify-center gap-2 w-[80%] py-3 bg-blue-600/20 hover:bg-blue-600/40 active:scale-95 rounded-full border border-blue-500/30 text-xs font-bold text-blue-200 transition-all backdrop-blur-md shadow-[0_0_15px_rgba(37,99,235,0.15)] cursor-pointer">
+        class="flex items-center justify-center gap-2 w-[80%] py-3 bg-blue-100 dark:bg-blue-600/20 hover:bg-blue-200 dark:hover:bg-blue-600/40 active:scale-95 rounded-full border border-blue-200 dark:border-blue-500/30 text-xs font-bold text-blue-700 dark:text-blue-200 transition-all backdrop-blur-md shadow-[0_0_15px_rgba(37,99,235,0.15)] cursor-pointer">
         💬 تواصل مع الدعم الفني
       </button>
       
-      <div class="text-[10px] text-gray-500 opacity-60">
+      <div class="text-[10px] text-gray-400 dark:text-gray-500">
         ${t.copy || 'جميع الحقوق محفوظة'}
       </div>
     </div>
