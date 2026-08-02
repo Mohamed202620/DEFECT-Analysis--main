@@ -16,8 +16,18 @@ export async function apiRequest(payload) {
       body: JSON.stringify(payload)
     });
 
-    const result = await response.json();
-    return result;
+    const textResponse = await response.text();
+    
+    try {
+      // محاولة تحليل النص إلى JSON بأمان
+      return JSON.parse(textResponse);
+    } catch (parseError) {
+      console.error("API Non-JSON Response:", textResponse);
+      return {
+        status: "error",
+        message: "استجابة غير صالحة من الخادم."
+      };
+    }
   } catch (error) {
     console.error("API Request Error:", error);
     return {
@@ -55,4 +65,3 @@ export async function registerUserApi(userData) {
     ...userData
   });
 }
-console.log("✅ api.js loaded");
