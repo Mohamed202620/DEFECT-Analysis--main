@@ -404,3 +404,4 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, 800);
 });
+console.log("✅ router.js loaded");
