@@ -1,7 +1,6 @@
 import { translations } from '../config.js';
 import { BottomNav } from "../components/BottomNav.js";
 
-// دالة أزرار الوصول السريع المربوطة بالمتغيرات الديناميكية
 const QuickActionBtn = (icon, label, target) => `
   <div class="dyn-btn backdrop-blur-md rounded-2xl p-4 text-center border active:scale-95 transition-all cursor-pointer shadow-sm" onclick="window.navigateTo('${target}')">
     <div class="text-3xl mb-2 drop-shadow-md">${icon}</div>
@@ -27,9 +26,11 @@ export const HomeView = () => {
       : (currentLang === "ar" ? "فني" : "Technician");
 
   return `
-  <!-- ستايل ديناميكي مضمون 100% متوافق مع أي نظام للـ Dark Mode -->
   <style>
     :root {
+      /* لون الخلفية الأساسي للشاشة بالكامل */
+      --app-main-bg: #f3f4f6; 
+      
       --app-header-bg: rgba(255, 255, 255, 0.95);
       --app-card-bg: #ffffff;
       --app-card-inner: #f9fafb;
@@ -44,8 +45,10 @@ export const HomeView = () => {
       --app-icon-bg: #f3f4f6;
     }
     
-    /* بمجرد تحول الـ body للوضع الليلي، تتغير كل الألوان تلقائياً */
     .dark, body.dark, .dark-mode, [data-theme="dark"] {
+      /* لون الخلفية الأساسي للشاشة بالكامل في الوضع الليلي */
+      --app-main-bg: #0f172a; 
+      
       --app-header-bg: rgba(14, 17, 23, 0.9);
       --app-card-bg: rgba(30, 41, 59, 0.4);
       --app-card-inner: rgba(0, 0, 0, 0.2);
@@ -60,7 +63,12 @@ export const HomeView = () => {
       --app-icon-bg: rgba(255, 255, 255, 0.05);
     }
 
-    /* ربط المتغيرات بالكلاسات */
+    /* إجبار خلفية الموقع بالكامل على التغير لتجنب التعارض في الصورة */
+    body, html, #app, .app-container {
+      background-color: var(--app-main-bg) !important;
+      transition: background-color 0.3s ease;
+    }
+
     .dyn-header { background-color: var(--app-header-bg); border-color: var(--app-border); color: var(--app-text); }
     .dyn-card { background-color: var(--app-card-bg); border-color: var(--app-border); color: var(--app-text); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
     .dyn-card-inner { background-color: var(--app-card-inner); border-color: var(--app-border); }
@@ -89,7 +97,6 @@ export const HomeView = () => {
         🌙
       </button>
       
-      <!-- زر الخروج بلون أحمر خفيف -->
       <button class="w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer hover:bg-red-500 hover:text-white transition-all shadow-sm" 
               style="background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444;"
               onclick="window.logout()" title="${t.logout || 'تسجيل الخروج'}">
