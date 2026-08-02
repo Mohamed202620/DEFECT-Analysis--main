@@ -24,3 +24,4 @@ export async function login(phone, pass) {
 
   return result;
 }
+console.log("✅ login.js loaded");
