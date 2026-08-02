@@ -55,3 +55,4 @@ export async function registerUserApi(userData) {
     ...userData
   });
 }
+console.log("✅ api.js loaded");
