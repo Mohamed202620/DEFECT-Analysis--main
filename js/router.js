@@ -1,4 +1,5 @@
 // 1. استيراد الإعدادات والترجمات والواجهات (Views)
+import { PageView } from './components/PageView.js';
 import { LoginView } from './views/loginView.js';
 import { translations } from './config.js';
 import { login } from './auth/login.js';
@@ -167,14 +168,6 @@ export function render() {
 }
 
 // --- واجهات مكملة ومساعدة داخلية ---
-const PageView = (title, content) => `
-  <div class="p-4 max-w-md mx-auto">
-    <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 text-white px-3 py-1.5 rounded-lg text-xs font-bold">⬅️ ${currentLang === 'ar' ? 'رجوع للرئيسية' : 'Back Home'}</button>
-    <h2 class="text-base font-bold mb-4 text-blue-400">${title}</h2>
-    ${content}
-  </div>
-`;
-
 const LogContent = () => `
   <div class="overflow-x-auto rounded-xl border border-gray-800">
     <table class="w-full text-xs text-right text-white">
@@ -183,7 +176,7 @@ const LogContent = () => `
       <tr class="border-b border-gray-800/50"><td class="p-2.5 font-mono">#1023</td><td class="p-2.5">خط الدهان 1</td><td class="p-2.5 text-green-400 font-bold">تم الإصلاح 🟢</td></tr>
     </table>
   </div>
-`;
+';
 
 
 // --- دوال العمليات المربطوة بالـ API الخارجي ---
