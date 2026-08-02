@@ -134,21 +134,21 @@ export function toggleLanguage() {
   }
   render();
 }
-
 export function toggleDarkMode() {
-  // التبديل بين الوضع الليلي والوضع الفاتح على مستوى الـ body والمستند بالكامل
+  // تبديل الكلاس dark في الـ body والـ html
   const isDark = document.body.classList.toggle('dark');
   document.documentElement.classList.toggle('dark', isDark);
   
-  // حفظ تفضيل المستخدم في التخزين المحلي
+  // حفظ الحالة
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
 
-  // إعادة تصيير الصفحة فوراً لتحديث الألوان والمتغيرات
-  render();
+  // تحديث سمات الألوان المباشرة للعناصر النشطة حالياً بدون إعادة تحميل الصفحة بالكامل
+  if (isDark) {
+    document.body.style.setProperty('--app-main-bg', '#0f172a');
+  } else {
+    document.body.style.setProperty('--app-main-bg', '#f3f4f6');
+  }
 }
-
-}
-
 export function logout() {
   localStorage.removeItem("phone");
   localStorage.removeItem("name");
