@@ -26,4 +26,3 @@ export const translations = {
     chartLabel: 'Top Faulty Machines'
   }
 };
-console.log("✅ config.js loaded");
