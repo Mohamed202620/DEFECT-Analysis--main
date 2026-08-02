@@ -1,5 +1,5 @@
 // استيراد رابط السيرفر من ملف الإعدادات
-import { GOOGLE_SCRIPT_URL } from './config.js';
+import { GOOGLE_SCRIPT_URL } from '../config.js';
 
 /**
  * دالة عامة لإرسال طلبات POST إلى Google Apps Script
