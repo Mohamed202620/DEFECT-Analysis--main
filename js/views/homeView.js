@@ -31,54 +31,6 @@ export const HomeView = () => {
   const themeIcon = isDarkMode ? '☀️' : '🌙';
 
   return `
-  <style>
-    :root {
-      --app-main-bg: #f3f4f6; 
-      --app-header-bg: rgba(255, 255, 255, 0.95);
-      --app-card-bg: #ffffff;
-      --app-card-inner: #f9fafb;
-      --app-btn-bg: #ffffff;
-      --app-btn-hover: #f3f4f6;
-      --app-border: #e5e7eb;
-      --app-text: #1f2937;
-      --app-text-muted: #6b7280;
-      --app-support-bg: #eff6ff;
-      --app-support-border: #bfdbfe;
-      --app-support-text: #1d4ed8;
-      --app-icon-bg: #f3f4f6;
-    }
-    
-    .dark, body.dark, html.dark {
-      --app-main-bg: #0f172a; 
-      --app-header-bg: rgba(14, 17, 23, 0.9);
-      --app-card-bg: rgba(30, 41, 59, 0.4);
-      --app-card-inner: rgba(0, 0, 0, 0.2);
-      --app-btn-bg: rgba(30, 41, 59, 0.6);
-      --app-btn-hover: rgba(255, 255, 255, 0.1);
-      --app-border: rgba(255, 255, 255, 0.08);
-      --app-text: #f3f4f6;
-      --app-text-muted: #9ca3af;
-      --app-support-bg: rgba(37, 99, 235, 0.15);
-      --app-support-border: rgba(37, 99, 235, 0.3);
-      --app-support-text: #93c5fd;
-      --app-icon-bg: rgba(255, 255, 255, 0.05);
-    }
-
-    body, html, #app {
-      background-color: var(--app-main-bg) !important;
-      transition: background-color 0.3s ease;
-    }
-
-    .dyn-header { background-color: var(--app-header-bg); border-color: var(--app-border); color: var(--app-text); }
-    .dyn-card { background-color: var(--app-card-bg); border-color: var(--app-border); color: var(--app-text); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-    .dyn-card-inner { background-color: var(--app-card-inner); border-color: var(--app-border); }
-    .dyn-btn { background-color: var(--app-btn-bg); border-color: var(--app-border); color: var(--app-text); }
-    .dyn-btn:hover { background-color: var(--app-btn-hover); }
-    .dyn-text-muted { color: var(--app-text-muted); }
-    .dyn-support { background-color: var(--app-support-bg); border-color: var(--app-support-border); color: var(--app-support-text); }
-    .dyn-icon { background-color: var(--app-icon-bg); border-color: var(--app-border); color: var(--app-text); }
-  </style>
-
   <!-- الهيدر -->
   <div class="dyn-header flex justify-between items-center p-4 border-b backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
     <div class="flex items-center gap-3">
@@ -148,8 +100,8 @@ export const HomeView = () => {
     </h3>
 
     <div class="grid grid-cols-3 gap-3 mb-8">
-      ${QuickActionBtn('🚨', 'تسجيل عطل', 'maintenance')}
-      ${QuickActionBtn('📷', 'تصوير عيب', 'quality')}
+      ${QuickActionBtn('🚨', 'تسجيل عطل', 'issue')}
+      ${QuickActionBtn('📷', 'تصوير عيب', 'report')}
       ${QuickActionBtn('📱', 'مسح QR', 'qr')}
     </div>
 
