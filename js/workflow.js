@@ -1,59 +1,67 @@
-import { GOOGLE_SCRIPT_URL } from './config.js';
+import { saveDefectApi } from './services/api.js';
 import { navigateTo } from './router.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
 
-// دالة ضغط الصور قبل الرفع
-export function compressImage(file, maxWidth, quality, callback) {
-  const reader = new FileReader();
-  reader.readAsDataURL(file);
-  reader.onload = (event) => {
-    const img = new Image();
-    img.src = event.target.result;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-
-      if (width > maxWidth) {
-        height = Math.round((height * maxWidth) / width);
-        width = maxWidth;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      callback(canvas.toDataURL('image/jpeg', quality));
-    };
-  };
+// دالة إعادة ضبط حالة الصور
+export function resetDefectForm() {
+  defectImages = [null, null, null];
 }
 
-// دالة التعامل مع فتح وااختيار ملفات الصور
-export function handleDefectFile(e, index) {
+// دالة ضغط الصور باستخدام Promise
+export function compressImage(file, maxWidth = 1000, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onerror = (err) => reject(err);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onerror = (err) => reject(err);
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+    };
+  });
+}
+
+// دالة التعامل مع فتح واختيار ملفات الصور
+export async function handleDefectFile(e, index) {
   const file = e.target.files[0];
   if (!file) return;
 
-  compressImage(file, 1000, 0.8, function(base64){
+  try {
+    const base64 = await compressImage(file, 1000, 0.8);
     defectImages[index] = base64;
 
-    const img = document.getElementById("imgPreview" + index);
-    if(img) {
+    const img = document.getElementById(`imgPreview${index}`);
+    if (img) {
       img.src = base64;
       img.classList.remove("hidden");
     }
 
     const count = defectImages.filter(x => x !== null).length;
-
     const counterEl = document.getElementById("imgCounter");
-    if(counterEl) {
-      counterEl.innerHTML = "تم رفع " + count + " من 3 صور";
-      if(count === 3){
-        counterEl.innerHTML = "✅ تم رفع جميع الصور";
-      }
+    if (counterEl) {
+      counterEl.innerHTML = count === 3 ? "✅ تم رفع جميع الصور" : `تم رفع ${count} من 3 صور`;
     }
-  });
+  } catch (err) {
+    alert("❌ حدث خطأ أثناء معالجة الصورة: " + err.message);
+  }
 }
 
 // دالة حفظ وإرسال بيانات العيوب
@@ -71,6 +79,8 @@ export async function saveDefectData() {
   }
 
   const btn = document.getElementById("submitBtn");
+  const originalBtnText = btn ? btn.innerHTML : "✅ حفظ وإرسال";
+
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = "⏳ جاري الحفظ والإرسال...";
@@ -89,17 +99,12 @@ export async function saveDefectData() {
 
   const payload = {
     action: "saveDefect",
-    user: {
-      name: userName,
-      phone: phone,
-      job: job,
-      role: role
-    },
-    line: line,
-    stage: stage,
-    name: name,
-    location: location,
-    description: description,
+    user: { name: userName, phone, job, role },
+    line,
+    stage,
+    name,
+    location,
+    description,
     image1: defectImages[0],
     image2: defectImages[1],
     image3: defectImages[2],
@@ -107,28 +112,20 @@ export async function saveDefectData() {
   };
 
   try {
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
-    });
-    const result = await response.json();
+    const result = await saveDefectApi(payload);
     if (result.status === 'success') {
       alert('✅ تم الحفظ بنجاح');
-      defectImages = [null, null, null]; // إعادة ضبط المصفوفة
+      resetDefectForm();
       navigateTo('home');
     } else {
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = "✅ حفظ وإرسال";
-      }
       alert('❌ حدث خطأ أثناء الحفظ: ' + (result.message || 'خطأ غير معروف'));
     }
   } catch (error) {
+    alert('❌ خطأ: ' + error.message);
+  } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = "✅ حفظ وإرسال";
+      btn.innerHTML = originalBtnText;
     }
-    alert('❌ خطأ: ' + error.message);
   }
 }
