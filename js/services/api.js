@@ -65,3 +65,12 @@ export async function registerUserApi(userData) {
     ...userData
   });
 }
+export async function saveDefectApi(payload) {
+  const response = await fetch(GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(payload)
+  });
+  return await response.json();
+}
+
