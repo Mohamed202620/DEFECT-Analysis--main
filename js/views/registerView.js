@@ -108,12 +108,15 @@ export const RegisterView = () => `
     </select>
 
     <!-- Department -->
-    <input
+    <select
       id="regDepartment"
-      type="text"
-      placeholder="القسم"
       class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"
-    />
+    >
+      <option value="">اختر القسم</option>
+      <option value="Production">الإنتاج</option>
+      <option value="Mechanical">الميكانيكا</option>
+      <option value="Electrical">الكهرباء</option>
+    </select>
 
     <!-- Code -->
     <input
