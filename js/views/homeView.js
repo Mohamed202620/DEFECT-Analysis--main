@@ -1,8 +1,10 @@
 import { translations } from '../config.js';
-import { BottomNav } from "../components/BottomNav.js";
+import { BottomNav } from '../components/BottomNav.js';
 
+// مكون فرعي للأزرار السريعة
 const QuickActionBtn = (icon, label, target) => `
-  <div class="dyn-btn backdrop-blur-md rounded-2xl p-4 text-center border active:scale-95 transition-all cursor-pointer shadow-sm" onclick="window.navigateTo('${target}')">
+  <div class="dyn-btn backdrop-blur-md rounded-2xl p-4 text-center border active:scale-95 transition-all cursor-pointer shadow-sm flex flex-col items-center justify-center" 
+       onclick="window.navigateTo('${target}')">
     <div class="text-3xl mb-2 drop-shadow-md">${icon}</div>
     <div class="font-bold text-xs">${label}</div>
   </div>
@@ -25,7 +27,6 @@ export const HomeView = () => {
       ? (currentLang === "ar" ? "مهندس" : "Engineer")
       : (currentLang === "ar" ? "فني" : "Technician");
 
-  // تحديد أيقونة الوضع الليلي بناءً على الحالة المحفوظة
   const isDarkMode = localStorage.getItem('theme') === 'dark';
   const themeIcon = isDarkMode ? '☀️' : '🌙';
 
@@ -47,8 +48,7 @@ export const HomeView = () => {
       --app-icon-bg: #f3f4f6;
     }
     
-    /* دعم شامل لكل احتمالات كلاسات الوضع الليلي في تطبيقك */
-    .dark, body.dark, .dark-mode, [data-theme="dark"], html.dark, html[data-theme="dark"] {
+    .dark, body.dark, html.dark {
       --app-main-bg: #0f172a; 
       --app-header-bg: rgba(14, 17, 23, 0.9);
       --app-card-bg: rgba(30, 41, 59, 0.4);
@@ -64,7 +64,7 @@ export const HomeView = () => {
       --app-icon-bg: rgba(255, 255, 255, 0.05);
     }
 
-    body, html, #app, .app-container {
+    body, html, #app {
       background-color: var(--app-main-bg) !important;
       transition: background-color 0.3s ease;
     }
@@ -82,7 +82,7 @@ export const HomeView = () => {
   <!-- الهيدر -->
   <div class="dyn-header flex justify-between items-center p-4 border-b backdrop-blur-xl sticky top-0 z-50 transition-colors duration-300">
     <div class="flex items-center gap-3">
-      <img src="1000230635.png" class="w-8 h-8 object-contain rounded-full border shadow-sm" style="border-color: var(--app-border)"/>
+      <img src="1000230635.png" alt="Profile" class="w-8 h-8 object-contain rounded-full border shadow-sm" style="border-color: var(--app-border)"/>
       <div class="flex flex-col">
         <span class="text-xs font-bold">👋 ${t.welcome || 'أهلاً'} ${savedName}</span>
         <span class="text-[10px] dyn-text-muted">${roleName}</span>
@@ -94,10 +94,7 @@ export const HomeView = () => {
         ${t.langBtn || 'EN'}
       </button>
       
-      <!-- زر الوضع الليلي المحدث بأيقونة تفاعلية وتحديث فوري للواجهة -->
-      <button
-        class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer"
-        onclick="window.toggleDarkMode(); window.render();">
+      <button class="dyn-icon w-8 h-8 rounded-full border flex items-center justify-center cursor-pointer" onclick="window.toggleDarkMode(); window.render();">
         ${themeIcon}
       </button>
       
@@ -138,14 +135,16 @@ export const HomeView = () => {
           <div class="text-[9px] dyn-text-muted mt-1">الإجمالي</div>
         </div>
       </div>
+
+      <!-- الرسم البياني -->
       <div style="height: 130px;" class="w-full">
         <canvas id="chartMachines"></canvas>
       </div>
     </div>
 
-    <!-- الجزء الخاص بالأزرار السريعة المحدث -->
+    <!-- الوصول السريع -->
     <h3 class="text-sm font-bold mb-3 px-2 flex items-center gap-2" style="color: var(--app-text)">
-    ⚡ الوصول السريع
+      ⚡ الوصول السريع
     </h3>
 
     <div class="grid grid-cols-3 gap-3 mb-8">
@@ -154,11 +153,10 @@ export const HomeView = () => {
       ${QuickActionBtn('📱', 'مسح QR', 'qr')}
     </div>
 
-    <!-- الفوتر -->
+    <!-- الدعم والفوتر -->
     <div class="flex flex-col items-center space-y-4 mt-6">
-      <button
-        onclick="window.contactSupport()"
-        class="dyn-support flex items-center justify-center gap-2 w-[80%] py-3 rounded-full border text-xs font-bold transition-all backdrop-blur-md shadow-sm cursor-pointer active:scale-95">
+      <button onclick="window.contactSupport()"
+              class="dyn-support flex items-center justify-center gap-2 w-[80%] py-3 rounded-full border text-xs font-bold transition-all backdrop-blur-md shadow-sm cursor-pointer active:scale-95">
         💬 تواصل مع الدعم الفني
       </button>
       
@@ -167,8 +165,6 @@ export const HomeView = () => {
       </div>
     </div>
   </div>
-
-  <div class="pb-24"></div>
 
   ${BottomNav("home")}
   `;
