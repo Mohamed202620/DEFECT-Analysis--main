@@ -1,7 +1,8 @@
-// 1. استيراد الإعدادات والترجمات والخدمات
+// 1. استيراد المكونات والخدمات والواجهات
 import { PageView } from './components/PageView.js';
 import { translations } from './config.js';
-import { fetchUsers, updatePermissionsApi } from './services/api.js';
+import { login } from './auth/login.js';
+import { fetchUsers, updatePermissionsApi, registerUserApi } from './services/api.js';
 
 // استيراد الواجهات من مجلد views
 import { LoginView } from './views/loginView.js';
@@ -15,9 +16,6 @@ import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
-
-// استيراد معالجات الهوية من authController
-import { doLogin, registerUser, logoutUser } from './authController.js';
 
 // استيراد دوال سير العمل (Workflow)
 import { saveDefectData, handleDefectFile } from './workflow.js';
@@ -38,7 +36,7 @@ export function hasPermission(permission) {
   return currentPermissions.includes(permission.toLowerCase());
 }
 
-// --- دالة العرض والتحكم بالشاشات ---
+// --- دالة العرض الموحدة (Render Page) ---
 export function renderPage(page) {
   switch (page) {
     case 'login': return LoginView();
@@ -74,7 +72,7 @@ export function renderPage(page) {
 export function navigateTo(page) {
   const protectedPages = ['users', 'reports', 'pm', 'stats'];
   if (protectedPages.includes(page) && !hasPermission(page)) {
-    alert(`ليس لديك صلاحية الوصول إلى هذه الصفحة (${page})`);
+    alert(`ليس لديك صلاحية الوصول إلى هذه الصفحة`);
     return;
   }
 
@@ -107,11 +105,100 @@ export function toggleDarkMode() {
   document.body.style.setProperty('--app-main-bg', isDark ? '#0f172a' : '#f3f4f6');
 }
 
+export function logout() {
+  localStorage.removeItem("phone");
+  localStorage.removeItem("name");
+  localStorage.removeItem("job");
+  localStorage.removeItem("role");
+  localStorage.removeItem("permissions");
+  localStorage.removeItem("user");
+  currentRole = '';
+  currentPermissions = [];
+  currentPage = "login";
+  render();
+}
+
 export function contactSupport() {
   const name = localStorage.getItem("name") || "";
   const job = localStorage.getItem("job") || "";
   const message = `السلام عليكم،\nأرغب في التواصل بخصوص نظام الصيانة وتحليل العيوب.\n\nالاسم: ${name}\nالوظيفة: ${job}`;
   window.open(`https://wa.me/201067988554?text=${encodeURIComponent(message)}`, "_blank");
+}
+
+// --- عمليات مصادقة الحسابات ---
+export async function doLogin() {
+  const phone = document.getElementById("loginPhone")?.value.trim();
+  const pass = document.getElementById("loginPass")?.value.trim();
+  const btn = document.getElementById("loginBtn");
+
+  if (!phone || !pass) {
+    alert("أدخل رقم الموبايل وكلمة السر");
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ جاري تسجيل الدخول...";
+  }
+
+  try {
+    const result = await login(phone, pass);
+    
+    if (result.status === "success") {
+      localStorage.setItem("phone", phone);
+      localStorage.setItem("name", result.name);
+      localStorage.setItem("job", result.job);
+      localStorage.setItem("role", (result.role || "").toLowerCase());
+      localStorage.setItem("permissions", result.permissions || "");
+      localStorage.setItem("user", JSON.stringify(result));
+
+      currentRole = (result.role || "").toLowerCase();
+      currentPermissions = (result.permissions || "")
+          .split(",")
+          .map(p => p.trim().toLowerCase())
+          .filter(p => p !== "");
+
+      navigateTo("home");
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = "دخول"; }
+      alert(result.message || "بيانات الدخول غير صحيحة");
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = "دخول"; }
+    alert("خطأ في الاتصال بالسيرفر");
+  }
+}
+
+export async function registerUser() {
+  const data = {
+    name: document.getElementById("regName")?.value.trim(),
+    phone: document.getElementById("regPhone")?.value.trim(),
+    password: document.getElementById("regPass")?.value,
+    confirmPassword: document.getElementById("regPass2")?.value,
+    job: document.getElementById("regJob")?.value.trim(),
+    department: document.getElementById("regDepartment")?.value.trim(),
+    code: document.getElementById("regCode")?.value.trim()
+  };
+
+  if (!data.name || !data.phone || !data.password || !data.confirmPassword || !data.job || !data.department || !data.code) {
+    alert("يرجى إدخال جميع البيانات");
+    return;
+  }
+
+  if (data.password !== data.confirmPassword) {
+    alert("كلمتا السر غير متطابقتين");
+    return;
+  }
+
+  try {
+    const result = await registerUserApi(data);
+    alert(result.message);
+    if (result.status === "success") {
+      navigateTo("login");
+    }
+  } catch (e) {
+    alert("تعذر الاتصال بالخادم");
+  }
 }
 
 // --- دالة العرض الرئيسية (Render) ---
@@ -121,7 +208,6 @@ export function render() {
 
   app.innerHTML = renderPage(currentPage);
 
-  // تشغيل الرسم البياني الخاص بالإحصائيات إذا كانت الصفحة الحالية هي Home أو Stats
   if (currentPage === 'home' && typeof window.initMainChart === 'function') {
     window.initMainChart();
   } else if (currentPage === 'stats' && typeof window.initStatsChart === 'function') {
@@ -146,7 +232,7 @@ window.toggleLanguage = toggleLanguage;
 window.toggleDarkMode = toggleDarkMode;
 window.doLogin = doLogin;
 window.registerUser = registerUser;
-window.logout = logoutUser;
+window.logout = logout;
 window.contactSupport = contactSupport;
 window.saveDefectData = saveDefectData;
 window.handleDefectFile = handleDefectFile;
@@ -190,7 +276,6 @@ window.editPermissions = async function(phone, currentRoleVal) {
   }
 };
 
-// الاستماع لرفع الصور والعيوب
 document.addEventListener("change", function (e) {
   if (e.target.id === "cameraImage" || e.target.id === "galleryImage") {
     const file = e.target.files[0];
@@ -233,7 +318,6 @@ window.addEventListener('DOMContentLoaded', () => {
     currentPage = 'login';
   }
 
-  // تفعيل الثيم المحفوظ
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') {
     document.body.classList.add('dark');
@@ -243,7 +327,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   render();
 
-  // إخفاء الـ Splash Screen
   setTimeout(() => {
     const splash = document.getElementById('splash');
     if (splash) {
