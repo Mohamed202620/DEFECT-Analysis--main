@@ -68,8 +68,8 @@ export function renderPage(page) {
   }
 }
 
-// --- التنقل والتحكم ---
-export function navigateTo(page) {
+// --- التنقل والتحكم المطور بدعم History API للموبايل ---
+export function navigateTo(page, addToHistory = true) {
   const protectedPages = ['users', 'reports', 'pm', 'stats'];
   if (protectedPages.includes(page) && !hasPermission(page)) {
     alert(`ليس لديك صلاحية الوصول إلى هذه الصفحة`);
@@ -78,6 +78,11 @@ export function navigateTo(page) {
 
   currentPage = page;
 
+  // تسجيل التنقل في سجل المتصفح/الموبايل لتمكين إيماءات وزر الرجوع
+  if (addToHistory && window.location.hash !== `#${page}`) {
+    history.pushState({ page }, '', `#${page}`);
+  }
+
   if (page === "home" && typeof window.loadDashboard === "function") {
     window.loadDashboard();
   }
@@ -85,6 +90,21 @@ export function navigateTo(page) {
   render();
   window.scrollTo(0, 0);
 }
+
+// الاستماع لحدث الرجوع من نظام الموبايل (Swipe Back / Hardware Back Button)
+window.addEventListener('popstate', (event) => {
+  if (event.state && event.state.page) {
+    navigateTo(event.state.page, false);
+  } else {
+    const hashPage = window.location.hash.replace('#', '');
+    if (hashPage) {
+      navigateTo(hashPage, false);
+    } else {
+      const isAuthenticated = !!localStorage.getItem('user');
+      navigateTo(isAuthenticated ? 'home' : 'login', false);
+    }
+  }
+});
 
 export function toggleLanguage() {
   currentLang = currentLang === 'ar' ? 'en' : 'ar';
@@ -114,8 +134,7 @@ export function logout() {
   localStorage.removeItem("user");
   currentRole = '';
   currentPermissions = [];
-  currentPage = "login";
-  render();
+  navigateTo("login");
 }
 
 export function contactSupport() {
@@ -299,6 +318,7 @@ document.addEventListener("change", function (e) {
 // --- التشغيل عند جاهزية الصفحة ---
 window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('user');
+  const initialHash = window.location.hash.replace('#', '');
 
   if (savedUser) {
     try {
@@ -310,13 +330,16 @@ window.addEventListener('DOMContentLoaded', () => {
           .map(p => p.trim().toLowerCase())
           .filter(p => p !== "");
       }
-      currentPage = 'home';
+      currentPage = initialHash || 'home';
     } catch(e) {
       currentPage = 'login';
     }
   } else {
     currentPage = 'login';
   }
+
+  // تهيئة الحالة الأولى في سجل الموبايل
+  history.replaceState({ page: currentPage }, '', `#${currentPage}`);
 
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme === 'dark') {
