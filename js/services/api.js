@@ -2,16 +2,16 @@
 import { GOOGLE_SCRIPT_URL } from '../config.js';
 
 /**
- * دالة عامة لإرسال طلبات POST إلى Google Apps Script
+ * دالة عامة ومعالجة أخطاء مركزية لإرسال طلبات POST
  * @param {Object} payload - البيانات المراد إرسالها
- * @returns {Promise<Object>} - الاستجابة بصيغة JSON
+ * @returns {Promise<Object>} - الاستجابة بصيغة JSON متناسقة
  */
 export async function apiRequest(payload) {
   try {
     const response = await fetch(GOOGLE_SCRIPT_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "text/plain" // مطلوب أحياناً لتجنب قيود CORS مع Google Apps Script
+        "Content-Type": "text/plain" // لتفادي مشاكل Pre-flight CORS مع Google Apps Script
       },
       body: JSON.stringify(payload)
     });
@@ -19,7 +19,6 @@ export async function apiRequest(payload) {
     const textResponse = await response.text();
     
     try {
-      // محاولة تحليل النص إلى JSON بأمان
       return JSON.parse(textResponse);
     } catch (parseError) {
       console.error("API Non-JSON Response:", textResponse);
@@ -37,40 +36,64 @@ export async function apiRequest(payload) {
   }
 }
 
-/**
- * جلب قائمة المستخدمين
- */
+/* ==========================================================================
+   دوال التعامل مع المستخدمين والحسابات
+   ========================================================================== */
+
+/** جلب قائمة المستخدمين */
 export async function fetchUsers() {
   return await apiRequest({ action: "getUsers" });
 }
 
-/**
- * تحديث صلاحيات وأدوار المستخدمين
- */
-export async function updatePermissionsApi(phone, role, permissions) {
-  return await apiRequest({
-    action: "updatePermissions",
-    phone: phone,
-    role: role,
-    permissions: permissions
-  });
-}
-
-/**
- * تسجيل مستخدم جديد
- */
+/** تسجيل مستخدم جديد */
 export async function registerUserApi(userData) {
   return await apiRequest({
     action: "register",
     ...userData
   });
 }
-export async function saveDefectApi(payload) {
-  const response = await fetch(GOOGLE_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(payload)
+
+/** تحديث صلاحيات وأدوار المستخدمين */
+export async function updatePermissionsApi(phone, role, permissions) {
+  return await apiRequest({
+    action: "updatePermissions",
+    phone,
+    role,
+    permissions
   });
-  return await response.json();
 }
 
+/* ==========================================================================
+   دوال الأعطال والعيوب (Maintenance & Defects)
+   ========================================================================== */
+
+/** حفظ بلاغ عطل أو عيب جودة جديد */
+export async function saveDefectApi(payload) {
+  return await apiRequest({
+    action: "saveDefect",
+    ...payload
+  });
+}
+
+/** جلب بيانات لوحة المتابعة الإحصائية */
+export async function fetchDashboardDataApi() {
+  return await apiRequest({ action: "getDashboardData" });
+}
+
+/** جلب قائمة التذاكر/البلاغات */
+export async function fetchTicketsApi(filters = {}) {
+  return await apiRequest({
+    action: "getTickets",
+    ...filters
+  });
+}
+
+/** تحديث حالة تذكرة عطل */
+export async function updateTicketStatusApi(ticketId, status, notes = "") {
+  return await apiRequest({
+    action: "updateTicketStatus",
+    ticketId,
+    status,
+    notes
+  });
+}
