@@ -20,15 +20,52 @@ export const RegisterView = () => `
       placeholder="رقم الموبايل"
       class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"/>
 
-    <input id="regPass"
-      type="password"
-      placeholder="كلمة السر"
-      class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"/>
+    <!-- Shift -->
+    <select id="regShift"
+      class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white">
+      <option value="">اختر الشيفت</option>
+      <option value="Green">Green</option>
+      <option value="Red">Red</option>
+      <option value="Blue">Blue</option>
+    </select>
 
-    <input id="regPass2"
-      type="password"
-      placeholder="تأكيد كلمة السر"
-      class="w-full p-3 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"/>
+    <!-- Password -->
+    <div class="relative">
+      <input id="regPass"
+        type="password"
+        placeholder="كلمة السر"
+        class="w-full p-3 pr-12 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"/>
+
+      <button
+        type="button"
+        onclick="
+          const p=document.getElementById('regPass');
+          this.textContent=p.type==='password'?'🙈':'👁';
+          p.type=p.type==='password'?'text':'password';
+        "
+        class="absolute left-3 top-1/2 -translate-y-1/2 text-xl">
+        👁
+      </button>
+    </div>
+
+    <!-- Confirm Password -->
+    <div class="relative">
+      <input id="regPass2"
+        type="password"
+        placeholder="تأكيد كلمة السر"
+        class="w-full p-3 pr-12 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-white"/>
+
+      <button
+        type="button"
+        onclick="
+          const p=document.getElementById('regPass2');
+          this.textContent=p.type==='password'?'🙈':'👁';
+          p.type=p.type==='password'?'text':'password';
+        "
+        class="absolute left-3 top-1/2 -translate-y-1/2 text-xl">
+        👁
+      </button>
+    </div>
 
     <input id="regJob"
       type="text"
