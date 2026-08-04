@@ -8,19 +8,35 @@ import { apiRequest } from '../services/api.js';
  * @returns {Promise<Object>} - نتيجة عملية تسجيل الدخول
  */
 export async function login(phone, pass) {
-  if (!phone || !pass) {
+  // 1. تنظيف البيانات (إزالة المسافات الزائدة من البداية والنهاية)
+  const cleanPhone = phone?.trim();
+  const cleanPass = pass?.trim();
+
+  // 2. التحقق من المدخلات بعد التنظيف
+  if (!cleanPhone || !cleanPass) {
     return {
       status: "error",
-      message: "أدخل رقم الموبايل وكلمة السر"
+      message: "يرجى إدخال رقم الموبايل وكلمة السر بشكل صحيح."
     };
   }
 
-  // إرسال طلب تسجيل الدخول للسيرفر
-  const result = await apiRequest({
-    action: "login", // تأكد من مطابقتها للـ Backend في Google Apps Script
-    phone: phone,
-    password: pass
-  });
+  // 3. إرسال الطلب مع معالجة الأخطاء المحتملة للشبكة
+  try {
+    const result = await apiRequest({
+      action: "login", // تأكد من مطابقتها للـ Backend في Google Apps Script
+      phone: cleanPhone,
+      password: cleanPass
+    });
 
-  return result;
+    return result;
+
+  } catch (error) {
+    console.error("Login Service Error:", error);
+    
+    // إرجاع كائن خطأ موحد ليتعامل معه الـ Controller أو הـ View
+    return {
+      status: "error",
+      message: "حدث خطأ أثناء الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً."
+    };
+  }
 }
