@@ -1,4 +1,4 @@
-import { login } from './login.js';
+Import { login } from './login.js';
 import { register } from './register.js';
 import { logout } from './logout.js';
 
@@ -15,6 +15,7 @@ export async function doLogin() {
   const phone = phoneInput.value.trim();
   const pass = passInput.value.trim();
 
+  // تغيير حالة الزر أثناء الانتظار
   if (loginBtn) {
     loginBtn.disabled = true;
     loginBtn.innerText = 'جاري التحقق...';
@@ -24,28 +25,12 @@ export async function doLogin() {
     const response = await login(phone, pass);
 
     if (response && response.status === 'success') {
-      const userData = response.user || response.data || {};
+      // حفظ بيانات المستخدم في الذاكرة المحلية
+      localStorage.setItem('currentUser', JSON.stringify(response.user || response.data));
 
-      // 1. فحص وظيفة/رتبة الحساب القادم من Google Sheets
-      const rawJob = String(userData.job || userData.role || '').toLowerCase().trim();
-      const adminRoles = ['admin', 'manager', 'supervisor', 'مدير', 'مشرف', 'أدمن', 'رئيس قسم'];
-      
-      const isAdmin = adminRoles.some(role => rawJob.includes(role));
-      userData.role = isAdmin ? 'admin' : 'user';
-
-      // 2. حفظ البيانات وضمان توافق المفاتيح في LocalStorage
-      localStorage.setItem('currentUser', JSON.stringify(userData));
-      localStorage.setItem('userData', JSON.stringify(userData));
-      window.currentUser = userData;
-
-      // 3. التوجيه الشرطي حسب الصلاحية
+      // التوجيه للصفحة الرئيسية
       if (typeof window.navigateTo === 'function') {
-        if (isAdmin) {
-          // تأكد من مطابقة مسمى الشاشة في router.js (مثل adminDashboard أو SystemView)
-          window.navigateTo('adminDashboard'); 
-        } else {
-          window.navigateTo('home');
-        }
+        window.navigateTo('home');
       }
     } else {
       alert(response.message || 'بيانات الدخول غير صحيحة');
@@ -74,6 +59,7 @@ export async function registerUser() {
   const department = document.getElementById('regDepartment')?.value.trim();
   const code = document.getElementById('regCode')?.value.trim();
 
+  // التحقق من تطابق كلمتي السر
   if (pass !== pass2) {
     alert('كلمتا السر غير متطابقتين!');
     return;
@@ -124,15 +110,13 @@ export async function logoutUser() {
   } catch (error) {
     console.error('Logout Error:', error);
   } finally {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('userData');
     if (typeof window.navigateTo === 'function') {
       window.navigateTo('login');
     }
   }
 }
 
-// تعيين الدوال على مستوى النافذة
+// تعيين الدوال على مستوى النافذة (window) لكي تستجيب لأحداث الـ HTML مباشرة
 window.doLogin = doLogin;
 window.registerUser = registerUser;
 window.logoutUser = logoutUser;
