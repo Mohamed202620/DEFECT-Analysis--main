@@ -115,6 +115,20 @@ export const HomeView = () => {
       </div>
     </div>
 
+    <!-- حقوق الملكية والتواصل مع المطور -->
+    <div class="pt-4 border-t border-gray-800/80 text-center space-y-3">
+      <button 
+        onclick="window.contactDeveloper ? window.contactDeveloper() : (window.location.href = 'mailto:contact@example.com')" 
+        class="w-full bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-md">
+        <span>💬</span>
+        <span>تواصل مع المطور</span>
+      </button>
+
+      <p class="text-[10px] text-gray-500 font-medium tracking-wide">
+        جميع الحقوق محفوظة بواسطة <span class="text-gray-300 font-semibold">Mohamed Hussein</span> © ${new Date().getFullYear()}
+      </p>
+    </div>
+
   </div>
 
   ${BottomNav("home")}
