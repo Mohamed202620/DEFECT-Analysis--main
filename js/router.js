@@ -220,10 +220,10 @@ export async function doLogin() {
 }
 
 export async function registerUser() {
-  // الكود الخاص بك كما هو - ممتاز
   const data = {
     name: document.getElementById("regName")?.value.trim(),
     phone: document.getElementById("regPhone")?.value.trim(),
+    shift: document.getElementById("regShift")?.value.trim(), // تم إضافة حقل الشيفت هنا
     password: document.getElementById("regPass")?.value,
     confirmPassword: document.getElementById("regPass2")?.value,
     job: document.getElementById("regJob")?.value.trim(),
@@ -231,8 +231,9 @@ export async function registerUser() {
     code: document.getElementById("regCode")?.value.trim()
   };
 
-  if (!data.name || !data.phone || !data.password || !data.confirmPassword || !data.job || !data.department || !data.code) {
-    alert("يرجى إدخال جميع البيانات");
+  // تم تحديث شرط التحقق ليشمل حقل الشيفت (data.shift)
+  if (!data.name || !data.phone || !data.shift || !data.password || !data.confirmPassword || !data.job || !data.department || !data.code) {
+    alert("يرجى إدخال جميع البيانات بما في ذلك الشيفت");
     return;
   }
 
