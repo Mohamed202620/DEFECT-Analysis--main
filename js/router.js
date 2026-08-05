@@ -53,9 +53,10 @@ const LogContent = () => `
   </div>
 `;
 
-// فحص الصلاحيات
+// فحص الصلاحيات (محدث ليدعم admin وكلمة all)
 export function hasPermission(permission) {
   if (currentRole === "admin") return true;
+  if (currentPermissions.includes("all")) return true;
   return currentPermissions.includes(permission.toLowerCase());
 }
 
@@ -67,7 +68,10 @@ export function renderPage(page) {
     case 'home': return HomeView();
     case 'maintenance': return MaintenanceView();
     case 'quality': return QualityView();
-    case 'system': return SystemView();
+    case 'system': 
+      return currentRole === 'admin' 
+        ? SystemView() 
+        : PageView("⚠️ غير مصرح", '<div class="bg-[#1E293B] p-6 rounded-xl border border-red-500/30 text-center text-xs text-red-400 font-bold">عذراً، هذه الصفحة مخصصة للمسؤولين فقط (Admin).</div>');
     case 'report': return ReportView();
     case 'pm': return PMView();
     case 'reports': return ReportsView();
@@ -86,17 +90,35 @@ export function renderPage(page) {
     case 'kb': 
       return PageView('📚 قاعدة المعرفة للحلول', '<input placeholder="🔍 ابحث عن العيب أو طريقة الإصلاح..." class="w-full p-2.5 rounded-lg bg-[#1E293B] border border-gray-700 text-xs mb-3 text-white">');
     case 'users': 
-      return PageView("👥 إدارة المستخدمين والصلاحيات", `<div class="space-y-3"><button onclick="window.loadUsers()" class="w-full bg-blue-600 rounded-lg p-3 font-bold text-white text-xs">عرض المستخدمين</button><div id="usersContainer"></div></div>`);
+      return (currentRole === 'admin' || hasPermission('users'))
+        ? PageView("👥 إدارة المستخدمين والصلاحيات", `<div class="space-y-3"><button onclick="window.loadUsers()" class="w-full bg-blue-600 rounded-lg p-3 font-bold text-white text-xs">عرض المستخدمين</button><div id="usersContainer"></div></div>`)
+        : PageView("⚠️ غير مصرح", '<div class="bg-[#1E293B] p-6 rounded-xl border border-red-500/30 text-center text-xs text-red-400 font-bold">ليس لديك صلاحية لإدارة المستخدمين.</div>');
     default: return LoginView();
   }
 }
 
-// --- التنقل والتحكم المطور بدعم History API للموبايل ---
+// --- التنقل والتحكم المطور مع حارس الصلاحيات الشامل (Route Guard) ---
 export function navigateTo(page, addToHistory = true) {
-  const protectedPages = ['users', 'reports', 'pm', 'stats'];
-  if (protectedPages.includes(page) && !hasPermission(page)) {
-    alert(`ليس لديك صلاحية الوصول إلى هذه الصفحة`);
-    return;
+  // خريطة حماية الصفحات الحساسة
+  const protectedPages = {
+    system: 'admin',      // مخصصة للأدمن فقط
+    users: 'users',       // تتطلب صلاحية users أو admin
+    reports: 'reports',
+    pm: 'pm',
+    stats: 'stats',
+    quality: 'quality',
+    maintenance: 'maintenance'
+  };
+
+  if (protectedPages[page]) {
+    const required = protectedPages[page];
+    if (required === 'admin' && currentRole !== 'admin') {
+      alert("⚠️ عذراً، هذه الصفحة مخصصة لمدير النظام (Admin) فقط.");
+      return;
+    } else if (required !== 'admin' && !hasPermission(required)) {
+      alert(`⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`);
+      return;
+    }
   }
 
   currentPage = page;
