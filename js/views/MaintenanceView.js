@@ -1,39 +1,89 @@
 import { BottomNav } from "../components/BottomNav.js";
 
 export const MaintenanceView = () => `
-<div class="p-4 max-w-md mx-auto">
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
-<h2 class="text-blue-400 font-bold mb-3">
-🛠️ قسم الصيانة
-</h2>
+  <!-- الهيدر الرئيسي -->
+  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div>
+      <h2 class="text-base font-bold text-blue-400 flex items-center gap-2">
+        <span>🛠️</span> قسم الصيانة
+      </h2>
+      <p class="text-[11px] text-gray-400 mt-0.5">إدارة بلاغات الأعطال وصيانة المعدات</p>
+    </div>
+    <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2.5 py-1 rounded-full font-bold">
+      الورشة
+    </span>
+  </div>
 
-<div class="grid grid-cols-2 gap-3">
+  <!-- شبكة الإجراءات السريعة -->
+  <div class="grid grid-cols-2 gap-3.5">
 
-<div class="btn-action" onclick="window.navigateTo('issue')">
-🚨<br>تسجيل عطل
+    <!-- تسجيل عطل -->
+    <div 
+      onclick="window.navigateTo('issue')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-red-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        🚨
+      </div>
+      <span class="font-bold text-xs text-gray-100">تسجيل عطل</span>
+      <span class="text-[10px] text-gray-400 mt-1">إبلاغ سريع عن توقف</span>
+    </div>
+
+    <!-- نظام كايزن -->
+    <div 
+      onclick="window.navigateTo('suggestions')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-amber-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        💡
+      </div>
+      <span class="font-bold text-xs text-gray-100">نظام كايزن</span>
+      <span class="text-[10px] text-gray-400 mt-1">مقترحات التحسين المستمر</span>
+    </div>
+
+    <!-- الصيانة الوقائية -->
+    <div 
+      onclick="window.navigateTo('pm')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        📝
+      </div>
+      <span class="font-bold text-xs text-gray-100">الصيانة الوقائية</span>
+      <span class="text-[10px] text-gray-400 mt-1">جداول وفحوصات دورية</span>
+    </div>
+
+    <!-- التقارير -->
+    <div 
+      onclick="window.navigateTo('reports')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-purple-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        📊
+      </div>
+      <span class="font-bold text-xs text-gray-100">التقارير</span>
+      <span class="text-[10px] text-gray-400 mt-1">سجل وإحصائيات الأعطال</span>
+    </div>
+
+    <!-- QR الماكينة (زر عريض بارز) -->
+    <div 
+      onclick="window.navigateTo('qr')" 
+      class="col-span-2 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-emerald-500/40 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-98 shadow-md group">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+          📱
+        </div>
+        <div class="text-right">
+          <span class="font-bold text-xs text-gray-100 block">مسح QR الماكينات</span>
+          <span class="text-[10px] text-gray-400">وصول سريع لبيانات المعدة بالكاميرا</span>
+        </div>
+      </div>
+      <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+        مسح 📷
+      </span>
+    </div>
+
+  </div>
+
 </div>
-
-<div class="btn-action" onclick="window.navigateTo('suggestions')">
-💡<br>نظام كايزن
-</div>
-
-<div class="btn-action" onclick="window.navigateTo('pm')">
-📝<br>الصيانة الوقائية
-</div>
-
-<div class="btn-action" onclick="window.navigateTo('reports')">
-📊<br>التقارير
-</div>
-
-<div class="col-span-2 btn-action" onclick="window.navigateTo('qr')">
-📱<br>QR الماكينة
-</div>
-
-</div>
-
-</div>
-
-<div style="height:80px"></div>
 
 ${BottomNav("maintenance")}
 `;
