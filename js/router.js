@@ -23,8 +23,13 @@ import { saveDefectData, handleDefectFile, initMainChart } from './workflow.js';
 // --- المتغيرات العامة للنظام (Global State) ---
 export let currentPage = 'login';
 export let currentLang = 'ar';
-export let currentRole = '';
-export let currentPermissions = [];
+
+// استرجاع الصلاحيات فوراً من localStorage لتجنب الحظر عند التحميل
+export let currentRole = (localStorage.getItem("role") || "").toLowerCase();
+export let currentPermissions = (localStorage.getItem("permissions") || "")
+    .split(",")
+    .map(p => p.trim().toLowerCase())
+    .filter(p => p !== "");
 
 // مزامنة حالة اللغة والداتا على window
 window.currentLang = currentLang;
@@ -53,7 +58,7 @@ const LogContent = () => `
   </div>
 `;
 
-// فحص الصلاحيات (محدث ليدعم admin وكلمة all)
+// فحص الصلاحيات
 export function hasPermission(permission) {
   if (currentRole === "admin") return true;
   if (currentPermissions.includes("all")) return true;
@@ -97,25 +102,19 @@ export function renderPage(page) {
   }
 }
 
-// --- التنقل والتحكم المطور مع حارس الصلاحيات الشامل (Route Guard) ---
+// --- التنقل المطور لحماية الصفحات المحمية فقط ---
 export function navigateTo(page, addToHistory = true) {
-  // خريطة حماية الصفحات الحساسة
-  const protectedPages = {
-    system: 'admin',      // مخصصة للأدمن فقط
-    users: 'users',       // تتطلب صلاحية users أو admin
-    reports: 'reports',
-    pm: 'pm',
-    stats: 'stats',
-    quality: 'quality',
-    maintenance: 'maintenance'
-  };
+  // الصفحات العامة المتاحة للجميع دون فحص
+  const publicPages = ['login', 'register', 'home', 'report', 'issue', 'suggestion', 'suggestions', 'log', 'schedule', 'qr', 'ai', 'kb'];
 
-  if (protectedPages[page]) {
-    const required = protectedPages[page];
-    if (required === 'admin' && currentRole !== 'admin') {
+  // فحص الحماية فقط على الصفحات الإدارية/المحمية
+  if (!publicPages.includes(page)) {
+    if (page === 'system' && currentRole !== 'admin') {
       alert("⚠️ عذراً، هذه الصفحة مخصصة لمدير النظام (Admin) فقط.");
       return;
-    } else if (required !== 'admin' && !hasPermission(required)) {
+    }
+    
+    if (page !== 'system' && !hasPermission(page)) {
       alert(`⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`);
       return;
     }
@@ -208,15 +207,18 @@ export async function doLogin() {
     const result = await login(phone, pass);
     
     if (result.status === "success") {
+      const roleVal = (result.role || "").toLowerCase();
+      const permVal = result.permissions || "";
+
       localStorage.setItem("phone", phone);
       localStorage.setItem("name", result.name);
       localStorage.setItem("job", result.job);
-      localStorage.setItem("role", (result.role || "").toLowerCase());
-      localStorage.setItem("permissions", result.permissions || "");
+      localStorage.setItem("role", roleVal);
+      localStorage.setItem("permissions", permVal);
       localStorage.setItem("user", JSON.stringify(result));
 
-      currentRole = (result.role || "").toLowerCase();
-      currentPermissions = (result.permissions || "")
+      currentRole = roleVal;
+      currentPermissions = permVal
           .split(",")
           .map(p => p.trim().toLowerCase())
           .filter(p => p !== "");
