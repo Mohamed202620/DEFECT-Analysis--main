@@ -122,8 +122,10 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <!-- حقوق الملكية والتواصل عبر واتساب باستخدام البيانات الجاهزة -->
+    <!-- حقوق الملكية والتواصل عبر واتساب والوصول السريع -->
     <div class="pt-4 border-t border-gray-800/80 text-center space-y-3">
+      
+      <!-- زر التواصل مع المطور -->
       <button 
         onclick="window.open('${waUrl}', '_blank')" 
         class="w-full bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-green-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-md">
@@ -131,6 +133,15 @@ export const HomeView = () => {
         <span>تواصل مع المطور</span>
       </button>
 
+      <!-- زر تسجيل الخروج (تمت إضافته هنا) -->
+      <button 
+        onclick="if(confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) { localStorage.clear(); window.location.reload(); }" 
+        class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 transition active:scale-95 shadow-md">
+        <span>🚪</span>
+        <span>تسجيل الخروج</span>
+      </button>
+
+      <!-- حقوق الملكية -->
       <p class="text-[10px] text-gray-500 font-medium tracking-wide">
         جميع الحقوق محفوظة بواسطة <span class="text-gray-300 font-semibold">Mohamed Hussein</span> © ${new Date().getFullYear()}
       </p>
