@@ -17,10 +17,11 @@ export const LoginView = () => `
       
       <!-- رقم الموبايل -->
       <div>
-        <label class="block text-xs font-bold mb-1 text-gray-300">رقم الموبايل</label>
+        <label for="loginPhone" class="block text-xs font-bold mb-1 text-gray-300">رقم الموبايل</label>
         <input 
           id="loginPhone" 
           type="tel" 
+          autocomplete="tel"
           placeholder="رقم الموبايل" 
           required
           class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
@@ -29,11 +30,12 @@ export const LoginView = () => `
       
       <!-- كلمة السر -->
       <div>
-        <label class="block text-xs font-bold mb-1 text-gray-300">كلمة السر</label>
+        <label for="loginPass" class="block text-xs font-bold mb-1 text-gray-300">كلمة السر</label>
         <div class="relative">
           <input 
             id="loginPass" 
             type="password" 
+            autocomplete="current-password"
             placeholder="كلمة السر" 
             required
             class="w-full p-3 pl-12 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
