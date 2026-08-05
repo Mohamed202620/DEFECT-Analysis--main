@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
 
-  <!-- <base href="/DEFECT-Analysis--main/" /> -->
-
   <!-- Manifest -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
@@ -14,6 +12,10 @@
   <!-- Chart.js & Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- أداة F12 للموبايل (Eruda Console) -->
+  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+  <script>eruda.init();</script>
 
   <!-- سكريبت منع التذبذب في الألوان -->
   <script>
@@ -37,38 +39,21 @@
       --app-main-bg: #f3f4f6; 
       --app-header-bg: rgba(255, 255, 255, 0.95);
       --app-card-bg: #ffffff;
-      --app-card-inner: #f9fafb;
-      --app-btn-bg: #ffffff;
-      --app-btn-hover: #f3f4f6;
       --app-border: #e5e7eb;
       --app-text: #1f2937;
-      --app-text-muted: #6b7280;
-      --app-support-bg: #eff6ff;
-      --app-support-border: #bfdbfe;
-      --app-support-text: #1d4ed8;
-      --app-icon-bg: #f3f4f6;
     }
     
     .dark, body.dark, html.dark, [data-theme="dark"] {
       --app-main-bg: #0f172a; 
       --app-header-bg: rgba(14, 17, 23, 0.9);
       --app-card-bg: rgba(30, 41, 59, 0.4);
-      --app-card-inner: rgba(0, 0, 0, 0.2);
-      --app-btn-bg: rgba(30, 41, 59, 0.6);
-      --app-btn-hover: rgba(255, 255, 255, 0.1);
       --app-border: rgba(255, 255, 255, 0.08);
       --app-text: #f3f4f6;
-      --app-text-muted: #9ca3af;
-      --app-support-bg: rgba(37, 99, 235, 0.15);
-      --app-support-border: rgba(37, 99, 235, 0.3);
-      --app-support-text: #93c5fd;
-      --app-icon-bg: rgba(255, 255, 255, 0.05);
     }
 
     * { 
       box-sizing: border-box; 
       font-family: system-ui, -apple-system, sans-serif; 
-      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; 
     }
 
     body, html, #app { 
@@ -96,57 +81,56 @@
     </div>
   </div>
 
-  <!-- App Main Container -->
+  <!-- Container -->
   <div id="app"></div>
 
-  <!-- App Scripts -->
+  <!-- Error Handlers & SW -->
   <script>
     window.addEventListener("error", function (e) {
-        console.error("Application Error:", e.error || e.message);
-        window.hideSplash();
+      console.error("Application Error:", e.error || e.message);
+      window.hideSplash();
     });
 
     window.addEventListener("unhandledrejection", function (e) {
-        console.error("Promise Error:", e.reason);
-        window.hideSplash();
+      console.error("Promise Error:", e.reason);
+      window.hideSplash();
     });
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(registration => console.log('SW Registered:', registration.scope))
+          .then(reg => console.log('SW Registered:', reg.scope))
           .catch(err => console.error('SW Error:', err));
       });
     }
 
-    setTimeout(() => {
-      window.hideSplash();
-    }, 3000);
+    setTimeout(() => { window.hideSplash(); }, 3000);
   </script>
 
-  <!-- تشغيل الموجه الرئيسي -->
+  <!-- Router Loader -->
   <script type="module">
     import("./js/router.js")
       .then((router) => {
-        // تشغيل نظام التوجيه وإخفاء شاشة التحميل
+        console.log("Router loaded successfully:", router);
         if (typeof window.initApp === 'function') {
           window.initApp();
-        } else if (typeof router.init === 'function') {
+        } else if (router.init) {
           router.init();
         }
         window.hideSplash();
       })
       .catch((err) => {
-        console.error("خطأ في تشغيل router.js:", err);
+        console.error("Router error:", err);
         window.hideSplash();
-        
+
         const appDiv = document.getElementById("app");
         if (appDiv) {
           appDiv.innerHTML = `
-            <div class="min-h-screen flex flex-col items-center justify-center p-4 text-center">
-              <div class="bg-red-900/40 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-xl">
+            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A]">
+              <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
                 <h3 class="text-base font-bold mb-2">⚠️ تعذر تحميل التطبيق</h3>
-                <p class="text-xs text-red-300 font-mono break-all my-2">${err.message || err}</p>
+                <p class="text-xs text-yellow-300 font-mono break-all my-2">${err.message || err}</p>
+                <p class="text-[11px] text-gray-400 mt-3">اضغط على زر الفحص (الرمز العائم أسفل الشاشة) لمعاينة تفاصيل الـ Console.</p>
               </div>
             </div>
           `;
