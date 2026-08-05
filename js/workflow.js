@@ -254,4 +254,69 @@ window.confirmIssue = async function() {
     }
   }
 };
+// ==========================================
+// رسم بياني للأعطال والأداء (Home Chart)
+// ==========================================
+let chartInstance = null;
+
+export function initMainChart(customData = null) {
+  const canvas = document.getElementById('mainChart');
+  if (!canvas) return;
+
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
+
+  const defaultData = {
+    labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+    open: [4, 2, 5, 1, 3, 2, 0],
+    closed: [3, 4, 4, 3, 5, 4, 1]
+  };
+
+  const data = customData || defaultData;
+
+  chartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [
+        {
+          label: 'أعطال مفتوحة',
+          data: data.open,
+          borderColor: '#F59E0B',
+          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.35,
+          fill: true
+        },
+        {
+          label: 'تم إصلاحها',
+          data: data.closed,
+          borderColor: '#10B981',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          borderWidth: 2,
+          pointRadius: 4,
+          tension: 0.35,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#9CA3AF', font: { size: 10 } } }
+      },
+      scales: {
+        x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(51, 65, 85, 0.2)' } },
+        y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' } }
+      }
+    }
+  });
+}
+
+window.initMainChart = initMainChart;
+
+
 
