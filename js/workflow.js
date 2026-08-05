@@ -155,3 +155,103 @@ export async function saveDefectData() {
 window.handleDefectFile = handleDefectFile;
 window.saveDefectData = saveDefectData;
 window.resetDefectForm = resetDefectForm;
+// ==========================================
+// منطق معالجة وحفظ بلاغات الأعطال (Issue Logic)
+// ==========================================
+
+let selectedIssueImage = null;
+
+// الاستماع لاختيار الصور من الكاميرا أو المعرض في واجهة البلاغات
+document.addEventListener('change', async (e) => {
+  if (e.target && (e.target.id === 'cameraImage' || e.target.id === 'galleryImage')) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      selectedIssueImage = await compressImage(file, 1000, 0.8);
+      const preview = document.getElementById('previewImage');
+      const nameTxt = document.getElementById('imageName');
+
+      if (preview) {
+        preview.src = selectedIssueImage;
+        preview.classList.remove('hidden');
+      }
+      if (nameTxt) {
+        nameTxt.textContent = `📷 تم إرفاق الصورة: ${file.name || 'مباشرة'}`;
+        nameTxt.classList.remove('text-gray-400');
+        nameTxt.classList.add('text-emerald-400');
+      }
+    } catch (err) {
+      alert("❌ خطأ أثناء معالجة الصورة: " + err.message);
+    }
+  }
+});
+
+// دالة حفظ وإرسال البلاغ المربوطة بزر الحفظ
+window.confirmIssue = async function() {
+  const line = document.getElementById('issueLine')?.value;
+  const machine = document.getElementById('issueMachine')?.value;
+  const priority = document.getElementById('issuePriority')?.value;
+  const type = document.querySelector('input[name="issueType"]:checked')?.value || "Breakdown";
+  const category = document.getElementById('issueCategory')?.value;
+  const description = document.getElementById('issueDescription')?.value?.trim();
+  const location = document.getElementById('issueLocation')?.value?.trim();
+  const suggestion = document.getElementById('issueSuggestion')?.value?.trim();
+  const issueId = document.getElementById('generatedIssueId')?.textContent;
+
+  if (!line || !machine || !category || !description) {
+    alert("⚠️ يرجى استكمال البيانات الأساسية: (الخط، الماكينة، نوع العطل، والوصف)");
+    return;
+  }
+
+  const btn = document.querySelector('button[onclick="window.confirmIssue()"]');
+  const originalText = btn ? btn.innerHTML : "💾 حفظ وإرسال البلاغ";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ جاري الإرسال...";
+  }
+
+  const payload = {
+    action: "saveIssue",
+    issueId,
+    line,
+    machine,
+    priority,
+    type,
+    category,
+    description,
+    location,
+    suggestion,
+    image: selectedIssueImage,
+    reporter: {
+      name: localStorage.getItem("name") || "",
+      job: localStorage.getItem("job") || "",
+      department: localStorage.getItem("department") || "",
+      shift: localStorage.getItem("shift") || ""
+    },
+    status: "open",
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    const { saveIssueApi } = await import('./services/api.js');
+    const res = await saveIssueApi(payload);
+    if (res && res.status === 'success') {
+      alert("✅ تم حفظ وإرسال البلاغ بنجاح");
+      selectedIssueImage = null;
+      if (typeof window.navigateTo === 'function') {
+        window.navigateTo('home');
+      }
+    } else {
+      alert("❌ حدث خطأ أثناء الإرسال: " + (res?.message || "خطأ غير معروف"));
+    }
+  } catch (err) {
+    alert("❌ خطأ بالاتصال: " + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  }
+};
+
