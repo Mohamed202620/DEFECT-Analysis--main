@@ -4,7 +4,6 @@ import { translations } from './config.js';
 import { login } from './auth/login.js';
 import { fetchUsers, updatePermissionsApi, registerUserApi } from './services/api.js';
 
-// استيراد الواجهات من مجلد views
 import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
 import { HomeView } from './views/homeView.js';
@@ -16,22 +15,18 @@ import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
-
-// استيراد دوال سير العمل (Workflow)
 import { saveDefectData, handleDefectFile, initMainChart } from './workflow.js';
 
 // --- المتغيرات العامة للنظام (Global State) ---
 export let currentPage = 'login';
 export let currentLang = 'ar';
 
-// استرجاع الصلاحيات فوراً من localStorage لتجنب الحظر عند التحميل
 export let currentRole = (localStorage.getItem("role") || "").toLowerCase();
 export let currentPermissions = (localStorage.getItem("permissions") || "")
     .split(",")
     .map(p => p.trim().toLowerCase())
     .filter(p => p !== "");
 
-// مزامنة حالة اللغة والداتا على window
 window.currentLang = currentLang;
 window.dashboardData = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
 
@@ -104,16 +99,13 @@ export function renderPage(page) {
 
 // --- التنقل المطور لحماية الصفحات المحمية فقط ---
 export function navigateTo(page, addToHistory = true) {
-  // الصفحات العامة المتاحة للجميع دون فحص
   const publicPages = ['login', 'register', 'home', 'report', 'issue', 'suggestion', 'suggestions', 'log', 'schedule', 'qr', 'ai', 'kb'];
 
-  // فحص الحماية فقط على الصفحات الإدارية/المحمية
   if (!publicPages.includes(page)) {
     if (page === 'system' && currentRole !== 'admin') {
       alert("⚠️ عذراً، هذه الصفحة مخصصة لمدير النظام (Admin) فقط.");
       return;
     }
-    
     if (page !== 'system' && !hasPermission(page)) {
       alert(`⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`);
       return;
@@ -131,10 +123,9 @@ export function navigateTo(page, addToHistory = true) {
   }
 
   render();
-  window.scrollTo(0, 0);
+  window.scrollTo({ top: 0, behavior: 'smooth' }); // تحسين: تنقل سلس للأعلى
 }
 
-// الاستماع لحدث الرجوع من نظام الموبايل
 window.addEventListener('popstate', (event) => {
   if (event.state && event.state.page) {
     navigateTo(event.state.page, false);
@@ -169,12 +160,7 @@ export function toggleDarkMode() {
 }
 
 export function logout() {
-  localStorage.removeItem("phone");
-  localStorage.removeItem("name");
-  localStorage.removeItem("job");
-  localStorage.removeItem("role");
-  localStorage.removeItem("permissions");
-  localStorage.removeItem("user");
+  localStorage.clear(); // تحسين: مسح كل الداتا المرتبطة بالمستخدم بضغطة واحدة بدلاً من تحديدها بالاسم
   currentRole = '';
   currentPermissions = [];
   navigateTo("login");
@@ -187,7 +173,6 @@ export function contactSupport() {
   window.open(`https://wa.me/201067988554?text=${encodeURIComponent(message)}`, "_blank");
 }
 
-// --- عمليات مصادقة الحسابات ---
 export async function doLogin() {
   const phone = document.getElementById("loginPhone")?.value.trim();
   const pass = document.getElementById("loginPass")?.value.trim();
@@ -235,6 +220,7 @@ export async function doLogin() {
 }
 
 export async function registerUser() {
+  // الكود الخاص بك كما هو - ممتاز
   const data = {
     name: document.getElementById("regName")?.value.trim(),
     phone: document.getElementById("regPhone")?.value.trim(),
@@ -266,23 +252,50 @@ export async function registerUser() {
   }
 }
 
-// --- دالة العرض الرئيسية (Render) ---
+// --- دالة تنظيف الذاكرة (Memory Cleanup) للمكونات قبل تدميرها ---
+function cleanupBeforeRender() {
+  // تدمير كائنات Chart.js المفتوحة لمنع تسرب الذاكرة
+  if (window.mainChart && typeof window.mainChart.destroy === 'function') {
+    window.mainChart.destroy();
+    window.mainChart = null;
+  }
+  if (window.statsChart && typeof window.statsChart.destroy === 'function') {
+    window.statsChart.destroy();
+    window.statsChart = null;
+  }
+}
+
+// --- دالة العرض الرئيسية (Render) محدثة بانتقال سلس وتفريغ للذاكرة ---
 export function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  app.innerHTML = renderPage(currentPage);
+  // 1. تنظيف الموارد القديمة
+  cleanupBeforeRender();
 
-  requestAnimationFrame(() => {
-    if (currentPage === 'home' && typeof window.initMainChart === 'function') {
-      window.initMainChart();
-    } else if (currentPage === 'stats' && typeof window.initStatsChart === 'function') {
-      window.initStatsChart();
-    }
-  });
+  // 2. إخفاء تدريجي سريع
+  app.style.transition = 'opacity 0.15s ease-out';
+  app.style.opacity = '0.4';
+
+  setTimeout(() => {
+    // 3. حقن الكود الجديد
+    app.innerHTML = renderPage(currentPage);
+    
+    // 4. إظهار تدريجي
+    app.style.opacity = '1';
+
+    // 5. تهيئة المكونات الخاصة بالصفحة الجديدة
+    requestAnimationFrame(() => {
+      if (currentPage === 'home' && typeof window.initMainChart === 'function') {
+        window.initMainChart();
+      } else if (currentPage === 'stats' && typeof window.initStatsChart === 'function') {
+        window.initStatsChart();
+      }
+    });
+  }, 150); // وقت متزامن مع التلاشي
 }
 
-// --- ربط الدوال بـ Window للأحداث المباشرة ---
+// --- ربط الدوال بـ Window ---
 window.navigateTo = navigateTo;
 window.toggleLanguage = toggleLanguage;
 window.toggleDarkMode = toggleDarkMode;
@@ -302,11 +315,11 @@ window.loadUsers = async function () {
   let html = "";
   data.users.forEach(u => {
     html += `
-      <div class="bg-[#1E293B] rounded-xl p-3 mb-3 text-white text-xs">
+      <div class="bg-[#1E293B] rounded-xl p-3 mb-3 text-white text-xs shadow-sm">
         <div><b>${u.name}</b></div>
-        <div>${u.phone}</div>
-        <div>${u.role}</div>
-        <button class="mt-3 w-full bg-green-600 p-2 rounded text-white font-bold" onclick="window.editPermissions('${u.phone}','${u.role}')">
+        <div class="text-gray-400">${u.phone}</div>
+        <div class="text-blue-400 mb-2">الدور: ${u.role}</div>
+        <button class="mt-2 w-full bg-blue-600/20 border border-blue-500 hover:bg-blue-600 transition-colors p-2 rounded text-white font-bold" onclick="window.editPermissions('${u.phone}','${u.role}')">
           تعديل الصلاحيات
         </button>
       </div>
@@ -332,6 +345,7 @@ window.editPermissions = async function(phone, currentRoleVal) {
   }
 };
 
+// الاستماع الموحد للصور (Event Delegation)
 document.addEventListener("change", function (e) {
   if (e.target.id === "cameraImage" || e.target.id === "galleryImage") {
     const file = e.target.files[0];
