@@ -18,7 +18,7 @@ import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 
 // استيراد دوال سير العمل (Workflow)
-import { saveDefectData, handleDefectFile } from './workflow.js';
+import { saveDefectData, handleDefectFile, initMainChart } from './workflow.js';
 
 // --- المتغيرات العامة للنظام (Global State) ---
 export let currentPage = 'login';
@@ -78,7 +78,6 @@ export function navigateTo(page, addToHistory = true) {
 
   currentPage = page;
 
-  // تسجيل التنقل في سجل المتصفح/الموبايل لتمكين إيماءات وزر الرجوع
   if (addToHistory && window.location.hash !== `#${page}`) {
     history.pushState({ page }, '', `#${page}`);
   }
@@ -91,7 +90,7 @@ export function navigateTo(page, addToHistory = true) {
   window.scrollTo(0, 0);
 }
 
-// الاستماع لحدث الرجوع من نظام الموبايل (Swipe Back / Hardware Back Button)
+// الاستماع لحدث الرجوع من نظام الموبايل
 window.addEventListener('popstate', (event) => {
   if (event.state && event.state.page) {
     navigateTo(event.state.page, false);
@@ -227,11 +226,14 @@ export function render() {
 
   app.innerHTML = renderPage(currentPage);
 
-  if (currentPage === 'home' && typeof window.initMainChart === 'function') {
-    window.initMainChart();
-  } else if (currentPage === 'stats' && typeof window.initStatsChart === 'function') {
-    window.initStatsChart();
-  }
+  // استخدام requestAnimationFrame لتأكيد وجود عناصر الـ DOM وتحديد أبعاد الـ Canvas
+  requestAnimationFrame(() => {
+    if (currentPage === 'home' && typeof window.initMainChart === 'function') {
+      window.initMainChart();
+    } else if (currentPage === 'stats' && typeof window.initStatsChart === 'function') {
+      window.initStatsChart();
+    }
+  });
 }
 
 // --- واجهات مكملة ---
@@ -338,7 +340,6 @@ window.addEventListener('DOMContentLoaded', () => {
     currentPage = 'login';
   }
 
-  // تهيئة الحالة الأولى في سجل الموبايل
   history.replaceState({ page: currentPage }, '', `#${currentPage}`);
 
   const savedTheme = localStorage.getItem('theme');
