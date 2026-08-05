@@ -1,4 +1,4 @@
-Export const LoginView = () => `
+export const LoginView = () => `
   <div id="loginScreen" class="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-white" dir="rtl">
     <form 
       onsubmit="event.preventDefault(); window.doLogin();" 
