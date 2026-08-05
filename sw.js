@@ -1,19 +1,20 @@
-const CACHE_NAME = 'maint-system-v1'; // تم تعديل Const إلى const
-const ASSETS_TO_CACHE = [
+// تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
+const CACHE_NAME = 'maint-system-v1.1'; 
+
+// نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
+const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './1000230635.png',
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/chart.js'
+  './1000230635.png'
 ];
 
 // حدث التثبيت (Install Event)
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // محاولة إضافة الملفات للكاش
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => console.error("فشل إضافة بعض الملفات للكاش:", err));
+      console.log("[SW] Caching Core Assets");
+      return cache.addAll(CORE_ASSETS);
     })
   );
   self.skipWaiting(); // تفعيل النسخة الجديدة فوراً
@@ -26,6 +27,7 @@ self.addEventListener('activate', (e) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log("[SW] Deleting old cache:", key);
             return caches.delete(key);
           }
         })
@@ -37,10 +39,31 @@ self.addEventListener('activate', (e) => {
 
 // حدث جلب البيانات (Fetch Event)
 self.addEventListener('fetch', (e) => {
-  // استراتيجية Cache-First: ابحث في الكاش أولاً، وإن لم تجده اطلبه من الإنترنت
+  const req = e.request;
+
+  // تجاوز طلبات الـ API إذا كانت موجودة (حتى لا يتم تخزين البيانات المتغيرة باستمرار)
+  // if (req.url.includes('/api/')) { return; }
+
   e.respondWith(
-    caches.match(e.request).then((cachedResponse) => {
-      return cachedResponse || fetch(e.request);
+    caches.match(req).then((cachedRes) => {
+      // استراتيجية (Stale-While-Revalidate)
+      // جلب النسخة الأحدث من الشبكة لتحديث الكاش في الخلفية
+      const fetchPromise = fetch(req).then((networkRes) => {
+        // التأكد من أن الاستجابة صالحة قبل تخزينها
+        // type 'basic' للملفات المحلية، و 'opaque' للملفات الخارجية (CDN)
+        if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return networkRes;
+      }).catch(() => {
+        // ماذا يحدث لو انقطع الإنترنت والملف غير موجود في الكاش؟
+        console.warn("[SW] Offline, and resource not in cache:", req.url);
+      });
+
+      // إذا كان الملف في الكاش، اعرضه للمستخدم فوراً (سرعة عالية).
+      // وإذا لم يكن، انتظر جلب الشبكة.
+      return cachedRes || fetchPromise;
     })
   );
 });
