@@ -7,7 +7,7 @@ export const HomeView = () => {
 
   // إعداد رقم الواتساب الخاص بك والرسالة الجاهزة
   const waNumber = "201067988554"; 
-  const waMessage = "مرحباً مهندس محمد، أود التواصل معك بخصوص تطبيق الصيانة.";
+  const waMessage = "السلام عليكم أود التواصل معك بخصوص تطبيق الصيانة.";
   
   // تجهيز الرابط النهائي وتشفير الرسالة لتتناسب مع الرابط
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
