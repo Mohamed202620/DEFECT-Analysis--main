@@ -126,37 +126,61 @@
     }, 3000);
   </script>
 
-  <!-- تحميل ملف التوجيه كاشف الأخطاء الهيكلية -->
+  <!-- فحص تسلسلي لمعرفة الملف المسبب لـ SyntaxError -->
   <script type="module">
-    console.log("جاري تحميل router...");
+    const modulesToTest = [
+      "./js/config.js",
+      "./js/auth/login.js",
+      "./js/services/api.js",
+      "./js/components/PageView.js",
+      "./js/views/loginView.js",
+      "./js/views/registerView.js",
+      "./js/views/homeView.js",
+      "./js/views/pmView.js",
+      "./js/views/reportView.js",
+      "./js/views/reportsView.js",
+      "./js/views/suggestionView.js",
+      "./js/views/issueView.js",
+      "./js/views/MaintenanceView.js",
+      "./js/views/QualityView.js",
+      "./js/views/SystemView.js",
+      "./js/workflow.js",
+      "./js/router.js"
+    ];
 
-    import("./js/router.js")
-      .then(() => {
-        console.log("تم تحميل router بنجاح.");
-        window.hideSplash();
-      })
-      .catch((err) => {
-        console.error("فشل تحميل router.js:", err);
-        window.hideSplash();
-        
-        // عرض تفاصيل الخطأ والملف المسبب له تلقائياً
-        const appDiv = document.getElementById("app");
-        if (appDiv) {
-          appDiv.innerHTML = `
-            <div class="min-h-screen flex flex-col items-center justify-center p-4 font-mono text-xs">
-              <div class="bg-red-950/90 border border-red-500/60 text-red-200 p-5 rounded-2xl max-w-lg w-full shadow-2xl text-right dir-rtl">
-                <h3 class="text-base font-bold text-red-400 mb-2 flex items-center gap-2">
-                  <span>⚠️</span> خطأ برمجي أثناء استيراد الملفات
-                </h3>
-                <p class="text-xs text-red-300 font-bold break-all mb-3">${err.message || err}</p>
-                <hr class="border-red-900/80 my-3" />
-                <p class="text-[11px] text-gray-400 mb-1">مكان واسم الملف المتسبب بالخطأ (Stack Trace):</p>
-                <pre class="bg-black/60 p-3 rounded-xl border border-gray-800 text-[10px] text-yellow-300 overflow-x-auto whitespace-pre-wrap text-left leading-relaxed font-mono" style="direction: ltr;">${err.stack || 'No stack trace available'}</pre>
+    async function diagnoseApp() {
+      console.log("بدء الفحص التشخيصي للملفات...");
+      
+      for (const filePath of modulesToTest) {
+        try {
+          await import(filePath);
+          console.log(`✅ تم تحميل: ${filePath}`);
+        } catch (err) {
+          console.error(`❌ خطأ في الملف: ${filePath}`, err);
+          window.hideSplash();
+
+          const appDiv = document.getElementById("app");
+          if (appDiv) {
+            appDiv.innerHTML = `
+              <div class="min-h-screen bg-[#0F172A] p-5 flex items-center justify-center font-mono">
+                <div class="bg-red-950/90 border-2 border-red-500 text-red-200 p-6 rounded-2xl max-w-lg w-full shadow-2xl text-right dir-rtl">
+                  <h3 class="text-base font-bold text-red-400 mb-2">🎯 الملف المسبب للخطأ:</h3>
+                  <div class="bg-black/60 p-3 rounded-lg border border-red-900 text-yellow-300 font-mono text-left break-all my-3" style="direction: ltr;">
+                    ${filePath}
+                  </div>
+                  <p class="text-xs text-gray-300 font-bold mb-1">تفاصيل الخطأ:</p>
+                  <p class="text-xs text-red-300 font-mono break-all">${err.message}</p>
+                </div>
               </div>
-            </div>
-          `;
+            `;
+          }
+          return;
         }
-      });
+      }
+      window.hideSplash();
+    }
+
+    diagnoseApp();
   </script>
 </body>
 </html>
