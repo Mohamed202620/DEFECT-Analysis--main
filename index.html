@@ -2,14 +2,22 @@
 <html lang="ar" dir="rtl" id="html-tag">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
   <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
 
-  <!-- Manifest -->
+  <!-- PWA Manifest & Theme -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
 
+  <!-- دعم أجهزة iOS (Apple PWA Tags) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MaintSystem">
+  <link rel="apple-touch-icon" href="1000230635.png">
+
   <!-- Chart.js & Tailwind CSS -->
+  <!-- ملاحظة: في مرحلة متقدمة سنحتاج لتخزين هذه الروابط في الـ Service Worker لتعمل Offline -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -109,14 +117,13 @@
 
   <!-- Router Loader -->
   <script type="module">
-    // تجنب كاش المتصفح عند جلب الـ Router
-    const routerPath = `./js/router.js?v=${Date.now()}`;
+    // تم إزالة ?v=Date.now() للسماح للـ Service Worker بتخزين ملف الـ Router والعمل Offline
+    const routerPath = `./js/router.js`;
 
     import(routerPath)
       .then((router) => {
         console.log("Router loaded successfully:", router);
         
-        // تنفيذ دالة التنقل أو التكليف بالرسم التلقائي للواجهة
         if (typeof router.navigateTo === 'function') {
           router.navigateTo(router.currentPage || 'login');
         } else if (typeof window.navigateTo === 'function') {
@@ -140,7 +147,7 @@
               <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
                 <h3 class="text-base font-bold text-red-400 mb-2">⚠️ تعذر تحميل التطبيق</h3>
                 <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction: ltr;">${err.message || err}</p>
-                <p class="text-[11px] text-gray-400 mt-3">اضغط على زر الفحص (الرمز العائم أسفل الشاشة) لمعاينة تفاصيل الـ Console.</p>
+                <p class="text-[11px] text-gray-400 mt-3">اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.</p>
               </div>
             </div>
           `;
