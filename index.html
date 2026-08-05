@@ -109,14 +109,24 @@
 
   <!-- Router Loader -->
   <script type="module">
-    import("./js/router.js")
+    // تجنب كاش المتصفح عند جلب الـ Router
+    const routerPath = `./js/router.js?v=${Date.now()}`;
+
+    import(routerPath)
       .then((router) => {
         console.log("Router loaded successfully:", router);
-        if (typeof window.initApp === 'function') {
-          window.initApp();
-        } else if (router.init) {
+        
+        // تنفيذ دالة التنقل أو التكليف بالرسم التلقائي للواجهة
+        if (typeof router.navigateTo === 'function') {
+          router.navigateTo(router.currentPage || 'login');
+        } else if (typeof window.navigateTo === 'function') {
+          window.navigateTo('login');
+        } else if (typeof router.init === 'function') {
           router.init();
+        } else if (typeof window.initApp === 'function') {
+          window.initApp();
         }
+
         window.hideSplash();
       })
       .catch((err) => {
@@ -126,10 +136,10 @@
         const appDiv = document.getElementById("app");
         if (appDiv) {
           appDiv.innerHTML = `
-            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A]">
+            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
               <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
-                <h3 class="text-base font-bold mb-2">⚠️ تعذر تحميل التطبيق</h3>
-                <p class="text-xs text-yellow-300 font-mono break-all my-2">${err.message || err}</p>
+                <h3 class="text-base font-bold text-red-400 mb-2">⚠️ تعذر تحميل التطبيق</h3>
+                <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction: ltr;">${err.message || err}</p>
                 <p class="text-[11px] text-gray-400 mt-3">اضغط على زر الفحص (الرمز العائم أسفل الشاشة) لمعاينة تفاصيل الـ Console.</p>
               </div>
             </div>
