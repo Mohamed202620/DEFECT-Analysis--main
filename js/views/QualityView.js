@@ -1,35 +1,74 @@
 import { BottomNav } from "../components/BottomNav.js";
 
 export const QualityView = () => `
-<div class="p-4 max-w-md mx-auto">
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
-<h2 class="text-blue-400 font-bold mb-3">
-📦 تحليل العيوب
-</h2>
+  <!-- الهيدر الرئيسي -->
+  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div>
+      <h2 class="text-base font-bold text-blue-400 flex items-center gap-2">
+        <span>📦</span> قسم الجودة وتحليل العيوب
+      </h2>
+      <p class="text-[11px] text-gray-400 mt-0.5">توثيق وفحص عيوب المنتجات وقاعدة المعرفة</p>
+    </div>
+    <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] px-2.5 py-1 rounded-full font-bold">
+      الجودة QC
+    </span>
+  </div>
 
-<div class="grid grid-cols-2 gap-3">
+  <!-- شبكة الإجراءات السريعة -->
+  <div class="grid grid-cols-2 gap-3.5">
 
-<div class="btn-action" onclick="window.navigateTo('defect')">
-📷<br>تصوير عيب
+    <!-- تصوير عيب -->
+    <div 
+      onclick="window.navigateTo('defect')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        📷
+      </div>
+      <span class="font-bold text-xs text-gray-100">تصوير عيب</span>
+      <span class="text-[10px] text-gray-400 mt-1">تسجيل وتوثيق visual defect</span>
+    </div>
+
+    <!-- اكتشاف العيب بـ AI (شارة مميزة) -->
+    <div 
+      onclick="window.navigateTo('ai')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-indigo-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group relative overflow-hidden">
+      <span class="absolute top-2 right-2 bg-indigo-500/20 text-indigo-300 text-[9px] font-bold px-1.5 py-0.5 rounded border border-indigo-500/30">
+        AI 🚀
+      </span>
+      <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        🤖
+      </div>
+      <span class="font-bold text-xs text-gray-100">فحص بـ AI</span>
+      <span class="text-[10px] text-gray-400 mt-1">كشف العيوب تلقائياً</span>
+    </div>
+
+    <!-- قاعدة المعرفة -->
+    <div 
+      onclick="window.navigateTo('kb')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-cyan-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        📚
+      </div>
+      <span class="font-bold text-xs text-gray-100">قاعدة المعرفة</span>
+      <span class="text-[10px] text-gray-400 mt-1">دليل الإصلاح والحلول</span>
+    </div>
+
+    <!-- الإحصائيات -->
+    <div 
+      onclick="window.navigateTo('stats')" 
+      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-emerald-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
+        📈
+      </div>
+      <span class="font-bold text-xs text-gray-100">الإحصائيات</span>
+      <span class="text-[10px] text-gray-400 mt-1">معدل العيوب والتكرار</span>
+    </div>
+
+  </div>
+
 </div>
-
-<div class="btn-action" onclick="window.navigateTo('ai')">
-🤖<br>اكتشاف العيب
-</div>
-
-<div class="btn-action" onclick="window.navigateTo('kb')">
-📚<br>قاعدة المعرفة
-</div>
-
-<div class="btn-action" onclick="window.navigateTo('stats')">
-📈<br>الإحصائيات
-</div>
-
-</div>
-
-</div>
-
-<div style="height:80px"></div>
 
 ${BottomNav("quality")}
 `;
