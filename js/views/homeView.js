@@ -1,9 +1,18 @@
 import { BottomNav } from "../components/BottomNav.js";
+// في حال كانت المتغيرات تُستورد من ملف الإعدادات الذي ظهر في الصورة، يمكنك إزالة التعليق عن السطر التالي:
+// import { WHATSAPP_NUMBER, WHATSAPP_MESSAGE } from "../config.js";
 
 export const HomeView = () => {
   const name = localStorage.getItem("name") || "المستخدم";
   const job = localStorage.getItem("job") || "فني صيانة";
   const stats = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
+
+  // جلب رقم الواتساب والرسالة الجاهزة الموجودة مسبقاً 
+  // (يرجى تغيير window.CONFIG.waNumber بالمتغير الفعلي الخاص بك الموجود في التطبيق)
+  const waNumber = window.CONFIG?.waNumber || "201XXXXXXXXXX"; 
+  const waMessage = window.CONFIG?.waMessage || "مرحباً، أود التواصل معك.";
+  // تجهيز الرابط النهائي وتشفير الرسالة لتتناسب مع الرابط
+  const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
   return `
   <div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
@@ -115,12 +124,12 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <!-- حقوق الملكية والتواصل مع المطور -->
+    <!-- حقوق الملكية والتواصل عبر واتساب باستخدام البيانات الجاهزة -->
     <div class="pt-4 border-t border-gray-800/80 text-center space-y-3">
       <button 
-        onclick="window.contactDeveloper ? window.contactDeveloper() : (window.location.href = 'mailto:contact@example.com')" 
-        class="w-full bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-md">
-        <span>💬</span>
+        onclick="window.open('${waUrl}', '_blank')" 
+        class="w-full bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-green-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-gray-300 hover:text-white transition active:scale-95 shadow-md">
+        <span class="text-green-500">📱</span>
         <span>تواصل مع المطور</span>
       </button>
 
