@@ -30,6 +30,29 @@ export let currentPermissions = [];
 window.currentLang = currentLang;
 window.dashboardData = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
 
+// --- واجهات مكملة ومساعدة ---
+const LogContent = () => `
+  <div class="overflow-x-auto rounded-xl border border-gray-800">
+    <table class="w-full text-xs text-right text-white">
+      <tr class="bg-[#1E293B] opacity-70 border-b border-gray-800">
+        <th class="p-2.5">الكود</th>
+        <th class="p-2.5">المعدة</th>
+        <th class="p-2.5">الحالة</th>
+      </tr>
+      <tr class="border-b border-gray-800/50">
+        <td class="p-2.5 font-mono">#1024</td>
+        <td class="p-2.5">ماكينة 2</td>
+        <td class="p-2.5 text-orange-400 font-bold">مفتوح 🟡</td>
+      </tr>
+      <tr class="border-b border-gray-800/50">
+        <td class="p-2.5 font-mono">#1023</td>
+        <td class="p-2.5">خط الدهان 1</td>
+        <td class="p-2.5 text-green-400 font-bold">تم الإصلاح 🟢</td>
+      </tr>
+    </table>
+  </div>
+`;
+
 // فحص الصلاحيات
 export function hasPermission(permission) {
   if (currentRole === "admin") return true;
@@ -57,7 +80,7 @@ export function renderPage(page) {
     case 'qr': 
       return PageView('📱 مسح QR الماكينات', '<div class="bg-[#1E293B] p-6 rounded-xl border border-gray-800 text-center"><p class="text-xs text-gray-400 mb-3">وجه الكاميرا نحو رمز QR الماكينة</p><input type="file" accept="image/*" capture="camera" class="w-full text-xs"></div>');
     case 'ai': 
-      return PageView('🤖 فحص العيوب بـ AI', '<div class="bg-[#1E293B] p-6 rounded-xl border border-gray-800 text-center"><p class="text-xs text-gray-400 mb-3">ارفع صورة المنتجات لفحصها تلقائياً</p><input type="file" class="w-full text-xs mb-3"><button onclick="alert(\'جاري الفحص... العيب المكتشف: خدش دهان (دقة 94%)\')" class="w-full p-2.5 bg-blue-600 rounded-lg font-bold text-xs text-white">ابدأ الفحص 🚀</button></div>');
+      return PageView('🤖 فحص العيوب بـ AI', `<div class="bg-[#1E293B] p-6 rounded-xl border border-gray-800 text-center"><p class="text-xs text-gray-400 mb-3">ارفع صورة المنتجات لفحصها تلقائياً</p><input type="file" class="w-full text-xs mb-3"><button onclick="alert('جاري الفحص... العيب المكتشف: خدش دهان (دقة 94%)')" class="w-full p-2.5 bg-blue-600 rounded-lg font-bold text-xs text-white">ابدأ الفحص 🚀</button></div>`);
     case 'stats': 
       return PageView('📊 الإحصائيات وتحليل الأعطال', '<div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800"><div style="height: 220px;"><canvas id="statsChart"></canvas></div></div>');
     case 'kb': 
@@ -226,7 +249,6 @@ export function render() {
 
   app.innerHTML = renderPage(currentPage);
 
-  // استخدام requestAnimationFrame لتأكيد وجود عناصر الـ DOM وتحديد أبعاد الـ Canvas
   requestAnimationFrame(() => {
     if (currentPage === 'home' && typeof window.initMainChart === 'function') {
       window.initMainChart();
@@ -235,17 +257,6 @@ export function render() {
     }
   });
 }
-
-// --- واجهات مكملة ---
-const LogContent = () => `
-  <div class="overflow-x-auto rounded-xl border border-gray-800">
-    <table class="w-full text-xs text-right text-white">
-      <tr class="bg-[#1E293B] opacity-70 border-b border-gray-800"><th class="p-2.5">الكود</th><th class="p-2.5">المعدة</th><th class="p-2.5">الحالة</th></tr>
-      <tr class="border-b border-gray-800/50"><td class="p-2.5 font-mono">#1024</td><td class="p-2.5">ماكينة 2</td><td class="p-2.5 text-orange-400 font-bold">مفتوح 🟡</td></tr>
-      <tr class="border-b border-gray-800/50"><td class="p-2.5 font-mono">#1023</td><td class="p-2.5">خط الدهان 1</td><td class="p-2.5 text-green-400 font-bold">تم الإصلاح 🟢</td></tr>
-    </table>
-  </div>
-`;
 
 // --- ربط الدوال بـ Window للأحداث المباشرة ---
 window.navigateTo = navigateTo;
