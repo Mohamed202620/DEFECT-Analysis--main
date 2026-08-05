@@ -105,7 +105,7 @@
   <script>
     window.addEventListener("error", function (e) {
         console.error("Application Error:", e.error || e.message);
-        window.hideSplash(); // إخفاء التحميل حتى لو حدث خطأ لرؤية السبب
+        window.hideSplash();
     });
 
     window.addEventListener("unhandledrejection", function (e) {
@@ -121,16 +121,16 @@
       });
     }
 
-    // مهلة أمان احتياطية: إخفاء الـ Splash تلقائياً بعد 3 ثوانٍ مهما كانت الحالة
     setTimeout(() => {
       window.hideSplash();
     }, 3000);
   </script>
 
-  <!-- تحميل ملف التوجيه وإخفاء الـ Splash فور الاكتمل -->
+  <!-- تحميل ملف التوجيه باستخدام الاستدعاء الديناميكي import() الصحيح -->
   <script type="module">
     console.log("جاري تحميل router...");
-    import "./js/router.js"
+
+    import("./js/router.js")
       .then(() => {
         console.log("تم تحميل router بنجاح.");
         window.hideSplash();
@@ -138,6 +138,20 @@
       .catch((err) => {
         console.error("فشل تحميل router.js:", err);
         window.hideSplash();
+        
+        // عرض التفاصيل في حال وجود خطأ في مسار router.js أو بداخله
+        const appDiv = document.getElementById("app");
+        if (appDiv) {
+          appDiv.innerHTML = `
+            <div class="min-h-screen flex flex-col items-center justify-center p-4 text-center">
+              <div class="bg-red-900/30 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-xl">
+                <h3 class="text-lg font-bold mb-2">⚠️ خطأ في تحميل ملف الموجه (router.js)</h3>
+                <p class="text-xs text-red-300 font-mono break-all mb-3">${err.message || err}</p>
+                <p class="text-xs text-gray-400">تأكد من صحة مسار الملف <code>./js/router.js</code> وعدم وجود أخطاء برمجية داخله.</p>
+              </div>
+            </div>
+          `;
+        }
       });
   </script>
 </body>
