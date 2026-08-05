@@ -1,16 +1,14 @@
 import { BottomNav } from "../components/BottomNav.js";
-// في حال كانت المتغيرات تُستورد من ملف الإعدادات الذي ظهر في الصورة، يمكنك إزالة التعليق عن السطر التالي:
-// import { WHATSAPP_NUMBER, WHATSAPP_MESSAGE } from "../config.js";
 
 export const HomeView = () => {
   const name = localStorage.getItem("name") || "المستخدم";
   const job = localStorage.getItem("job") || "فني صيانة";
   const stats = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
 
-  // جلب رقم الواتساب والرسالة الجاهزة الموجودة مسبقاً 
-  // (يرجى تغيير window.CONFIG.waNumber بالمتغير الفعلي الخاص بك الموجود في التطبيق)
-  const waNumber = window.CONFIG?.waNumber || "201XXXXXXXXXX"; 
-  const waMessage = window.CONFIG?.waMessage || "مرحباً، أود التواصل معك.";
+  // إعداد رقم الواتساب الخاص بك والرسالة الجاهزة
+  const waNumber = "201067988554"; 
+  const waMessage = "مرحباً مهندس محمد، أود التواصل معك بخصوص تطبيق الصيانة.";
+  
   // تجهيز الرابط النهائي وتشفير الرسالة لتتناسب مع الرابط
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
