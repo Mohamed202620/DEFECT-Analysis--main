@@ -133,7 +133,7 @@ export const HomeView = () => {
         <span>تواصل مع المطور</span>
       </button>
 
-      <!-- زر تسجيل الخروج (تمت إضافته هنا) -->
+      <!-- زر تسجيل الخروج -->
       <button 
         onclick="if(confirm('هل أنت متأكد من رغبتك في تسجيل الخروج؟')) { localStorage.clear(); window.location.reload(); }" 
         class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 transition active:scale-95 shadow-md">
@@ -143,7 +143,7 @@ export const HomeView = () => {
 
       <!-- حقوق الملكية -->
       <p class="text-[10px] text-gray-500 font-medium tracking-wide">
-        جميع الحقوق محفوظة بواسطة <span class="text-gray-300 font-semibold">Mohamed Hussein</span> © ${new Date().getFullYear()}
+        جميع الحقوق محفوظة بواسطة <span class="text-gray-300 font-semibold">Mohamed Hussein</span> © 2026
       </p>
     </div>
 
