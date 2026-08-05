@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
 
-  <!-- مسار جذر المشروع في GitHub Pages -->
-  <base href="/DEFECT-Analysis--main/" />
+  <!-- قم بإلغاء تعليق السطر التالي فقط عند النشر النهائي على GitHub Pages -->
+  <!-- <base href="/DEFECT-Analysis--main/" /> -->
 
   <!-- Manifest -->
   <link rel="manifest" href="manifest.json">
@@ -23,10 +23,18 @@
     } else {
       document.documentElement.classList.remove('dark');
     }
+
+    // دالة عامة لإخفاء شاشة التحميل
+    window.hideSplash = function () {
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 700);
+      }
+    };
   </script>
 
   <style>
-    /* المتغيرات الأساسية للوضع الفاتح */
     :root {
       --app-main-bg: #f3f4f6; 
       --app-header-bg: rgba(255, 255, 255, 0.95);
@@ -43,7 +51,6 @@
       --app-icon-bg: #f3f4f6;
     }
     
-    /* متغيرات الوضع الداكن */
     .dark, body.dark, html.dark, [data-theme="dark"] {
       --app-main-bg: #0f172a; 
       --app-header-bg: rgba(14, 17, 23, 0.9);
@@ -73,16 +80,6 @@
       padding: 0; 
       min-height: 100vh; 
     }
-
-    /* الكلاسات الديناميكية الموحدة */
-    .dyn-header { background-color: var(--app-header-bg); border-color: var(--app-border); color: var(--app-text); }
-    .dyn-card { background-color: var(--app-card-bg); border-color: var(--app-border); color: var(--app-text); box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-    .dyn-card-inner { background-color: var(--app-card-inner); border-color: var(--app-border); }
-    .dyn-btn { background-color: var(--app-btn-bg); border-color: var(--app-border); color: var(--app-text); }
-    .dyn-btn:hover { background-color: var(--app-btn-hover); }
-    .dyn-text-muted { color: var(--app-text-muted); }
-    .dyn-support { background-color: var(--app-support-bg); border-color: var(--app-support-border); color: var(--app-support-text); }
-    .dyn-icon { background-color: var(--app-icon-bg); border-color: var(--app-border); color: var(--app-text); }
   </style>
 </head>
 <body>
@@ -90,7 +87,7 @@
   <!-- Splash Screen -->
   <div id="splash" class="fixed inset-0 w-full h-full bg-[#0E1117] flex flex-col items-center justify-center z-50 transition-opacity duration-700">
     <div class="flex-1 flex items-center justify-center p-4 w-full max-w-sm">
-      <img src="1000230635.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse"/>
+      <img src="1000230635.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
     </div>
 
     <div class="pb-10 flex flex-col items-center gap-5">
@@ -106,34 +103,42 @@
 
   <!-- App Scripts -->
   <script>
-    // تتبع أخطاء التطبيق
     window.addEventListener("error", function (e) {
         console.error("Application Error:", e.error || e.message);
+        window.hideSplash(); // إخفاء التحميل حتى لو حدث خطأ لرؤية السبب
     });
 
     window.addEventListener("unhandledrejection", function (e) {
         console.error("Promise Error:", e.reason);
+        window.hideSplash();
     });
 
-    // تسجيل الـ Service Worker لتفعيل خصائص الـ PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(registration => {
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          })
-          .catch(err => {
-            console.error('ServiceWorker registration failed: ', err);
-          });
+          .then(registration => console.log('SW Registered:', registration.scope))
+          .catch(err => console.error('SW Error:', err));
       });
     }
+
+    // مهلة أمان احتياطية: إخفاء الـ Splash تلقائياً بعد 3 ثوانٍ مهما كانت الحالة
+    setTimeout(() => {
+      window.hideSplash();
+    }, 3000);
   </script>
 
-  <!-- تحميل ملف التوجيه الأساسي -->
+  <!-- تحميل ملف التوجيه وإخفاء الـ Splash فور الاكتمل -->
   <script type="module">
-      console.log("جاري تحميل router...");
-      import "./js/router.js";
-      console.log("تم تحميل router بنجاح.");
+    console.log("جاري تحميل router...");
+    import "./js/router.js"
+      .then(() => {
+        console.log("تم تحميل router بنجاح.");
+        window.hideSplash();
+      })
+      .catch((err) => {
+        console.error("فشل تحميل router.js:", err);
+        window.hideSplash();
+      });
   </script>
 </body>
 </html>
