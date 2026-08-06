@@ -1,4 +1,4 @@
-Import { login } from './login.js';
+import { login } from './login.js';
 import { register } from './register.js';
 import { logout } from './logout.js';
 
@@ -110,6 +110,7 @@ export async function logoutUser() {
   } catch (error) {
     console.error('Logout Error:', error);
   } finally {
+    localStorage.removeItem('currentUser'); // تنظيف جلسة المستخدم المحلي أيضاً
     if (typeof window.navigateTo === 'function') {
       window.navigateTo('login');
     }
