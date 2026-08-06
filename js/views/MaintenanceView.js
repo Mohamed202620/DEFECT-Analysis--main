@@ -76,7 +76,7 @@ export const MaintenanceView = () => `
           <span class="text-[10px] text-gray-400">وصول سريع لبيانات المعدة بالكاميرا</span>
         </div>
       </div>
-      <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20">
+      <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 shadow-sm">
         مسح 📷
       </span>
     </div>
