@@ -123,7 +123,7 @@ export function navigateTo(page, addToHistory = true) {
   }
 
   render();
-  window.scrollTo({ top: 0, behavior: 'smooth' }); // تحسين: تنقل سلس للأعلى
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 window.addEventListener('popstate', (event) => {
@@ -160,7 +160,7 @@ export function toggleDarkMode() {
 }
 
 export function logout() {
-  localStorage.clear(); // تحسين: مسح كل الداتا المرتبطة بالمستخدم بضغطة واحدة بدلاً من تحديدها بالاسم
+  localStorage.clear();
   currentRole = '';
   currentPermissions = [];
   navigateTo("login");
@@ -223,7 +223,7 @@ export async function registerUser() {
   const data = {
     name: document.getElementById("regName")?.value.trim(),
     phone: document.getElementById("regPhone")?.value.trim(),
-    shift: document.getElementById("regShift")?.value.trim(), // تم إضافة حقل الشيفت هنا
+    shift: document.getElementById("regShift")?.value.trim(),
     password: document.getElementById("regPass")?.value,
     confirmPassword: document.getElementById("regPass2")?.value,
     job: document.getElementById("regJob")?.value.trim(),
@@ -231,7 +231,6 @@ export async function registerUser() {
     code: document.getElementById("regCode")?.value.trim()
   };
 
-  // تم تحديث شرط التحقق ليشمل حقل الشيفت (data.shift)
   if (!data.name || !data.phone || !data.shift || !data.password || !data.confirmPassword || !data.job || !data.department || !data.code) {
     alert("يرجى إدخال جميع البيانات بما في ذلك الشيفت");
     return;
@@ -255,7 +254,6 @@ export async function registerUser() {
 
 // --- دالة تنظيف الذاكرة (Memory Cleanup) للمكونات قبل تدميرها ---
 function cleanupBeforeRender() {
-  // تدمير كائنات Chart.js المفتوحة لمنع تسرب الذاكرة
   if (window.mainChart && typeof window.mainChart.destroy === 'function') {
     window.mainChart.destroy();
     window.mainChart = null;
@@ -266,26 +264,20 @@ function cleanupBeforeRender() {
   }
 }
 
-// --- دالة العرض الرئيسية (Render) محدثة بانتقال سلس وتفريغ للذاكرة ---
+// --- دالة العرض الرئيسية (Render) ---
 export function render() {
   const app = document.getElementById('app');
   if (!app) return;
 
-  // 1. تنظيف الموارد القديمة
   cleanupBeforeRender();
 
-  // 2. إخفاء تدريجي سريع
   app.style.transition = 'opacity 0.15s ease-out';
   app.style.opacity = '0.4';
 
   setTimeout(() => {
-    // 3. حقن الكود الجديد
     app.innerHTML = renderPage(currentPage);
-    
-    // 4. إظهار تدريجي
     app.style.opacity = '1';
 
-    // 5. تهيئة المكونات الخاصة بالصفحة الجديدة
     requestAnimationFrame(() => {
       if (currentPage === 'home' && typeof window.initMainChart === 'function') {
         window.initMainChart();
@@ -293,7 +285,7 @@ export function render() {
         window.initStatsChart();
       }
     });
-  }, 150); // وقت متزامن مع التلاشي
+  }, 150);
 }
 
 // --- ربط الدوال بـ Window ---
@@ -367,7 +359,7 @@ document.addEventListener("change", function (e) {
   }
 });
 
-// --- التشغيل عند جاهزية الصفحة ---
+// --- التشغيل عند جاهزية الصفحة (مُحدث لضمان استقرار الجلسة وعدم الخروج عند الـ Refresh) ---
 window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('user');
   const initialHash = window.location.hash.replace('#', '');
@@ -382,7 +374,8 @@ window.addEventListener('DOMContentLoaded', () => {
           .map(p => p.trim().toLowerCase())
           .filter(p => p !== "");
       }
-      currentPage = initialHash || 'home';
+      // إذا كان مسجل دخوله، نتحقق من الـ Hash، فإن لم يكن موجوداً أو كان صفحة دخول/تسجيل، نوجهه للـ home تلقائياً
+      currentPage = (initialHash && initialHash !== 'login' && initialHash !== 'register') ? initialHash : 'home';
     } catch(e) {
       currentPage = 'login';
     }
