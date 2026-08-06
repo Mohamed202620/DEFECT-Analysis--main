@@ -18,25 +18,26 @@ export const IssueView = () => {
     <button
       type="button"
       onclick="window.navigateTo('home')"
-      class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-white font-bold transition active:scale-95">
+      class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded-lg text-white font-bold transition active:scale-95 shadow-sm">
       ⬅ ${t.back || "رجوع"}
     </button>
 
     <!-- بطاقة النموذج الرئيسية -->
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-700 space-y-4">
+    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
 
-      <h2 class="text-xl font-bold text-blue-400 mb-4">
-        📝 ${t.issueTitle || "تسجيل عطل أو ملاحظة"}
+      <h2 class="text-xl font-bold text-blue-400 mb-4 flex items-center gap-2">
+        <span>📝</span>
+        <span>${t.issueTitle || "تسجيل عطل أو ملاحظة"}</span>
       </h2>
 
       <!-- الخط -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueLine" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.line || "الخط"}
         </label>
         <select id="issueLine"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none">
-          <option value="">${t.selectLine || "اختر الخط"}</option>
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
+          <option value="" disabled selected>${t.selectLine || "اختر الخط"}</option>
           <option value="Line 1">Line 1</option>
           <option value="Line 2">Line 2</option>
         </select>
@@ -44,12 +45,12 @@ export const IssueView = () => {
 
       <!-- الماكينة -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueMachine" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.machine || "الماكينة"}
         </label>
         <select id="issueMachine"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none">
-          <option value="">${t.selectMachine || "اختر الماكينة"}</option>
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
+          <option value="" disabled selected>${t.selectMachine || "اختر الماكينة"}</option>
           <option value="Coil Handling">Coil Handling</option>
           <option value="Baler">Baler</option>
           <option value="Cupper">Cupper</option>
@@ -70,11 +71,11 @@ export const IssueView = () => {
 
       <!-- درجة الأولوية -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issuePriority" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.priority || "درجة الأولوية"}
         </label>
         <select id="issuePriority"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none">
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
           <option value="High">🔴 عالية</option>
           <option value="Medium" selected>🟡 متوسطة</option>
           <option value="Low">🟢 منخفضة</option>
@@ -83,29 +84,29 @@ export const IssueView = () => {
 
       <!-- نوع البلاغ -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label class="block mb-2 text-xs font-bold text-gray-300">
           ${t.issueType || "نوع البلاغ"}
         </label>
-        <div class="flex gap-5 mb-4">
+        <div class="flex gap-5 mb-2 bg-[#0F172A] p-3 rounded-lg border border-gray-700">
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="issueType" value="Breakdown" checked>
-            <span>عطل</span>
+            <input type="radio" name="issueType" value="Breakdown" checked class="accent-blue-500">
+            <span class="text-sm">عطل</span>
           </label>
           <label class="flex items-center gap-2 cursor-pointer">
-            <input type="radio" name="issueType" value="Observation">
-            <span>ملاحظة</span>
+            <input type="radio" name="issueType" value="Observation" class="accent-blue-500">
+            <span class="text-sm">ملاحظة</span>
           </label>
         </div>
       </div>
 
       <!-- نوع العطل -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueCategory" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.category || "نوع العطل"}
         </label>
         <select id="issueCategory"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none">
-          <option value="">${t.selectCategory || "اختر نوع العطل"}</option>
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
+          <option value="" disabled selected>${t.selectCategory || "اختر نوع العطل"}</option>
           <option value="كهرباء">⚡ كهرباء</option>
           <option value="ميكانيكا">⚙️ ميكانيكا</option>
           <option value="برمجة">💻 برمجة</option>
@@ -117,88 +118,103 @@ export const IssueView = () => {
 
       <!-- وصف المشكلة -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueDescription" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.description || "وصف المشكلة"}
         </label>
         <textarea id="issueDescription" rows="4"
-          placeholder="${t.enterDescription || "اكتب وصف المشكلة"}"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none resize-none"></textarea>
+          placeholder="${t.enterDescription || "اكتب وصف المشكلة بدقة..."}"
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm resize-none shadow-sm"></textarea>
       </div>
 
       <!-- مكان العطل داخل الماكينة -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueLocation" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.locationInMachine || "مكان العطل داخل الماكينة"}
         </label>
         <input id="issueLocation" type="text"
           placeholder="مثال: Main Motor - Sensor - Bearing"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none">
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm shadow-sm">
       </div>
 
       <!-- اقتراح الحل -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label for="issueSuggestion" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.suggestion || "اقتراح الحل (اختياري)"}
         </label>
-        <textarea id="issueSuggestion" rows="3"
-          placeholder="${t.enterSuggestion || "اقتراح الحل"}"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none resize-none"></textarea>
+        <textarea id="issueSuggestion" rows="2"
+          placeholder="${t.enterSuggestion || "إذا كان لديك اقتراح لحل المشكلة..."}"
+          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm resize-none shadow-sm"></textarea>
       </div>
 
       <!-- بيانات المبلغ -->
-      <div class="bg-[#0F172A] rounded-xl p-3 border border-gray-700 mb-4 space-y-2 text-sm">
-        <div>👤 <b>المبلغ:</b> ${userName}</div>
-        <div>💼 <b>الوظيفة:</b> ${userJob}</div>
-        <div>🏢 <b>القسم:</b> ${userDepartment}</div>
-        <div>🔵 <b>الشيفت:</b> ${userShift}</div>
-        <div>📅 <b>التاريخ:</b> ${issueDate}</div>
-        <div>🆔 <b>رقم البلاغ:</b> <span id="generatedIssueId">${issueId}</span></div>
+      <div class="bg-[#0F172A] rounded-xl p-4 border border-gray-700 mb-4 space-y-2 text-xs text-gray-300 shadow-inner">
+        <div class="flex justify-between border-b border-gray-800 pb-1">
+          <span>👤 <b>المبلغ:</b></span> <span class="text-white">${userName}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-800 pb-1">
+          <span>💼 <b>الوظيفة:</b></span> <span class="text-white">${userJob}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-800 pb-1">
+          <span>🏢 <b>القسم:</b></span> <span class="text-white">${userDepartment}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-800 pb-1">
+          <span>🔵 <b>الشيفت:</b></span> <span class="text-white">${userShift}</span>
+        </div>
+        <div class="flex justify-between border-b border-gray-800 pb-1">
+          <span>📅 <b>التاريخ:</b></span> <span class="text-white dir-ltr">${issueDate}</span>
+        </div>
+        <div class="flex justify-between">
+          <span>🆔 <b>رقم البلاغ:</b></span> <span id="generatedIssueId" class="text-blue-400 font-mono">${issueId}</span>
+        </div>
       </div>
 
       <!-- الصورة -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
-          ${t.attachPhoto || "صورة (اختياري)"}
+        <label class="block mb-2 text-xs font-bold text-gray-300">
+          ${t.attachPhoto || "صورة توضيحية (اختياري)"}
         </label>
 
-        <div class="grid grid-cols-2 gap-2 mb-4">
+        <div class="grid grid-cols-2 gap-3 mb-3">
           <input id="cameraImage" type="file" accept="image/*" capture="environment" class="hidden">
           <button type="button"
             onclick="document.getElementById('cameraImage').click()"
-            class="bg-blue-600 rounded-lg p-3 text-white font-bold hover:bg-blue-700 transition">
-            📷 تصوير
+            class="bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-xl p-3 text-blue-400 font-bold transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2">
+            <span>📷</span> التقاط صورة
           </button>
 
           <input id="galleryImage" type="file" accept="image/*" class="hidden">
           <button type="button"
             onclick="document.getElementById('galleryImage').click()"
-            class="bg-gray-700 rounded-lg p-3 text-white font-bold hover:bg-gray-600 transition">
-            🖼️ المعرض
+            class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-300 font-bold transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2">
+            <span>🖼️</span> من المعرض
           </button>
         </div>
 
-        <div id="imageName" class="text-center text-xs text-gray-400 mb-3">
+        <div id="imageName" class="text-center text-[11px] text-gray-500 font-medium bg-[#0F172A] py-2 rounded-lg border border-dashed border-gray-700">
           لم يتم اختيار صورة
         </div>
 
-        <img id="previewImage" class="hidden rounded-xl border border-gray-700 w-full mb-4 max-h-48 object-cover"/>
+        <img id="previewImage" class="hidden rounded-xl border border-gray-700 w-full mt-3 max-h-48 object-contain bg-[#0F172A] p-1 shadow-sm"/>
       </div>
 
       <!-- حالة البلاغ -->
       <div>
-        <label class="block mb-2 text-sm font-bold">
+        <label class="block mb-2 text-xs font-bold text-gray-300">
           ${t.status || "حالة البلاغ"}
         </label>
-        <input value="🟡 مفتوح" readonly
-          class="w-full p-3 rounded-lg bg-[#111827] border border-gray-700 text-yellow-400 mb-4 outline-none">
+        <div class="w-full p-3 rounded-lg bg-[#0F172A] border border-yellow-500/30 text-yellow-400 text-sm font-bold flex items-center gap-2 shadow-sm opacity-90">
+          <span>🟡</span> مفتوح
+        </div>
       </div>
 
       <!-- حفظ -->
-      <button type="button"
-        onclick="window.confirmIssue()"
-        class="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-white transition active:scale-95 shadow-lg">
-        💾 ${t.saveAndSend || "حفظ وإرسال البلاغ"}
-      </button>
+      <div class="pt-2">
+        <button type="button"
+          onclick="window.confirmIssue()"
+          class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition active:scale-95 shadow-lg shadow-blue-500/20 text-sm">
+          💾 ${t.saveAndSend || "حفظ وإرسال البلاغ"}
+        </button>
+      </div>
 
     </div>
   </div>
