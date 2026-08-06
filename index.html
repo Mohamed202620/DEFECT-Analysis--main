@@ -17,7 +17,6 @@
   <link rel="apple-touch-icon" href="1000230635.png">
 
   <!-- Chart.js & Tailwind CSS -->
-  <!-- ملاحظة: في مرحلة متقدمة سنحتاج لتخزين هذه الروابط في الـ Service Worker لتعمل Offline -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -115,19 +114,22 @@
     setTimeout(() => { window.hideSplash(); }, 3000);
   </script>
 
-  <!-- Router Loader -->
+  <!-- Router Loader & Session Checker -->
   <script type="module">
-    // تم إزالة ?v=Date.now() للسماح للـ Service Worker بتخزين ملف الـ Router والعمل Offline
     const routerPath = `./js/router.js`;
 
     import(routerPath)
       .then((router) => {
         console.log("Router loaded successfully:", router);
         
+        // التحقق مما إذا كان المستخدم مسجلاً مسبقاً في الـ LocalStorage
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+        const targetPage = isLoggedIn ? (router.defaultRoute || 'home') : 'login';
+
         if (typeof router.navigateTo === 'function') {
-          router.navigateTo(router.currentPage || 'login');
+          router.navigateTo(targetPage);
         } else if (typeof window.navigateTo === 'function') {
-          window.navigateTo('login');
+          window.navigateTo(targetPage);
         } else if (typeof router.init === 'function') {
           router.init();
         } else if (typeof window.initApp === 'function') {
