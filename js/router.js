@@ -77,7 +77,7 @@ export const APP_PERMISSIONS = {
 
   maintenance: "maintenance",
   issue: "issue",
-  suggestion: "suggestion",
+  suggestions: "suggestions",
   pm: "pm",
   log: "log",
   schedule: "schedule",
@@ -86,14 +86,15 @@ export const APP_PERMISSIONS = {
   quality: "quality",
   ai: "ai",
   kb: "kb",
-  stats: "stats",
+  statistics: "statistics",
+  export: "export",
 
   users: "users",
   requests: "requests",
   machines: "machines",
   settings: "settings"
 
-};
+}; 
 
 
 // ============================================================
