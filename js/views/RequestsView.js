@@ -559,11 +559,13 @@ window.loadUsersManagement =
 loadUsersManagement;
 
 
-
+// توافق مع النسخة القديمة من app.js
+export const loadPendingUsers =
+loadUsersManagement;
 
 
 setTimeout(()=>{
 
-loadUsersManagement();
+    loadUsersManagement();
 
-},100);
+},100); 
