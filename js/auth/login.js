@@ -1,5 +1,5 @@
 // استيراد قاعدة البيانات من ملف الإعدادات المركزي
-import { db } from '../config.js'; 
+import { db } from '../config.js';
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 /**
@@ -9,11 +9,12 @@ import { collection, query, where, getDocs } from "https://www.gstatic.com/fireb
  * @returns {Promise<Object>} - نتيجة عملية تسجيل الدخول
  */
 export async function login(phone, pass) {
-  // 1. تنظيف البيانات
+
+  // تنظيف البيانات
   const cleanPhone = phone?.trim();
   const cleanPass = pass?.trim();
 
-  // 2. التحقق من المدخلات بعد التنظيف
+  // التحقق من المدخلات
   if (!cleanPhone || !cleanPass) {
     return {
       status: "error",
@@ -22,7 +23,7 @@ export async function login(phone, pass) {
   }
 
   try {
-    // البحث عن المستخدم برقم الموبايل في مجموعة users
+    // البحث عن المستخدم
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("phone", "==", cleanPhone));
     const querySnapshot = await getDocs(q);
@@ -35,11 +36,15 @@ export async function login(phone, pass) {
     }
 
     let userData = null;
+
     querySnapshot.forEach((docSnap) => {
-      userData = { id: docSnap.id, ...docSnap.data() };
+      userData = {
+        id: docSnap.id,
+        ...docSnap.data()
+      };
     });
 
-    // التحقق من صحة كلمة السر (مقارنة مباشرة أو يمكنك مطابقتها حسب تخزينك لها)
+    // التحقق من كلمة السر
     if (userData.password !== cleanPass) {
       return {
         status: "error",
@@ -47,7 +52,29 @@ export async function login(phone, pass) {
       };
     }
 
-    // تسجيل الدخول ناجح
+    // التحقق من حالة الحساب
+    if (userData.status === "pending") {
+      return {
+        status: "error",
+        message: "تم إرسال طلبك وهو بانتظار موافقة المسؤول."
+      };
+    }
+
+    if (userData.status === "rejected") {
+      return {
+        status: "error",
+        message: "تم رفض طلب الانضمام، يرجى التواصل مع المسؤول."
+      };
+    }
+
+    if (userData.status !== "active") {
+      return {
+        status: "error",
+        message: "الحساب غير مفعل."
+      };
+    }
+
+    // نجاح تسجيل الدخول
     return {
       status: "success",
       user: userData
@@ -55,9 +82,10 @@ export async function login(phone, pass) {
 
   } catch (error) {
     console.error("Login Service Error:", error);
+
     return {
       status: "error",
-      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات، يرجى المحاولة مجدداً."
+      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات، يرجى المحاولة مرة أخرى."
     };
   }
 }
