@@ -10,9 +10,11 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
+
 /* ==========================================================================
    دوال التعامل مع المستخدمين والحسابات (Firebase Firestore)
    ========================================================================== */
+
 
 
 /** جلب قائمة المستخدمين */
@@ -20,84 +22,154 @@ export async function fetchUsers() {
 
   try {
 
-    const querySnapshot = await getDocs(collection(db, "users"));
+    const querySnapshot =
+      await getDocs(
+        collection(db, "users")
+      );
+
 
     let users = [];
 
+
     querySnapshot.forEach((docSnap) => {
 
+
+      const data = docSnap.data();
+
+
       users.push({
+
         id: docSnap.id,
-        ...docSnap.data()
+
+        ...data,
+
+        status:
+          (data.status || "").trim(),
+
+        role:
+          (data.role || "").trim(),
+
+        permissions:
+          (data.permissions || "").trim()
+
       });
+
 
     });
 
 
+
     return {
+
       status: "success",
+
       data: users
+
     };
 
 
   } catch (error) {
 
-    console.error("Error fetching users:", error);
+
+    console.error(
+      "Error fetching users:",
+      error
+    );
+
 
     return {
+
       status: "error",
+
       message: error.message
+
     };
 
   }
 
 }
+
+
 
 
 
 /** تسجيل مستخدم جديد */
 export async function registerUserApi(userData) {
 
+
   try {
 
-    const docRef = await addDoc(collection(db, "users"), {
 
-      ...userData,
+    const docRef =
+      await addDoc(
+        collection(db, "users"),
+        {
 
-      // الحساب ينتظر موافقة المدير
-      role: "pending",
-      permissions: "",
-      status: "pending",
 
-      createdAt: new Date().toISOString()
+          ...userData,
 
-    });
+
+          role: "pending",
+
+          permissions: "",
+
+          status: "pending",
+
+
+          createdAt:
+            new Date().toISOString()
+
+
+        }
+      );
+
 
 
     return {
 
+
       status: "success",
+
       id: docRef.id,
-      message: "تم إرسال طلب التسجيل، بانتظار موافقة المسؤول"
+
+      message:
+        "تم إرسال طلب التسجيل، بانتظار موافقة المسؤول"
+
 
     };
+
 
 
   } catch (error) {
 
-    console.error("Error registering user:", error);
+
+
+    console.error(
+      "Error registering user:",
+      error
+    );
+
 
 
     return {
 
+
       status: "error",
+
       message: error.message
+
 
     };
 
+
   }
 
+
 }
+
+
+
+
 
 
 
@@ -108,43 +180,74 @@ export async function updatePermissionsApi(
   permissions
 ) {
 
+
   try {
 
-    const userRef = doc(db, "users", userId);
+
+    const userRef =
+      doc(db,"users",userId);
 
 
-    await updateDoc(userRef, {
 
-      role,
-      permissions
+    await updateDoc(
+      userRef,
+      {
 
-    });
+        role,
 
+        permissions,
 
-    return {
+        updatedAt:
+          new Date().toISOString()
 
-      status: "success",
-      message: "تم تحديث الصلاحيات"
+      }
+    );
 
-    };
-
-
-  } catch (error) {
-
-
-    console.error("Error updating permissions:", error);
 
 
     return {
 
-      status: "error",
-      message: error.message
+
+      status:"success",
+
+      message:
+        "تم تحديث الصلاحيات"
+
 
     };
+
+
+
+  } catch(error) {
+
+
+
+    console.error(
+      "Error updating permissions:",
+      error
+    );
+
+
+
+    return {
+
+
+      status:"error",
+
+      message:error.message
+
+
+    };
+
 
   }
 
+
 }
+
+
+
+
 
 
 
@@ -159,42 +262,77 @@ export async function updateUserStatusApi(
   status
 ) {
 
+
   try {
 
 
-    const userRef = doc(db, "users", userId);
+
+    const userRef =
+      doc(db,"users",userId);
+
 
 
     let updateData = {
 
+
       status,
 
-      updatedAt: new Date().toISOString()
+
+      updatedAt:
+        new Date().toISOString()
+
 
     };
 
 
 
-    // عند القبول يتم تفعيل الحساب
-    if (status === "active") {
-
-  updateData.role = "user";
-
-  updateData.permissions =
-    "all";
-
-    } 
 
 
+    // قبول المستخدم
 
-    // عند الرفض
-    if (status === "rejected") {
+    if(status === "active"){
 
-      updateData.role = "pending";
 
-      updateData.permissions = "";
+      updateData.role =
+        "user";
+
+
+      updateData.permissions =
+        "all";
+
+
+      updateData.approvedAt =
+        new Date().toISOString();
+
+
+
+      updateData.approvedBy =
+        localStorage.getItem("name")
+        || "Admin";
+
 
     }
+
+
+
+
+
+    // رفض المستخدم
+
+    if(status === "rejected"){
+
+
+      updateData.role =
+        "pending";
+
+
+      updateData.permissions =
+        "";
+
+
+    }
+
+
 
 
 
@@ -204,18 +342,36 @@ export async function updateUserStatusApi(
     );
 
 
+
+
+
     return {
 
-      status: "success",
+
+      status:"success",
+
+
       message:
+
         status === "active"
-          ? "تم قبول المستخدم وتفعيل الحساب"
-          : "تم رفض طلب المستخدم"
+
+        ?
+
+        "تم قبول المستخدم وتفعيل الحساب"
+
+        :
+
+        "تم رفض طلب المستخدم"
+
 
     };
 
 
-  } catch (error) {
+
+
+
+  } catch(error) {
+
 
 
     console.error(
@@ -224,16 +380,26 @@ export async function updateUserStatusApi(
     );
 
 
+
     return {
 
-      status: "error",
-      message: error.message
+
+      status:"error",
+
+      message:error.message
+
 
     };
 
+
   }
 
+
 }
+
+
+
+
 
 
 
@@ -242,34 +408,46 @@ export async function updateUserStatusApi(
    ========================================================================== */
 
 
+
 /** حفظ بلاغ عطل أو عيب */
 export async function saveDefectApi(payload) {
+
 
   try {
 
 
-    const docRef = await addDoc(
-      collection(db, "defects"),
-      {
+    const docRef =
+      await addDoc(
+        collection(db,"defects"),
+        {
 
-        ...payload,
 
-        createdAt:
-          new Date().toISOString()
+          ...payload,
 
-      }
-    );
+
+          createdAt:
+            new Date().toISOString()
+
+
+        }
+      );
+
 
 
     return {
 
-      status: "success",
-      id: docRef.id
+
+      status:"success",
+
+      id:docRef.id
+
 
     };
 
 
-  } catch (error) {
+
+  } catch(error) {
+
 
 
     console.error(
@@ -278,55 +456,76 @@ export async function saveDefectApi(payload) {
     );
 
 
+
     return {
 
-      status: "error",
-      message: error.message
+
+      status:"error",
+
+      message:error.message
+
 
     };
 
+
   }
 
+
 }
+
+
+
+
 
 
 
 /** بيانات لوحة المتابعة */
 export async function fetchDashboardDataApi() {
 
+
   try {
 
 
     const ticketsSnap =
       await getDocs(
-        collection(db, "tickets")
+        collection(db,"tickets")
       );
+
 
 
     const defectsSnap =
       await getDocs(
-        collection(db, "defects")
+        collection(db,"defects")
       );
+
 
 
     return {
 
-      status: "success",
 
-      data: {
+      status:"success",
+
+
+      data:{
+
 
         openTicketsCount:
           ticketsSnap.size,
 
+
         defectsCount:
           defectsSnap.size
 
+
       }
+
 
     };
 
 
-  } catch (error) {
+
+  } catch(error) {
+
 
 
     console.error(
@@ -335,44 +534,63 @@ export async function fetchDashboardDataApi() {
     );
 
 
+
     return {
 
-      status: "error",
-      message: error.message
+
+      status:"error",
+
+      message:error.message
+
 
     };
 
+
   }
 
+
 }
+
+
+
+
 
 
 
 /** جلب التذاكر */
 export async function fetchTicketsApi() {
 
+
   try {
+
 
 
     const querySnapshot =
       await getDocs(
-        collection(db, "tickets")
+        collection(db,"tickets")
       );
+
 
 
     let tickets = [];
 
 
+
     querySnapshot.forEach(
       (docSnap)=>{
 
+
         tickets.push({
 
-          id: docSnap.id,
+
+          id:docSnap.id,
+
 
           ...docSnap.data()
 
+
         });
+
 
       }
     );
@@ -381,25 +599,39 @@ export async function fetchTicketsApi() {
 
     return {
 
-      status: "success",
-      data: tickets
+
+      status:"success",
+
+      data:tickets
+
 
     };
 
 
-  } catch (error) {
+
+  } catch(error) {
+
 
 
     return {
 
-      status: "error",
-      message: error.message
+
+      status:"error",
+
+      message:error.message
+
 
     };
 
+
   }
 
+
 }
+
+
+
+
 
 
 
@@ -407,10 +639,12 @@ export async function fetchTicketsApi() {
 export async function updateTicketStatusApi(
   ticketId,
   status,
-  notes = ""
-) {
+  notes=""
+){
+
 
   try {
+
 
 
     const ticketRef =
@@ -422,12 +656,16 @@ export async function updateTicketStatusApi(
       ticketRef,
       {
 
+
         status,
+
 
         notes,
 
+
         updatedAt:
           new Date().toISOString()
+
 
       }
     );
@@ -436,21 +674,30 @@ export async function updateTicketStatusApi(
 
     return {
 
+
       status:"success"
 
+
     };
+
 
 
   } catch(error) {
 
 
+
     return {
 
+
       status:"error",
+
       message:error.message
+
 
     };
 
+
   }
+
 
 }
