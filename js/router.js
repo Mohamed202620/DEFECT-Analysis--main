@@ -192,15 +192,16 @@ export async function doLogin() {
     const result = await login(phone, pass);
     
     if (result.status === "success") {
-      const roleVal = (result.role || "").toLowerCase();
-      const permVal = result.permissions || "";
+      const userObj = result.user || result.data || {};
+      const roleVal = (userObj.role || "").toLowerCase();
+      const permVal = userObj.permissions || "";
 
       localStorage.setItem("phone", phone);
-      localStorage.setItem("name", result.name);
-      localStorage.setItem("job", result.job);
+      localStorage.setItem("name", userObj.name || "");
+      localStorage.setItem("job", userObj.job || "");
       localStorage.setItem("role", roleVal);
       localStorage.setItem("permissions", permVal);
-      localStorage.setItem("user", JSON.stringify(result));
+      localStorage.setItem("user", JSON.stringify(userObj));
 
       currentRole = roleVal;
       currentPermissions = permVal
@@ -243,7 +244,7 @@ export async function registerUser() {
 
   try {
     const result = await registerUserApi(data);
-    alert(result.message);
+    alert(result.message || "تمت العملية بنجاح");
     if (result.status === "success") {
       navigateTo("login");
     }
@@ -302,17 +303,19 @@ window.render = render;
 window.can = hasPermission;
 
 window.loadUsers = async function () {
-  const data = await fetchUsers();
-  if (data.status !== "success") return;
+  const result = await fetchUsers();
+  if (result.status !== "success") return;
 
   let html = "";
-  data.users.forEach(u => {
+  const usersList = result.data || result.users || [];
+
+  usersList.forEach(u => {
     html += `
       <div class="bg-[#1E293B] rounded-xl p-3 mb-3 text-white text-xs shadow-sm">
-        <div><b>${u.name}</b></div>
-        <div class="text-gray-400">${u.phone}</div>
-        <div class="text-blue-400 mb-2">الدور: ${u.role}</div>
-        <button class="mt-2 w-full bg-blue-600/20 border border-blue-500 hover:bg-blue-600 transition-colors p-2 rounded text-white font-bold" onclick="window.editPermissions('${u.phone}','${u.role}')">
+        <div><b>${u.name || 'مستخدم بدون اسم'}</b></div>
+        <div class="text-gray-400">${u.phone || ''}</div>
+        <div class="text-blue-400 mb-2">الدور: ${u.role || 'user'}</div>
+        <button class="mt-2 w-full bg-blue-600/20 border border-blue-500 hover:bg-blue-600 transition-colors p-2 rounded text-white font-bold" onclick="window.editPermissions('${u.id || u.phone}','${u.role || 'user'}')">
           تعديل الصلاحيات
         </button>
       </div>
@@ -323,15 +326,15 @@ window.loadUsers = async function () {
   if (container) container.innerHTML = html;
 };
 
-window.editPermissions = async function(phone, currentRoleVal) {
+window.editPermissions = async function(userIdOrPhone, currentRoleVal) {
   const role = prompt("أدخل الدور الجديد:\nadmin\nengineer\ntech", currentRoleVal);
   if (!role) return;
 
   const permissions = prompt("أدخل الصلاحيات\nمثال:\nall\nأو\nreports,pm,users", "all");
   if (permissions === null) return;
 
-  const data = await updatePermissionsApi(phone, role.toLowerCase(), permissions);
-  alert(data.message);
+  const data = await updatePermissionsApi(userIdOrPhone, role.toLowerCase(), permissions);
+  alert(data.message || "تم التحديث بنجاح");
 
   if (data.status === "success") {
     window.loadUsers();
@@ -359,7 +362,7 @@ document.addEventListener("change", function (e) {
   }
 });
 
-// --- التشغيل عند جاهزية الصفحة (مُحدث لضمان استقرار الجلسة وعدم الخروج عند الـ Refresh) ---
+// --- التشغيل عند جاهزية الصفحة ---
 window.addEventListener('DOMContentLoaded', () => {
   const savedUser = localStorage.getItem('user');
   const initialHash = window.location.hash.replace('#', '');
@@ -374,7 +377,6 @@ window.addEventListener('DOMContentLoaded', () => {
           .map(p => p.trim().toLowerCase())
           .filter(p => p !== "");
       }
-      // إذا كان مسجل دخوله، نتحقق من الـ Hash، فإن لم يكن موجوداً أو كان صفحة دخول/تسجيل، نوجهه للـ home تلقائياً
       currentPage = (initialHash && initialHash !== 'login' && initialHash !== 'register') ? initialHash : 'home';
     } catch(e) {
       currentPage = 'login';
