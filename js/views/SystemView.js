@@ -29,17 +29,17 @@ export const SystemView = () => {
     </div>
 
     <span class="
-      bg-blue-500/10 
-      text-blue-400 
-      border 
-      border-blue-500/20 
-      text-[10px] 
-      px-2.5 
-      py-1 
-      rounded-full 
+      bg-blue-500/10
+      text-blue-400
+      border
+      border-blue-500/20
+      text-[10px]
+      px-2.5
+      py-1
+      rounded-full
       font-bold
     ">
-      Admin
+      ${(localStorage.getItem("role") || "user").toUpperCase()}
     </span>
 
   </div>
@@ -89,7 +89,7 @@ export const SystemView = () => {
 
     ${can("machines") ? `
     <div
-      onclick="window.navigateTo('machines')"
+      onclick="alert('🚧 قريباً')"
       class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-emerald-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
 
       <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl mb-2">
@@ -109,7 +109,7 @@ export const SystemView = () => {
 
     ${can("settings") ? `
     <div
-      onclick="window.navigateTo('settings')"
+      onclick="alert('⚙️ قريباً')"
       class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-purple-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
 
       <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl mb-2">
