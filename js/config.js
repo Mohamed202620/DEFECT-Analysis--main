@@ -1,6 +1,11 @@
 // استيراد Firebase SDK
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import {
+  initializeApp,
+  getApps,
+  getApp
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
 // رابط Google Apps Script (يمكنك الاحتفاظ به كنسخة احتياطية)
 export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz2O9L2NTyJvKQgUwzmFASSzoX7EIYd6H21g3J--bJYbdB-zsW2NYubv8WRw87GORni/exec";
@@ -15,9 +20,15 @@ const firebaseConfig = {
   appId: "1:1065779979535:web:6d53e69c4cfde57b414a7a"
 };
 
-// تهيئة Firebase وتصدير قاعدة البيانات للاستخدام في باقي الملفات
-export const app = initializeApp(firebaseConfig);
+// ثوابت التطبيق
+export const APP_VERSION = "1.1.0";
+export const APP_NAME = "MAINTENANCE & DEFECT SYSTEM";
+export const DEBUG = true;
+
+// تهيئة Firebase وتصدير قاعدة البيانات والتخزين للاستخدام في باقي الملفات
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 // الترجمات والنصوص النظامية
 export const translations = {
@@ -29,7 +40,7 @@ export const translations = {
     secDefects: '📦 قسم تحليل عيوب الإنتاج',
     d1: 'تصوير عيب', d2: 'فحص AI', d3: 'قاعدة المعرفة', d4: 'الإحصائيات', d5: 'تصدير التقارير',
     secUsers: '👥 إدارة المستخدمين', u1: 'إدارة الصلاحيات والمستخدمين (للمدير فقط)',
-    logout: 'تسجيل الخروج ➔', copy: '© 2026 جميع الحقوق محفوظة | Mohamed Hussein ',
+    logout: 'تسجيل الخروج ➔', footer: '© 2026 جميع الحقوق محفوظة | Mohamed Hussein ',
     chartLabel: 'أكثر الماكينات أعطالاً'
   },
   en: {
@@ -40,7 +51,7 @@ export const translations = {
     secDefects: '📦 Defects Analysis',
     d1: 'Capture Defect', d2: 'AI Inspect', d3: 'Knowledge Base', d4: 'Statistics', d5: 'Export Reports',
     secUsers: '👥 Users Management', u1: 'Manage Roles & Users (Admin Only)',
-    logout: 'Logout ➔', copy: '© 2026 All Rights Reserved | Mohamed Hussein',
+    logout: 'Logout ➔', footer: '© 2026 All Rights Reserved | Mohamed Hussein',
     chartLabel: 'Top Faulty Machines'
   }
 };
