@@ -2,7 +2,12 @@
 import { PageView } from './components/PageView.js';
 import { translations } from './config.js';
 import { login } from './auth/login.js';
-import { fetchUsers, updatePermissionsApi, registerUserApi } from './services/api.js';
+import { 
+  fetchUsers, 
+  updatePermissionsApi, 
+  registerUserApi,
+  updateUserStatusApi
+} from './services/api.js';
 
 import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
@@ -384,6 +389,46 @@ document.addEventListener("change", function (e) {
     reader.readAsDataURL(file);
   }
 });
+
+// قبول طلب مستخدم
+window.approveUser = async function(userId) {
+
+  const result = await updateUserStatusApi(
+    userId,
+    "active"
+  );
+
+  alert(result.message);
+
+  if (result.status === "success") {
+
+    if (typeof window.loadPendingUsers === "function") {
+      window.loadPendingUsers();
+    }
+
+  }
+
+};
+
+// رفض طلب مستخدم
+window.rejectUser = async function(userId) {
+
+  const result = await updateUserStatusApi(
+    userId,
+    "rejected"
+  );
+
+  alert(result.message);
+
+  if (result.status === "success") {
+
+    if (typeof window.loadPendingUsers === "function") {
+      window.loadPendingUsers();
+    }
+
+  }
+
+};
 
 // --- التشغيل عند جاهزية الصفحة ---
 window.addEventListener('DOMContentLoaded', () => {
