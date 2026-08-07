@@ -36,16 +36,9 @@ export async function fetchUsers() {
     const usersRef =
       collection(db, "users");
 
-
-    const q =
-      query(
-        usersRef,
-        orderBy("createdAt", "desc")
-      );
-
-
+    // جلب كل المستندات مباشرة لتفادي مشاكل الفهارس أو نقص حقل الترتيب
     const querySnapshot =
-      await getDocs(q);
+      await getDocs(usersRef);
 
 
     const users = [];
@@ -85,6 +78,14 @@ export async function fetchUsers() {
 
       });
 
+    });
+
+
+    // ترتيب المستخدمين برمجياً من الأحدث للأقدم بأمان تام
+    users.sort((a, b) => {
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
     });
 
 
