@@ -1,5 +1,5 @@
 import { BottomNav } from "../components/BottomNav.js";
-import { updateUserStatusApi } from "../services/api.js";
+import { updateUserStatusApi, fetchUsers } from "../services/api.js";
 
 
 export const RequestsView = () => `
@@ -59,29 +59,17 @@ export async function loadPendingUsers() {
 
 
 
-    const { fetchUsers } =
-        await import(
-            "../services/api.js"
-        );
+    const result = await fetchUsers();
 
 
 
-    const result =
-        await fetchUsers();
-
-
-
-    if (
-        result.status !== "success"
-    ) {
+    if (result.status !== "success") {
 
 
         container.innerHTML = `
 
             <div class="text-red-400 text-center">
-
                 فشل تحميل البيانات
-
             </div>
 
         `;
@@ -94,9 +82,8 @@ export async function loadPendingUsers() {
 
     const pending =
         (result.data || [])
-        .filter(
-            user =>
-            user.status === "pending"
+        .filter(user =>
+            (user.status || "").trim() === "pending"
         );
 
 
@@ -108,9 +95,7 @@ export async function loadPendingUsers() {
         container.innerHTML = `
 
             <div class="text-center text-gray-400 py-10">
-
                 لا توجد طلبات جديدة
-
             </div>
 
         `;
@@ -119,7 +104,6 @@ export async function loadPendingUsers() {
         return;
 
     }
-
 
 
 
@@ -133,41 +117,31 @@ export async function loadPendingUsers() {
 
 
             <div class="font-bold text-blue-400">
-
                 ${user.name || "بدون اسم"}
-
             </div>
 
 
 
             <div class="text-sm text-gray-300 mt-1">
-
                 📱 ${user.phone || ""}
-
             </div>
 
 
 
             <div class="text-sm text-gray-300">
-
                 💼 ${user.job || ""}
-
             </div>
 
 
 
             <div class="text-sm text-gray-300">
-
                 🏢 ${user.department || ""}
-
             </div>
 
 
 
             <div class="text-sm text-gray-300">
-
                 🔄 ${user.shift || ""}
-
             </div>
 
 
@@ -176,30 +150,20 @@ export async function loadPendingUsers() {
 
 
                 <button
-
                 class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold"
-
                 onclick="window.approveUser('${user.id}')"
-
                 >
-
                     ✅ قبول
-
                 </button>
 
 
 
 
                 <button
-
                 class="flex-1 bg-red-600 hover:bg-red-500 py-2 rounded-lg font-bold"
-
                 onclick="window.rejectUser('${user.id}')"
-
                 >
-
                     ❌ رفض
-
                 </button>
 
 
@@ -223,8 +187,7 @@ export async function loadPendingUsers() {
 
 
 // قبول المستخدم
-
-window.approveUser = async function(id){
+window.approveUser = async function(id) {
 
 
     const result =
@@ -237,7 +200,7 @@ window.approveUser = async function(id){
 
     alert(
         result.message ||
-        "تم تحديث الحالة"
+        "تم قبول المستخدم"
     );
 
 
@@ -251,8 +214,7 @@ window.approveUser = async function(id){
 
 
 // رفض المستخدم
-
-window.rejectUser = async function(id){
+window.rejectUser = async function(id) {
 
 
     const result =
@@ -265,7 +227,7 @@ window.rejectUser = async function(id){
 
     alert(
         result.message ||
-        "تم تحديث الحالة"
+        "تم رفض المستخدم"
     );
 
 
@@ -277,7 +239,14 @@ window.rejectUser = async function(id){
 
 
 
-// إتاحة الدالة للـ app.js
+// إتاحة الدالة للتطبيق
+window.loadPendingUsers = loadPendingUsers;
 
-window.loadPendingUsers =
-    loadPendingUsers;
+
+
+// تحميل الطلبات بعد ظهور الصفحة
+setTimeout(() => {
+
+    loadPendingUsers();
+
+}, 100);
