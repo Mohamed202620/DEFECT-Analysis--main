@@ -838,11 +838,6 @@ export async function loadUsersManagement() {
     const result =
         await fetchUsers();
 
-    alert(
-      "Firebase رجع: " +
-      JSON.stringify(result)
-    );
-
 
     if (result.status !== "success") {
 
@@ -866,9 +861,14 @@ export async function loadUsersManagement() {
     }
 
 
-    usersCache =
-        result.data || [];
+    usersCache = Array.isArray(result.data)
+        ? result.data
+        : [];
 
+    alert(
+        "عدد المستخدمين بعد التحميل: " +
+        usersCache.length
+    );
 
     renderUsers(usersCache);
 
@@ -887,11 +887,6 @@ export async function loadPendingUsers() {
 
     const result =
         await fetchUsers();
-
-    alert(
-      "Firebase رجع: " +
-      JSON.stringify(result)
-    );
 
 
     if (result.status !== "success") {
