@@ -51,9 +51,23 @@ export async function login(phone, pass) {
     const userData = {
       id: docSnap.id,
       ...data,
-      // إزالة أي مسافات زائدة
-      status: (data.status || "").trim(),
-      role: (data.role || "").trim()
+
+      status:
+        (data.status || "")
+          .trim()
+          .toLowerCase(),
+
+      role:
+        (data.role || "")
+          .trim()
+          .toLowerCase(),
+
+      permissions:
+        (data.permissions || "")
+          .split(",")
+          .map(p => p.trim().toLowerCase())
+          .filter(Boolean)
+          .join(",")
     };
 
     // إظهار البيانات في وضع التطوير فقط
