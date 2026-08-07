@@ -838,6 +838,11 @@ export async function loadUsersManagement() {
     const result =
         await fetchUsers();
 
+    alert(
+      "Firebase رجع: " +
+      JSON.stringify(result)
+    );
+
 
     if (result.status !== "success") {
 
@@ -882,6 +887,11 @@ export async function loadPendingUsers() {
 
     const result =
         await fetchUsers();
+
+    alert(
+      "Firebase رجع: " +
+      JSON.stringify(result)
+    );
 
 
     if (result.status !== "success") {
