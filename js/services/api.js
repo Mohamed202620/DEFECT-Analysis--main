@@ -24,7 +24,13 @@ export async function fetchUsers() {
 /** تسجيل مستخدم جديد */
 export async function registerUserApi(userData) {
   try {
-    const docRef = await addDoc(collection(db, "users"), userData);
+    const docRef = await addDoc(collection(db, "users"), {
+  ...userData,
+  role: "tech",
+  permissions: "",
+  status: "active",
+  createdAt: new Date().toISOString()
+}); 
     return { status: "success", id: docRef.id };
   } catch (error) {
     console.error("Error registering user:", error);
