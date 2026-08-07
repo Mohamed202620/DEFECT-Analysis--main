@@ -26,8 +26,8 @@ export function resetDefectForm() {
   if (descEl) descEl.value = "";
 }
 
-// دالة ضغط الصور باستخدام Promise
-export function compressImage(file, maxWidth = 1000, quality = 0.8) {
+// ✅ 5. تحسين الضغط (900 و 0.75 كقيم افتراضية)
+export function compressImage(file, maxWidth = 900, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -61,8 +61,21 @@ export async function handleDefectFile(e, index) {
   const file = e.target.files[0];
   if (!file) return;
 
+  // ✅ 2. التأكد أن الملف صورة
+  if (!file.type.startsWith("image/")) {
+    alert("⚠️ الملف المختار ليس صورة.");
+    return;
+  }
+
+  // ✅ 1. منع تهنيج التطبيق عند اختيار صور كبيرة جداً
+  if (file.size > 10 * 1024 * 1024) {
+    alert("❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)");
+    return;
+  }
+
   try {
-    const base64 = await compressImage(file, 1000, 0.8);
+    // ✅ 5. تطبيق إعدادات الضغط المحسنة
+    const base64 = await compressImage(file, 900, 0.75);
     defectImages[index] = base64;
 
     const img = document.getElementById(`imgPreview${index}`);
@@ -116,17 +129,24 @@ export async function saveDefectData() {
   const job = localStorage.getItem("job") || currentUser.job || "";
   const role = localStorage.getItem("role") || currentUser.role || "";
 
+  // ✅ 8. إضافة رقم البلاغ كمعرف فريد
+  const defectId = "DF-" + Date.now();
+
   const payload = {
-    action: "saveDefect",
+    // ✅ 4. تم إزالة action: "saveDefect"
+    defectId, // المعرف المضاف حديثاً
     user: { name: userName, phone, job, role },
     line,
     stage,
     name,
     location,
     description,
+    
+    // ✅ 7. ملاحظة: سيتم استبدال هذه الحقول لاحقاً بـ image1Url... بعد تفعيل Firebase Storage
     image1: defectImages[0],
     image2: defectImages[1],
     image3: defectImages[2],
+    
     date: new Date().toISOString()
   };
 
@@ -155,6 +175,7 @@ export async function saveDefectData() {
 window.handleDefectFile = handleDefectFile;
 window.saveDefectData = saveDefectData;
 window.resetDefectForm = resetDefectForm;
+
 // ==========================================
 // منطق معالجة وحفظ بلاغات الأعطال (Issue Logic)
 // ==========================================
@@ -167,8 +188,21 @@ document.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
+    // ✅ 2. التأكد أن الملف صورة
+    if (!file.type.startsWith("image/")) {
+      alert("⚠️ الملف المختار ليس صورة.");
+      return;
+    }
+
+    // ✅ 1. منع تهنيج التطبيق للصور الضخمة
+    if (file.size > 10 * 1024 * 1024) {
+      alert("❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)");
+      return;
+    }
+
     try {
-      selectedIssueImage = await compressImage(file, 1000, 0.8);
+      // ✅ 5. تحسين الضغط (900، 0.75)
+      selectedIssueImage = await compressImage(file, 900, 0.75);
       const preview = document.getElementById('previewImage');
       const nameTxt = document.getElementById('imageName');
 
@@ -212,7 +246,7 @@ window.confirmIssue = async function() {
   }
 
   const payload = {
-    action: "saveIssue",
+    // ✅ 4. تم إزالة action: "saveIssue"
     issueId,
     line,
     machine,
@@ -222,7 +256,7 @@ window.confirmIssue = async function() {
     description,
     location,
     suggestion,
-    image: selectedIssueImage,
+    image: selectedIssueImage, // مستقبلاً سيتم رفعها كـ imageUrl
     reporter: {
       name: localStorage.getItem("name") || "",
       job: localStorage.getItem("job") || "",
@@ -238,7 +272,19 @@ window.confirmIssue = async function() {
     const res = await saveIssueApi(payload);
     if (res && res.status === 'success') {
       alert("✅ تم حفظ وإرسال البلاغ بنجاح");
+      
+      // ✅ 3. إعادة ضبط حقول البلاغ بعد الحفظ قبل العودة للرئيسية
       selectedIssueImage = null;
+      if (document.getElementById("issueDescription")) document.getElementById("issueDescription").value = "";
+      if (document.getElementById("issueSuggestion")) document.getElementById("issueSuggestion").value = "";
+      if (document.getElementById("issueLocation")) document.getElementById("issueLocation").value = "";
+      
+      const preview = document.getElementById("previewImage");
+      if(preview){
+          preview.src = "";
+          preview.classList.add("hidden");
+      }
+
       if (typeof window.navigateTo === 'function') {
         window.navigateTo('home');
       }
@@ -254,6 +300,7 @@ window.confirmIssue = async function() {
     }
   }
 };
+
 // ==========================================
 // رسم بياني للأعطال والأداء (Home Chart)
 // ==========================================
@@ -267,6 +314,7 @@ export function initMainChart(customData = null) {
     chartInstance.destroy();
   }
 
+  // ✅ 6. الهيكل جاهز لاستقبال بيانات (customData) مستوردة من Firestore
   const defaultData = {
     labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
     open: [4, 2, 5, 1, 3, 2, 0],
@@ -317,6 +365,3 @@ export function initMainChart(customData = null) {
 }
 
 window.initMainChart = initMainChart;
-
-
-
