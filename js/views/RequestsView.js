@@ -812,108 +812,155 @@ async function(id) {
 
 
 // ======================================
-// تحميل المستخدمين
+// تحميل جميع المستخدمين
 // ======================================
 
 export async function loadUsersManagement() {
 
+    console.log("========== LOAD USERS START ==========");
+
     const container =
-        document.getElementById(
-            "usersContainer"
+        document.getElementById("usersContainer");
+
+    const count =
+        document.getElementById("usersCount");
+
+    console.log("Container:", container);
+    console.log("Count element:", count);
+
+    if (!container) {
+
+        console.error(
+            "❌ usersContainer غير موجود في الصفحة"
+        );
+
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="text-center py-8 text-gray-400">
+            جاري تحميل المستخدمين...
+        </div>
+    `;
+
+    try {
+
+        const result = await fetchUsers();
+
+        console.log(
+            "🔥 fetchUsers RESULT:",
+            result
+        );
+
+        console.log(
+            "🔥 result.data:",
+            result?.data
+        );
+
+        console.log(
+            "🔥 Array:",
+            Array.isArray(result?.data)
+        );
+
+        console.log(
+            "🔥 Length:",
+            Array.isArray(result?.data)
+                ? result.data.length
+                : "NOT ARRAY"
         );
 
 
-    if (!container) return;
+        if (
+            !result ||
+            result.status !== "success"
+        ) {
+
+            console.error(
+                "❌ fetchUsers failed:",
+                result
+            );
+
+            container.innerHTML = `
+                <div class="text-center text-red-400 py-8">
+                    ❌ فشل تحميل المستخدمين
+                </div>
+            `;
+
+            if (count) {
+                count.innerHTML =
+                    "إجمالي المستخدمين : 0";
+            }
+
+            return;
+        }
 
 
-    container.innerHTML = `
-
-        <div
-            class="
-            text-center
-            py-8
-            text-gray-400
-            ">
-
-            جاري التحميل...
-
-        </div>
-
-    `;
+        // التأكد أن البيانات Array
+        const users = Array.isArray(result.data)
+            ? result.data
+            : [];
 
 
-    const result =
-        await fetchUsers();
-
-    alert(
-        "نتيجة fetchUsers:\n" +
-        JSON.stringify(result)
-    );
+        console.log(
+            "✅ USERS BEFORE RENDER:",
+            users
+        );
 
 
-    if (result.status !== "success") {
+        usersCache = users;
+
+
+        // تحديث العدد مباشرة
+        if (count) {
+
+            count.innerHTML =
+                `إجمالي المستخدمين : ${users.length}`;
+
+        }
+
+
+        // رسم المستخدمين
+        renderUsers(users);
+
+
+        console.log(
+            "========== LOAD USERS END =========="
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ LOAD USERS ERROR:",
+            error
+        );
 
         container.innerHTML = `
-
-        <div
-            class="
-            text-center
-            text-red-400
-            py-8
-            ">
-
-            فشل تحميل المستخدمين
-
-        </div>
-
+            <div class="text-center text-red-400 py-8">
+                ❌ حدث خطأ أثناء تحميل المستخدمين
+                <br>
+                <span class="text-xs">
+                    ${error.message || ""}
+                </span>
+            </div>
         `;
 
-        return;
-
     }
-
-
-    usersCache =
-        result.data || [];
-
-    renderUsers(usersCache);
 
 }
 
 
 // ======================================
-// ربط الدوال
+// ربط الدالة
 // ======================================
 
 window.loadUsersManagement =
     loadUsersManagement;
 
 
-export async function loadPendingUsers() {
-
-    const result =
-        await fetchUsers();
-
-
-    if (result.status !== "success") {
-        return;
-    }
-
-
-    const pendingUsers =
-        (result.data || [])
-        .filter(user =>
-            user.status === "pending"
-        );
-
-
-    usersCache =
-        pendingUsers;
-
-
-    renderUsers(pendingUsers);
-
-} 
+// ======================================
+// لا نستدعي loadPendingUsers هنا
+// ======================================
 
 
 // ======================================
@@ -922,13 +969,10 @@ export async function loadPendingUsers() {
 
 setTimeout(() => {
 
-    loadUsersManagement();
-
-}, 200);
-/*
-setTimeout(() => {
+    console.log(
+        "🚀 AUTO LOAD USERS"
+    );
 
     loadUsersManagement();
 
-}, 200);
-*/
+}, 300);
