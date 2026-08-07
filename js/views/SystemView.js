@@ -3,32 +3,25 @@ import { BottomNav } from "../components/BottomNav.js";
 export const SystemView = () => {
 
 // ============================================================
-// نظام الصلاحيات الموحد
+// نظام الصلاحيات الموحد الآمن
 // ============================================================
 
 const can = (permission) => {
+  if (typeof window.hasPermission === "function") {
+    return window.hasPermission(permission);
+  }
 
-if (typeof window.hasPermission === "function") {
-  return window.hasPermission(permission);
-}
+  // فحص احتياطي مباشر من الـ localStorage إذا لم يتم تحميل app.js بعد
+  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
+  if (role === "admin") return true;
 
-// حماية احتياطية في حالة تحميل الصفحة قبل app.js
-const permissions =
-  (localStorage.getItem("permissions") || "")
-    .split(",")
-    .map(p => p.trim().toLowerCase())
-    .filter(Boolean);
+  const permissions =
+    (localStorage.getItem("permissions") || "")
+      .split(",")
+      .map(p => p.trim().toLowerCase())
+      .filter(Boolean);
 
-const role =
-  (localStorage.getItem("role") || "")
-    .trim()
-    .toLowerCase();
-  
-const can = (permission) =>
-    isAdmin ||
-    permissions.includes("all") ||
-    permissions.includes(permission.toLowerCase()); 
-
+  return permissions.includes("all") || permissions.includes(permission.toLowerCase());
 };
 
 // ============================================================
@@ -46,325 +39,303 @@ const currentRole =
 
 return `
 
-<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  <!-- ========================================================
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
+  <!-- ========================================================
        الهيدر الرئيسي
-       ======================================================== -->  <div class="flex items-center justify-between border-b border-gray-800 pb-3"><div>
+       ======================================================== -->  
+  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div>
+      <h2 class="
+        text-base
+        font-bold
+        text-blue-400
+        flex
+        items-center
+        gap-2
+      ">
+        <span>👨‍💼</span>
+        إدارة النظام والتحكم
+      </h2>
 
-  <h2 class="
-    text-base
-    font-bold
-    text-blue-400
-    flex
-    items-center
-    gap-2
-  ">
-    <span>👨‍💼</span>
-    إدارة النظام والتحكم
-  </h2>
+      <p class="
+        text-[11px]
+        text-gray-400
+        mt-0.5
+      ">
+        إدارة المستخدمين والصلاحيات وإعدادات التطبيق
+      </p>
+    </div>
 
-  <p class="
-    text-[11px]
-    text-gray-400
-    mt-0.5
-  ">
-    إدارة المستخدمين والصلاحيات وإعدادات التطبيق
-  </p>
+    <span class="
+      bg-blue-500/10
+      text-blue-400
+      border
+      border-blue-500/20
+      text-[10px]
+      px-2.5
+      py-1
+      rounded-full
+      font-bold
+    ">
+      ${currentRole}
+    </span>
+  </div>  
 
-</div>
-
-
-<span class="
-  bg-blue-500/10
-  text-blue-400
-  border
-  border-blue-500/20
-  text-[10px]
-  px-2.5
-  py-1
-  rounded-full
-  font-bold
-">
-  ${currentRole}
-</span>
-
-  </div>  <!-- ========================================================
+  <!-- ========================================================
        شبكة خيارات النظام
-       ======================================================== -->  <div class="grid grid-cols-2 gap-3.5"><!-- ======================================================
-     المستخدمون
-     ====================================================== -->
+       ======================================================== -->  
+  <div class="grid grid-cols-2 gap-3.5">
+    
+    <!-- ======================================================
+         المستخدمون
+         ====================================================== -->
+    ${can("users") ? `
+    <div
+      onclick="window.navigateTo('users')"
+      class="
+        bg-[#1E293B]
+        hover:bg-[#283548]
+        border
+        border-gray-800
+        hover:border-blue-500/40
+        p-4
+        rounded-2xl
+        flex
+        flex-col
+        items-center
+        justify-center
+        text-center
+        cursor-pointer
+        transition-all
+        active:scale-95
+        shadow-md
+        group
+      "
+    >
+      <div class="
+        w-12
+        h-12
+        rounded-xl
+        bg-blue-500/10
+        text-blue-400
+        flex
+        items-center
+        justify-center
+        text-2xl
+        mb-2
+      ">
+        👥
+      </div>
 
-${can("users") ? `
+      <span class="
+        font-bold
+        text-xs
+        text-gray-100
+      ">
+        المستخدمون
+      </span>
 
-<div
-  onclick="window.navigateTo('users')"
-  class="
-    bg-[#1E293B]
-    hover:bg-[#283548]
-    border
-    border-gray-800
-    hover:border-blue-500/40
-    p-4
-    rounded-2xl
-    flex
-    flex-col
-    items-center
-    justify-center
-    text-center
-    cursor-pointer
-    transition-all
-    active:scale-95
-    shadow-md
-    group
-  "
->
-
-  <div class="
-    w-12
-    h-12
-    rounded-xl
-    bg-blue-500/10
-    text-blue-400
-    flex
-    items-center
-    justify-center
-    text-2xl
-    mb-2
-  ">
-    👥
-  </div>
-
-
-  <span class="
-    font-bold
-    text-xs
-    text-gray-100
-  ">
-    المستخدمون
-  </span>
-
-
-  <span class="
-    text-[10px]
-    text-gray-400
-    mt-1
-  ">
-    إدارة الحسابات والصلاحيات
-  </span>
-
-</div>
-
-` : ""}
+      <span class="
+        text-[10px]
+        text-gray-400
+        mt-1
+      ">
+        إدارة الحسابات والصلاحيات
+      </span>
+    </div>
+    ` : ""}
 
 
-<!-- ======================================================
-     طلبات الانضمام
-     ====================================================== -->
+    <!-- ======================================================
+         طلبات الانضمام
+         ====================================================== -->
+    ${can("requests") ? `
+    <div
+      onclick="window.navigateTo('requests')"
+      class="
+        bg-[#1E293B]
+        hover:bg-[#283548]
+        border
+        border-gray-800
+        hover:border-amber-500/40
+        p-4
+        rounded-2xl
+        flex
+        flex-col
+        items-center
+        justify-center
+        text-center
+        cursor-pointer
+        transition-all
+        active:scale-95
+        shadow-md
+        group
+      "
+    >
+      <div class="
+        w-12
+        h-12
+        rounded-xl
+        bg-amber-500/10
+        text-amber-400
+        flex
+        items-center
+        justify-center
+        text-2xl
+        mb-2
+      ">
+        ⏳
+      </div>
 
-${can("requests") ? `
+      <span class="
+        font-bold
+        text-xs
+        text-gray-100
+      ">
+        طلبات الانضمام
+      </span>
 
-<div
-  onclick="window.navigateTo('requests')"
-  class="
-    bg-[#1E293B]
-    hover:bg-[#283548]
-    border
-    border-gray-800
-    hover:border-amber-500/40
-    p-4
-    rounded-2xl
-    flex
-    flex-col
-    items-center
-    justify-center
-    text-center
-    cursor-pointer
-    transition-all
-    active:scale-95
-    shadow-md
-    group
-  "
->
-
-  <div class="
-    w-12
-    h-12
-    rounded-xl
-    bg-amber-500/10
-    text-amber-400
-    flex
-    items-center
-    justify-center
-    text-2xl
-    mb-2
-  ">
-    ⏳
-  </div>
-
-
-  <span class="
-    font-bold
-    text-xs
-    text-gray-100
-  ">
-    طلبات الانضمام
-  </span>
-
-
-  <span class="
-    text-[10px]
-    text-gray-400
-    mt-1
-  ">
-    مراجعة المستخدمين الجدد
-  </span>
-
-</div>
-
-` : ""}
+      <span class="
+        text-[10px]
+        text-gray-400
+        mt-1
+      ">
+        مراجعة المستخدمين الجدد
+      </span>
+    </div>
+    ` : ""}
 
 
-<!-- ======================================================
-     الماكينات
-     ====================================================== -->
+    <!-- ======================================================
+         الماكينات
+         ====================================================== -->
+    ${can("machines") ? `
+    <div
+      onclick="window.navigateTo('machines')"
+      class="
+        bg-[#1E293B]
+        hover:bg-[#283548]
+        border
+        border-gray-800
+        hover:border-emerald-500/40
+        p-4
+        rounded-2xl
+        flex
+        flex-col
+        items-center
+        justify-center
+        text-center
+        cursor-pointer
+        transition-all
+        active:scale-95
+        shadow-md
+        group
+      "
+    >
+      <div class="
+        w-12
+        h-12
+        rounded-xl
+        bg-emerald-500/10
+        text-emerald-400
+        flex
+        items-center
+        justify-center
+        text-2xl
+        mb-2
+      ">
+        🏭
+      </div>
 
-${can("machines") ? `
+      <span class="
+        font-bold
+        text-xs
+        text-gray-100
+      ">
+        الماكينات
+      </span>
 
-<div
-  onclick="window.navigateTo('machines')"
-  class="
-    bg-[#1E293B]
-    hover:bg-[#283548]
-    border
-    border-gray-800
-    hover:border-emerald-500/40
-    p-4
-    rounded-2xl
-    flex
-    flex-col
-    items-center
-    justify-center
-    text-center
-    cursor-pointer
-    transition-all
-    active:scale-95
-    shadow-md
-    group
-  "
->
-
-  <div class="
-    w-12
-    h-12
-    rounded-xl
-    bg-emerald-500/10
-    text-emerald-400
-    flex
-    items-center
-    justify-center
-    text-2xl
-    mb-2
-  ">
-    🏭
-  </div>
-
-
-  <span class="
-    font-bold
-    text-xs
-    text-gray-100
-  ">
-    الماكينات
-  </span>
-
-
-  <span class="
-    text-[10px]
-    text-gray-400
-    mt-1
-  ">
-    إدارة المعدات و QR
-  </span>
-
-</div>
-
-` : ""}
+      <span class="
+        text-[10px]
+        text-gray-400
+        mt-1
+      ">
+        إدارة المعدات و QR
+      </span>
+    </div>
+    ` : ""}
 
 
-<!-- ======================================================
-     الإعدادات
-     ====================================================== -->
+    <!-- ======================================================
+         الإعدادات
+         ====================================================== -->
+    ${can("settings") ? `
+    <div
+      onclick="window.navigateTo('settings')"
+      class="
+        bg-[#1E293B]
+        hover:bg-[#283548]
+        border
+        border-gray-800
+        hover:border-purple-500/40
+        p-4
+        rounded-2xl
+        flex
+        flex-col
+        items-center
+        justify-center
+        text-center
+        cursor-pointer
+        transition-all
+        active:scale-95
+        shadow-md
+        group
+      "
+    >
+      <div class="
+        w-12
+        h-12
+        rounded-xl
+        bg-purple-500/10
+        text-purple-400
+        flex
+        items-center
+        justify-center
+        text-2xl
+        mb-2
+      ">
+        ⚙️
+      </div>
 
-${can("settings") ? `
+      <span class="
+        font-bold
+        text-xs
+        text-gray-100
+      ">
+        الإعدادات
+      </span>
 
-<div
-  onclick="window.navigateTo('settings')"
-  class="
-    bg-[#1E293B]
-    hover:bg-[#283548]
-    border
-    border-gray-800
-    hover:border-purple-500/40
-    p-4
-    rounded-2xl
-    flex
-    flex-col
-    items-center
-    justify-center
-    text-center
-    cursor-pointer
-    transition-all
-    active:scale-95
-    shadow-md
-    group
-  "
->
+      <span class="
+        text-[10px]
+        text-gray-400
+        mt-1
+      ">
+        إعدادات النظام
+      </span>
+    </div>
+    ` : ""}
 
-  <div class="
-    w-12
-    h-12
-    rounded-xl
-    bg-purple-500/10
-    text-purple-400
-    flex
-    items-center
-    justify-center
-    text-2xl
-    mb-2
-  ">
-    ⚙️
-  </div>
+  </div>  
 
-
-  <span class="
-    font-bold
-    text-xs
-    text-gray-100
-  ">
-    الإعدادات
-  </span>
-
-
-  <span class="
-    text-[10px]
-    text-gray-400
-    mt-1
-  ">
-    إعدادات النظام
-  </span>
-
-</div>
-
-` : ""}
-
-  </div>  <!-- ========================================================
+  <!-- ========================================================
        رسالة في حالة عدم وجود صلاحيات
-       ======================================================== -->${
-!can("users") &&
-!can("requests") &&
-!can("machines") &&
-!can("settings")
-? `
-
+       ======================================================== -->
+  ${
+  !can("users") &&
+  !can("requests") &&
+  !can("machines") &&
+  !can("settings")
+  ? `
   <div class="
     bg-[#1E293B]
     border
@@ -376,27 +347,20 @@ ${can("settings") ? `
     text-red-400
     font-bold
   ">
-
     <div class="text-3xl mb-2">
       🔒
     </div>
-
     ليس لديك صلاحيات لإدارة النظام.
-
   </div>
-
   `
   : ""
+  }
 
-}
+</div>
 
-</div>${BottomNav("system")}
+${BottomNav("system")}
 
 `;
 };
-
-// ============================================================
-// Default Export
-// ============================================================
 
 export default SystemView;
