@@ -26,6 +26,12 @@ export async function registerUserApi(userData) {
   try {
     const docRef = await addDoc(collection(db, "users"), {
   ...userData,
+
+  status: "pending",      // بانتظار موافقة الأدمن
+  role: "pending",        // لا يوجد دور حتى الموافقة
+  permissions: "",        // بدون صلاحيات
+  createdAt: new Date().toISOString()
+}); 
   role: "tech",
   permissions: "",
   status: "pending",
