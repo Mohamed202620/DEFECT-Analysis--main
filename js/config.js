@@ -69,27 +69,20 @@ export const DEBUG = true;
 // ============================================================
 //
 // مهم:
-// أسماء الصلاحيات هنا يجب أن تطابق أسماء الصلاحيات
-// الموجودة في RequestsView و SystemView و app.js
+// أسماء الصلاحيات هنا مطابقة تماماً للمطلوب
+// والـ RequestsView و SystemView
 //
-// all = جميع الصلاحيات
 // ============================================================
 
-
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
-//
-// المستخدم العادي لا يحصل تلقائياً على صلاحيات الإدارة.
-
 export const DEFAULT_USER_PERMISSIONS =
   "home,maintenance,issue,suggestions,pm,log,reports,qr,quality,ai,kb,statistics,export";
 
-
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
-
   "home",
 
-  // قسم الصيانة
+  // الصيانة
   "maintenance",
   "issue",
   "suggestions",
@@ -98,14 +91,14 @@ export const ALL_PERMISSIONS = [
   "reports",
   "qr",
 
-  // قسم الجودة
+  // الجودة
   "quality",
 
-  // الذكاء والمعرفة
+  // الذكاء الاصطناعي والمعرفة
   "ai",
   "kb",
 
-  // الإحصائيات والتصدير
+  // الإحصائيات والتقارير
   "statistics",
   "export",
 
@@ -115,9 +108,8 @@ export const ALL_PERMISSIONS = [
   "machines",
   "settings",
 
-  // صلاحية شاملة
+  // كل الصلاحيات
   "all"
-
 ];
 
 
