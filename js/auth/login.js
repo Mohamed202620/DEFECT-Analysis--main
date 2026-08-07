@@ -4,17 +4,12 @@ import { collection, query, where, getDocs } from "https://www.gstatic.com/fireb
 
 /**
  * خدمة تسجيل الدخول عبر Firebase Firestore
- * @param {string} phone - رقم الموبايل
- * @param {string} pass - كلمة السر
- * @returns {Promise<Object>} - نتيجة عملية تسجيل الدخول
  */
 export async function login(phone, pass) {
 
-  // تنظيف البيانات
   const cleanPhone = phone?.trim();
   const cleanPass = pass?.trim();
 
-  // التحقق من المدخلات
   if (!cleanPhone || !cleanPass) {
     return {
       status: "error",
@@ -23,10 +18,16 @@ export async function login(phone, pass) {
   }
 
   try {
-    // البحث عن المستخدم
+
     const usersRef = collection(db, "users");
-    const q = query(usersRef, where("phone", "==", cleanPhone));
+
+    const q = query(
+      usersRef,
+      where("phone", "==", cleanPhone)
+    );
+
     const querySnapshot = await getDocs(q);
+
 
     if (querySnapshot.empty) {
       return {
@@ -35,60 +36,89 @@ export async function login(phone, pass) {
       };
     }
 
+
     let userData = null;
 
+
     querySnapshot.forEach((docSnap) => {
+
+      const data = docSnap.data();
+
       userData = {
-  id: docSnap.id,
-  ...docSnap.data(),
-  status: (docSnap.data().status || "").trim(),
-  role: (docSnap.data().role || "").trim()
-}; 
-      };console.log("USER DATA:", userData);
+        id: docSnap.id,
+        ...data,
+
+        // إزالة أي مسافات زائدة
+        status: (data.status || "").trim(),
+        role: (data.role || "").trim()
+      };
+
     });
 
-    // التحقق من كلمة السر
+
+    console.log("USER DATA:", userData);
+
+
+
+    // فحص كلمة السر
     if (userData.password !== cleanPass) {
+
       return {
         status: "error",
         message: "كلمة السر غير صحيحة."
       };
+
     }
 
-    // التحقق من حالة الحساب
+
+
+    // فحص حالة الحساب
     if (userData.status === "pending") {
+
       return {
         status: "error",
         message: "تم إرسال طلبك وهو بانتظار موافقة المسؤول."
       };
+
     }
 
+
     if (userData.status === "rejected") {
+
       return {
         status: "error",
         message: "تم رفض طلب الانضمام، يرجى التواصل مع المسؤول."
       };
+
     }
 
+
     if (userData.status !== "active") {
+
       return {
         status: "error",
         message: "الحساب غير مفعل."
       };
+
     }
 
-    // نجاح تسجيل الدخول
+
+
     return {
       status: "success",
       user: userData
     };
 
+
   } catch (error) {
+
     console.error("Login Service Error:", error);
 
     return {
       status: "error",
-      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات، يرجى المحاولة مرة أخرى."
+      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات."
     };
+
   }
+
 }
