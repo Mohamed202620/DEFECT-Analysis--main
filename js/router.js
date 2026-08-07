@@ -15,6 +15,7 @@ import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
+import { RequestsView, loadPendingUsers } from './views/RequestsView.js';
 import { saveDefectData, handleDefectFile, initMainChart } from './workflow.js';
 
 // --- المتغيرات العامة للنظام (Global State) ---
@@ -72,6 +73,17 @@ export function renderPage(page) {
       return currentRole === 'admin' 
         ? SystemView() 
         : PageView("⚠️ غير مصرح", '<div class="bg-[#1E293B] p-6 rounded-xl border border-red-500/30 text-center text-xs text-red-400 font-bold">عذراً، هذه الصفحة مخصصة للمسؤولين فقط (Admin).</div>');
+    case 'requests':
+      return currentRole === 'admin'
+        ? RequestsView()
+        : PageView(
+            "⚠️ غير مصرح",
+            `
+            <div class="bg-[#1E293B] p-6 rounded-xl border border-red-500/30 text-center text-xs text-red-400 font-bold">
+              هذه الصفحة مخصصة للمدير فقط.
+            </div>
+            `
+          );
     case 'report': return ReportView();
     case 'pm': return PMView();
     case 'reports': return ReportsView();
@@ -106,7 +118,11 @@ export function navigateTo(page, addToHistory = true) {
       alert("⚠️ عذراً، هذه الصفحة مخصصة لمدير النظام (Admin) فقط.");
       return;
     }
-    if (page !== 'system' && !hasPermission(page)) {
+    if (page === 'requests' && currentRole !== 'admin') {
+      alert("⚠️ عذراً، هذه الصفحة مخصصة لمدير النظام (Admin) فقط.");
+      return;
+    }
+    if (page !== 'system' && page !== 'requests' && !hasPermission(page)) {
       alert(`⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`);
       return;
     }
@@ -277,6 +293,13 @@ export function render() {
 
   setTimeout(() => {
     app.innerHTML = renderPage(currentPage);
+
+    if (currentPage === "requests") {
+      setTimeout(() => {
+        loadPendingUsers();
+      }, 100);
+    }
+
     app.style.opacity = '1';
 
     requestAnimationFrame(() => {
