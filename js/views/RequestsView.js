@@ -843,40 +843,40 @@ export async function loadUsersManagement() {
 
 
     const result =
-    await fetchUsers();
+        await fetchUsers();
 
-alert(
-    "نتيجة fetchUsers:\n" +
-    JSON.stringify(result)
-);
-
-
-if (result.status !== "success") {
-
-    container.innerHTML = `
-
-    <div
-        class="
-        text-center
-        text-red-400
-        py-8
-        ">
-
-        فشل تحميل المستخدمين
-
-    </div>
-
-    `;
-
-    return;
-
-}
+    alert(
+        "نتيجة fetchUsers:\n" +
+        JSON.stringify(result)
+    );
 
 
-usersCache =
-    result.data || [];
+    if (result.status !== "success") {
 
-renderUsers(usersCache);
+        container.innerHTML = `
+
+        <div
+            class="
+            text-center
+            text-red-400
+            py-8
+            ">
+
+            فشل تحميل المستخدمين
+
+        </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    usersCache =
+        result.data || [];
+
+    renderUsers(usersCache);
 
 }
 
