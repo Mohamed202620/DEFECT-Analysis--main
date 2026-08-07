@@ -41,7 +41,7 @@ export async function login(phone, pass) {
       userData = {
         id: docSnap.id,
         ...docSnap.data()
-      };
+      };console.log("USER DATA:", userData);
     });
 
     // التحقق من كلمة السر
