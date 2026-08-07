@@ -1,5 +1,5 @@
 // استيراد قاعدة البيانات من ملف الإعدادات المركزي
-import { db } from '../../config.js';
+import { db } from '../config.js'; 
 import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 /**
