@@ -657,72 +657,106 @@ export function renderPage(page) {
 // ============================================================
 
 export function navigateTo(
-  page,
-  addToHistory = true
+page,
+addToHistory = true
 ) {
 
-  const publicPages = [
-    "login",
-    "register",
-    "home"
-  ];
+// ============================================================
+// توحيد أسماء الصفحات مع أسماء الصلاحيات
+// ============================================================
 
+const permissionMap = {
+suggestion: "suggestions",
+suggestions: "suggestions",
 
-  // الصفحة العامة
-  if (!publicPages.includes(page)) {
+stats: "statistics",
+statistics: "statistics",
 
-    if (!hasPermission(
-      page === "report"
-        ? "reports"
-        : page === "suggestions"
-        ? "suggestion"
-        : page
-    )) {
+report: "reports",
+reports: "reports"
 
-      alert(
-        `⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`
-      );
+};
 
-      return;
-    }
+const requiredPermission =
+permissionMap[page] || page;
 
-  }
+// ============================================================
+// الصفحات العامة
+// ============================================================
 
+const publicPages = [
+"login",
+"register",
+"home"
+];
 
-  currentPage = page;
+// ============================================================
+// حماية الصفحات
+// ============================================================
 
+if (!publicPages.includes(page)) {
 
-  if (
-    addToHistory &&
-    window.location.hash !== `#${page}`
-  ) {
+if (!hasPermission(requiredPermission)) {
 
-    history.pushState(
-      { page },
-      "",
-      `#${page}`
-    );
+  alert(
+    `⚠️ ليس لديك صلاحية الوصول إلى صفحة (${page})`
+  );
 
-  }
+  return;
+}
 
+}
 
-  if (
-    page === "home" &&
-    typeof window.loadDashboard === "function"
-  ) {
+// ============================================================
+// تغيير الصفحة
+// ============================================================
 
-    window.loadDashboard();
+currentPage = page;
 
-  }
+// ============================================================
+// Browser History
+// ============================================================
 
+if (
+addToHistory &&
+window.location.hash !== "#${page}"
+) {
 
-  render();
+history.pushState(
+  { page },
+  "",
+  `#${page}`
+);
 
+}
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+// ============================================================
+// تحديث Dashboard
+// ============================================================
+
+if (
+page === "home" &&
+typeof window.loadDashboard === "function"
+) {
+
+window.loadDashboard();
+
+}
+
+// ============================================================
+// Render
+// ============================================================
+
+render();
+
+// ============================================================
+// العودة إلى أعلى الصفحة
+// ============================================================
+
+window.scrollTo({
+top: 0,
+behavior: "smooth"
+});
 
 }
 
