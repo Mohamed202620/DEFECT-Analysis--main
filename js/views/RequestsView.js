@@ -878,8 +878,31 @@ window.loadUsersManagement =
     loadUsersManagement;
 
 
-export const loadPendingUsers =
-    loadUsersManagement;
+export async function loadPendingUsers() {
+
+    const result =
+        await fetchUsers();
+
+
+    if (result.status !== "success") {
+        return;
+    }
+
+
+    const pendingUsers =
+        (result.data || [])
+        .filter(user =>
+            user.status === "pending"
+        );
+
+
+    usersCache =
+        pendingUsers;
+
+
+    renderUsers(pendingUsers);
+
+} 
 
 
 // ======================================
