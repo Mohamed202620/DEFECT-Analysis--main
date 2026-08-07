@@ -229,6 +229,13 @@ function permissionCheckbox(
 
 function renderUsers(users) {
 
+    alert(
+        "renderUsers وصل إليها\nعدد المستخدمين = " +
+        (Array.isArray(users) ? users.length : "ليست Array")
+    );
+
+    console.log("RENDER USERS:", users);
+
     const container =
         document.getElementById("usersContainer");
 
