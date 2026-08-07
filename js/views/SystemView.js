@@ -23,12 +23,11 @@ const role =
   (localStorage.getItem("role") || "")
     .trim()
     .toLowerCase();
-
-return (
-  role === "admin" ||
-  permissions.includes("all") ||
-  permissions.includes(permission)
-);
+  
+const can = (permission) =>
+    isAdmin ||
+    permissions.includes("all") ||
+    permissions.includes(permission.toLowerCase()); 
 
 };
 
