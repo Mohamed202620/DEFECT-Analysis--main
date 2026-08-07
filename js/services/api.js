@@ -298,7 +298,7 @@ export async function updateUserStatusApi(
 
 
       updateData.permissions =
-        "all";
+  "report,issue,log,pm,reports,quality,maintenance,suggestion,ai,kb"; 
 
 
       updateData.approvedAt =
