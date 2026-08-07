@@ -4,13 +4,6 @@ export const IssueView = () => {
   const currentLang = window.currentLang || 'ar';
   const t = translations[currentLang] || translations['ar'];
 
-  const userName = localStorage.getItem("name") || "";
-  const userJob = localStorage.getItem("job") || "";
-  const userDepartment = localStorage.getItem("department") || "";
-  const userShift = localStorage.getItem("shift") || "";
-  const issueDate = new Date().toLocaleString(currentLang === 'ar' ? "ar-EG" : "en-US");
-  const issueId = Date.now();
-
   return `
   <div class="p-4 max-w-md mx-auto space-y-4 pb-24 text-white">
 
@@ -146,28 +139,6 @@ export const IssueView = () => {
           class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm resize-none shadow-sm"></textarea>
       </div>
 
-      <!-- بيانات المبلغ -->
-      <div class="bg-[#0F172A] rounded-xl p-4 border border-gray-700 mb-4 space-y-2 text-xs text-gray-300 shadow-inner">
-        <div class="flex justify-between border-b border-gray-800 pb-1">
-          <span>👤 <b>المبلغ:</b></span> <span class="text-white">${userName}</span>
-        </div>
-        <div class="flex justify-between border-b border-gray-800 pb-1">
-          <span>💼 <b>الوظيفة:</b></span> <span class="text-white">${userJob}</span>
-        </div>
-        <div class="flex justify-between border-b border-gray-800 pb-1">
-          <span>🏢 <b>القسم:</b></span> <span class="text-white">${userDepartment}</span>
-        </div>
-        <div class="flex justify-between border-b border-gray-800 pb-1">
-          <span>🔵 <b>الشيفت:</b></span> <span class="text-white">${userShift}</span>
-        </div>
-        <div class="flex justify-between border-b border-gray-800 pb-1">
-          <span>📅 <b>التاريخ:</b></span> <span class="text-white dir-ltr">${issueDate}</span>
-        </div>
-        <div class="flex justify-between">
-          <span>🆔 <b>رقم البلاغ:</b></span> <span id="generatedIssueId" class="text-blue-400 font-mono">${issueId}</span>
-        </div>
-      </div>
-
       <!-- الصورة -->
       <div>
         <label class="block mb-2 text-xs font-bold text-gray-300">
@@ -190,28 +161,18 @@ export const IssueView = () => {
           </button>
         </div>
 
-        <div id="imageName" class="text-center text-[11px] text-gray-500 font-medium bg-[#0F172A] py-2 rounded-lg border border-dashed border-gray-700">
-          لم يتم اختيار صورة
+        <div id="imageName" class="text-center text-[11px] text-gray-500 py-2">
+          لا توجد صورة مرفقة
         </div>
 
         <img id="previewImage" class="hidden rounded-xl border border-gray-700 w-full mt-3 max-h-48 object-contain bg-[#0F172A] p-1 shadow-sm"/>
-      </div>
-
-      <!-- حالة البلاغ -->
-      <div>
-        <label class="block mb-2 text-xs font-bold text-gray-300">
-          ${t.status || "حالة البلاغ"}
-        </label>
-        <div class="w-full p-3 rounded-lg bg-[#0F172A] border border-yellow-500/30 text-yellow-400 text-sm font-bold flex items-center gap-2 shadow-sm opacity-90">
-          <span>🟡</span> مفتوح
-        </div>
       </div>
 
       <!-- حفظ -->
       <div class="pt-2">
         <button type="button"
           onclick="window.confirmIssue()"
-          class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white transition active:scale-95 shadow-lg shadow-blue-500/20 text-sm">
+          class="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white text-base transition active:scale-95 shadow-lg shadow-blue-500/20">
           💾 ${t.saveAndSend || "حفظ وإرسال البلاغ"}
         </button>
       </div>
