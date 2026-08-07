@@ -61,10 +61,35 @@ const LogContent = () => `
 
 // فحص الصلاحيات
 export function hasPermission(permission) {
-  if (currentRole === "admin") return true;
-  if (currentPermissions.includes("all")) return true;
-  return currentPermissions.includes(permission.toLowerCase());
-}
+
+  const perm = (permission || "").toLowerCase();
+
+
+  // إدارة النظام للمسؤول فقط
+  if (
+    perm === "system" ||
+    perm === "users" ||
+    perm === "requests"
+  ) {
+    return currentRole === "admin";
+  }
+
+
+  // المدير لديه جميع الصلاحيات
+  if (currentRole === "admin") {
+    return true;
+  }
+
+
+  // باقي المستخدمين حسب الصلاحيات الممنوحة
+  if (currentPermissions.includes("all")) {
+    return true;
+  }
+
+
+  return currentPermissions.includes(perm);
+
+} 
 
 // --- دالة العرض الموحدة (Render Page) ---
 export function renderPage(page) {
