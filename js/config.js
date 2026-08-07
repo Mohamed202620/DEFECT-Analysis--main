@@ -1,59 +1,492 @@
-// استيراد Firebase SDK
+// ============================================================
+// Firebase SDK
+// ============================================================
+
 import {
   initializeApp,
   getApps,
   getApp
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
-// رابط Google Apps Script (يمكنك الاحتفاظ به كنسخة احتياطية)
-export const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz2O9L2NTyJvKQgUwzmFASSzoX7EIYd6H21g3J--bJYbdB-zsW2NYubv8WRw87GORni/exec";
+import {
+  getFirestore
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
+import {
+  getStorage
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
+
+
+// ============================================================
+// Google Apps Script - نسخة احتياطية
+// ============================================================
+
+export const GOOGLE_SCRIPT_URL =
+  "https://script.google.com/macros/s/AKfycbz2O9L2NTyJvKQgUwzmFASSzoX7EIYd6H21g3J--bJYbdB-zsW2NYubv8WRw87GORni/exec";
+
+
+// ============================================================
 // إعدادات Firebase
+// ============================================================
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
-  authDomain: "maintenance-defect-system.firebaseapp.com",
-  projectId: "maintenance-defect-system",
-  storageBucket: "maintenance-defect-system.firebasestorage.app",
-  messagingSenderId: "1065779979535",
-  appId: "1:1065779979535:web:6d53e69c4cfde57b414a7a"
+
+  apiKey:
+    "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
+
+  authDomain:
+    "maintenance-defect-system.firebaseapp.com",
+
+  projectId:
+    "maintenance-defect-system",
+
+  storageBucket:
+    "maintenance-defect-system.firebasestorage.app",
+
+  messagingSenderId:
+    "1065779979535",
+
+  appId:
+    "1:1065779979535:web:6d53e69c4cfde57b414a7a"
+
 };
 
+
+// ============================================================
 // ثوابت التطبيق
+// ============================================================
+
 export const APP_VERSION = "1.1.0";
-export const APP_NAME = "MAINTENANCE & DEFECT SYSTEM";
+
+export const APP_NAME =
+  "MAINTENANCE & DEFECT SYSTEM";
+
 export const DEBUG = true;
-// إضافة ثابت الصلاحيات الافتراضية للمستخدمين الجدد
-export const DEFAULT_USER_PERMISSIONS = "report,issue,log,pm,reports,quality,maintenance,suggestion,ai,kb";
 
-// تهيئة Firebase وتصدير قاعدة البيانات والتخزين للاستخدام في باقي الملفات
-export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
 
-// الترجمات والنصوص النظامية
+// ============================================================
+// الصلاحيات الموحدة
+// ============================================================
+//
+// مهم:
+// أسماء الصلاحيات هنا يجب أن تطابق أسماء الصلاحيات
+// الموجودة في RequestsView و SystemView و app.js
+//
+// all = جميع الصلاحيات
+// ============================================================
+
+
+// الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
+//
+// المستخدم العادي لا يحصل تلقائياً على صلاحيات الإدارة.
+
+export const DEFAULT_USER_PERMISSIONS =
+  "home,maintenance,issue,suggestions,pm,log,reports,qr,quality,ai,kb,statistics,export";
+
+
+// جميع الصلاحيات الموجودة في النظام
+export const ALL_PERMISSIONS = [
+
+  "home",
+
+  // قسم الصيانة
+  "maintenance",
+  "issue",
+  "suggestions",
+  "pm",
+  "log",
+  "reports",
+  "qr",
+
+  // قسم الجودة
+  "quality",
+
+  // الذكاء والمعرفة
+  "ai",
+  "kb",
+
+  // الإحصائيات والتصدير
+  "statistics",
+  "export",
+
+  // إدارة النظام
+  "users",
+  "requests",
+  "machines",
+  "settings",
+
+  // صلاحية شاملة
+  "all"
+
+];
+
+
+// ============================================================
+// تهيئة Firebase
+// ============================================================
+
+export const app =
+  getApps().length
+    ? getApp()
+    : initializeApp(firebaseConfig);
+
+
+export const db =
+  getFirestore(app);
+
+
+export const storage =
+  getStorage(app);
+
+
+// ============================================================
+// الترجمات
+// ============================================================
+
 export const translations = {
+
+  // ==========================================================
+  // العربية
+  // ==========================================================
+
   ar: {
-    dir: 'rtl', langBtn: 'EN', welcome: 'أهلاً:', today: 'اليوم',
-    dashTitle: '📊 لوحة المتابعة', openTickets: 'بلاغات مفتوحة', pmLate: 'PM متأخرة', todayDefects: 'عيوب اليوم',
-    secMaint: '🛠️ قسم الصيانة والمهام',
-    m1: 'تسجيل بلاغ', m2: 'تسجيل PM', m3: 'سجل الصيانة', m4: 'الجدولة', m5: 'مسح QR الماكينات',
-    secDefects: '📦 قسم تحليل عيوب الإنتاج',
-    d1: 'تصوير عيب', d2: 'فحص AI', d3: 'قاعدة المعرفة', d4: 'الإحصائيات', d5: 'تصدير التقارير',
-    secUsers: '👥 إدارة المستخدمين', u1: 'إدارة الصلاحيات والمستخدمين (للمدير فقط)',
-    logout: 'تسجيل الخروج ➔', footer: '© 2026 جميع الحقوق محفوظة | Mohamed Hussein ',
-    chartLabel: 'أكثر الماكينات أعطالاً'
+
+    dir: "rtl",
+    langBtn: "EN",
+
+    welcome: "أهلاً:",
+    today: "اليوم",
+
+    // Dashboard
+    dashTitle: "📊 لوحة المتابعة",
+
+    openTickets:
+      "بلاغات مفتوحة",
+
+    pmLate:
+      "PM متأخرة",
+
+    todayDefects:
+      "عيوب اليوم",
+
+
+    // Maintenance
+    secMaint:
+      "🛠️ قسم الصيانة والمهام",
+
+    m1:
+      "تسجيل بلاغ",
+
+    m2:
+      "تسجيل PM",
+
+    m3:
+      "سجل الصيانة",
+
+    m4:
+      "الجدولة",
+
+    m5:
+      "مسح QR الماكينات",
+
+
+    // Defects
+    secDefects:
+      "📦 قسم تحليل عيوب الإنتاج",
+
+    d1:
+      "تصوير عيب",
+
+    d2:
+      "فحص AI",
+
+    d3:
+      "قاعدة المعرفة",
+
+    d4:
+      "الإحصائيات",
+
+    d5:
+      "تصدير التقارير",
+
+
+    // Users
+    secUsers:
+      "👥 إدارة المستخدمين",
+
+    u1:
+      "إدارة الصلاحيات والمستخدمين",
+
+
+    // Navigation
+    navHome:
+      "الرئيسية",
+
+    navMaintenance:
+      "الصيانة",
+
+    navQuality:
+      "الجودة",
+
+    navSystem:
+      "النظام",
+
+
+    // Issue
+    issueTitle:
+      "تسجيل عطل أو ملاحظة",
+
+    line:
+      "الخط",
+
+    selectLine:
+      "اختر الخط",
+
+    machine:
+      "الماكينة",
+
+    selectMachine:
+      "اختر الماكينة",
+
+    priority:
+      "درجة الأولوية",
+
+    issueType:
+      "نوع البلاغ",
+
+    category:
+      "نوع العطل",
+
+    selectCategory:
+      "اختر نوع العطل",
+
+    description:
+      "وصف المشكلة",
+
+    enterDescription:
+      "اكتب وصف المشكلة بدقة...",
+
+    locationInMachine:
+      "مكان العطل داخل الماكينة",
+
+    suggestion:
+      "اقتراح الحل (اختياري)",
+
+    enterSuggestion:
+      "إذا كان لديك اقتراح لحل المشكلة...",
+
+    attachPhoto:
+      "صورة توضيحية (اختياري)",
+
+    status:
+      "حالة البلاغ",
+
+    saveAndSend:
+      "حفظ وإرسال البلاغ",
+
+    back:
+      "رجوع",
+
+
+    // System
+    users:
+      "المستخدمون",
+
+    requests:
+      "طلبات الانضمام",
+
+    machines:
+      "الماكينات",
+
+    settings:
+      "الإعدادات",
+
+
+    // General
+    logout:
+      "تسجيل الخروج ➔",
+
+    footer:
+      "© 2026 جميع الحقوق محفوظة | Mohamed Hussein",
+
+    chartLabel:
+      "أكثر الماكينات أعطالاً"
+
   },
+
+
+  // ==========================================================
+  // English
+  // ==========================================================
+
   en: {
-    dir: 'ltr', langBtn: 'عربي', welcome: 'Welcome:', today: 'Today',
-    dashTitle: '📊 Dashboard Overview', openTickets: 'Open Tickets', pmLate: 'Overdue PM', todayDefects: 'Today Defects',
-    secMaint: '🛠️ Maintenance & Tasks',
-    m1: 'New Ticket', m2: 'Record PM', m3: 'Maint. Log', m4: 'Schedule', m5: 'Scan Machine QR',
-    secDefects: '📦 Defects Analysis',
-    d1: 'Capture Defect', d2: 'AI Inspect', d3: 'Knowledge Base', d4: 'Statistics', d5: 'Export Reports',
-    secUsers: '👥 Users Management', u1: 'Manage Roles & Users (Admin Only)',
-    logout: 'Logout ➔', footer: '© 2026 All Rights Reserved | Mohamed Hussein',
-    chartLabel: 'Top Faulty Machines'
+
+    dir: "ltr",
+    langBtn: "عربي",
+
+    welcome:
+      "Welcome:",
+
+    today:
+      "Today",
+
+
+    // Dashboard
+    dashTitle:
+      "📊 Dashboard Overview",
+
+    openTickets:
+      "Open Tickets",
+
+    pmLate:
+      "Overdue PM",
+
+    todayDefects:
+      "Today Defects",
+
+
+    // Maintenance
+    secMaint:
+      "🛠️ Maintenance & Tasks",
+
+    m1:
+      "New Ticket",
+
+    m2:
+      "Record PM",
+
+    m3:
+      "Maint. Log",
+
+    m4:
+      "Schedule",
+
+    m5:
+      "Scan Machine QR",
+
+
+    // Defects
+    secDefects:
+      "📦 Defects Analysis",
+
+    d1:
+      "Capture Defect",
+
+    d2:
+      "AI Inspect",
+
+    d3:
+      "Knowledge Base",
+
+    d4:
+      "Statistics",
+
+    d5:
+      "Export Reports",
+
+
+    // Users
+    secUsers:
+      "👥 Users Management",
+
+    u1:
+      "Manage Roles & Users",
+
+
+    // Navigation
+    navHome:
+      "Home",
+
+    navMaintenance:
+      "Maintenance",
+
+    navQuality:
+      "Quality",
+
+    navSystem:
+      "System",
+
+
+    // Issue
+    issueTitle:
+      "Report Breakdown / Observation",
+
+    line:
+      "Line",
+
+    selectLine:
+      "Select Line",
+
+    machine:
+      "Machine",
+
+    selectMachine:
+      "Select Machine",
+
+    priority:
+      "Priority",
+
+    issueType:
+      "Issue Type",
+
+    category:
+      "Issue Category",
+
+    selectCategory:
+      "Select Category",
+
+    description:
+      "Description",
+
+    enterDescription:
+      "Describe the problem accurately...",
+
+    locationInMachine:
+      "Location in Machine",
+
+    suggestion:
+      "Suggested Solution (Optional)",
+
+    enterSuggestion:
+      "If you have a suggested solution...",
+
+    attachPhoto:
+      "Photo (Optional)",
+
+    status:
+      "Issue Status",
+
+    saveAndSend:
+      "Save & Submit",
+
+    back:
+      "Back",
+
+
+    // System
+    users:
+      "Users",
+
+    requests:
+      "Join Requests",
+
+    machines:
+      "Machines",
+
+    settings:
+      "Settings",
+
+
+    // General
+    logout:
+      "Logout ➔",
+
+    footer:
+      "© 2026 All Rights Reserved | Mohamed Hussein",
+
+    chartLabel:
+      "Top Faulty Machines"
+
   }
+
 };
