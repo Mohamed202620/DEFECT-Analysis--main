@@ -178,12 +178,12 @@ export async function updateUserStatusApi(
     // عند القبول يتم تفعيل الحساب
     if (status === "active") {
 
-      updateData.role = "tech";
+  updateData.role = "user";
 
-      updateData.permissions =
-        "report,issue,log";
+  updateData.permissions =
+    "all";
 
-    }
+    } 
 
 
 
