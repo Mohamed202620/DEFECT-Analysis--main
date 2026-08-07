@@ -1,36 +1,141 @@
 import { BottomNav } from "../components/BottomNav.js";
-import { updateUserStatusApi, fetchUsers } from "../services/api.js";
+import { fetchUsers, updatePermissionsApi } from "../services/api.js";
+
+
+let allUsers = [];
+
 
 
 export const RequestsView = () => `
 
-<div class="p-4 max-w-md mx-auto pb-24 text-white">
+<div class="p-4 max-w-md mx-auto pb-24 text-white space-y-4">
 
-    <div class="mb-4">
 
-        <h2 class="text-xl font-bold text-amber-400">
-            ⏳ طلبات الانضمام
+    <!-- Header -->
+    <div>
+
+        <h2 class="text-xl font-bold text-blue-400">
+            👥 إدارة المستخدمين
         </h2>
 
-
         <p class="text-sm text-gray-400">
-            المستخدمون الذين ينتظرون موافقة المدير
+            عرض وتعديل صلاحيات المستخدمين
         </p>
 
     </div>
 
 
 
-    <div
-        id="pendingUsersContainer"
-        class="space-y-3"
-    >
+    <!-- Statistics -->
 
-        <div class="text-center text-gray-400 py-8">
-            جارٍ تحميل الطلبات...
+    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+
+
+        <div class="bg-[#1E293B] rounded-xl p-3">
+            <div id="countAll" class="text-blue-400 text-lg font-bold">
+                0
+            </div>
+            الكل
         </div>
 
+
+        <div class="bg-[#1E293B] rounded-xl p-3">
+            <div id="countActive" class="text-green-400 text-lg font-bold">
+                0
+            </div>
+            فعال
+        </div>
+
+
+        <div class="bg-[#1E293B] rounded-xl p-3">
+            <div id="countPending" class="text-yellow-400 text-lg font-bold">
+                0
+            </div>
+            معلق
+        </div>
+
+
+        <div class="bg-[#1E293B] rounded-xl p-3">
+            <div id="countRejected" class="text-red-400 text-lg font-bold">
+                0
+            </div>
+            مرفوض
+        </div>
+
+
     </div>
+
+
+
+
+    <!-- Search -->
+
+    <input
+
+        id="userSearch"
+
+        oninput="window.filterUsers()"
+
+        placeholder="🔍 بحث بالاسم أو الرقم"
+
+        class="w-full p-3 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-sm"
+
+    />
+
+
+
+
+
+    <!-- Filter -->
+
+    <select
+
+        id="statusFilter"
+
+        onchange="window.filterUsers()"
+
+        class="w-full p-3 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-sm"
+
+    >
+
+        <option value="all">
+            كل المستخدمين
+        </option>
+
+
+        <option value="active">
+            فعال
+        </option>
+
+
+        <option value="pending">
+            معلق
+        </option>
+
+
+        <option value="rejected">
+            مرفوض
+        </option>
+
+
+    </select>
+
+
+
+
+
+    <!-- Users -->
+
+    <div id="usersContainer" class="space-y-3">
+
+
+        <div class="text-center text-gray-400 py-8">
+            جاري تحميل المستخدمين...
+        </div>
+
+
+    </div>
+
 
 
 </div>
@@ -43,140 +148,205 @@ ${BottomNav("system")}
 
 
 
-/**
- * تحميل المستخدمين المنتظرين
- */
-export async function loadPendingUsers() {
 
-
-    const container =
-        document.getElementById(
-            "pendingUsersContainer"
-        );
-
-
-    if (!container) return;
-
+export async function loadPendingUsers(){
 
 
     const result = await fetchUsers();
 
 
 
-    if (result.status !== "success") {
+    if(result.status !== "success"){
 
+        document.getElementById("usersContainer").innerHTML =
 
-        container.innerHTML = `
-
-            <div class="text-red-400 text-center">
-                فشل تحميل البيانات
-            </div>
-
-        `;
-
-        return;
-
-    }
-
-
-
-    const pending =
-        (result.data || [])
-        .filter(user =>
-            (user.status || "").trim() === "pending"
-        );
-
-
-
-
-    if (!pending.length) {
-
-
-        container.innerHTML = `
-
-            <div class="text-center text-gray-400 py-10">
-                لا توجد طلبات جديدة
-            </div>
-
-        `;
-
-
-        return;
-
-    }
-
-
-
-
-    container.innerHTML = pending.map(user => `
-
-
-        <div
-        class="bg-[#1E293B] rounded-xl p-4 border border-gray-700"
-        >
-
-
-            <div class="font-bold text-blue-400">
-                ${user.name || "بدون اسم"}
-            </div>
-
-
-
-            <div class="text-sm text-gray-300 mt-1">
-                📱 ${user.phone || ""}
-            </div>
-
-
-
-            <div class="text-sm text-gray-300">
-                💼 ${user.job || ""}
-            </div>
-
-
-
-            <div class="text-sm text-gray-300">
-                🏢 ${user.department || ""}
-            </div>
-
-
-
-            <div class="text-sm text-gray-300">
-                🔄 ${user.shift || ""}
-            </div>
-
-
-
-            <div class="mt-4 flex gap-2">
-
-
-                <button
-                class="flex-1 bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold"
-                onclick="window.approveUser('${user.id}')"
-                >
-                    ✅ قبول
-                </button>
-
-
-
-
-                <button
-                class="flex-1 bg-red-600 hover:bg-red-500 py-2 rounded-lg font-bold"
-                onclick="window.rejectUser('${user.id}')"
-                >
-                    ❌ رفض
-                </button>
-
-
-
-            </div>
-
-
-
+        `
+        <div class="text-red-400 text-center">
+        فشل تحميل البيانات
         </div>
+        `;
+
+        return;
+
+    }
 
 
 
-    `).join("");
+    allUsers = result.data || [];
+
+
+
+    updateStatistics();
+
+
+
+    renderUsers(allUsers);
+
+}
+
+
+
+
+
+function updateStatistics(){
+
+
+    document.getElementById("countAll").innerHTML =
+        allUsers.length;
+
+
+    document.getElementById("countActive").innerHTML =
+        allUsers.filter(
+            u => (u.status || "").trim() === "active"
+        ).length;
+
+
+    document.getElementById("countPending").innerHTML =
+        allUsers.filter(
+            u => (u.status || "").trim() === "pending"
+        ).length;
+
+
+    document.getElementById("countRejected").innerHTML =
+        allUsers.filter(
+            u => (u.status || "").trim() === "rejected"
+        ).length;
+
+
+}
+
+
+
+
+
+
+function renderUsers(users){
+
+
+    const container =
+        document.getElementById("usersContainer");
+
+
+    if(!container) return;
+
+
+
+    if(!users.length){
+
+        container.innerHTML =
+        `
+        <div class="text-center text-gray-400 py-8">
+        لا يوجد مستخدمين
+        </div>
+        `;
+
+        return;
+
+    }
+
+
+
+
+
+    container.innerHTML = users.map(user => `
+
+
+<div class="bg-[#1E293B] rounded-xl p-4 border border-gray-700">
+
+
+<div class="font-bold text-blue-400">
+👤 ${user.name || ""}
+</div>
+
+
+<div class="text-sm text-gray-300">
+📱 ${user.phone || ""}
+</div>
+
+
+<div class="text-sm text-gray-300">
+💼 ${user.job || ""}
+</div>
+
+
+<div class="text-sm text-gray-300">
+🏢 ${user.department || ""}
+</div>
+
+
+<div class="text-sm text-gray-300">
+🔄 ${user.shift || ""}
+</div>
+
+
+
+<div class="mt-2 text-xs">
+
+الحالة:
+<span class="${
+(user.status==="active")
+?"text-green-400"
+:(user.status==="pending")
+?"text-yellow-400"
+:"text-red-400"
+}">
+${user.status || ""}
+</span>
+
+
+</div>
+
+
+
+
+
+<select
+
+onchange="window.changeRole('${user.id}',this.value)"
+
+class="w-full mt-3 p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-sm"
+
+>
+
+
+<option value="user"
+${user.role==="user"?"selected":""}>
+User
+</option>
+
+
+<option value="engineer"
+${user.role==="engineer"?"selected":""}>
+Engineer
+</option>
+
+
+<option value="supervisor"
+${user.role==="supervisor"?"selected":""}>
+Supervisor
+</option>
+
+
+<option value="manager"
+${user.role==="manager"?"selected":""}>
+Manager
+</option>
+
+
+<option value="admin"
+${user.role==="admin"?"selected":""}>
+Admin
+</option>
+
+
+</select>
+
+
+
+</div>
+
+
+`).join("");
 
 
 
@@ -186,26 +356,65 @@ export async function loadPendingUsers() {
 
 
 
-// قبول المستخدم
-window.approveUser = async function(id) {
 
 
-    const result =
-        await updateUserStatusApi(
-            id,
-            "active"
-        );
+window.filterUsers=function(){
 
 
-
-    alert(
-        result.message ||
-        "تم قبول المستخدم"
-    );
+    const text =
+    document.getElementById("userSearch").value
+    .toLowerCase();
 
 
 
-    loadPendingUsers();
+    const status =
+    document.getElementById("statusFilter").value;
+
+
+
+
+    const filtered =
+    allUsers.filter(user=>{
+
+
+        const matchText =
+
+        (
+            user.name ||
+            ""
+        )
+        .toLowerCase()
+        .includes(text)
+
+        ||
+
+        (
+            user.phone ||
+            ""
+        )
+        .includes(text);
+
+
+
+        const matchStatus =
+
+        status==="all"
+
+        ||
+
+        user.status===status;
+
+
+
+        return matchText && matchStatus;
+
+
+    });
+
+
+
+    renderUsers(filtered);
+
 
 };
 
@@ -213,40 +422,54 @@ window.approveUser = async function(id) {
 
 
 
-// رفض المستخدم
-window.rejectUser = async function(id) {
+
+
+window.changeRole = async function(id,role){
+
+
+
+    let permissions = "all";
+
+
+
+    if(role==="admin"){
+
+        permissions="all";
+
+    }
+
 
 
     const result =
-        await updateUserStatusApi(
-            id,
-            "rejected"
-        );
+    await updatePermissionsApi(
+        id,
+        role,
+        permissions
+    );
 
 
 
     alert(
         result.message ||
-        "تم رفض المستخدم"
+        "تم تحديث الصلاحية"
     );
 
 
-
-    loadPendingUsers();
 
 };
 
 
 
 
-// إتاحة الدالة للتطبيق
-window.loadPendingUsers = loadPendingUsers;
+
+
+window.loadPendingUsers =
+loadPendingUsers;
 
 
 
-// تحميل الطلبات بعد ظهور الصفحة
-setTimeout(() => {
+setTimeout(()=>{
 
     loadPendingUsers();
 
-}, 100);
+},100);
