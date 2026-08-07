@@ -28,6 +28,12 @@ export async function registerUserApi(userData) {
   ...userData,
   role: "tech",
   permissions: "",
+  status: "pending",
+  createdAt: new Date().toISOString()
+});
+  ...userData,
+  role: "tech",
+  permissions: "",
   status: "active",
   createdAt: new Date().toISOString()
 }); 
