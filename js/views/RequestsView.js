@@ -865,10 +865,8 @@ export async function loadUsersManagement() {
         ? result.data
         : [];
 
-    alert(
-        "عدد المستخدمين بعد التحميل: " +
-        usersCache.length
-    );
+    console.log("USERS FROM FIREBASE:", usersCache);
+    console.log("USERS COUNT:", usersCache.length);
 
     renderUsers(usersCache);
 
