@@ -24,6 +24,8 @@ const firebaseConfig = {
 export const APP_VERSION = "1.1.0";
 export const APP_NAME = "MAINTENANCE & DEFECT SYSTEM";
 export const DEBUG = true;
+// إضافة ثابت الصلاحيات الافتراضية للمستخدمين الجدد
+export const DEFAULT_USER_PERMISSIONS = "report,issue,log,pm,reports,quality,maintenance,suggestion,ai,kb";
 
 // تهيئة Firebase وتصدير قاعدة البيانات والتخزين للاستخدام في باقي الملفات
 export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
