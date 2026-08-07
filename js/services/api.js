@@ -356,7 +356,7 @@ export async function updateUserStatusApi(
     if (status === "active") {
 
       updateData.role =
-        "user";
+    "technician"; 
 
 
       // استخدام الصلاحيات الموحدة
