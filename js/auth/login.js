@@ -39,8 +39,11 @@ export async function login(phone, pass) {
 
     querySnapshot.forEach((docSnap) => {
       userData = {
-        id: docSnap.id,
-        ...docSnap.data()
+  id: docSnap.id,
+  ...docSnap.data(),
+  status: (docSnap.data().status || "").trim(),
+  role: (docSnap.data().role || "").trim()
+}; 
       };console.log("USER DATA:", userData);
     });
 
