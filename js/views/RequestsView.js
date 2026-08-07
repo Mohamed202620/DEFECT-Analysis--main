@@ -1,133 +1,58 @@
 import { BottomNav } from "../components/BottomNav.js";
-import { fetchUsers, updatePermissionsApi } from "../services/api.js";
-
-
-let allUsers = [];
-
+import {
+    updateUserStatusApi,
+    fetchUsers,
+    updatePermissionsApi
+} from "../services/api.js";
 
 
 export const RequestsView = () => `
 
-<div class="p-4 max-w-md mx-auto pb-24 text-white space-y-4">
+<div class="p-4 max-w-md mx-auto pb-24 text-white">
 
-
-    <!-- Header -->
-    <div>
+    <div class="mb-4">
 
         <h2 class="text-xl font-bold text-blue-400">
-            👥 إدارة المستخدمين
+            👥 إدارة المستخدمين والصلاحيات
         </h2>
 
         <p class="text-sm text-gray-400">
-            عرض وتعديل صلاحيات المستخدمين
+            عرض وتعديل حسابات المستخدمين
         </p>
 
     </div>
 
 
-
-    <!-- Statistics -->
-
-    <div class="grid grid-cols-4 gap-2 text-center text-xs">
-
-
-        <div class="bg-[#1E293B] rounded-xl p-3">
-            <div id="countAll" class="text-blue-400 text-lg font-bold">
-                0
-            </div>
-            الكل
-        </div>
-
-
-        <div class="bg-[#1E293B] rounded-xl p-3">
-            <div id="countActive" class="text-green-400 text-lg font-bold">
-                0
-            </div>
-            فعال
-        </div>
-
-
-        <div class="bg-[#1E293B] rounded-xl p-3">
-            <div id="countPending" class="text-yellow-400 text-lg font-bold">
-                0
-            </div>
-            معلق
-        </div>
-
-
-        <div class="bg-[#1E293B] rounded-xl p-3">
-            <div id="countRejected" class="text-red-400 text-lg font-bold">
-                0
-            </div>
-            مرفوض
-        </div>
-
-
-    </div>
-
-
-
-
-    <!-- Search -->
+    <!-- البحث -->
 
     <input
 
         id="userSearch"
 
-        oninput="window.filterUsers()"
+        oninput="window.searchUsers()"
 
-        placeholder="🔍 بحث بالاسم أو الرقم"
+        placeholder="🔍 بحث بالاسم أو رقم الموبايل"
 
-        class="w-full p-3 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-sm"
-
-    />
-
-
-
-
-
-    <!-- Filter -->
-
-    <select
-
-        id="statusFilter"
-
-        onchange="window.filterUsers()"
-
-        class="w-full p-3 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-sm"
+        class="
+        w-full
+        p-3
+        mb-4
+        rounded-xl
+        bg-[#1E293B]
+        border
+        border-gray-700
+        text-sm
+        text-white
+        "
 
     >
 
-        <option value="all">
-            كل المستخدمين
-        </option>
 
 
-        <option value="active">
-            فعال
-        </option>
-
-
-        <option value="pending">
-            معلق
-        </option>
-
-
-        <option value="rejected">
-            مرفوض
-        </option>
-
-
-    </select>
-
-
-
-
-
-    <!-- Users -->
-
-    <div id="usersContainer" class="space-y-3">
-
+    <div
+        id="usersContainer"
+        class="space-y-3"
+    >
 
         <div class="text-center text-gray-400 py-8">
             جاري تحميل المستخدمين...
@@ -135,7 +60,6 @@ export const RequestsView = () => `
 
 
     </div>
-
 
 
 </div>
@@ -147,23 +71,42 @@ ${BottomNav("system")}
 
 
 
+// تخزين المستخدمين مؤقتاً
+
+let usersCache = [];
 
 
-export async function loadPendingUsers(){
 
 
-    const result = await fetchUsers();
+// تحميل المستخدمين
+
+export async function loadUsersManagement(){
+
+
+    const container =
+        document.getElementById(
+            "usersContainer"
+        );
+
+
+    if(!container) return;
+
+
+
+    const result =
+        await fetchUsers();
 
 
 
     if(result.status !== "success"){
 
-        document.getElementById("usersContainer").innerHTML =
 
-        `
+        container.innerHTML = `
+
         <div class="text-red-400 text-center">
-        فشل تحميل البيانات
+            فشل تحميل المستخدمين
         </div>
+
         `;
 
         return;
@@ -172,45 +115,12 @@ export async function loadPendingUsers(){
 
 
 
-    allUsers = result.data || [];
+    usersCache =
+        result.data || [];
 
 
 
-    updateStatistics();
-
-
-
-    renderUsers(allUsers);
-
-}
-
-
-
-
-
-function updateStatistics(){
-
-
-    document.getElementById("countAll").innerHTML =
-        allUsers.length;
-
-
-    document.getElementById("countActive").innerHTML =
-        allUsers.filter(
-            u => (u.status || "").trim() === "active"
-        ).length;
-
-
-    document.getElementById("countPending").innerHTML =
-        allUsers.filter(
-            u => (u.status || "").trim() === "pending"
-        ).length;
-
-
-    document.getElementById("countRejected").innerHTML =
-        allUsers.filter(
-            u => (u.status || "").trim() === "rejected"
-        ).length;
+    renderUsers(usersCache);
 
 
 }
@@ -219,12 +129,15 @@ function updateStatistics(){
 
 
 
+// عرض المستخدمين
 
 function renderUsers(users){
 
 
     const container =
-        document.getElementById("usersContainer");
+        document.getElementById(
+            "usersContainer"
+        );
 
 
     if(!container) return;
@@ -233,11 +146,13 @@ function renderUsers(users){
 
     if(!users.length){
 
-        container.innerHTML =
-        `
+
+        container.innerHTML = `
+
         <div class="text-center text-gray-400 py-8">
-        لا يوجد مستخدمين
+            لا يوجد مستخدمين
         </div>
+
         `;
 
         return;
@@ -248,51 +163,60 @@ function renderUsers(users){
 
 
 
-    container.innerHTML = users.map(user => `
+    container.innerHTML =
+    users.map(user => `
 
 
-<div class="bg-[#1E293B] rounded-xl p-4 border border-gray-700">
+<div class="
+bg-[#1E293B]
+rounded-xl
+p-4
+border
+border-gray-700
+space-y-2
+">
 
 
 <div class="font-bold text-blue-400">
-👤 ${user.name || ""}
+👤 ${user.name || "بدون اسم"}
 </div>
 
 
-<div class="text-sm text-gray-300">
+<div class="text-xs text-gray-300">
 📱 ${user.phone || ""}
 </div>
 
 
-<div class="text-sm text-gray-300">
+<div class="text-xs text-gray-300">
 💼 ${user.job || ""}
 </div>
 
 
-<div class="text-sm text-gray-300">
+<div class="text-xs text-gray-300">
 🏢 ${user.department || ""}
 </div>
 
 
-<div class="text-sm text-gray-300">
+<div class="text-xs text-gray-300">
 🔄 ${user.shift || ""}
 </div>
 
 
 
-<div class="mt-2 text-xs">
+<div class="text-xs">
 
 الحالة:
-<span class="${
-(user.status==="active")
+<span class="
+${user.status==="active"
 ?"text-green-400"
-:(user.status==="pending")
+:user.status==="pending"
 ?"text-yellow-400"
-:"text-red-400"
-}">
-${user.status || ""}
-</span>
+:"text-red-400"}
+">
 
+${user.status || ""}
+
+</span>
 
 </div>
 
@@ -300,11 +224,24 @@ ${user.status || ""}
 
 
 
+<label class="text-xs text-gray-400">
+الدور
+</label>
+
+
 <select
 
-onchange="window.changeRole('${user.id}',this.value)"
+id="role-${user.id}"
 
-class="w-full mt-3 p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-sm"
+class="
+w-full
+p-2
+rounded-lg
+bg-[#0F172A]
+border
+border-gray-700
+text-xs
+"
 
 >
 
@@ -321,15 +258,9 @@ Engineer
 </option>
 
 
-<option value="supervisor"
-${user.role==="supervisor"?"selected":""}>
-Supervisor
-</option>
-
-
-<option value="manager"
-${user.role==="manager"?"selected":""}>
-Manager
+<option value="tech"
+${user.role==="tech"?"selected":""}>
+Tech
 </option>
 
 
@@ -343,12 +274,143 @@ Admin
 
 
 
+
+
+<label class="text-xs text-gray-400">
+الصلاحيات
+</label>
+
+
+<select
+
+id="perm-${user.id}"
+
+class="
+w-full
+p-2
+rounded-lg
+bg-[#0F172A]
+border
+border-gray-700
+text-xs
+"
+
+>
+
+
+<option value="all"
+${user.permissions==="all"?"selected":""}>
+كل الصلاحيات
+</option>
+
+
+<option value="report,issue,log"
+${user.permissions==="report,issue,log"?"selected":""}>
+تقارير + أعطال
+</option>
+
+
+<option value="report"
+${user.permissions==="report"?"selected":""}>
+تقارير فقط
+</option>
+
+
+<option value=""
+${!user.permissions?"selected":""}>
+بدون صلاحيات
+</option>
+
+
+</select>
+
+
+
+
+
+<button
+
+onclick="window.saveUserPermissions('${user.id}')"
+
+class="
+w-full
+bg-blue-600
+hover:bg-blue-500
+rounded-lg
+py-2
+text-xs
+font-bold
+"
+
+>
+
+💾 حفظ التعديل
+
+</button>
+
+
+
+
+${
+user.status==="pending"
+
+?
+
+`
+
+<div class="flex gap-2 mt-2">
+
+<button
+
+onclick="window.approveUser('${user.id}')"
+
+class="
+flex-1
+bg-green-600
+rounded-lg
+py-2
+text-xs
+font-bold
+">
+
+✅ قبول
+
+</button>
+
+
+<button
+
+onclick="window.rejectUser('${user.id}')"
+
+class="
+flex-1
+bg-red-600
+rounded-lg
+py-2
+text-xs
+font-bold
+">
+
+❌ رفض
+
+</button>
+
+
+</div>
+
+`
+
+:""
+
+}
+
+
+
 </div>
 
 
+
 `).join("");
-
-
 
 }
 
@@ -356,64 +418,40 @@ Admin
 
 
 
+// البحث
+
+window.searchUsers = function(){
 
 
-window.filterUsers=function(){
-
-
-    const text =
-    document.getElementById("userSearch").value
-    .toLowerCase();
-
-
-
-    const status =
-    document.getElementById("statusFilter").value;
-
+const value =
+document.getElementById(
+"userSearch"
+)?.value
+.toLowerCase()
+.trim();
 
 
 
-    const filtered =
-    allUsers.filter(user=>{
+const filtered =
+usersCache.filter(user =>
 
 
-        const matchText =
+(user.name||"")
+.toLowerCase()
+.includes(value)
 
-        (
-            user.name ||
-            ""
-        )
-        .toLowerCase()
-        .includes(text)
 
-        ||
+||
 
-        (
-            user.phone ||
-            ""
-        )
-        .includes(text);
+(user.phone||"")
+.includes(value)
+
+
+);
 
 
 
-        const matchStatus =
-
-        status==="all"
-
-        ||
-
-        user.status===status;
-
-
-
-        return matchText && matchStatus;
-
-
-    });
-
-
-
-    renderUsers(filtered);
+renderUsers(filtered);
 
 
 };
@@ -423,36 +461,39 @@ window.filterUsers=function(){
 
 
 
+// حفظ الصلاحيات
 
-window.changeRole = async function(id,role){
-
-
-
-    let permissions = "all";
+window.saveUserPermissions =
+async function(id){
 
 
-
-    if(role==="admin"){
-
-        permissions="all";
-
-    }
+const role =
+document.getElementById(
+`role-${id}`
+).value;
 
 
 
-    const result =
-    await updatePermissionsApi(
-        id,
-        role,
-        permissions
-    );
+const permissions =
+document.getElementById(
+`perm-${id}`
+).value;
 
 
 
-    alert(
-        result.message ||
-        "تم تحديث الصلاحية"
-    );
+const result =
+await updatePermissionsApi(
+id,
+role,
+permissions
+);
+
+
+
+alert(
+result.message ||
+"تم الحفظ"
+);
 
 
 
@@ -463,13 +504,66 @@ window.changeRole = async function(id,role){
 
 
 
-window.loadPendingUsers =
-loadPendingUsers;
+// قبول
+
+window.approveUser =
+async function(id){
+
+
+const result =
+await updateUserStatusApi(
+id,
+"active"
+);
+
+
+alert(result.message);
+
+
+loadUsersManagement();
+
+
+};
+
+
+
+
+
+
+// رفض
+
+window.rejectUser =
+async function(id){
+
+
+const result =
+await updateUserStatusApi(
+id,
+"rejected"
+);
+
+
+alert(result.message);
+
+
+loadUsersManagement();
+
+
+};
+
+
+
+
+
+window.loadUsersManagement =
+loadUsersManagement;
+
+
 
 
 
 setTimeout(()=>{
 
-    loadPendingUsers();
+loadUsersManagement();
 
 },100);
