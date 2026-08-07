@@ -1,14 +1,15 @@
-// استيراد دالة الاتصال العامة
-import { apiRequest } from '../services/api.js';
+// استيراد قاعدة البيانات من ملف الإعدادات المركزي
+import { db } from '../../config.js';
+import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 /**
- * خدمة تسجيل الدخول
+ * خدمة تسجيل الدخول عبر Firebase Firestore
  * @param {string} phone - رقم الموبايل
  * @param {string} pass - كلمة السر
  * @returns {Promise<Object>} - نتيجة عملية تسجيل الدخول
  */
 export async function login(phone, pass) {
-  // 1. تنظيف البيانات (إزالة المسافات الزائدة من البداية والنهاية)
+  // 1. تنظيف البيانات
   const cleanPhone = phone?.trim();
   const cleanPass = pass?.trim();
 
@@ -20,23 +21,43 @@ export async function login(phone, pass) {
     };
   }
 
-  // 3. إرسال الطلب مع معالجة الأخطاء المحتملة للشبكة
   try {
-    const result = await apiRequest({
-      action: "login", // تأكد من مطابقتها للـ Backend في Google Apps Script
-      phone: cleanPhone,
-      password: cleanPass
+    // البحث عن المستخدم برقم الموبايل في مجموعة users
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("phone", "==", cleanPhone));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return {
+        status: "error",
+        message: "رقم الموبايل غير مسجل بالنظام."
+      };
+    }
+
+    let userData = null;
+    querySnapshot.forEach((docSnap) => {
+      userData = { id: docSnap.id, ...docSnap.data() };
     });
 
-    return result;
+    // التحقق من صحة كلمة السر (مقارنة مباشرة أو يمكنك مطابقتها حسب تخزينك لها)
+    if (userData.password !== cleanPass) {
+      return {
+        status: "error",
+        message: "كلمة السر غير صحيحة."
+      };
+    }
+
+    // تسجيل الدخول ناجح
+    return {
+      status: "success",
+      user: userData
+    };
 
   } catch (error) {
     console.error("Login Service Error:", error);
-    
-    // إرجاع كائن خطأ موحد ليتعامل معه الـ Controller أو הـ View
     return {
       status: "error",
-      message: "حدث خطأ أثناء الاتصال بالخادم، يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً."
+      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات، يرجى المحاولة مجدداً."
     };
   }
 }
