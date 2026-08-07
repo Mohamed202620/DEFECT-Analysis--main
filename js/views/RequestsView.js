@@ -23,16 +23,10 @@ export const RequestsView = () => `
     </div>
 
 
-    <!-- البحث -->
-
     <input
-
         id="userSearch"
-
         oninput="window.searchUsers()"
-
         placeholder="🔍 بحث بالاسم أو رقم الموبايل"
-
         class="
         w-full
         p-3
@@ -44,20 +38,14 @@ export const RequestsView = () => `
         text-sm
         text-white
         "
-
     >
 
 
-
-    <div
-        id="usersContainer"
-        class="space-y-3"
-    >
+    <div id="usersContainer" class="space-y-3">
 
         <div class="text-center text-gray-400 py-8">
             جاري تحميل المستخدمين...
         </div>
-
 
     </div>
 
@@ -71,57 +59,42 @@ ${BottomNav("system")}
 
 
 
-// تخزين المستخدمين مؤقتاً
-
 let usersCache = [];
 
 
 
 
 // تحميل المستخدمين
-
 export async function loadUsersManagement(){
 
 
     const container =
-        document.getElementById(
-            "usersContainer"
-        );
+        document.getElementById("usersContainer");
 
 
     if(!container) return;
 
 
 
-    const result =
-        await fetchUsers();
+    const result = await fetchUsers();
 
 
 
     if(result.status !== "success"){
 
-
         container.innerHTML = `
-
         <div class="text-red-400 text-center">
             فشل تحميل المستخدمين
-        </div>
-
-        `;
+        </div>`;
 
         return;
-
     }
 
 
 
-    usersCache =
-        result.data || [];
-
-
+    usersCache = result.data || [];
 
     renderUsers(usersCache);
-
 
 }
 
@@ -129,42 +102,37 @@ export async function loadUsersManagement(){
 
 
 
-// عرض المستخدمين
 
 function renderUsers(users){
 
 
-    const container =
-        document.getElementById(
-            "usersContainer"
-        );
+const container =
+document.getElementById("usersContainer");
 
 
-    if(!container) return;
+if(!container) return;
 
 
 
-    if(!users.length){
+if(!users.length){
 
+container.innerHTML=`
 
-        container.innerHTML = `
+<div class="text-center text-gray-400 py-8">
+لا يوجد مستخدمين
+</div>
 
-        <div class="text-center text-gray-400 py-8">
-            لا يوجد مستخدمين
-        </div>
+`;
 
-        `;
+return;
 
-        return;
-
-    }
+}
 
 
 
 
-
-    container.innerHTML =
-    users.map(user => `
+container.innerHTML =
+users.map(user => `
 
 
 <div class="
@@ -193,34 +161,25 @@ space-y-2
 
 
 <div class="text-xs text-gray-300">
-🏢 ${user.department || ""}
-</div>
-
-
-<div class="text-xs text-gray-300">
 🔄 ${user.shift || ""}
 </div>
 
 
 
 <div class="text-xs">
-
 الحالة:
-<span class="
-${user.status==="active"
+
+<span class="${
+user.status==="active"
 ?"text-green-400"
 :user.status==="pending"
 ?"text-yellow-400"
-:"text-red-400"}
-">
-
+:"text-red-400"
+}">
 ${user.status || ""}
-
 </span>
 
 </div>
-
-
 
 
 
@@ -230,9 +189,7 @@ ${user.status || ""}
 
 
 <select
-
 id="role-${user.id}"
-
 class="
 w-full
 p-2
@@ -242,7 +199,7 @@ border
 border-gray-700
 text-xs
 "
-
+${user.role==="admin" ? "disabled" : ""}
 >
 
 
@@ -282,9 +239,7 @@ Admin
 
 
 <select
-
 id="perm-${user.id}"
-
 class="
 w-full
 p-2
@@ -294,7 +249,7 @@ border
 border-gray-700
 text-xs
 "
-
+${user.role==="admin" ? "disabled" : ""}
 >
 
 
@@ -306,7 +261,7 @@ ${user.permissions==="all"?"selected":""}>
 
 <option value="report,issue,log"
 ${user.permissions==="report,issue,log"?"selected":""}>
-تقارير + أعطال
+تقارير + أعطال + سجل
 </option>
 
 
@@ -326,27 +281,37 @@ ${!user.permissions?"selected":""}>
 
 
 
+${
+user.role!=="admin"
+?
 
-
+`
 <button
-
 onclick="window.saveUserPermissions('${user.id}')"
-
 class="
 w-full
 bg-blue-600
-hover:bg-blue-500
 rounded-lg
 py-2
 text-xs
 font-bold
-"
-
->
+">
 
 💾 حفظ التعديل
 
 </button>
+`
+
+:
+
+`
+<div class="text-xs text-blue-400 text-center">
+🔒 حساب المدير الرئيسي محمي
+</div>
+`
+
+}
+
 
 
 
@@ -358,12 +323,10 @@ user.status==="pending"
 
 `
 
-<div class="flex gap-2 mt-2">
+<div class="flex gap-2">
 
 <button
-
 onclick="window.approveUser('${user.id}')"
-
 class="
 flex-1
 bg-green-600
@@ -372,16 +335,12 @@ py-2
 text-xs
 font-bold
 ">
-
 ✅ قبول
-
 </button>
 
 
 <button
-
 onclick="window.rejectUser('${user.id}')"
-
 class="
 flex-1
 bg-red-600
@@ -390,9 +349,7 @@ py-2
 text-xs
 font-bold
 ">
-
 ❌ رفض
-
 </button>
 
 
@@ -409,7 +366,6 @@ font-bold
 </div>
 
 
-
 `).join("");
 
 }
@@ -418,34 +374,30 @@ font-bold
 
 
 
-// البحث
 
-window.searchUsers = function(){
+
+window.searchUsers=function(){
 
 
 const value =
-document.getElementById(
-"userSearch"
-)?.value
+document.getElementById("userSearch")
+?.value
 .toLowerCase()
 .trim();
 
 
 
 const filtered =
-usersCache.filter(user =>
-
+usersCache.filter(user=>
 
 (user.name||"")
 .toLowerCase()
 .includes(value)
 
-
 ||
 
 (user.phone||"")
 .includes(value)
-
 
 );
 
@@ -461,23 +413,18 @@ renderUsers(filtered);
 
 
 
-// حفظ الصلاحيات
+
 
 window.saveUserPermissions =
 async function(id){
 
 
 const role =
-document.getElementById(
-`role-${id}`
-).value;
-
+document.getElementById(`role-${id}`).value;
 
 
 const permissions =
-document.getElementById(
-`perm-${id}`
-).value;
+document.getElementById(`perm-${id}`).value;
 
 
 
@@ -491,10 +438,8 @@ permissions
 
 
 alert(
-result.message ||
-"تم الحفظ"
+result.message || "تم الحفظ"
 );
-
 
 
 };
@@ -504,7 +449,7 @@ result.message ||
 
 
 
-// قبول
+
 
 window.approveUser =
 async function(id){
@@ -530,7 +475,6 @@ loadUsersManagement();
 
 
 
-// رفض
 
 window.rejectUser =
 async function(id){
@@ -555,17 +499,20 @@ loadUsersManagement();
 
 
 
+
 window.loadUsersManagement =
 loadUsersManagement;
 
 
-// توافق مع النسخة القديمة من app.js
+
+// مهم لمنع خطأ app.js
 export const loadPendingUsers =
 loadUsersManagement;
 
 
+
 setTimeout(()=>{
 
-    loadUsersManagement();
+loadUsersManagement();
 
-},100); 
+},200);
