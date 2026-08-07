@@ -206,7 +206,14 @@ export function toggleDarkMode() {
 }
 
 export function logout() {
-  localStorage.clear();
+  localStorage.removeItem("user");
+  localStorage.removeItem("isLoggedIn");
+  localStorage.removeItem("role");
+  localStorage.removeItem("permissions");
+  localStorage.removeItem("phone");
+  localStorage.removeItem("name");
+  localStorage.removeItem("job");
+
   currentRole = '';
   currentPermissions = [];
   navigateTo("login");
@@ -248,6 +255,7 @@ export async function doLogin() {
       localStorage.setItem("role", roleVal);
       localStorage.setItem("permissions", permVal);
       localStorage.setItem("user", JSON.stringify(userObj));
+      localStorage.setItem("isLoggedIn", "true"); // تمت الإضافة هنا
 
       currentRole = roleVal;
       currentPermissions = permVal
