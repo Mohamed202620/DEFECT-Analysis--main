@@ -843,39 +843,40 @@ export async function loadUsersManagement() {
 
 
     const result =
-        await fetchUsers();
+    await fetchUsers();
+
+alert(
+    "نتيجة fetchUsers:\n" +
+    JSON.stringify(result)
+);
 
 
-    if (result.status !== "success") {
+if (result.status !== "success") {
 
-        container.innerHTML = `
+    container.innerHTML = `
 
-        <div
-            class="
-            text-center
-            text-red-400
-            py-8
-            ">
+    <div
+        class="
+        text-center
+        text-red-400
+        py-8
+        ">
 
-            فشل تحميل المستخدمين
+        فشل تحميل المستخدمين
 
-        </div>
+    </div>
 
-        `;
+    `;
 
-        return;
+    return;
 
-    }
+}
 
 
-    usersCache = Array.isArray(result.data)
-        ? result.data
-        : [];
+usersCache =
+    result.data || [];
 
-    console.log("USERS FROM FIREBASE:", usersCache);
-    console.log("USERS COUNT:", usersCache.length);
-
-    renderUsers(usersCache);
+renderUsers(usersCache);
 
 }
 
