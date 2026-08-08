@@ -1080,62 +1080,38 @@ window.addEventListener(
   "DOMContentLoaded",
   () => {
 
-    const initialHash =
-      window.location.hash.replace("#", "").trim();
+    const initialHash = window.location.hash.replace("#", "").trim();
 
-    const isLoggedIn =
-      !!(
-        localStorage.getItem("phone") ||
-        localStorage.getItem("userId")
-      );
+    // 1. نتأكد من وجود توكن الدخول الاساسي
+    const userId = localStorage.getItem("userId");
+    const phone = localStorage.getItem("phone");
+    const role = localStorage.getItem("role");
+    
+    const isLoggedIn = !!(userId && phone && role);
 
-    // ============================================
-    // المستخدم غير مسجل دخول
-    // ============================================
+    console.log("DEBUG LOGIN CHECK:", { isLoggedIn, userId, role });
 
+    // 2. المستخدم مش مسجل دخول
     if (!isLoggedIn) {
-
-      if (initialHash === "register") {
-
-        currentPage = "register";
-
-      } else {
-
-        currentPage = "login";
-
-      }
-
+      localStorage.clear();
+      currentPage = initialHash === "register" ? "register" : "login";
     }
 
-    // ============================================
-    // المستخدم مسجل دخول
-    // ============================================
-
+    // 3. المستخدم مسجل دخول
     else {
-
-      // لا تسمح بالرجوع إلى login أو register
-      // عند تحديث الصفحة
-
-      if (
-        !initialHash ||
-        initialHash === "login" ||
-        initialHash === "register"
-      ) {
-
+      if (!initialHash || initialHash === "login" || initialHash === "register") {
         currentPage = "home";
-
-        history.replaceState(
-          { page: "home" },
-          "",
-          "#home"
-        );
-
+        history.replaceState({ page: "home" }, "", "#home");
       } else {
-
         currentPage = initialHash;
-
       }
 
+      // مهم جدا: نرجع نعبي المتغيرات العامة تاني
+      currentRole = role;
+      currentPermissions = (localStorage.getItem("permissions") || "")
+        .split(",")
+        .map(p => p.trim().toLowerCase())
+        .filter(Boolean);
     }
 
     render();
