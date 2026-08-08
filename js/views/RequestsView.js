@@ -959,8 +959,14 @@ window.loadUsersManagement =
 
 
 // ======================================
-// لا نستدعي loadPendingUsers هنا
+// توافق مع Router القديم
 // ======================================
+
+export async function loadPendingUsers() {
+
+    return await loadUsersManagement();
+
+}
 
 
 // ======================================
@@ -969,9 +975,7 @@ window.loadUsersManagement =
 
 setTimeout(() => {
 
-    console.log(
-        "🚀 AUTO LOAD USERS"
-    );
+    console.log("🚀 AUTO LOAD USERS");
 
     loadUsersManagement();
 
