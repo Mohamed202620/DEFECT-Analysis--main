@@ -15,6 +15,7 @@ import {
   addDoc,
   doc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy
@@ -721,6 +722,62 @@ export async function updateTicketStatusApi(
 
       message:
         error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// DELETE USER
+// ============================================================
+
+export async function deleteUserApi(userId) {
+
+  try {
+
+    if (!userId) {
+
+      return {
+        status: "error",
+        message: "معرف المستخدم غير موجود"
+      };
+
+    }
+
+    const userRef =
+      doc(
+        db,
+        "users",
+        userId
+      );
+
+    await deleteDoc(userRef);
+
+    return {
+
+      status: "success",
+
+      message: "تم حذف المستخدم نهائيًا"
+
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Error deleting user:",
+      error
+    );
+
+    return {
+
+      status: "error",
+
+      message:
+        error.message ||
+        "فشل حذف المستخدم"
 
     };
 
