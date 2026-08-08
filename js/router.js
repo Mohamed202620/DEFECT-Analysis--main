@@ -1068,7 +1068,7 @@ window.render =
 window.addEventListener(
   "hashchange",
   () => {
-    const hash = window.location.hash.replace("#", "");
+    const hash = window.location.hash.replace("#", "").trim();
     if (hash && hash !== currentPage) {
       currentPage = hash;
       render();
@@ -1081,31 +1081,60 @@ window.addEventListener(
   () => {
 
     const initialHash =
-      window.location.hash
-        .replace("#", "");
+      window.location.hash.replace("#", "").trim();
 
-    // التحقق بالاعتماد على وجود رقم الهاتف أو الـ userId لضمان عدم الخروج الوهمي
     const isLoggedIn =
-      localStorage.getItem("phone") ||
-      localStorage.getItem("userId");
+      !!(
+        localStorage.getItem("phone") ||
+        localStorage.getItem("userId")
+      );
 
+    // ============================================
+    // المستخدم غير مسجل دخول
+    // ============================================
 
     if (!isLoggedIn) {
 
-      currentPage = (initialHash === "register") ? "register" : "login";
+      if (initialHash === "register") {
 
-    } else {
+        currentPage = "register";
 
-      currentPage =
-        initialHash
-        &&
-        initialHash !== "login"
-        &&
-        initialHash !== "register"
+      } else {
 
-          ? initialHash
+        currentPage = "login";
 
-          : "home";
+      }
+
+    }
+
+    // ============================================
+    // المستخدم مسجل دخول
+    // ============================================
+
+    else {
+
+      // لا تسمح بالرجوع إلى login أو register
+      // عند تحديث الصفحة
+
+      if (
+        !initialHash ||
+        initialHash === "login" ||
+        initialHash === "register"
+      ) {
+
+        currentPage = "home";
+
+        history.replaceState(
+          { page: "home" },
+          "",
+          "#home"
+        );
+
+      } else {
+
+        currentPage = initialHash;
+
+      }
 
     }
 
