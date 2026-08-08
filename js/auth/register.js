@@ -1,54 +1,165 @@
-// استيراد قاعدة البيانات من ملف الإعدادات المركزي
-import { db } from '../../config.js';
-import { collection, query, where, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+// ============================================================
+// REGISTER SERVICE
+// Firebase Firestore
+// ============================================================
+
+// استخدام خدمة API المركزية بدلاً من الاتصال بـ Firestore مباشرة
+import {
+  registerUserApi
+} from "../../services/api.js";
+
 
 /**
- * خدمة تسجيل مستخدم جديد عبر Firebase Firestore
- * @param {Object} userData - بيانات المستخدم المرسلة من النموذج
- * @returns {Promise<Object>} - نتيجة عملية التسجيل
+ * خدمة تسجيل مستخدم جديد
+ *
+ * جميع عمليات Firebase الخاصة بالمستخدمين
+ * تتم من خلال services/api.js
+ *
+ * @param {Object} userData بيانات المستخدم من نموذج التسجيل
+ * @returns {Promise<Object>} نتيجة التسجيل
  */
-export async function register(userData) {
+export async function register(userData = {}) {
+
   try {
-    const cleanPhone = userData.phone?.trim();
-    
-    if (!cleanPhone || !userData.password) {
+
+    // ========================================================
+    // تنظيف البيانات
+    // ========================================================
+
+    const name =
+      String(userData.name || "").trim();
+
+    const phone =
+      String(userData.phone || "").trim();
+
+    const password =
+      String(userData.password || "").trim();
+
+    const confirmPassword =
+      String(userData.confirmPassword || "").trim();
+
+    const shift =
+      String(userData.shift || "").trim();
+
+    const job =
+      String(userData.job || "").trim();
+
+    const department =
+      String(userData.department || "").trim();
+
+    const code =
+      String(userData.code || "").trim();
+
+
+    // ========================================================
+    // التحقق من البيانات الأساسية
+    // ========================================================
+
+    if (
+      !name ||
+      !phone ||
+      !password ||
+      !confirmPassword ||
+      !shift ||
+      !job ||
+      !department ||
+      !code
+    ) {
+
       return {
+
         status: "error",
-        message: "يرجى إدخال رقم الهاتف وكلمة السر على الأقل."
+
+        message:
+          "يرجى إدخال جميع البيانات المطلوبة."
+
       };
+
     }
 
-    // 1. التحقق مسبقاً إذا كان رقم الهاتف مسجلاً من قبل
-    const usersRef = collection(db, "users");
-    const q = query(usersRef, where("phone", "==", cleanPhone));
-    const querySnapshot = await getDocs(q);
 
-    if (!querySnapshot.empty) {
+    // ========================================================
+    // التحقق من كلمة السر
+    // ========================================================
+
+    if (password !== confirmPassword) {
+
       return {
+
         status: "error",
-        message: "رقم الهاتف مسجل بالفعل، يرجى استخدام رقم آخر أو تسجيل الدخول."
+
+        message:
+          "كلمتا السر غير متطابقتين."
+
       };
+
     }
 
-    // 2. إضافة المستخدم الجديد إلى مجموعة users مع وقت الإنشاء والصلاحيات الافتراضية
-    const docRef = await addDoc(usersRef, {
-      ...userData,
-      phone: cleanPhone,
-      role: "user", // الصلاحية الافتراضية
-      createdAt: new Date().toISOString()
-    });
 
-    return {
-      status: "success",
-      message: "تم إنشاء الحساب بنجاح!",
-      id: docRef.id
+    // ========================================================
+    // تجهيز البيانات
+    // ========================================================
+    //
+    // مهم:
+    // لا نرسل confirmPassword إلى Firebase.
+    //
+    // الحساب يبدأ دائماً Pending.
+    // الدور والصلاحيات يتم تحديدهما من API.
+    //
+    // ========================================================
+
+    const newUser = {
+
+      name,
+
+      phone,
+
+      password,
+
+      shift,
+
+      job,
+
+      department,
+
+      code
+
     };
+
+
+    // ========================================================
+    // إرسال التسجيل إلى API المركزي
+    // ========================================================
+
+    const result =
+      await registerUserApi(newUser);
+
+
+    // ========================================================
+    // إعادة النتيجة كما هي
+    // ========================================================
+
+    return result;
+
 
   } catch (error) {
-    console.error("Register Service Error:", error);
+
+    console.error(
+      "Register Service Error:",
+      error
+    );
+
+
     return {
+
       status: "error",
-      message: "حدث خطأ أثناء حفظ البيانات، يرجى المحاولة مجدداً."
+
+      message:
+        error?.message ||
+        "حدث خطأ أثناء إنشاء الحساب."
+
     };
+
   }
+
 }
