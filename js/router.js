@@ -518,7 +518,7 @@ window.doLogin = async function () {
 
     localStorage.setItem(
       "userId",
-      user.id || ""
+      user.id || user.uid || ""
     );
 
     localStorage.setItem(
@@ -528,7 +528,7 @@ window.doLogin = async function () {
 
     localStorage.setItem(
       "phone",
-      user.phone || ""
+      user.phone || phone
     );
 
     localStorage.setItem(
@@ -1062,8 +1062,19 @@ window.render =
 
 
 // ============================================================
-// INITIAL LOAD
+// INITIAL LOAD & ROUTING LISTENERS
 // ============================================================
+
+window.addEventListener(
+  "hashchange",
+  () => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash && hash !== currentPage) {
+      currentPage = hash;
+      render();
+    }
+  }
+);
 
 window.addEventListener(
   "DOMContentLoaded",
@@ -1073,11 +1084,18 @@ window.addEventListener(
       window.location.hash
         .replace("#", "");
 
-    const userId = localStorage.getItem("userId");
+    // التحقق بالاعتماد على وجود رقم الهاتف أو الـ userId لضمان عدم الخروج الوهمي
+    const isLoggedIn =
+      localStorage.getItem("phone") ||
+      localStorage.getItem("userId");
 
-    if (!userId) {
+
+    if (!isLoggedIn) {
+
       currentPage = (initialHash === "register") ? "register" : "login";
+
     } else {
+
       currentPage =
         initialHash
         &&
@@ -1088,6 +1106,7 @@ window.addEventListener(
           ? initialHash
 
           : "home";
+
     }
 
     render();
