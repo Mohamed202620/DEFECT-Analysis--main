@@ -16,14 +16,12 @@ import {
   getStorage
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
-
 // ============================================================
 // Google Apps Script - نسخة احتياطية
 // ============================================================
 
 export const GOOGLE_SCRIPT_URL =
   "https://script.google.com/macros/s/AKfycbz2O9L2NTyJvKQgUwzmFASSzoX7EIYd6H21g3J--bJYbdB-zsW2NYubv8WRw87GORni/exec";
-
 
 // ============================================================
 // إعدادات Firebase
@@ -51,32 +49,25 @@ const firebaseConfig = {
 
 };
 
-
 // ============================================================
 // ثوابت التطبيق
 // ============================================================
 
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1"; // رفعت النسخة عشان التعديل
 
 export const APP_NAME =
   "MAINTENANCE & DEFECT SYSTEM";
 
 export const DEBUG = true;
 
-
 // ============================================================
-// الصلاحيات الموحدة
-// ============================================================
-//
-// مهم:
-// أسماء الصلاحيات هنا مطابقة تماماً للمطلوب
-// والـ RequestsView و SystemView
-//
+// الصلاحيات الموحدة - تم التعديل هنا
 // ============================================================
 
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
+// اضفت: all, users, requests, system, machines, settings
 export const DEFAULT_USER_PERMISSIONS =
-  "home,maintenance,issue,suggestions,pm,log,reports,qr,quality,ai,kb,statistics,export";
+  "all,home,maintenance,issue,suggestions,pm,log,reports,qr,quality,ai,kb,statistics,export,users,requests,system,machines,settings";
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
@@ -112,7 +103,6 @@ export const ALL_PERMISSIONS = [
   "all"
 ];
 
-
 // ============================================================
 // تهيئة Firebase
 // ============================================================
@@ -122,14 +112,11 @@ export const app =
     ? getApp()
     : initializeApp(firebaseConfig);
 
-
 export const db =
   getFirestore(app);
 
-
 export const storage =
   getStorage(app);
-
 
 // ============================================================
 // الترجمات
@@ -161,7 +148,6 @@ export const translations = {
     todayDefects:
       "عيوب اليوم",
 
-
     // Maintenance
     secMaint:
       "🛠️ قسم الصيانة والمهام",
@@ -180,7 +166,6 @@ export const translations = {
 
     m5:
       "مسح QR الماكينات",
-
 
     // Defects
     secDefects:
@@ -201,14 +186,12 @@ export const translations = {
     d5:
       "تصدير التقارير",
 
-
     // Users
     secUsers:
       "👥 إدارة المستخدمين",
 
     u1:
       "إدارة الصلاحيات والمستخدمين",
-
 
     // Navigation
     navHome:
@@ -222,7 +205,6 @@ export const translations = {
 
     navSystem:
       "النظام",
-
 
     // Issue
     issueTitle:
@@ -279,7 +261,6 @@ export const translations = {
     back:
       "رجوع",
 
-
     // System
     users:
       "المستخدمون",
@@ -293,7 +274,6 @@ export const translations = {
     settings:
       "الإعدادات",
 
-
     // General
     logout:
       "تسجيل الخروج ➔",
@@ -305,7 +285,6 @@ export const translations = {
       "أكثر الماكينات أعطالاً"
 
   },
-
 
   // ==========================================================
   // English
@@ -322,7 +301,6 @@ export const translations = {
     today:
       "Today",
 
-
     // Dashboard
     dashTitle:
       "📊 Dashboard Overview",
@@ -335,7 +313,6 @@ export const translations = {
 
     todayDefects:
       "Today Defects",
-
 
     // Maintenance
     secMaint:
@@ -356,7 +333,6 @@ export const translations = {
     m5:
       "Scan Machine QR",
 
-
     // Defects
     secDefects:
       "📦 Defects Analysis",
@@ -376,14 +352,12 @@ export const translations = {
     d5:
       "Export Reports",
 
-
     // Users
     secUsers:
       "👥 Users Management",
 
     u1:
       "Manage Roles & Users",
-
 
     // Navigation
     navHome:
@@ -397,7 +371,6 @@ export const translations = {
 
     navSystem:
       "System",
-
 
     // Issue
     issueTitle:
@@ -454,7 +427,6 @@ export const translations = {
     back:
       "Back",
 
-
     // System
     users:
       "Users",
@@ -467,7 +439,6 @@ export const translations = {
 
     settings:
       "Settings",
-
 
     // General
     logout:
