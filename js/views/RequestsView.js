@@ -3,7 +3,8 @@ import { BottomNav } from "../components/BottomNav.js";
 import {
   fetchUsers,
   updatePermissionsApi,
-  updateUserStatusApi
+  updateUserStatusApi,
+  deleteUserApi
 } from "../services/api.js";
 
 
@@ -608,6 +609,31 @@ function renderUsers(users) {
 
                     }
 
+
+                    <!-- حذف المستخدم -->
+
+                    <div class="mt-4">
+
+                        <button
+                            onclick="window.deleteUser('${user.id}', '${(user.name || "").replace(/'/g, "\\'")}')"
+                            class="
+                                w-full
+                                py-2
+                                rounded-xl
+                                bg-red-700
+                                hover:bg-red-600
+                                transition
+                                font-bold
+                                text-sm
+                            "
+                        >
+
+                            🗑️ حذف المستخدم نهائيًا
+
+                        </button>
+
+                    </div>
+
                     `
 
                 }
@@ -800,6 +826,42 @@ async function(id) {
 
 
     loadUsersManagement();
+
+};
+
+
+// ======================================
+// حذف مستخدم نهائيًا
+// ======================================
+
+window.deleteUser =
+async function(id, name) {
+
+    const confirmed =
+        confirm(
+            `⚠️ هل أنت متأكد من حذف المستخدم:\n\n${name}\n\nسيتم حذفه نهائيًا من النظام.`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    const result =
+        await deleteUserApi(id);
+
+    if (result.status !== "success") {
+
+        alert(
+            result.message ||
+            "❌ فشل حذف المستخدم"
+        );
+
+        return;
+    }
+
+    alert("✅ تم حذف المستخدم نهائيًا");
+
+    await loadUsersManagement();
 
 };
 
