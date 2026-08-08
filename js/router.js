@@ -1,5 +1,5 @@
 // ============================================================
-// router.js v1.1.3 - متوافق مع index.html
+// router.js v1.1.4 - نسخة مستقرة
 // ============================================================
 
 import { PageView } from './components/PageView.js';
@@ -99,10 +99,7 @@ window.doLogin = async function () {
     if (button) { button.disabled = false; button.innerText = "دخول"; }
     if (!result || result.status !== "success") { alert(result?.message || "فشل تسجيل الدخول."); return; }
     const user = result.user || {};
-    
-    // المهم: نحفظ user كـ JSON عشان index.html
     localStorage.setItem("user", JSON.stringify(user));
-    
     localStorage.setItem("userId", user.id || user.uid || "");
     localStorage.setItem("name", user.name || "");
     localStorage.setItem("phone", user.phone || phone);
@@ -111,10 +108,8 @@ window.doLogin = async function () {
     localStorage.setItem("department", user.department || "");
     localStorage.setItem("role", (user.role || "").trim().toLowerCase());
     localStorage.setItem("permissions", user.permissions || "");
-    
     currentRole = (user.role || "").trim().toLowerCase();
     currentPermissions = (user.permissions || "").split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
-    
     const lastPage = localStorage.getItem('lastPage') || 'home';
     navigateTo(lastPage);
   } catch (error) {
@@ -164,12 +159,11 @@ window.addEventListener("hashchange", () => {
 
 window.addEventListener("DOMContentLoaded", () => {
   const initialHash = window.location.hash.replace("#", "");
-  const isLoggedIn = localStorage.getItem("user") !== null; // <-- متوافق مع index.html
-  
+  const isLoggedIn = localStorage.getItem("user") !== null;
   if (!isLoggedIn) {
     currentPage = (initialHash === "register") ? "register" : "login";
   } else {
     currentPage = initialHash && initialHash !== "login" && initialHash !== "register" ? initialHash : (localStorage.getItem('lastPage') || 'home');
   }
   render();
-});
+}); // <-- هنا قفلت كل حاجة
