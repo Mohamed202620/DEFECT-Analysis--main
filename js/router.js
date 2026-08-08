@@ -10,9 +10,9 @@ import { translations } from './config.js';
 import { login } from './auth/login.js';
 
 import {
-  fetchUsers,
-  registerUserApi,
-  updateUserStatusApi
+fetchUsers,
+registerUserApi,
+updateUserStatusApi
 } from './services/api.js';
 
 import { LoginView } from './views/loginView.js';
@@ -28,16 +28,15 @@ import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 
 import {
-  RequestsView,
-  loadPendingUsers
+RequestsView,
+loadPendingUsers
 } from './views/RequestsView.js';
 
 import {
-  saveDefectData,
-  handleDefectFile,
-  initMainChart
+saveDefectData,
+handleDefectFile,
+initMainChart
 } from './workflow.js';
-
 
 // ============================================================
 // GLOBAL STATE & THEME INITIALIZATION
@@ -48,30 +47,29 @@ export let currentPage = 'login';
 export let currentLang = 'ar';
 
 export let currentRole =
-  (localStorage.getItem("role") || "")
-    .toLowerCase();
+(localStorage.getItem("role") || "")
+.toLowerCase();
 
 export let currentPermissions =
-  (localStorage.getItem("permissions") || "")
-    .split(",")
-    .map(p => p.trim().toLowerCase())
-    .filter(Boolean);
+(localStorage.getItem("permissions") || "")
+.split(",")
+.map(p => p.trim().toLowerCase())
+.filter(Boolean);
 
 window.currentLang = currentLang;
 
 // تفعيل الدارك مود تلقائياً عند بدء التشغيل
 const savedTheme = localStorage.getItem("theme") || "dark";
 if (savedTheme === "dark") {
-  document.documentElement.classList.add("dark");
+document.documentElement.classList.add("dark");
 } else {
-  document.documentElement.classList.remove("dark");
+document.documentElement.classList.remove("dark");
 }
 
 window.toggleDarkMode = function() {
-  const isDark = document.documentElement.classList.toggle("dark");
-  localStorage.setItem("theme", isDark ? "dark" : "light");
+const isDark = document.documentElement.classList.toggle("dark");
+localStorage.setItem("theme", isDark ? "dark" : "light");
 };
-
 
 // ============================================================
 // التحقق من الصلاحية
@@ -79,33 +77,31 @@ window.toggleDarkMode = function() {
 
 export function hasPermission(permission) {
 
-  const perm =
-    String(permission || "")
-      .trim()
-      .toLowerCase();
+const perm =
+String(permission || "")
+.trim()
+.toLowerCase();
 
-  if (!perm) return false;
+if (!perm) return false;
 
-  // Admin لديه جميع الصلاحيات
-  if (currentRole === "admin") {
-    return true;
-  }
-
-  // all = جميع الصلاحيات
-  if (currentPermissions.includes("all")) {
-    return true;
-  }
-
-  return currentPermissions.includes(perm);
+// Admin لديه جميع الصلاحيات
+if (currentRole === "admin") {
+return true;
 }
 
+// all = جميع الصلاحيات
+if (currentPermissions.includes("all")) {
+return true;
+}
+
+return currentPermissions.includes(perm);
+}
 
 window.hasPermission =
-  hasPermission;
+hasPermission;
 
 window.can =
-  hasPermission;
-
+hasPermission;
 
 // ============================================================
 // RENDER PAGES
@@ -113,154 +109,153 @@ window.can =
 
 export function renderPage(page) {
 
-  switch (page) {
+switch (page) {
 
-    case 'login':
+case 'login':  
 
-      return LoginView();
-
-
-    case 'register':
-
-      return RegisterView();
+  return LoginView();  
 
 
-    case 'home':
+case 'register':  
 
-      return HomeView();
-
-
-    case 'maintenance':
-
-      return hasPermission("maintenance")
-        ? MaintenanceView()
-        : unauthorizedPage("maintenance");
+  return RegisterView();  
 
 
-    case 'issue':
+case 'home':  
 
-      return hasPermission("issue")
-        ? IssueView()
-        : unauthorizedPage("issue");
+  return HomeView();  
 
 
-    // ========================================================
-    // كايزن
-    // ========================================================
+case 'maintenance':  
 
-    case 'suggestion':
-    case 'suggestions':
-
-      return hasPermission("suggestions")
-        ? SuggestionView()
-        : unauthorizedPage("suggestions");
+  return hasPermission("maintenance")  
+    ? MaintenanceView()  
+    : unauthorizedPage("maintenance");  
 
 
-    case 'pm':
+case 'issue':  
 
-      return hasPermission("pm")
-        ? PMView()
-        : unauthorizedPage("pm");
-
-
-    case 'quality':
-
-      return hasPermission("quality")
-        ? QualityView()
-        : unauthorizedPage("quality");
+  return hasPermission("issue")  
+    ? IssueView()  
+    : unauthorizedPage("issue");  
 
 
-    case 'report':
+// ========================================================  
+// كايزن  
+// ========================================================  
 
-      return hasPermission("reports")
-        ? ReportView()
-        : unauthorizedPage("reports");
+case 'suggestion':  
+case 'suggestions':  
 
-
-    case 'reports':
-
-      return hasPermission("reports")
-        ? ReportsView()
-        : unauthorizedPage("reports");
+  return hasPermission("suggestions")  
+    ? SuggestionView()  
+    : unauthorizedPage("suggestions");  
 
 
-    // ========================================================
-    // USERS
-    // ========================================================
+case 'pm':  
 
-    case 'users':
-
-      return hasPermission("users")
-
-        ? PageView(
-            "👥 إدارة المستخدمين",
-            `
-              <div class="space-y-3">
-
-                <button
-                  onclick="window.loadUsers()"
-                  class="
-                    w-full
-                    bg-blue-600
-                    hover:bg-blue-500
-                    rounded-lg
-                    p-3
-                    font-bold
-                    text-white
-                    text-xs
-                  "
-                >
-                  🔄 تحديث القائمة
-                </button>
-
-                <div
-                  id="usersContainer"
-                  class="mt-4"
-                >
-
-                  <div
-                    class="
-                      text-center
-                      text-gray-500
-                      text-xs
-                    "
-                  >
-                    جاري تحميل البيانات...
-                  </div>
-
-                </div>
-
-              </div>
-            `
-          )
-
-        : unauthorizedPage("users");
+  return hasPermission("pm")  
+    ? PMView()  
+    : unauthorizedPage("pm");  
 
 
-    // ========================================================
-    // REQUESTS
-    // ========================================================
+case 'quality':  
 
-    case 'requests':
-
-      return hasPermission("requests")
-        ? RequestsView()
-        : unauthorizedPage("requests");
+  return hasPermission("quality")  
+    ? QualityView()  
+    : unauthorizedPage("quality");  
 
 
-    case 'system':
+case 'report':  
 
-      return SystemView();
+  return hasPermission("reports")  
+    ? ReportView()  
+    : unauthorizedPage("reports");  
 
 
-    default:
+case 'reports':  
 
-      return LoginView();
+  return hasPermission("reports")  
+    ? ReportsView()  
+    : unauthorizedPage("reports");  
 
-  }
+
+// ========================================================  
+// USERS  
+// ========================================================  
+
+case 'users':  
+
+  return hasPermission("users")  
+
+    ? PageView(  
+        "👥 إدارة المستخدمين",  
+        `  
+          <div class="space-y-3">  
+
+            <button  
+              onclick="window.loadUsers()"  
+              class="  
+                w-full  
+                bg-blue-600  
+                hover:bg-blue-500  
+                rounded-lg  
+                p-3  
+                font-bold  
+                text-white  
+                text-xs  
+              "  
+            >  
+              🔄 تحديث القائمة  
+            </button>  
+
+            <div  
+              id="usersContainer"  
+              class="mt-4"  
+            >  
+
+              <div  
+                class="  
+                  text-center  
+                  text-gray-500  
+                  text-xs  
+                "  
+              >  
+                جاري تحميل البيانات...  
+              </div>  
+
+            </div>  
+
+          </div>  
+        `  
+      )  
+
+    : unauthorizedPage("users");  
+
+
+// ========================================================  
+// REQUESTS  
+// ========================================================  
+
+case 'requests':  
+
+  return hasPermission("requests")  
+    ? RequestsView()  
+    : unauthorizedPage("requests");  
+
+
+case 'system':  
+
+  return SystemView();  
+
+
+default:  
+
+  return LoginView();
 
 }
 
+}
 
 // ============================================================
 // UNAUTHORIZED
@@ -268,35 +263,34 @@ export function renderPage(page) {
 
 function unauthorizedPage(permission) {
 
-  return PageView(
+return PageView(
 
-    "⚠️ غير مصرح",
+"⚠️ غير مصرح",  
 
-    `
-      <div
-        class="
-          bg-[#1E293B]
-          p-6
-          rounded-xl
-          border
-          border-red-500/30
-          text-center
-          text-xs
-          text-red-400
-          font-bold
-        "
-      >
+`  
+  <div  
+    class="  
+      bg-[#1E293B]  
+      p-6  
+      rounded-xl  
+      border  
+      border-red-500/30  
+      text-center  
+      text-xs  
+      text-red-400  
+      font-bold  
+    "  
+  >  
 
-        ليس لديك صلاحية للوصول إلى:
-        ${permission}
+    ليس لديك صلاحية للوصول إلى:  
+    ${permission}  
 
-      </div>
-    `
+  </div>  
+`
 
-  );
+);
 
 }
-
 
 // ============================================================
 // RENDER
@@ -304,100 +298,93 @@ function unauthorizedPage(permission) {
 
 export function render() {
 
-  const app =
-    document.getElementById("app");
+const app =
+document.getElementById("app");
 
-  if (!app) return;
+if (!app) return;
 
+app.style.opacity = "0.4";
 
-  app.style.opacity = "0.4";
+setTimeout(() => {
 
+app.innerHTML =  
+  renderPage(currentPage);  
 
-  setTimeout(() => {
-
-    app.innerHTML =
-      renderPage(currentPage);
-
-    app.style.opacity = "1";
+app.style.opacity = "1";  
 
 
-    // ========================================================
-    // USERS AUTO LOAD
-    // ========================================================
+// ========================================================  
+// USERS AUTO LOAD  
+// ========================================================  
 
-    if (currentPage === "users") {
+if (currentPage === "users") {  
 
-      setTimeout(() => {
+  setTimeout(() => {  
 
-        if (
-          typeof window.loadUsers ===
-          "function"
-        ) {
+    if (  
+      typeof window.loadUsers ===  
+      "function"  
+    ) {  
 
-          window.loadUsers();
+      window.loadUsers();  
 
-        }
+    }  
 
-      }, 100);
+  }, 100);  
 
-    }
+}  
 
 
-    // ========================================================
-    // REQUESTS AUTO LOAD
-    // ========================================================
+// ========================================================  
+// REQUESTS AUTO LOAD  
+// ========================================================  
 
-    if (
-      currentPage === "requests" &&
-      typeof loadPendingUsers ===
-      "function"
-    ) {
+if (  
+  currentPage === "requests" &&  
+  typeof loadPendingUsers ===  
+  "function"  
+) {  
 
-      setTimeout(() => {
+  setTimeout(() => {  
 
-        loadPendingUsers();
+    loadPendingUsers();  
 
-      }, 100);
-
-    }
-
-  }, 150);
+  }, 100);  
 
 }
 
+}, 150);
+
+}
 
 // ============================================================
 // NAVIGATION
 // ============================================================
 
 export function navigateTo(
-  page,
-  addToHistory = true
+page,
+addToHistory = true
 ) {
 
-  currentPage =
-    page;
+currentPage =
+page;
 
+if (addToHistory) {
 
-  if (addToHistory) {
-
-    history.pushState(
-      { page },
-      "",
-      `#${page}`
-    );
-
-  }
-
-
-  render();
+history.pushState(  
+  { page },  
+  "",  
+  `#${page}`  
+);
 
 }
 
+render();
+
+}
 
 window.navigateTo =
-  navigateTo;
-
+navigateTo;
 
 // ============================================================
 // LOGIN
@@ -405,228 +392,226 @@ window.navigateTo =
 
 window.doLogin = async function () {
 
-  try {
+try {
 
-    const phoneInput =
-      document.getElementById("loginPhone");
+const phoneInput =  
+  document.getElementById("loginPhone");  
 
-    const passwordInput =
-      document.getElementById("loginPass");
+const passwordInput =  
+  document.getElementById("loginPass");  
 
 
-    const phone =
-      phoneInput?.value?.trim() || "";
+const phone =  
+  phoneInput?.value?.trim() || "";  
 
-    const password =
-      passwordInput?.value?.trim() || "";
+const password =  
+  passwordInput?.value?.trim() || "";  
 
 
-    // ========================================================
-    // التحقق من البيانات
-    // ========================================================
+// ========================================================  
+// التحقق من البيانات  
+// ========================================================  
 
-    if (!phone || !password) {
+if (!phone || !password) {  
 
-      alert(
-        "⚠️ يرجى إدخال رقم الموبايل وكلمة السر."
-      );
+  alert(  
+    "⚠️ يرجى إدخال رقم الموبايل وكلمة السر."  
+  );  
 
-      return;
+  return;  
 
-    }
+}  
 
 
-    // ========================================================
-    // زر الدخول
-    // ========================================================
+// ========================================================  
+// زر الدخول  
+// ========================================================  
 
-    const button =
-      document.getElementById("loginBtn");
+const button =  
+  document.getElementById("loginBtn");  
 
 
-    if (button) {
+if (button) {  
 
-      button.disabled = true;
+  button.disabled = true;  
 
-      button.innerText =
-        "جاري تسجيل الدخول...";
+  button.innerText =  
+    "جاري تسجيل الدخول...";  
 
-    }
+}  
 
 
-    // ========================================================
-    // Firebase Login
-    // ========================================================
+// ========================================================  
+// Firebase Login  
+// ========================================================  
 
-    const result =
-      await login(
-        phone,
-        password
-      );
+const result =  
+  await login(  
+    phone,  
+    password  
+  );  
 
 
-    console.log(
-      "LOGIN RESULT:",
-      result
-    );
+console.log(  
+  "LOGIN RESULT:",  
+  result  
+);  
 
 
-    // ========================================================
-    // إعادة الزر
-    // ========================================================
+// ========================================================  
+// إعادة الزر  
+// ========================================================  
 
-    if (button) {
+if (button) {  
 
-      button.disabled = false;
+  button.disabled = false;  
 
-      button.innerText =
-        "دخول";
+  button.innerText =  
+    "دخول";  
 
-    }
+}  
 
 
-    // ========================================================
-    // فشل تسجيل الدخول
-    // ========================================================
+// ========================================================  
+// فشل تسجيل الدخول  
+// ========================================================  
 
-    if (
-      !result ||
-      result.status !== "success"
-    ) {
+if (  
+  !result ||  
+  result.status !== "success"  
+) {  
 
-      alert(
-        result?.message ||
-        "فشل تسجيل الدخول."
-      );
+  alert(  
+    result?.message ||  
+    "فشل تسجيل الدخول."  
+  );  
 
-      return;
+  return;  
 
-    }
+}  
 
 
-    // ========================================================
-    // بيانات المستخدم
-    // ========================================================
+// ========================================================  
+// بيانات المستخدم  
+// ========================================================  
 
-    const user =
-      result.user || {};
+const user =  
+  result.user || {};  
 
 
-    // ========================================================
-    // حفظ بيانات المستخدم
-    // ========================================================
+// ========================================================  
+// حفظ بيانات المستخدم  
+// ========================================================  
 
-    localStorage.setItem(
-      "userId",
-      user.id || user.uid || ""
-    );
+localStorage.setItem(  
+  "userId",  
+  user.id || user.uid || ""  
+);  
 
-    localStorage.setItem(
-      "name",
-      user.name || ""
-    );
+localStorage.setItem(  
+  "name",  
+  user.name || ""  
+);  
 
-    localStorage.setItem(
-      "phone",
-      user.phone || phone
-    );
+localStorage.setItem(  
+  "phone",  
+  user.phone || phone  
+);  
 
-    localStorage.setItem(
-      "job",
-      user.job || ""
-    );
+localStorage.setItem(  
+  "job",  
+  user.job || ""  
+);  
 
-    localStorage.setItem(
-      "shift",
-      user.shift || ""
-    );
+localStorage.setItem(  
+  "shift",  
+  user.shift || ""  
+);  
 
-    localStorage.setItem(
-      "department",
-      user.department || ""
-    );
+localStorage.setItem(  
+  "department",  
+  user.department || ""  
+);  
 
-    localStorage.setItem(
-      "role",
-      (user.role || "")
-        .trim()
-        .toLowerCase()
-    );
+localStorage.setItem(  
+  "role",  
+  (user.role || "")  
+    .trim()  
+    .toLowerCase()  
+);  
 
-    localStorage.setItem(
-      "permissions",
-      user.permissions || ""
-    );
+localStorage.setItem(  
+  "permissions",  
+  user.permissions || ""  
+);  
 
 
-    // ========================================================
-    // تحديث حالة التطبيق
-    // ========================================================
+// ========================================================  
+// تحديث حالة التطبيق  
+// ========================================================  
 
-    currentRole =
-      (user.role || "")
-        .trim()
-        .toLowerCase();
+currentRole =  
+  (user.role || "")  
+    .trim()  
+    .toLowerCase();  
 
 
-    currentPermissions =
-      (user.permissions || "")
-        .split(",")
-        .map(
-          p =>
-            p.trim().toLowerCase()
-        )
-        .filter(Boolean);
+currentPermissions =  
+  (user.permissions || "")  
+    .split(",")  
+    .map(  
+      p =>  
+        p.trim().toLowerCase()  
+    )  
+    .filter(Boolean);  
 
 
-    // ========================================================
-    // الانتقال للرئيسية
-    // ========================================================
+// ========================================================  
+// الانتقال للرئيسية  
+// ========================================================  
 
-    currentPage =
-      "home";
+currentPage =  
+  "home";  
 
 
-    history.pushState(
-      { page: "home" },
-      "",
-      "#home"
-    );
+history.pushState(  
+  { page: "home" },  
+  "",  
+  "#home"  
+);  
 
 
-    render();
+render();
 
+} catch (error) {
 
-  } catch (error) {
+console.error(  
+  "LOGIN ERROR:",  
+  error  
+);  
 
-    console.error(
-      "LOGIN ERROR:",
-      error
-    );
 
+const button =  
+  document.getElementById("loginBtn");  
 
-    const button =
-      document.getElementById("loginBtn");
 
+if (button) {  
 
-    if (button) {
+  button.disabled = false;  
 
-      button.disabled = false;
+  button.innerText =  
+    "دخول";  
 
-      button.innerText =
-        "دخول";
+}  
 
-    }
 
+alert(  
+  "حدث خطأ أثناء تسجيل الدخول."  
+);
 
-    alert(
-      "حدث خطأ أثناء تسجيل الدخول."
-    );
-
-  }
+}
 
 };
-
 
 // ============================================================
 // REGISTER USER
@@ -635,191 +620,189 @@ window.doLogin = async function () {
 window.registerUser =
 async function () {
 
-  try {
+try {
 
-    const name =
-      document
-        .getElementById("regName")
-        ?.value
-        ?.trim() || "";
+const name =  
+  document  
+    .getElementById("regName")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const phone =
-      document
-        .getElementById("regPhone")
-        ?.value
-        ?.trim() || "";
+const phone =  
+  document  
+    .getElementById("regPhone")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const password =
-      document
-        .getElementById("regPass")
-        ?.value
-        ?.trim() || "";
+const password =  
+  document  
+    .getElementById("regPass")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const confirmPassword =
-      document
-        .getElementById("regPass2")
-        ?.value
-        ?.trim() || "";
+const confirmPassword =  
+  document  
+    .getElementById("regPass2")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const shift =
-      document
-        .getElementById("regShift")
-        ?.value
-        ?.trim() || "";
+const shift =  
+  document  
+    .getElementById("regShift")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const job =
-      document
-        .getElementById("regJob")
-        ?.value
-        ?.trim() || "";
+const job =  
+  document  
+    .getElementById("regJob")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const department =
-      document
-        .getElementById("regDepartment")
-        ?.value
-        ?.trim() || "";
+const department =  
+  document  
+    .getElementById("regDepartment")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    const code =
-      document
-        .getElementById("regCode")
-        ?.value
-        ?.trim() || "";
+const code =  
+  document  
+    .getElementById("regCode")  
+    ?.value  
+    ?.trim() || "";  
 
 
-    if (
-      !name ||
-      !phone ||
-      !password ||
-      !confirmPassword ||
-      !shift ||
-      !job ||
-      !department ||
-      !code
-    ) {
+if (  
+  !name ||  
+  !phone ||  
+  !password ||  
+  !confirmPassword ||  
+  !shift ||  
+  !job ||  
+  !department ||  
+  !code  
+) {  
 
-      alert(
-        "⚠️ يرجى إدخال جميع البيانات المطلوبة."
-      );
+  alert(  
+    "⚠️ يرجى إدخال جميع البيانات المطلوبة."  
+  );  
 
-      return;
+  return;  
 
-    }
+}  
 
 
-    if (
-      password !==
-      confirmPassword
-    ) {
+if (  
+  password !==  
+  confirmPassword  
+) {  
 
-      alert(
-        "⚠️ كلمتا السر غير متطابقتين."
-      );
+  alert(  
+    "⚠️ كلمتا السر غير متطابقتين."  
+  );  
 
-      return;
+  return;  
 
-    }
+}  
 
 
-    const userData = {
+const userData = {  
 
-      name,
+  name,  
 
-      phone,
+  phone,  
 
-      password,
+  password,  
 
-      shift,
+  shift,  
 
-      job,
+  job,  
 
-      department,
+  department,  
 
-      code
+  code  
 
-    };
+};  
 
 
-    const submitButton =
-      document.querySelector(
-        'form button[type="submit"]'
-      );
+const submitButton =  
+  document.querySelector(  
+    'form button[type="submit"]'  
+  );  
 
 
-    if (submitButton) {
+if (submitButton) {  
 
-      submitButton.disabled =
-        true;
+  submitButton.disabled =  
+    true;  
 
-      submitButton.innerText =
-        "جاري إنشاء الحساب...";
+  submitButton.innerText =  
+    "جاري إنشاء الحساب...";  
 
-    }
+}  
 
 
-    const result =
-      await registerUserApi(
-        userData
-      );
+const result =  
+  await registerUserApi(  
+    userData  
+  );  
 
 
-    if (submitButton) {
+if (submitButton) {  
 
-      submitButton.disabled =
-        false;
+  submitButton.disabled =  
+    false;  
 
-      submitButton.innerText =
-        "إنشاء الحساب";
+  submitButton.innerText =  
+    "إنشاء الحساب";  
 
-    }
+}  
 
 
-    if (
-      result.status !==
-      "success"
-    ) {
+if (  
+  result.status !==  
+  "success"  
+) {  
 
-      alert(
-        result.message ||
-        "حدث خطأ أثناء التسجيل."
-      );
+  alert(  
+    result.message ||  
+    "حدث خطأ أثناء التسجيل."  
+  );  
 
-      return;
+  return;  
 
-    }
+}  
 
 
-    alert(
-      result.message ||
-      "تم إرسال طلب التسجيل بنجاح."
-    );
+alert(  
+  result.message ||  
+  "تم إرسال طلب التسجيل بنجاح."  
+);  
 
 
-    navigateTo("login");
+navigateTo("login");
 
+} catch (error) {
 
-  } catch (error) {
+console.error(  
+  "REGISTER ERROR:",  
+  error  
+);  
 
-    console.error(
-      "REGISTER ERROR:",
-      error
-    );
 
+alert(  
+  "حدث خطأ أثناء إنشاء الحساب."  
+);
 
-    alert(
-      "حدث خطأ أثناء إنشاء الحساب."
-    );
-
-  }
+}
 
 };
-
 
 // ============================================================
 // LOAD USERS
@@ -828,210 +811,204 @@ async function () {
 window.loadUsers =
 async function () {
 
-  console.log(
-    "DEBUG: Load Users Started..."
-  );
+console.log(
+"DEBUG: Load Users Started..."
+);
 
+const container =
+document.getElementById(
+"usersContainer"
+);
 
-  const container =
-    document.getElementById(
-      "usersContainer"
-    );
+if (!container) {
 
+console.warn(  
+  "usersContainer غير موجود"  
+);  
 
-  if (!container) {
+return;
 
-    console.warn(
-      "usersContainer غير موجود"
-    );
+}
 
-    return;
+container.innerHTML = `
 
-  }
+<div  
+  class="  
+    text-center  
+    py-8  
+    text-gray-400  
+  "  
+>  
 
+  جاري تحميل المستخدمين...  
 
-  container.innerHTML = `
+</div>
 
-    <div
-      class="
-        text-center
-        py-8
-        text-gray-400
-      "
-    >
+`;
 
-      جاري تحميل المستخدمين...
+try {
 
-    </div>
+const result =  
+  await fetchUsers();  
 
-  `;
 
+console.log(  
+  "DEBUG: API Result:",  
+  result  
+);  
 
-  try {
 
-    const result =
-      await fetchUsers();
+if (  
+  result.status !==  
+  "success"  
+) {  
 
+  container.innerHTML = `  
 
-    console.log(
-      "DEBUG: API Result:",
-      result
-    );
+    <div  
+      class="  
+        text-red-400  
+        text-center  
+        py-6  
+      "  
+    >  
 
+      خطأ:  
+      ${result.message || "فشل تحميل المستخدمين"}  
 
-    if (
-      result.status !==
-      "success"
-    ) {
+    </div>  
 
-      container.innerHTML = `
+  `;  
 
-        <div
-          class="
-            text-red-400
-            text-center
-            py-6
-          "
-        >
+  return;  
 
-          خطأ:
-          ${result.message || "فشل تحميل المستخدمين"}
+}  
 
-        </div>
 
-      `;
+const usersList =  
+  Array.isArray(result.data)  
+    ? result.data  
+    : [];  
 
-      return;
 
-    }
+console.log(  
+  "DEBUG: Users Count:",  
+  usersList.length  
+);  
 
 
-    const usersList =
-      Array.isArray(result.data)
-        ? result.data
-        : [];
+if (!usersList.length) {  
 
+  container.innerHTML = `  
 
-    console.log(
-      "DEBUG: Users Count:",
-      usersList.length
-    );
+    <div  
+      class="  
+        text-center  
+        text-gray-500  
+        py-6  
+      "  
+    >  
 
+      لا يوجد مستخدمون مسجلون حالياً  
 
-    if (!usersList.length) {
+    </div>  
 
-      container.innerHTML = `
+  `;  
 
-        <div
-          class="
-            text-center
-            text-gray-500
-            py-6
-          "
-        >
+  return;  
 
-          لا يوجد مستخدمون مسجلون حالياً
+}  
 
-        </div>
 
-      `;
+let html = "";  
 
-      return;
 
-    }
+usersList.forEach(  
+  user => {  
 
+    html += `  
 
-    let html = "";
+      <div  
+        class="  
+          bg-[#1E293B]  
+          rounded-xl  
+          p-3  
+          mb-3  
+          text-white  
+          text-xs  
+          border  
+          border-gray-700  
+        "  
+      >  
 
+        <div>  
+          <b>  
+            ${user.name || "مستخدم بدون اسم"}  
+          </b>  
+        </div>  
 
-    usersList.forEach(
-      user => {
+        <div class="text-gray-400">  
+          📱 ${user.phone || ""}  
+        </div>  
 
-        html += `
+        <div class="text-blue-400">  
+          الدور:  
+          ${user.role || "pending"}  
+        </div>  
 
-          <div
-            class="
-              bg-[#1E293B]
-              rounded-xl
-              p-3
-              mb-3
-              text-white
-              text-xs
-              border
-              border-gray-700
-            "
-          >
+        <div class="text-gray-400">  
+          الحالة:  
+          ${user.status || "-"}  
+        </div>  
 
-            <div>
-              <b>
-                ${user.name || "مستخدم بدون اسم"}
-              </b>
-            </div>
+        <div class="text-gray-400">  
+          الشيفت:  
+          ${user.shift || "-"}  
+        </div>  
 
-            <div class="text-gray-400">
-              📱 ${user.phone || ""}
-            </div>
+        <div class="text-gray-400">  
+          القسم:  
+          ${user.department || "-"}  
+        </div>  
 
-            <div class="text-blue-400">
-              الدور:
-              ${user.role || "pending"}
-            </div>
+      </div>  
 
-            <div class="text-gray-400">
-              الحالة:
-              ${user.status || "-"}
-            </div>
+    `;  
 
-            <div class="text-gray-400">
-              الشيفت:
-              ${user.shift || "-"}
-            </div>
+  }  
+);  
 
-            <div class="text-gray-400">
-              القسم:
-              ${user.department || "-"}
-            </div>
 
-          </div>
+container.innerHTML =  
+  html;
 
-        `;
+} catch (error) {
 
-      }
-    );
+console.error(  
+  "LOAD USERS ERROR:",  
+  error  
+);  
 
 
-    container.innerHTML =
-      html;
+container.innerHTML = `  
 
+  <div  
+    class="  
+      text-red-400  
+      text-center  
+      py-6  
+    "  
+  >  
 
-  } catch (error) {
+    حدث خطأ أثناء تحميل المستخدمين  
 
-    console.error(
-      "LOAD USERS ERROR:",
-      error
-    );
+  </div>  
 
+`;
 
-    container.innerHTML = `
-
-      <div
-        class="
-          text-red-400
-          text-center
-          py-6
-        "
-      >
-
-        حدث خطأ أثناء تحميل المستخدمين
-
-      </div>
-
-    `;
-
-  }
+}
 
 };
-
 
 // ============================================================
 // LOGOUT
@@ -1040,81 +1017,74 @@ async function () {
 window.logout =
 function () {
 
-  localStorage.clear();
+localStorage.clear();
 
-  currentRole = "";
+currentRole = "";
 
-  currentPermissions = [];
+currentPermissions = [];
 
-  navigateTo(
-    "login"
-  );
+navigateTo(
+"login"
+);
 
 };
-
 
 // ============================================================
 // GLOBAL RENDER
 // ============================================================
 
 window.render =
-  render;
-
+render;
 
 // ============================================================
 // INITIAL LOAD & ROUTING LISTENERS
 // ============================================================
 
 window.addEventListener(
-  "hashchange",
-  () => {
-    const hash = window.location.hash.replace("#", "").trim();
-    if (hash && hash !== currentPage) {
-      currentPage = hash;
-      render();
-    }
-  }
+"hashchange",
+() => {
+const hash = window.location.hash.replace("#", "");
+if (hash && hash !== currentPage) {
+currentPage = hash;
+render();
+}
+}
 );
 
 window.addEventListener(
-  "DOMContentLoaded",
-  () => {
+"DOMContentLoaded",
+() => {
 
-    const initialHash = window.location.hash.replace("#", "").trim();
+const initialHash =  
+  window.location.hash  
+    .replace("#", "");  
 
-    // 1. نتأكد من وجود توكن الدخول الاساسي
-    const userId = localStorage.getItem("userId");
-    const phone = localStorage.getItem("phone");
-    const role = localStorage.getItem("role");
-    
-    const isLoggedIn = !!(userId && phone && role);
+// التحقق بالاعتماد على وجود رقم الهاتف أو الـ userId لضمان عدم الخروج الوهمي  
+const isLoggedIn =  
+  localStorage.getItem("phone") ||  
+  localStorage.getItem("userId");  
 
-    console.log("DEBUG LOGIN CHECK:", { isLoggedIn, userId, role });
 
-    // 2. المستخدم مش مسجل دخول
-    if (!isLoggedIn) {
-      localStorage.clear();
-      currentPage = initialHash === "register" ? "register" : "login";
-    }
+if (!isLoggedIn) {  
 
-    // 3. المستخدم مسجل دخول
-    else {
-      if (!initialHash || initialHash === "login" || initialHash === "register") {
-        currentPage = "home";
-        history.replaceState({ page: "home" }, "", "#home");
-      } else {
-        currentPage = initialHash;
-      }
+  currentPage = (initialHash === "register") ? "register" : "login";  
 
-      // مهم جدا: نرجع نعبي المتغيرات العامة تاني
-      currentRole = role;
-      currentPermissions = (localStorage.getItem("permissions") || "")
-        .split(",")
-        .map(p => p.trim().toLowerCase())
-        .filter(Boolean);
-    }
+} else {  
 
-    render();
+  currentPage =  
+    initialHash  
+    &&  
+    initialHash !== "login"  
+    &&  
+    initialHash !== "register"  
 
-  }
+      ? initialHash  
+
+      : "home";  
+
+}  
+
+render();
+
+}
 );
