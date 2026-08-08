@@ -387,29 +387,210 @@ window.navigateTo =
 
 
 // ============================================================
-// REGISTER USER
+// LOGIN
 // ============================================================
-//
-// هذه الدالة هي التي يستدعيها RegisterView
-//
-// RegisterView
-//      ↓
-// window.registerUser()
-//      ↓
-// registerUserApi()
-//      ↓
-// Firebase Firestore
-//
+
+window.doLogin = async function () {
+
+  try {
+
+    const phone =
+      document
+        .getElementById("loginPhone")
+        ?.value
+        ?.trim() || "";
+
+    const password =
+      document
+        .getElementById("loginPassword")
+        ?.value
+        ?.trim() || "";
+
+
+    if (!phone || !password) {
+
+      alert(
+        "⚠️ يرجى إدخال رقم الموبايل وكلمة السر."
+      );
+
+      return;
+
+    }
+
+
+    const button =
+      document.querySelector(
+        'form button[type="submit"]'
+      );
+
+
+    if (button) {
+
+      button.disabled = true;
+
+      button.innerText =
+        "جاري تسجيل الدخول...";
+
+    }
+
+
+    // الاتصال بخدمة Firebase
+    const result =
+      await login(
+        phone,
+        password
+      );
+
+
+    if (button) {
+
+      button.disabled = false;
+
+      button.innerText =
+        "تسجيل الدخول";
+
+    }
+
+
+    console.log(
+      "LOGIN RESULT:",
+      result
+    );
+
+
+    if (
+      !result ||
+      result.status !== "success"
+    ) {
+
+      alert(
+        result?.message ||
+        "فشل تسجيل الدخول."
+      );
+
+      return;
+
+    }
+
+
+    // ========================================================
+    // حفظ بيانات المستخدم
+    // ========================================================
+
+    const user =
+      result.user || {};
+
+
+    localStorage.setItem(
+      "userId",
+      user.id || ""
+    );
+
+
+    localStorage.setItem(
+      "name",
+      user.name || ""
+    );
+
+
+    localStorage.setItem(
+      "phone",
+      user.phone || ""
+    );
+
+
+    localStorage.setItem(
+      "job",
+      user.job || ""
+    );
+
+
+    localStorage.setItem(
+      "shift",
+      user.shift || ""
+    );
+
+
+    localStorage.setItem(
+      "department",
+      user.department || ""
+    );
+
+
+    localStorage.setItem(
+      "role",
+      (user.role || "")
+        .toLowerCase()
+    );
+
+
+    localStorage.setItem(
+      "permissions",
+      user.permissions || ""
+    );
+
+
+    // ========================================================
+    // تحديث الحالة العامة
+    // ========================================================
+
+    currentRole =
+      (user.role || "")
+        .toLowerCase();
+
+
+    currentPermissions =
+      (user.permissions || "")
+        .split(",")
+        .map(p =>
+          p.trim().toLowerCase()
+        )
+        .filter(Boolean);
+
+
+    // ========================================================
+    // نجاح الدخول
+    // ========================================================
+
+    currentPage =
+      "home";
+
+
+    history.pushState(
+      { page: "home" },
+      "",
+      "#home"
+    );
+
+
+    render();
+
+
+  } catch (error) {
+
+    console.error(
+      "LOGIN ERROR:",
+      error
+    );
+
+
+    alert(
+      "حدث خطأ أثناء تسجيل الدخول."
+    );
+
+  }
+
+};
+
+
+// ============================================================
+// REGISTER USER
 // ============================================================
 
 window.registerUser =
 async function () {
 
   try {
-
-    // ========================================================
-    // قراءة بيانات النموذج
-    // ========================================================
 
     const name =
       document
@@ -467,10 +648,6 @@ async function () {
         ?.trim() || "";
 
 
-    // ========================================================
-    // التحقق من البيانات
-    // ========================================================
-
     if (
       !name ||
       !phone ||
@@ -491,10 +668,6 @@ async function () {
     }
 
 
-    // ========================================================
-    // مطابقة كلمة السر
-    // ========================================================
-
     if (
       password !==
       confirmPassword
@@ -508,10 +681,6 @@ async function () {
 
     }
 
-
-    // ========================================================
-    // تجهيز بيانات المستخدم
-    // ========================================================
 
     const userData = {
 
@@ -532,10 +701,6 @@ async function () {
     };
 
 
-    // ========================================================
-    // تعطيل الزر أثناء الإرسال
-    // ========================================================
-
     const submitButton =
       document.querySelector(
         'form button[type="submit"]'
@@ -553,19 +718,11 @@ async function () {
     }
 
 
-    // ========================================================
-    // إرسال إلى Firebase
-    // ========================================================
-
     const result =
       await registerUserApi(
         userData
       );
 
-
-    // ========================================================
-    // إعادة الزر
-    // ========================================================
 
     if (submitButton) {
 
@@ -577,10 +734,6 @@ async function () {
 
     }
 
-
-    // ========================================================
-    // نتيجة العملية
-    // ========================================================
 
     if (
       result.status !==
@@ -597,17 +750,12 @@ async function () {
     }
 
 
-    // ========================================================
-    // نجاح التسجيل
-    // ========================================================
-
     alert(
       result.message ||
       "تم إرسال طلب التسجيل بنجاح."
     );
 
 
-    // الرجوع إلى تسجيل الدخول
     navigateTo("login");
 
 
@@ -881,8 +1029,6 @@ window.addEventListener(
         .replace("#", "");
 
 
-    // إذا كان المستخدم مسجلاً دخول
-    // افتح الصفحة المحفوظة أو الرئيسية
     currentPage =
       initialHash
       &&
