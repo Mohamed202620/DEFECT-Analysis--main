@@ -784,4 +784,3 @@ export async function deleteUserApi(userId) {
   }
 
 }
-مع العلم مشكله الخروج ماذالت موجودة
