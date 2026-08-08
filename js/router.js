@@ -1,5 +1,5 @@
 // ============================================================
-// app.js v1.1.2 - مع منع الخروج عند الريفرش
+// router.js v1.1.3 - متوافق مع index.html
 // ============================================================
 
 import { PageView } from './components/PageView.js';
@@ -19,9 +19,6 @@ import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 import { RequestsView, loadPendingUsers } from './views/RequestsView.js';
 
-// ============================================================
-// GLOBAL STATE
-// ============================================================
 export let currentPage = 'login';
 export let currentLang = 'ar';
 export let currentRole = (localStorage.getItem("role") || "").toLowerCase();
@@ -29,7 +26,6 @@ export let currentPermissions = (localStorage.getItem("permissions") || "").spli
 
 window.currentLang = currentLang;
 
-// دارك مود
 const savedTheme = localStorage.getItem("theme") || "dark";
 document.documentElement.classList.toggle("dark", savedTheme === "dark");
 window.toggleDarkMode = function() {
@@ -37,9 +33,6 @@ window.toggleDarkMode = function() {
   localStorage.setItem("theme", isDark ? "dark" : "light");
 };
 
-// ============================================================
-// التحقق من الصلاحية
-// ============================================================
 export function hasPermission(permission) {
   const perm = String(permission || "").trim().toLowerCase();
   if (!perm) return false;
@@ -49,9 +42,6 @@ export function hasPermission(permission) {
 }
 window.hasPermission = hasPermission;
 
-// ============================================================
-// RENDER PAGES
-// ============================================================
 export function renderPage(page) {
   switch (page) {
     case 'login': return LoginView();
@@ -74,9 +64,6 @@ function unauthorizedPage(permission) {
   return PageView("⚠️ غير مصرح", `<div class="bg-[#1E293B] p-6 rounded-xl border border-red-500/30 text-center text-xs text-red-400 font-bold">ليس لديك صلاحية للوصول إلى: ${permission}</div>`);
 }
 
-// ============================================================
-// RENDER
-// ============================================================
 export function render() {
   const app = document.getElementById("app");
   if (!app) return;
@@ -89,22 +76,16 @@ export function render() {
   }, 150);
 }
 
-// ============================================================
-// NAVIGATION + حفظ اخر صفحة
-// ============================================================
 export function navigateTo(page, addToHistory = true) {
   currentPage = page;
   if (addToHistory) {
     history.pushState({ page }, "", `#${page}`);
-    if(page !== 'login' && page !== 'register') localStorage.setItem('lastPage', page); // <-- دي الجديدة
+    if(page !== 'login' && page !== 'register') localStorage.setItem('lastPage', page);
   }
   render();
 }
 window.navigateTo = navigateTo;
 
-// ============================================================
-// LOGIN
-// ============================================================
 window.doLogin = async function () {
   try {
     const phoneInput = document.getElementById("loginPhone");
@@ -118,6 +99,10 @@ window.doLogin = async function () {
     if (button) { button.disabled = false; button.innerText = "دخول"; }
     if (!result || result.status !== "success") { alert(result?.message || "فشل تسجيل الدخول."); return; }
     const user = result.user || {};
+    
+    // المهم: نحفظ user كـ JSON عشان index.html
+    localStorage.setItem("user", JSON.stringify(user));
+    
     localStorage.setItem("userId", user.id || user.uid || "");
     localStorage.setItem("name", user.name || "");
     localStorage.setItem("phone", user.phone || phone);
@@ -126,9 +111,11 @@ window.doLogin = async function () {
     localStorage.setItem("department", user.department || "");
     localStorage.setItem("role", (user.role || "").trim().toLowerCase());
     localStorage.setItem("permissions", user.permissions || "");
+    
     currentRole = (user.role || "").trim().toLowerCase();
     currentPermissions = (user.permissions || "").split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
-    const lastPage = localStorage.getItem('lastPage') || 'home'; // <-- ارجع لاخر صفحة
+    
+    const lastPage = localStorage.getItem('lastPage') || 'home';
     navigateTo(lastPage);
   } catch (error) {
     console.error("LOGIN ERROR:", error);
@@ -138,9 +125,26 @@ window.doLogin = async function () {
   }
 };
 
-// ============================================================
-// LOGOUT
-// ============================================================
+window.loadUsers = async function () {
+  const container = document.getElementById("usersContainer");
+  if (!container) return;
+  container.innerHTML = `<div class="text-center py-8 text-gray-400">جاري تحميل المستخدمين...</div>`;
+  try {
+    const result = await fetchUsers();
+    if (result.status !== "success") { container.innerHTML = `<div class="text-red-400 text-center py-6">خطأ: ${result.message}</div>`; return; }
+    const usersList = Array.isArray(result.data) ? result.data : [];
+    if (!usersList.length) { container.innerHTML = `<div class="text-center text-gray-500 py-6">لا يوجد مستخدمون مسجلون حالياً</div>`; return; }
+    let html = "";
+    usersList.forEach(user => {
+      html += `<div class="bg-[#1E293B] rounded-xl p-3 mb-3 text-white text-xs border-gray-700"><div><b>${user.name || "مستخدم بدون اسم"}</b></div><div class="text-gray-400">📱 ${user.phone || ""}</div><div class="text-blue-400">الدور: ${user.role || "pending"}</div><div class="text-gray-400">الحالة: ${user.status || "-"}</div><div class="text-gray-400">الشيفت: ${user.shift || "-"}</div><div class="text-gray-400">القسم: ${user.department || "-"}</div></div>`;
+    });
+    container.innerHTML = html;
+  } catch (error) {
+    console.error("LOAD USERS ERROR:", error);
+    container.innerHTML = `<div class="text-red-400 text-center py-6">حدث خطأ أثناء تحميل المستخدمين</div>`;
+  }
+};
+
 window.logout = function () {
   localStorage.clear();
   currentRole = "";
@@ -148,9 +152,8 @@ window.logout = function () {
   navigateTo("login");
 };
 
-// ============================================================
-// INITIAL LOAD - التعديل المهم هنا
-// ============================================================
+window.render = render;
+
 window.addEventListener("hashchange", () => {
   const hash = window.location.hash.replace("#", "");
   if (hash && hash !== currentPage) {
@@ -161,12 +164,11 @@ window.addEventListener("hashchange", () => {
 
 window.addEventListener("DOMContentLoaded", () => {
   const initialHash = window.location.hash.replace("#", "");
-  const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
+  const isLoggedIn = localStorage.getItem("user") !== null; // <-- متوافق مع index.html
   
   if (!isLoggedIn) {
     currentPage = (initialHash === "register") ? "register" : "login";
   } else {
-    // التعديل: لو فيه lastPage ارجعله حتى لو الهاش فاضي
     currentPage = initialHash && initialHash !== "login" && initialHash !== "register" ? initialHash : (localStorage.getItem('lastPage') || 'home');
   }
   render();
