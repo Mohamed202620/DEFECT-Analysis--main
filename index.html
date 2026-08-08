@@ -115,118 +115,63 @@
   </script>
 
   <!-- Router Loader & Session Checker -->
-<script type="module">
-
+  <script type="module">
     const routerPath = `./js/router.js`;
 
     import(routerPath)
-
     .then((router) => {
-
         console.log("Router loaded successfully:", router);
 
+        const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
+        const initialHash = window.location.hash.replace("#", "");
 
-        // التحقق من وجود مستخدم محفوظ
-        // يعتمد على user وليس isLoggedIn
-        const isLoggedIn =
-            localStorage.getItem("user") !== null;
+        let targetPage = "login";
 
-
-        const targetPage =
-            isLoggedIn
-            ? "home"
-            : "login";
-
-
+        if (!isLoggedIn) {
+            targetPage = (initialHash === "register") ? "register" : "login";
+        } else {
+            if (initialHash && initialHash !== "login" && initialHash !== "register") {
+                targetPage = initialHash;
+            } else {
+                targetPage = localStorage.getItem('lastPage') || 'home';
+            }
+        }
 
         if (typeof router.navigateTo === 'function') {
-
-            router.navigateTo(targetPage);
-
-
+            router.navigateTo(targetPage, false);
         } else if (typeof window.navigateTo === 'function') {
-
-            window.navigateTo(targetPage);
-
-
+            window.navigateTo(targetPage, false);
         } else if (typeof router.init === 'function') {
-
             router.init();
-
-
         } else if (typeof window.initApp === 'function') {
-
             window.initApp();
-
         }
 
-
-
         window.hideSplash();
-
-
     })
-
-
     .catch((err) => {
-
-
         console.error("Router error:", err);
-
-
         window.hideSplash();
 
-
-
-        const appDiv =
-            document.getElementById("app");
-
-
-
+        const appDiv = document.getElementById("app");
         if (appDiv) {
-
-
             appDiv.innerHTML = `
-
             <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
-
                 <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
-
-
                     <h3 class="text-base font-bold text-red-400 mb-2">
-
                         ⚠️ تعذر تحميل التطبيق
-
                     </h3>
-
-
                     <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-
                         ${err.message || err}
-
                     </p>
-
-
                     <p class="text-[11px] text-gray-400 mt-3">
-
                         اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
-
                     </p>
-
-
                 </div>
-
             </div>
-
             `;
-
-
         }
-
-
     });
-
-
-</script>
+  </script>
 </body>
 </html>
