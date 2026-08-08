@@ -1,5 +1,5 @@
 // ============================================================
-// router.js v1.1.4 - نسخة مستقرة ومعدلة (خالية من أخطاء Syntax)
+// router.js v1.1.5 - نسخة مستقرة (دعم البقاء بعد الـ Refresh)
 // ============================================================
 
 import { PageView } from './components/PageView.js';
@@ -80,7 +80,6 @@ function unauthorizedPage(permission) {
   );
 }
 
-// متغير لمنع تداخل أوقات التحميل (Race Condition)
 let renderTimeout = null;
 
 export function render() {
@@ -106,12 +105,16 @@ export function render() {
 
 export function navigateTo(page, addToHistory = true) {
   currentPage = page;
+  
   if (addToHistory) {
     history.pushState({ page }, "", `#${page}`);
-    if(page !== 'login' && page !== 'register') {
-      localStorage.setItem('lastPage', page);
-    }
   }
+  
+  // تحديث lastPage دائماً طالما الصفحة ليست لوجن أو تسجيل
+  if (page !== 'login' && page !== 'register') {
+    localStorage.setItem('lastPage', page);
+  }
+  
   render();
 }
 window.navigateTo = navigateTo;
@@ -155,8 +158,9 @@ window.doLogin = async function () {
     currentRole = (user.role || "").trim().toLowerCase();
     currentPermissions = (user.permissions || "").split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
     
+    // جلب آخر صفحة كان فيها المستخدم، أو الرئيسية
     const lastPage = localStorage.getItem('lastPage') || 'home';
-    navigateTo(lastPage);
+    navigateTo(lastPage, true);
   } catch (error) {
     console.error("LOGIN ERROR:", error);
     alert("حدث خطأ أثناء تسجيل الدخول.");
@@ -171,24 +175,18 @@ window.doLogin = async function () {
 window.loadUsers = async function () {
   const container = document.getElementById("usersContainer");
   if (!container) return;
-  
   container.innerHTML = `<div class="text-center py-8 text-gray-400">جاري تحميل المستخدمين...</div>`;
-  
   try {
     const result = await fetchUsers();
-    
     if (result.status !== "success") { 
       container.innerHTML = `<div class="text-red-400 text-center py-6">خطأ: ${result.message}</div>`; 
       return; 
     }
-    
     const usersList = Array.isArray(result.data) ? result.data : [];
-    
     if (!usersList.length) { 
       container.innerHTML = `<div class="text-center text-gray-500 py-6">لا يوجد مستخدمون مسجلون حالياً</div>`; 
       return; 
     }
-    
     let html = "";
     usersList.forEach(user => {
       html += `
@@ -209,32 +207,60 @@ window.loadUsers = async function () {
 };
 
 window.logout = function () {
-  localStorage.clear();
+  // نقوم بمسح البيانات الخاصة بالمستخدم فقط لتجنب مسح الثيم (Dark Mode)
+  const keysToRemove = ["user", "userId", "name", "phone", "job", "shift", "department", "role", "permissions", "lastPage"];
+  keysToRemove.forEach(key => localStorage.removeItem(key));
+  
   currentRole = "";
   currentPermissions = [];
-  navigateTo("login");
+  navigateTo("login", true);
 };
 
 window.render = render;
 
+// هندسة زر الرجوع (Back Button) في المتصفح وتغيير الرابط يدوياً
 window.addEventListener("hashchange", () => {
   const hash = window.location.hash.replace("#", "");
+  const isLoggedIn = localStorage.getItem("user") !== null;
+
+  // إذا لم يسجل دخول وحاول الوصول لصفحة محمية
+  if (!isLoggedIn && hash !== "login" && hash !== "register") {
+    navigateTo("login", true);
+    return;
+  }
+
+  // إذا كان مسجل دخول وحاول الرجوع لصفحة اللوجن
+  if (isLoggedIn && (hash === "login" || hash === "register")) {
+    const lastPage = localStorage.getItem("lastPage") || "home";
+    navigateTo(lastPage, true);
+    return;
+  }
+
   if (hash && hash !== currentPage) {
-    currentPage = hash;
-    render();
+    // نستخدم navigateTo بدلاً من render حتى يتم تحديث الـ lastPage
+    navigateTo(hash, false); 
   }
 });
 
+// هندسة تحميل الصفحة لأول مرة أو عمل Refresh
 window.addEventListener("DOMContentLoaded", () => {
   const initialHash = window.location.hash.replace("#", "");
   const isLoggedIn = localStorage.getItem("user") !== null;
   
   if (!isLoggedIn) {
-    currentPage = (initialHash === "register") ? "register" : "login";
+    // لو مش مسجل دخول، يسمح له بس بصفحة تسجيل الدخول أو حساب جديد
+    const targetPage = (initialHash === "register") ? "register" : "login";
+    navigateTo(targetPage, true);
   } else {
-    currentPage = (initialHash && initialHash !== "login" && initialHash !== "register") ? initialHash : (localStorage.getItem('lastPage') || 'home');
+    // لو مسجل دخول
+    let targetPage = initialHash;
+    
+    // إذا كان الرابط فارغاً أو يحاول الدخول للوجن وهو مسجل دخول مسبقاً
+    if (!initialHash || initialHash === "login" || initialHash === "register") {
+      targetPage = localStorage.getItem('lastPage') || 'home';
+    }
+    
+    // نستخدم true لضمان تحديث مسار الـ URL في المتصفح ليتطابق مع الصفحة
+    navigateTo(targetPage, true);
   }
-  
-  // استدعاء navigateTo بدلاً من render مباشرة لضمان مزامنة الرابط بشكل صحيح
-  navigateTo(currentPage, false);
-}); // <-- تأكد من تضمين هذا السطر الأخير عند النسخ
+});
