@@ -394,18 +394,23 @@ window.doLogin = async function () {
 
   try {
 
+    const phoneInput =
+      document.getElementById("loginPhone");
+
+    const passwordInput =
+      document.getElementById("loginPass");
+
+
     const phone =
-      document
-        .getElementById("loginPhone")
-        ?.value
-        ?.trim() || "";
+      phoneInput?.value?.trim() || "";
 
     const password =
-      document
-        .getElementById("loginPassword")
-        ?.value
-        ?.trim() || "";
+      passwordInput?.value?.trim() || "";
 
+
+    // ========================================================
+    // التحقق من البيانات
+    // ========================================================
 
     if (!phone || !password) {
 
@@ -418,10 +423,12 @@ window.doLogin = async function () {
     }
 
 
+    // ========================================================
+    // زر الدخول
+    // ========================================================
+
     const button =
-      document.querySelector(
-        'form button[type="submit"]'
-      );
+      document.getElementById("loginBtn");
 
 
     if (button) {
@@ -434,7 +441,10 @@ window.doLogin = async function () {
     }
 
 
-    // الاتصال بخدمة Firebase
+    // ========================================================
+    // Firebase Login
+    // ========================================================
+
     const result =
       await login(
         phone,
@@ -442,21 +452,29 @@ window.doLogin = async function () {
       );
 
 
-    if (button) {
-
-      button.disabled = false;
-
-      button.innerText =
-        "تسجيل الدخول";
-
-    }
-
-
     console.log(
       "LOGIN RESULT:",
       result
     );
 
+
+    // ========================================================
+    // إعادة الزر
+    // ========================================================
+
+    if (button) {
+
+      button.disabled = false;
+
+      button.innerText =
+        "دخول";
+
+    }
+
+
+    // ========================================================
+    // فشل تسجيل الدخول
+    // ========================================================
 
     if (
       !result ||
@@ -474,55 +492,53 @@ window.doLogin = async function () {
 
 
     // ========================================================
-    // حفظ بيانات المستخدم
+    // بيانات المستخدم
     // ========================================================
 
     const user =
       result.user || {};
 
 
+    // ========================================================
+    // حفظ بيانات المستخدم
+    // ========================================================
+
     localStorage.setItem(
       "userId",
       user.id || ""
     );
-
 
     localStorage.setItem(
       "name",
       user.name || ""
     );
 
-
     localStorage.setItem(
       "phone",
       user.phone || ""
     );
-
 
     localStorage.setItem(
       "job",
       user.job || ""
     );
 
-
     localStorage.setItem(
       "shift",
       user.shift || ""
     );
-
 
     localStorage.setItem(
       "department",
       user.department || ""
     );
 
-
     localStorage.setItem(
       "role",
       (user.role || "")
+        .trim()
         .toLowerCase()
     );
-
 
     localStorage.setItem(
       "permissions",
@@ -531,25 +547,27 @@ window.doLogin = async function () {
 
 
     // ========================================================
-    // تحديث الحالة العامة
+    // تحديث حالة التطبيق
     // ========================================================
 
     currentRole =
       (user.role || "")
+        .trim()
         .toLowerCase();
 
 
     currentPermissions =
       (user.permissions || "")
         .split(",")
-        .map(p =>
-          p.trim().toLowerCase()
+        .map(
+          p =>
+            p.trim().toLowerCase()
         )
         .filter(Boolean);
 
 
     // ========================================================
-    // نجاح الدخول
+    // الانتقال للرئيسية
     // ========================================================
 
     currentPage =
@@ -572,6 +590,20 @@ window.doLogin = async function () {
       "LOGIN ERROR:",
       error
     );
+
+
+    const button =
+      document.getElementById("loginBtn");
+
+
+    if (button) {
+
+      button.disabled = false;
+
+      button.innerText =
+        "دخول";
+
+    }
 
 
     alert(
