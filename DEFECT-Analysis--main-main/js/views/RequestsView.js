@@ -1,4 +1,12 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { DEBUG } from "../config.js";
+
+// طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات كل
+// المستخدمين (أسماء/أرقام هواتف/أدوار) في الكونسول لكل زائر
+// عادي، حتى لو مش في وضع تطوير
+function dlog(...args) {
+  if (DEBUG) console.log(...args);
+}
 
 import {
   fetchUsers,
@@ -878,7 +886,7 @@ async function(id, name) {
 
 export async function loadUsersManagement() {
 
-    console.log("========== LOAD USERS START ==========");
+    dlog("========== LOAD USERS START ==========");
 
     const container =
         document.getElementById("usersContainer");
@@ -886,8 +894,8 @@ export async function loadUsersManagement() {
     const count =
         document.getElementById("usersCount");
 
-    console.log("Container:", container);
-    console.log("Count element:", count);
+    dlog("Container:", container);
+    dlog("Count element:", count);
 
     if (!container) {
 
@@ -908,22 +916,22 @@ export async function loadUsersManagement() {
 
         const result = await fetchUsers();
 
-        console.log(
+        dlog(
             "🔥 fetchUsers RESULT:",
             result
         );
 
-        console.log(
+        dlog(
             "🔥 result.data:",
             result?.data
         );
 
-        console.log(
+        dlog(
             "🔥 Array:",
             Array.isArray(result?.data)
         );
 
-        console.log(
+        dlog(
             "🔥 Length:",
             Array.isArray(result?.data)
                 ? result.data.length
@@ -962,7 +970,7 @@ export async function loadUsersManagement() {
             : [];
 
 
-        console.log(
+        dlog(
             "✅ USERS BEFORE RENDER:",
             users
         );
@@ -984,7 +992,7 @@ export async function loadUsersManagement() {
         renderUsers(users);
 
 
-        console.log(
+        dlog(
             "========== LOAD USERS END =========="
         );
 
@@ -1047,7 +1055,7 @@ setTimeout(() => {
         return;
     }
 
-    console.log("🚀 AUTO LOAD USERS");
+    dlog("🚀 AUTO LOAD USERS");
 
     loadUsersManagement();
 
