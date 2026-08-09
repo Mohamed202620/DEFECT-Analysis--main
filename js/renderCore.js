@@ -9,6 +9,7 @@ import { renderPage } from './pageRenderer.js';
 import { initMainChart, loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
+import { initStatsView } from './statistics.js';
 
 export let currentPage = 'login';
 
@@ -75,6 +76,25 @@ if (currentPage === "kb") {
     if (typeof initKbView === "function") {  
 
       initKbView();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// STATS AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "stats") {  
+
+  setTimeout(() => {  
+
+    if (typeof initStatsView === "function") {  
+
+      initStatsView();  
 
     }  
 

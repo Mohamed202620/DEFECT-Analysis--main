@@ -23,6 +23,7 @@ import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
 import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView } from './views/RequestsView.js';
+import { StatsView } from './views/StatsView.js';
 
 // ============================================================
 // RENDER PAGES
@@ -103,6 +104,13 @@ case 'kb':
   return hasPermission("kb")  
     ? KnowledgeBaseView()  
     : unauthorizedPage("kb");  
+
+
+case 'stats':  
+
+  return hasPermission("statistics")  
+    ? StatsView()  
+    : unauthorizedPage("statistics");  
 
 
 case 'report':  
