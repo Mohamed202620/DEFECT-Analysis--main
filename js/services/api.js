@@ -5,6 +5,7 @@
 
 import {
   db,
+  storage,
   DEFAULT_USER_PERMISSIONS
 } from "../config.js";
 
@@ -21,6 +22,60 @@ import {
   orderBy,
   limit
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+
+import {
+  ref,
+  uploadString,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
+
+
+// ============================================================
+// رفع الصور على Firebase Storage
+// ============================================================
+//
+// السبب: كانت الصور (Base64) تُخزَّن مباشرة داخل مستندات
+// Firestore، ما يؤدي أحياناً لتضخم حجم المستند (قد يتجاوز حد
+// الـ 1MB لكل مستند في حالة 3 صور)، وكان هذا سبب ظهور
+// "Error loading documents" في Firebase Console عند تصفح
+// مجموعة machineErrors تحديداً بسبب حجم حقل الصورة الكبير.
+//
+// الحل: رفع كل صورة فعلياً إلى Firebase Storage، وتخزين رابط
+// التحميل (Download URL) فقط داخل مستند Firestore بدل الـ
+// Base64 الكامل - المستند بقى صغير جداً (كيلوبايتات قليلة).
+//
+// ملاحظة مهمة: يتطلب هذا وجود Firebase Storage مفعّل على
+// المشروع + قواعد أمان (Storage Rules) تسمح بالرفع للمستخدمين
+// المسجلين، وإلا سيفشل الرفع برسالة "unauthorized" واضحة بدل
+// الفشل الصامت أو الحفظ الكامل كـ Base64.
+// ============================================================
+
+/**
+ * رفع صورة Base64 (Data URL) إلى Firebase Storage
+ * وإرجاع رابط التحميل النهائي (Download URL)
+ *
+ * @param {string} base64 صورة بصيغة data:image/... (من compressImage)
+ * @param {string} path المسار داخل Storage (مثال: "defects/DF-123/image1.jpg")
+ * @returns {Promise<string|null>} رابط الصورة، أو null إذا لم تكن هناك صورة
+ */
+async function uploadBase64Image(base64, path) {
+
+  if (
+    !base64 ||
+    typeof base64 !== "string" ||
+    !base64.startsWith("data:image")
+  ) {
+    return null;
+  }
+
+  const imageRef = ref(storage, path);
+
+  await uploadString(imageRef, base64, "data_url");
+
+  return await getDownloadURL(imageRef);
+
+}
 
 
 // ============================================================
@@ -445,6 +500,8 @@ export async function updateUserStatusApi(
 
 /**
  * حفظ بلاغ عطل أو عيب
+ * (يرفع الصور الثلاث فعلياً إلى Firebase Storage أولاً، ويحفظ
+ * روابطها فقط داخل المستند بدل الـ Base64 الكامل)
  */
 export async function saveDefectApi(
   payload
@@ -452,12 +509,38 @@ export async function saveDefectApi(
 
   try {
 
+    // فصل حقول الصور Base64 عن باقي البيانات
+    const {
+      image1,
+      image2,
+      image3,
+      ...restPayload
+    } = payload;
+
+    const defectId =
+      payload.defectId ||
+      ("DF-" + Date.now());
+
+    // رفع الصور الثلاث بالتوازي (كل صورة فارغة/null تُرجع null فوراً)
+    const [image1Url, image2Url, image3Url] =
+      await Promise.all([
+        uploadBase64Image(image1, `defects/${defectId}/image1.jpg`),
+        uploadBase64Image(image2, `defects/${defectId}/image2.jpg`),
+        uploadBase64Image(image3, `defects/${defectId}/image3.jpg`)
+      ]);
+
     const docRef =
       await addDoc(
         collection(db, "defects"),
         {
 
-          ...payload,
+          ...restPayload,
+
+          defectId,
+
+          ...(image1Url && { image1Url }),
+          ...(image2Url && { image2Url }),
+          ...(image3Url && { image3Url }),
 
           createdAt:
             new Date().toISOString()
@@ -516,12 +599,32 @@ export async function saveIssueApi(
 
   try {
 
+    // فصل حقل الصورة Base64 عن باقي البيانات ورفعها إلى Storage
+    const {
+      image,
+      ...restPayload
+    } = payload;
+
+    const issueId =
+      payload.issueId ||
+      ("IS-" + Date.now());
+
+    const imageUrl =
+      await uploadBase64Image(
+        image,
+        `tickets/${issueId}/image.jpg`
+      );
+
     const docRef =
       await addDoc(
         collection(db, "tickets"),
         {
 
-          ...payload,
+          ...restPayload,
+
+          issueId,
+
+          ...(imageUrl && { imageUrl }),
 
           createdAt:
             payload?.createdAt ||
@@ -943,11 +1046,22 @@ export async function saveMachineErrorApi(payload) {
       };
     }
 
+    // فصل حقل الصورة Base64 ورفعها إلى Storage بدل حفظها كاملة
+    // داخل المستند (هذا كان السبب المباشر في تضخم حجم مستندات
+    // machineErrors وظهور "Error loading documents" في الكونسول)
+    const { image, ...restPayload } = payload;
+
+    const imageUrl = await uploadBase64Image(
+      image,
+      `machineErrors/${normalized}-${Date.now()}.jpg`
+    );
+
     const docRef = await addDoc(
       collection(db, "machineErrors"),
       {
-        ...payload,
+        ...restPayload,
         errorCode: normalized,
+        ...(imageUrl && { imageUrl }),
         status: payload?.status || "pending_review",
         createdAt: new Date().toISOString()
       }
@@ -1015,11 +1129,20 @@ export async function logMachineErrorOccurrenceApi(payload) {
       return { status: "error", message: "كود العطل مطلوب" };
     }
 
+    // نفس مبدأ رفع الصورة إلى Storage بدل تخزينها Base64 كاملة
+    const { image, ...restPayload } = payload;
+
+    const imageUrl = await uploadBase64Image(
+      image,
+      `machineErrorLogs/${normalized}-${Date.now()}.jpg`
+    );
+
     const docRef = await addDoc(
       collection(db, "machineErrorLogs"),
       {
-        ...payload,
+        ...restPayload,
         errorCode: normalized,
+        ...(imageUrl && { imageUrl }),
         scannedAt: new Date().toISOString()
       }
     );
