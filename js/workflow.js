@@ -1,4 +1,4 @@
-import { saveDefectApi } from './services/api.js';
+import { saveDefectApi, fetchTicketsApi } from './services/api.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -368,3 +368,66 @@ export function initMainChart(customData = null) {
 }
 
 window.initMainChart = initMainChart;
+
+// ==========================================
+// بيانات لوحة المتابعة الحقيقية (Dashboard Stats)
+// كانت أرقام لوحة المتابعة (open/closed/today/total) ثابتة
+// دائماً على صفر لأن window.dashboardData لم يكن يُملأ من أي
+// مكان رغم وجود fetchTicketsApi جاهزة. تم ربطها الآن دون أي
+// تغيير في بنية قاعدة البيانات - فقط قراءة من "tickets" الحالية
+// ==========================================
+
+export async function loadDashboardStats() {
+
+  const result = await fetchTicketsApi();
+
+  if (!result || result.status !== 'success') return;
+
+  const tickets = Array.isArray(result.data) ? result.data : [];
+
+  const todayStr = new Date().toDateString();
+
+  let open = 0;
+  let closed = 0;
+  let today = 0;
+
+  const closedStatuses = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
+
+  tickets.forEach(ticket => {
+    const status = String(ticket.status || '').trim().toLowerCase();
+
+    if (closedStatuses.includes(status)) {
+      closed++;
+    } else {
+      open++;
+    }
+
+    if (ticket.createdAt) {
+      const created = new Date(ticket.createdAt);
+      if (!isNaN(created) && created.toDateString() === todayStr) {
+        today++;
+      }
+    }
+  });
+
+  const stats = {
+    open,
+    closed,
+    today,
+    total: tickets.length
+  };
+
+  window.dashboardData = stats;
+
+  const setText = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = value;
+  };
+
+  setText('statOpenCount', stats.open);
+  setText('statClosedCount', stats.closed);
+  setText('statTodayCount', stats.today);
+  setText('statTotalCount', stats.total);
+}
+
+window.loadDashboardStats = loadDashboardStats;

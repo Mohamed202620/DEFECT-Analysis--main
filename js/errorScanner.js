@@ -79,6 +79,36 @@ function extractErrorCode(rawText) {
 }
 
 // ============================================================
+// قوائم الخطوط والماكينات - مطابقة لنفس القوائم المستخدمة في
+// باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق
+// ============================================================
+
+const LINE_OPTIONS = ['Line 1', 'Line 2'];
+
+const MACHINE_OPTIONS = [
+  'Coil Handling',
+  'Baler',
+  'Cupper',
+  'Bodymaker',
+  'Trimmer',
+  'Washer',
+  'Decorator',
+  'Spray',
+  'IBO',
+  'Necker',
+  'Palletizer',
+  'Depalletizer',
+  'Front End Line Control',
+  'Mid Line Control',
+  'Back End Line Control'
+];
+
+function buildOptions(list, selected) {
+  return `<option value="" disabled ${selected ? '' : 'selected'}>اختر...</option>` +
+    list.map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`).join('');
+}
+
+// ============================================================
 // عناصر واجهة مشتركة (اختصارات)
 // ============================================================
 
@@ -305,13 +335,17 @@ function renderNotFound(code) {
       <p class="text-[11px] text-gray-400">يمكنك إضافته الآن، وسيتم حفظه كـ "قيد المراجعة" حتى تتم مراجعته.</p>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">الماكينة</label>
-        <input id="errNewMachine" type="text" placeholder="مثال: Bodymaker" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">الخط</label>
+        <select id="errNewLine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
+          ${buildOptions(LINE_OPTIONS)}
+        </select>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">الخط</label>
-        <input id="errNewLine" type="text" placeholder="مثال: Line 1" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">الماكينة</label>
+        <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
+          ${buildOptions(MACHINE_OPTIONS)}
+        </select>
       </div>
 
       <div>

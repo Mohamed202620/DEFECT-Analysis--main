@@ -39,7 +39,8 @@ loadPendingUsers
 import {
 saveDefectData,
 handleDefectFile,
-initMainChart
+initMainChart,
+loadDashboardStats
 } from './workflow.js';
 
 // ============================================================
@@ -380,6 +381,12 @@ if (currentPage === "home") {
     if (typeof initMainChart === "function") {  
 
       initMainChart();  
+
+    }  
+
+    if (typeof loadDashboardStats === "function") {  
+
+      loadDashboardStats();  
 
     }  
 

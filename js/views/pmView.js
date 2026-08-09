@@ -3,7 +3,7 @@ export const PMFormFields = (isEn) => `
     <label class="block text-xs font-bold mb-1 opacity-70 text-gray-300">
       ${isEn ? 'Machine Name' : 'اسم الماكينة'} <span class="text-red-400">*</span>
     </label>
-    <select required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
+    <select id="pmMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
       <option value="" disabled selected>${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
       <option value="line1">${isEn ? 'Coating Line 1' : 'خط الدهان 1'}</option>
       <option value="machine2">${isEn ? 'Machine 2' : 'ماكينة 2'}</option>
@@ -16,15 +16,15 @@ export const PMFormFields = (isEn) => `
     </label>
     <div class="bg-[#0E1117] p-4 rounded-lg border border-gray-700 space-y-3 text-xs text-gray-200">
       <label class="flex items-center gap-3 cursor-pointer group">
-        <input type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
+        <input id="pmCheckHydraulic" type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
         <span class="group-hover:text-blue-400 transition-colors">${isEn ? 'Check Hydraulic Pressure' : 'فحص ضغط الهيدروليك'}</span>
       </label>
       <label class="flex items-center gap-3 cursor-pointer group">
-        <input type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
+        <input id="pmCheckFilters" type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
         <span class="group-hover:text-blue-400 transition-colors">${isEn ? 'Clean Filters & Cooling System' : 'تنظيف الفلاتر ونظام التبريد'}</span>
       </label>
       <label class="flex items-center gap-3 cursor-pointer group">
-        <input type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
+        <input id="pmCheckLubrication" type="checkbox" required class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500/50 cursor-pointer"> 
         <span class="group-hover:text-blue-400 transition-colors">${isEn ? 'Periodic Lubrication & Greasing' : 'التشحيم والتزييت الدوري'}</span>
       </label>
     </div>
@@ -34,18 +34,59 @@ export const PMFormFields = (isEn) => `
     <label class="block text-xs font-bold text-gray-300 mb-1 opacity-70">
       ${isEn ? 'Notes / Observations' : 'ملاحظات / مشاهدات'}
     </label>
-    <textarea placeholder="${isEn ? 'Any abnormal sounds or leaks?' : 'هل يوجد أصوات غير طبيعية أو تسريبات؟'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-16 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
+    <textarea id="pmNotes" placeholder="${isEn ? 'Any abnormal sounds or leaks?' : 'هل يوجد أصوات غير طبيعية أو تسريبات؟'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-16 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
   </div>
 `;
 
 export const PMView = () => {
   const isEn = window.currentLang === 'en';
   
-  // معالجة الإرسال
-  window.handlePMSubmit = (event) => {
+  // معالجة الإرسال - حفظ فعلي في Firestore (مجموعة pmRecords)
+  window.handlePMSubmit = async (event) => {
     event.preventDefault();
-    alert(isEn ? 'PM form saved successfully ✅' : 'تم حفظ نموذج الصيانة الوقائية بنجاح ✅');
-    window.navigateTo('maintenance'); 
+
+    const submitBtn = event.target?.querySelector('button[type="submit"]');
+    const originalText = submitBtn ? submitBtn.innerHTML : '';
+
+    const payload = {
+      machine: document.getElementById('pmMachine')?.value || '',
+      checklist: {
+        hydraulic: !!document.getElementById('pmCheckHydraulic')?.checked,
+        filters: !!document.getElementById('pmCheckFilters')?.checked,
+        lubrication: !!document.getElementById('pmCheckLubrication')?.checked
+      },
+      notes: document.getElementById('pmNotes')?.value?.trim() || '',
+      reporter: {
+        name: localStorage.getItem('name') || '',
+        job: localStorage.getItem('job') || '',
+        department: localStorage.getItem('department') || '',
+        shift: localStorage.getItem('shift') || ''
+      }
+    };
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = isEn ? 'Saving...' : 'جاري الحفظ...';
+    }
+
+    try {
+      const { savePmApi } = await import('../services/api.js');
+      const result = await savePmApi(payload);
+
+      if (result.status === 'success') {
+        alert(isEn ? 'PM form saved successfully ✅' : 'تم حفظ نموذج الصيانة الوقائية بنجاح ✅');
+        window.navigateTo('maintenance');
+      } else {
+        alert((isEn ? 'Error: ' : 'خطأ: ') + (result.message || (isEn ? 'Failed to save' : 'فشل الحفظ')));
+      }
+    } catch (err) {
+      alert((isEn ? 'Connection error: ' : 'خطأ في الاتصال: ') + err.message);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+    }
   };
 
   return `

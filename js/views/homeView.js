@@ -43,7 +43,7 @@ export const HomeView = () => {
       <div class="bg-[#1E293B] border border-gray-800 p-3.5 rounded-2xl flex items-center justify-between shadow-md">
         <div>
           <span class="text-[11px] text-gray-400 block mb-0.5">أعطال مفتوحة</span>
-          <span class="text-xl font-bold text-amber-400">${stats.open}</span>
+          <span id="statOpenCount" class="text-xl font-bold text-amber-400">${stats.open}</span>
         </div>
         <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg">
           🟡
@@ -54,7 +54,7 @@ export const HomeView = () => {
       <div class="bg-[#1E293B] border border-gray-800 p-3.5 rounded-2xl flex items-center justify-between shadow-md">
         <div>
           <span class="text-[11px] text-gray-400 block mb-0.5">تم إصلاحها</span>
-          <span class="text-xl font-bold text-emerald-400">${stats.closed}</span>
+          <span id="statClosedCount" class="text-xl font-bold text-emerald-400">${stats.closed}</span>
         </div>
         <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg">
           🟢
@@ -65,7 +65,7 @@ export const HomeView = () => {
       <div class="bg-[#1E293B] border border-gray-800 p-3.5 rounded-2xl flex items-center justify-between shadow-md">
         <div>
           <span class="text-[11px] text-gray-400 block mb-0.5">أعطال اليوم</span>
-          <span class="text-xl font-bold text-blue-400">${stats.today}</span>
+          <span id="statTodayCount" class="text-xl font-bold text-blue-400">${stats.today}</span>
         </div>
         <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg">
           📅
@@ -76,7 +76,7 @@ export const HomeView = () => {
       <div class="bg-[#1E293B] border border-gray-800 p-3.5 rounded-2xl flex items-center justify-between shadow-md">
         <div>
           <span class="text-[11px] text-gray-400 block mb-0.5">إجمالي البلاغات</span>
-          <span class="text-xl font-bold text-purple-400">${stats.total}</span>
+          <span id="statTotalCount" class="text-xl font-bold text-purple-400">${stats.total}</span>
         </div>
         <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg">
           📊

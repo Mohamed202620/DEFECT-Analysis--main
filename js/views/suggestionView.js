@@ -1,8 +1,8 @@
 export const SuggestionView = () => {
   const isEn = window.currentLang === 'en';
 
-  // معالجة عملية الإرسال
-  window.handleKaizenSubmit = (event) => {
+  // معالجة عملية الإرسال - حفظ فعلي في Firestore (مجموعة suggestions)
+  window.handleKaizenSubmit = async (event) => {
     event.preventDefault();
 
     const data = {
@@ -26,10 +26,37 @@ export const SuggestionView = () => {
       date: new Date().toISOString()
     };
 
-    console.log("Kaizen Data Submitted:", data);
+    const submitBtn = event.target?.querySelector('button[type="submit"]');
+    const originalText = submitBtn ? submitBtn.innerHTML : '';
 
-    alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
-    window.navigateTo('home'); // أو يمكن توجيهه إلى maintenance
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = isEn ? 'Submitting...' : 'جاري الإرسال...';
+    }
+
+    try {
+      const { saveSuggestionApi } = await import('../services/api.js');
+      const result = await saveSuggestionApi(data);
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+
+      if (result.status !== 'success') {
+        alert((isEn ? 'Error: ' : 'خطأ: ') + (result.message || (isEn ? 'Failed to submit' : 'فشل الإرسال')));
+        return;
+      }
+
+      alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
+      window.navigateTo('home'); // أو يمكن توجيهه إلى maintenance
+    } catch (err) {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+      alert((isEn ? 'Connection error: ' : 'خطأ في الاتصال: ') + err.message);
+    }
   };
 
   return `

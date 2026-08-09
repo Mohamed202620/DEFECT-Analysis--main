@@ -1079,3 +1079,83 @@ export async function fetchMachineErrorHistoryApi(code) {
   }
 
 }
+
+
+// ============================================================
+// PREVENTIVE MAINTENANCE (PM) - سجل الصيانة الوقائية
+// ============================================================
+
+
+/**
+ * حفظ نموذج صيانة وقائية (PM) في مجموعة "pmRecords"
+ */
+export async function savePmApi(payload) {
+
+  try {
+
+    const docRef = await addDoc(
+      collection(db, "pmRecords"),
+      {
+        ...payload,
+        createdAt: new Date().toISOString()
+      }
+    );
+
+    return {
+      status: "success",
+      id: docRef.id,
+      message: "تم حفظ نموذج الصيانة الوقائية بنجاح"
+    };
+
+  } catch (error) {
+
+    console.error("Error saving PM record:", error);
+
+    return {
+      status: "error",
+      message: error.message
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// KAIZEN SUGGESTIONS - مقترحات التحسين المستمر
+// ============================================================
+
+
+/**
+ * حفظ مقترح كايزن في مجموعة "suggestions"
+ */
+export async function saveSuggestionApi(payload) {
+
+  try {
+
+    const docRef = await addDoc(
+      collection(db, "suggestions"),
+      {
+        ...payload,
+        createdAt: new Date().toISOString()
+      }
+    );
+
+    return {
+      status: "success",
+      id: docRef.id,
+      message: "تم إرسال مقترح الكايزن بنجاح"
+    };
+
+  } catch (error) {
+
+    console.error("Error saving suggestion:", error);
+
+    return {
+      status: "error",
+      message: error.message
+    };
+
+  }
+
+}
