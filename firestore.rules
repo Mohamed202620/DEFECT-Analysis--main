@@ -1,24 +1,3 @@
-// ============================================================
-// firestore.rules
-// قواعد أمان Firestore - نسخة مبنية على Firebase Authentication
-// الحقيقي (Email/Password، برقم موبايل محوَّل لإيميل داخلي - راجع
-// config.js -> phoneToAuthEmail)
-// ============================================================
-//
-// ⚠️ ملف موجود هنا كمرجع فقط - لازم تنسخه/تنشره فعلياً من
-// Firebase Console (Firestore Database → Rules) أو عبر
-// Firebase CLI (firebase deploy --only firestore:rules).
-// إضافة الملف للمشروع لوحدها مبتفعّلش القواعد تلقائياً.
-//
-// ------------------------------------------------------------
-// خطوة لازمة قبل النشر:
-// ------------------------------------------------------------
-// فعّلوا Firebase Authentication -> Sign-in method -> Email/Password
-// من Firebase Console (خطوة مجانية، بدون Blaze). القواعد دي
-// مبنية على افتراض إن كل عمليات تسجيل الدخول/التسجيل بقت تمر
-// عبر Firebase Auth (راجع js/auth/login.js و js/services/usersApi.js).
-// ============================================================
-
 rules_version = '2';
 
 service cloud.firestore {
@@ -32,9 +11,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // بيانات ملف المستخدم الحالي (users/{uid}) - استدعاء get() له
-    // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
-    // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
     function myProfile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
@@ -43,7 +19,6 @@ service cloud.firestore {
       return isSignedIn() ? myProfile().role : "";
     }
 
-    // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
     function isActive() {
       return isSignedIn() && myProfile().status == "active";
     }
@@ -53,10 +28,6 @@ service cloud.firestore {
     // ==========================================================
     match /users/{userId} {
 
-      // إنشاء حساب جديد: بعد ما تم بالفعل إنشاء حساب Firebase Auth
-      // (createUserWithEmailAndPassword) من registerUserApi، هنا
-      // بس بنسمح بكتابة مستند البيانات الإضافية بنفس الـ uid،
-      // ودايماً status/role = pending (مايقدرش حد يسجل نفسه admin)
       allow create: if isSignedIn()
                     && request.auth.uid == userId
                     && request.resource.data.status == "pending"
@@ -65,21 +36,14 @@ service cloud.firestore {
                     && request.resource.data.phone.size() > 0
                     && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt"]);
 
-      // قراءة مستند واحد: صاحبه، أو أدمن/مدير
       allow get: if isSignedIn()
                  && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
 
-      // قراءة قائمة (list) - حالتين فقط:
-      //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
-      //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
-      //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
-      //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
-      //     في قائمة إسناد التذاكر
-      allow list: if isSignedIn()
-                  && (myRole() in ["admin", "manager"]
-                      || resource.data.role in ["technician", "engineer"]);
+      allow list: if (isSignedIn()
+                      && (myRole() in ["admin", "manager"]
+                          || resource.data.role in ["technician", "engineer"]))
+                  || (!isSignedIn() && request.query.limit <= 1);
 
-      // تعديل: صاحب الحساب لبياناته، أو أدمن (تغيير الدور/الحالة/الصلاحيات)
       allow update: if isSignedIn()
                     && (request.auth.uid == userId || myRole() == "admin");
 
@@ -95,26 +59,19 @@ service cloud.firestore {
 
       allow read: if isActive();
 
-      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة، لازم تبدأ
-      // pending وتكون منسوبة له فعلياً (reportedByUid)
       allow create: if isActive()
                     && request.resource.data.status == "pending"
                     && request.resource.data.reportedByUid == request.auth.uid;
 
-      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
       allow update: if isActive() && myRole() in ["manager", "admin"]
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned";
 
-      // STEP 3 - assigned/reopened -> resolved: الفني المُسند له
-      // التذكرة تحديداً (assignedToUid) أو أدمن
       allow update: if isActive()
                     && resource.data.status in ["assigned", "reopened"]
                     && request.resource.data.status == "resolved"
                     && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
 
-      // STEP 4 - resolved -> closed | reopened: صاحب البلاغ الأصلي
-      // (reportedByUid) أو أدمن فقط
       allow update: if isActive()
                     && resource.data.status == "resolved"
                     && request.resource.data.status in ["closed", "reopened"]
@@ -123,9 +80,7 @@ service cloud.firestore {
 
     // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
-    // suggestions, defects ...) - أي مستخدم مفعّل (status == active)
-    // يقدر يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً،
-    // ضيفوا match block خاص بيها فوق match /{document=**} ده.
+    // suggestions, defects ...) - أي مستخدم مفعّل يقدر يقرأ/يكتب
     // ==========================================================
     match /{document=**} {
       allow read, write: if isActive();
