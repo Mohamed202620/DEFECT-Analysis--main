@@ -76,7 +76,7 @@ export const DEBUG = true;
 
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
 export const DEFAULT_USER_PERMISSIONS =
-  "home,maintenance,issue,suggestions,pm,log,reports,qr,quality,ai,kb,statistics,export";
+  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,quality,ai,kb,statistics,export";
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
@@ -90,6 +90,7 @@ export const ALL_PERMISSIONS = [
   "log",
   "reports",
   "qr",
+  "errorScanner",
 
   // الجودة
   "quality",

@@ -8,6 +8,7 @@
 import { renderPage } from './pageRenderer.js';
 import { initMainChart, loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
+import { initKbView } from './knowledgeBase.js';
 
 export let currentPage = 'login';
 
@@ -55,6 +56,25 @@ if (currentPage === "home") {
     if (typeof loadDashboardStats === "function") {  
 
       loadDashboardStats();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// KNOWLEDGE BASE (kb) AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "kb") {  
+
+  setTimeout(() => {  
+
+    if (typeof initKbView === "function") {  
+
+      initKbView();  
 
     }  
 

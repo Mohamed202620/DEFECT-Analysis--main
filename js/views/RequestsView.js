@@ -25,12 +25,18 @@ const PERMISSIONS = [
   { value: "home", label: "🏠 الرئيسية" },
 
   // الصيانة
+  // ملاحظة: "maintenance" كانت صلاحية افتراضية (DEFAULT_USER_PERMISSIONS)
+  // لكنها لم تكن معروضة كخيار هنا، فكان حفظ صلاحيات أي مستخدم من
+  // هذه الشاشة يحذفها بصمت (لأن الحفظ يعتمد على الصناديق المعروضة
+  // فقط). تمت إضافتها الآن لتطابق config.js وتفادي هذا الخلل.
+  { value: "maintenance", label: "🔧 قسم الصيانة (رئيسي)" },
   { value: "issue", label: "🚨 تسجيل عطل" },
   { value: "pm", label: "📝 الصيانة الوقائية" },
   { value: "log", label: "📋 سجل الصيانة" },
   { value: "suggestions", label: "💡 كايزن" },
   { value: "reports", label: "📊 التقارير" },
   { value: "qr", label: "📱 QR الماكينات" },
+  { value: "errorScanner", label: "🔎 فاحص أعطال الماكينات (OCR)" },
 
   // الجودة
   { value: "quality", label: "📦 الجودة" },

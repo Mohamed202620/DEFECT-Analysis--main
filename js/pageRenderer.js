@@ -21,6 +21,7 @@ import { MaintenanceView } from './views/MaintenanceView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
+import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView } from './views/RequestsView.js';
 
 // ============================================================
@@ -88,9 +89,20 @@ case 'quality':
 
 case 'errorScanner':  
 
-  return hasPermission("maintenance")  
+  // ملاحظة: "errorScanner" صلاحية دقيقة جديدة (تطابق نمط باقي صلاحيات
+  // قسم الصيانة كـ issue/pm/qr المستقلة عن "maintenance"). أُبقيت
+  // الصلاحية العامة "maintenance" كبديل أيضاً حتى لا يفقد المستخدمون
+  // الحاليون (الذين مُنحوا "maintenance" فقط قبل هذا التحديث) الوصول.
+  return (hasPermission("maintenance") || hasPermission("errorScanner"))  
     ? ErrorScannerView()  
-    : unauthorizedPage("maintenance");  
+    : unauthorizedPage("errorScanner");  
+
+
+case 'kb':  
+
+  return hasPermission("kb")  
+    ? KnowledgeBaseView()  
+    : unauthorizedPage("kb");  
 
 
 case 'report':  
@@ -179,7 +191,7 @@ case 'system':
 default:  
 
   // إذا كان المستخدم مسجلاً دخوله بالفعل، فإن أي صفحة غير معروفة
-  // (مثل صفحات لم تُبنَ بعد: qr, ai, kb, stats...) يجب ألا تُعيده
+  // (مثل صفحات لم تُبنَ بعد: qr, ai, stats...) يجب ألا تُعيده
   // لشاشة تسجيل الدخول (يبدو كخروج مفاجئ)، بل تُظهر له رسالة واضحة
   const isLoggedIn =  
     localStorage.getItem("phone") ||  

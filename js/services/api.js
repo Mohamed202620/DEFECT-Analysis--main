@@ -1159,3 +1159,75 @@ export async function saveSuggestionApi(payload) {
   }
 
 }
+
+
+// ============================================================
+// KNOWLEDGE BASE (قاعدة المعرفة) - عرض/تصفح كل الأعطال المسجلة
+// ============================================================
+
+
+/**
+ * جلب كل أعطال قاعدة المعرفة (machineErrors) لعرضها في صفحة
+ * قاعدة المعرفة (Knowledge Base)
+ */
+export async function fetchAllMachineErrorsApi() {
+
+  try {
+
+    const querySnapshot = await getDocs(
+      collection(db, "machineErrors")
+    );
+
+    const data = [];
+
+    querySnapshot.forEach(docSnap => {
+      data.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data };
+
+  } catch (error) {
+
+    console.error("Error fetching machine errors list:", error);
+
+    return { status: "error", message: error.message, data: [] };
+
+  }
+
+}
+
+
+/**
+ * جلب كل سجلات ظهور الأعطال (machineErrorLogs) منذ تاريخ معين
+ * تُستخدم لحساب أكثر الأعطال تكراراً خلال فترة (يومي/أسبوعي/شهري)
+ * استعلام بحقل واحد فقط (scannedAt) لتفادي الحاجة لفهرس مركب
+ */
+export async function fetchMachineErrorLogsSinceApi(sinceIso) {
+
+  try {
+
+    const q = query(
+      collection(db, "machineErrorLogs"),
+      where("scannedAt", ">=", sinceIso)
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    const data = [];
+
+    querySnapshot.forEach(docSnap => {
+      data.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data };
+
+  } catch (error) {
+
+    console.error("Error fetching machine error logs since date:", error);
+
+    // فشل ناعم بدلاً من كسر الواجهة
+    return { status: "success", data: [] };
+
+  }
+
+}
