@@ -88,6 +88,34 @@ case 'quality':
     : unauthorizedPage("quality");  
 
 
+case 'tickets':  
+
+  // لوحة متابعة دورة حياة التذاكر - نفس نمط صفحة 'users' تماماً
+  // (PageView + حاوية بيتم ملؤها ببيانات Firestore عبر window.loadTicketsBoard)
+  return hasPermission("maintenance")  
+    ? PageView(  
+        "📋 متابعة البلاغات",  
+        `  
+          <div class="space-y-3">  
+
+            <button  
+              onclick="window.loadTicketsBoard()"  
+              class="w-full bg-blue-600 hover:bg-blue-500 rounded-lg p-3 font-bold text-white text-xs">  
+              🔄 تحديث القائمة  
+            </button>  
+
+            <div id="ticketsBoardContainer" class="mt-4">  
+              <div class="text-center text-gray-500 text-xs py-8">  
+                اضغط "تحديث القائمة" لعرض التذاكر.  
+              </div>  
+            </div>  
+
+          </div>  
+        `  
+      )  
+    : unauthorizedPage("maintenance");  
+
+
 case 'errorScanner':  
 
   // ملاحظة: "errorScanner" صلاحية دقيقة جديدة (تطابق نمط باقي صلاحيات

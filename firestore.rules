@@ -1,6 +1,8 @@
 // ============================================================
 // firestore.rules
-// قواعد أمان Firestore الموصى بها لهذا المشروع
+// قواعد أمان Firestore - نسخة مبنية على Firebase Authentication
+// الحقيقي (Email/Password، برقم موبايل محوَّل لإيميل داخلي - راجع
+// config.js -> phoneToAuthEmail)
 // ============================================================
 //
 // ⚠️ ملف موجود هنا كمرجع فقط - لازم تنسخه/تنشره فعلياً من
@@ -9,22 +11,12 @@
 // إضافة الملف للمشروع لوحدها مبتفعّلش القواعد تلقائياً.
 //
 // ------------------------------------------------------------
-// ⚠️ تنبيه مهم عن حدود هذه القواعد:
+// خطوة لازمة قبل النشر:
 // ------------------------------------------------------------
-// التطبيق حالياً بيستخدم نظام دخول مخصص (Firestore query على
-// حقل phone) بدل Firebase Authentication الرسمي. ده معناه إن
-// Firestore Rules مش قادرة تعرف "مين اللي بيبعت الطلب فعلاً"
-// (مفيش request.auth.uid لأن مفيش تسجيل دخول عبر Firebase Auth) -
-// فبالتالي مينفعش نمنع الوصول حسب هوية المستخدم، ومينفعش نمنع حد
-// غير مسجل دخول من محاولة قراءة/تعديل البيانات مباشرة عن طريق
-// Firestore REST API لو عنده مفتاح المشروع (وهو ظاهر أصلاً في
-// config.js لأي حد يفتح كود الموقع).
-//
-// القواعد دي بتعمل أقصى قدر ممكن من التقييد (Validation على شكل
-// البيانات، ومنع حذف/تعديل حقول حساسة معينة) لكنها مش بديل عن
-// الحل الجذري: الانتقال لـ Firebase Authentication الحقيقي
-// (Phone Auth أو Email/Password) عشان تقدر تستخدم request.auth
-// وتقيّد كل عملية فعلاً حسب هوية صاحبها ودوره.
+// فعّلوا Firebase Authentication -> Sign-in method -> Email/Password
+// من Firebase Console (خطوة مجانية، بدون Blaze). القواعد دي
+// مبنية على افتراض إن كل عمليات تسجيل الدخول/التسجيل بقت تمر
+// عبر Firebase Auth (راجع js/auth/login.js و js/services/usersApi.js).
 // ============================================================
 
 rules_version = '2';
@@ -33,42 +25,110 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ==========================================================
+    // Helpers
+    // ==========================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // بيانات ملف المستخدم الحالي (users/{uid}) - استدعاء get() له
+    // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
+    // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() {
+      return isSignedIn() ? myProfile().role : "";
+    }
+
+    // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
+    function isActive() {
+      return isSignedIn() && myProfile().status == "active";
+    }
+
+    // ==========================================================
     // users
     // ==========================================================
     match /users/{userId} {
 
-      // السماح بإنشاء حساب جديد (تسجيل) لأي زائر، بشرط:
-      //  - الحساب يبدأ دايماً pending (مايقدرش حد يسجل نفسه admin)
-      //  - passwordHash/salt موجودين (منع تسجيل بكلمة سر Plaintext)
-      //  - مفيش حقل password نهائياً (يمنع أي محاولة لتسجيل نص عادي)
-      allow create: if request.resource.data.status == "pending"
+      // إنشاء حساب جديد: بعد ما تم بالفعل إنشاء حساب Firebase Auth
+      // (createUserWithEmailAndPassword) من registerUserApi، هنا
+      // بس بنسمح بكتابة مستند البيانات الإضافية بنفس الـ uid،
+      // ودايماً status/role = pending (مايقدرش حد يسجل نفسه admin)
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.status == "pending"
                     && request.resource.data.role == "pending"
-                    && request.resource.data.keys().hasAll(["phone", "passwordHash", "salt"])
-                    && !request.resource.data.keys().hasAny(["password"])
                     && request.resource.data.phone is string
-                    && request.resource.data.phone.size() > 0;
+                    && request.resource.data.phone.size() > 0
+                    && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt"]);
 
-      // القراءة والتعديل والحذف مسموحة حالياً لأن التطبيق مفيهوش
-      // Firebase Authentication يربط الطلب بمستخدم معروف (راجع
-      // التنبيه أعلى الملف). دي أضعف نقطة في المشروع الحالي.
-      //
-      // بمجرد ما يتم الانتقال لـ Firebase Authentication، استبدل
-      // السطر ده بشيء زي:
-      //   allow read: if request.auth != null;
-      //   allow update: if request.auth != null &&
-      //                 (request.auth.uid == userId || <role check>);
-      //   allow delete: if request.auth != null && <admin role check>;
-      allow read, update, delete: if true;
+      // قراءة مستند واحد: صاحبه، أو أدمن/مدير
+      allow get: if isSignedIn()
+                 && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
+
+      // قراءة قائمة (list) - حالتين فقط:
+      //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
+      //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
+      //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
+      //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
+      //     في قائمة إسناد التذاكر
+      allow list: if isSignedIn()
+                  && (myRole() in ["admin", "manager"]
+                      || resource.data.role in ["technician", "engineer"]);
+
+      // تعديل: صاحب الحساب لبياناته، أو أدمن (تغيير الدور/الحالة/الصلاحيات)
+      allow update: if isSignedIn()
+                    && (request.auth.uid == userId || myRole() == "admin");
+
+      allow delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // tickets - دورة حياة التذكرة
+    // pending -> assigned -> resolved -> closed
+    //                     resolved -> reopened -> resolved ...
+    // ==========================================================
+    match /tickets/{ticketId} {
+
+      allow read: if isActive();
+
+      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة، لازم تبدأ
+      // pending وتكون منسوبة له فعلياً (reportedByUid)
+      allow create: if isActive()
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.reportedByUid == request.auth.uid;
+
+      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
+      allow update: if isActive() && myRole() in ["manager", "admin"]
+                    && resource.data.status == "pending"
+                    && request.resource.data.status == "assigned";
+
+      // STEP 3 - assigned/reopened -> resolved: الفني المُسند له
+      // التذكرة تحديداً (assignedToUid) أو أدمن
+      allow update: if isActive()
+                    && resource.data.status in ["assigned", "reopened"]
+                    && request.resource.data.status == "resolved"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      // STEP 4 - resolved -> closed | reopened: صاحب البلاغ الأصلي
+      // (reportedByUid) أو أدمن فقط
+      allow update: if isActive()
+                    && resource.data.status == "resolved"
+                    && request.resource.data.status in ["closed", "reopened"]
+                    && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
     }
 
     // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
-    // suggestions ...) - نفس القيد: التطبيق بيوصلها مباشرة بدون
-    // Auth، فمفيش طريقة موثوقة نميّز بيها المستخدمين المسموح
-    // لهم من غيرهم على مستوى القواعد وحدها في الوضع الحالي.
+    // suggestions, defects ...) - أي مستخدم مفعّل (status == active)
+    // يقدر يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً،
+    // ضيفوا match block خاص بيها فوق match /{document=**} ده.
     // ==========================================================
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if isActive();
     }
   }
 }

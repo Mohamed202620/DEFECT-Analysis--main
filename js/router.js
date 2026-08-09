@@ -25,4 +25,8 @@ import './authHandlers.js';
 // استيراد جانبي (Side-effect) لربط دوال ميزة Machine Error Scanner بـ window
 import './errorScanner.js';
 
+// استيراد جانبي (Side-effect) لربط دوال لوحة متابعة التذاكر بـ window
+// (window.loadTicketsBoard / window.handleTicketAction)
+import './ticketsBoard.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

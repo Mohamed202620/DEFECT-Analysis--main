@@ -29,7 +29,8 @@ export {
   registerUserApi,
   updatePermissionsApi,
   updateUserStatusApi,
-  deleteUserApi
+  deleteUserApi,
+  fetchTechniciansApi
 } from "./usersApi.js";
 
 export { saveDefectApi } from "./defectsApi.js";
@@ -37,7 +38,14 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
-  updateTicketStatusApi
+  updateTicketStatusApi,
+  fetchPendingTicketsApi,
+  fetchTicketsForTechnicianApi,
+  fetchResolvedTicketsApi,
+  assignTicketApi,
+  resolveTicketApi,
+  closeTicketApi,
+  reopenTicketApi
 } from "./ticketsApi.js";
 
 export { fetchDashboardDataApi } from "./dashboardApi.js";

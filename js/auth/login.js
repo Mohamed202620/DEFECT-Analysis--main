@@ -1,14 +1,41 @@
 // استيراد قاعدة البيانات ومتغير DEBUG من ملف الإعدادات المركزي
-import { db, DEBUG } from '../config.js'; 
-import { collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-import { generateSalt, hashPassword, verifyPassword } from '../services/crypto.js';
+import { db, auth, DEBUG, phoneToAuthEmail } from '../config.js';
+
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+import { verifyPassword } from '../services/crypto.js';
 
 /**
- * خدمة تسجيل الدخول عبر Firebase Firestore
+ * خدمة تسجيل الدخول عبر Firebase Authentication (Email/Password)
+ *
+ * رقم الموبايل بيتحوّل لإيميل داخلي (phoneToAuthEmail) عشان نقدر
+ * نستخدم Firebase Auth الحقيقي مع الحفاظ على واجهة الدخول برقم
+ * الموبايل زي ما هي تماماً.
+ *
+ * ترحيل تلقائي للحسابات القديمة:
+ * أي مستخدم اتسجل قبل التفعيل ده لسه عنده فقط مستند فيه
+ * passwordHash/salt (أو password Plaintext في حالات قديمة جداً)
+ * من غير أي حساب Firebase Auth حقيقي. أول مرة يدخل بعد هذا
+ * التحديث: بنتحقق من كلمة سره بالطريقة القديمة، ولو صحيحة بننشئ
+ * له حساب Auth حقيقي بنفس كلمة السر اللي كتبها الآن، وننقل بياناته
+ * (بدون أي حقول خاصة بكلمة السر) لمستند جديد بمعرّف = uid بتاع
+ * Firebase Auth. من المرة الجاية هيدخل عادي عن طريق Auth مباشرة.
  */
 export async function login(phone, pass) {
 
-  // تحسين معالجة المدخلات لضمان عدم حدوث أخطاء حتى لو وصل كأرقام (Numbers)
   const cleanPhone = String(phone || "").trim();
   const cleanPass = String(pass || "").trim();
 
@@ -19,172 +46,177 @@ export async function login(phone, pass) {
     };
   }
 
+  const email = phoneToAuthEmail(cleanPhone);
+  let uid;
+
   try {
 
-    const usersRef = collection(db, "users");
+    // ==================================================
+    // المحاولة الطبيعية: المستخدم عنده حساب Firebase Auth بالفعل
+    // ==================================================
 
-    const q = query(
-      usersRef,
-      where("phone", "==", cleanPhone)
-    );
+    const cred = await signInWithEmailAndPassword(auth, email, cleanPass);
+    uid = cred.user.uid;
 
-    const querySnapshot = await getDocs(q);
+  } catch (authError) {
 
-    if (querySnapshot.empty) {
-      return {
-        status: "error",
-        message: "رقم الموبايل غير مسجل بالنظام."
-      };
+    const isMissingAuthAccount =
+      authError.code === "auth/user-not-found" ||
+      authError.code === "auth/invalid-credential" ||
+      authError.code === "auth/invalid-email";
+
+    if (!isMissingAuthAccount) {
+
+      if (authError.code === "auth/wrong-password") {
+        return { status: "error", message: "كلمة السر غير صحيحة." };
+      }
+
+      if (authError.code === "auth/too-many-requests") {
+        return {
+          status: "error",
+          message: "محاولات كثيرة جداً، يرجى المحاولة لاحقاً."
+        };
+      }
+
+      console.error("Auth Login Error:", authError);
+      return { status: "error", message: "حدث خطأ أثناء تسجيل الدخول." };
     }
 
-    // منع الحسابات المكررة بنفس رقم الهاتف
-    if (querySnapshot.size > 1) {
+    // ==================================================
+    // ترحيل تلقائي من النظام القديم (بدون Firebase Auth)
+    // ==================================================
+
+    const usersRef = collection(db, "users");
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacySnapshot = await getDocs(legacyQuery);
+
+    if (legacySnapshot.empty) {
+      return { status: "error", message: "رقم الموبايل غير مسجل بالنظام." };
+    }
+
+    if (legacySnapshot.size > 1) {
       return {
         status: "error",
         message: "يوجد أكثر من حساب بنفس رقم الهاتف."
       };
     }
 
-    // تحسين الأداء: استدعاء المستند الأول مباشرة بدلاً من حلقة forEach
-    const docSnap = querySnapshot.docs[0];
-    const data = docSnap.data();
+    const legacyDocSnap = legacySnapshot.docs[0];
+    const legacyData = legacyDocSnap.data();
 
-    const userData = {
-      id: docSnap.id,
-      ...data,
+    const isLegacyPlaintext = !legacyData.passwordHash && !!legacyData.password;
 
-      status:
-        (data.status || "")
-          .trim()
-          .toLowerCase(),
-
-      role:
-        (data.role || "")
-          .trim()
-          .toLowerCase(),
-
-      permissions:
-        (data.permissions || "")
-          .split(",")
-          .map(p => p.trim().toLowerCase())
-          .filter(Boolean)
-          .join(",")
-    };
-
-    // إظهار البيانات في وضع التطوير فقط
-    if (DEBUG) {
-      console.log("USER DATA:", userData);
-    }
-
-    // ==================================================
-    // فحص كلمة السر
-    // ==================================================
-    //
-    // النمط الجديد: passwordHash + salt (مشفّرة بـ PBKDF2)
-    // النمط القديم: password (نص عادي - حسابات أُنشئت قبل
-    //   تفعيل التشفير). بنتحقق منها بنفس الطريقة القديمة،
-    //   وبعد نجاح الدخول بنرحّلها تلقائياً للنمط الجديد
-    //   ونمسح النص العادي - بدون ما يحتاج المستخدم يعمل أي حاجة.
-    // ==================================================
-
-    const isLegacyPlaintext = !userData.passwordHash && !!data.password;
+    let passwordOk = false;
 
     if (isLegacyPlaintext) {
-
-      if (data.password !== cleanPass) {
-        return {
-          status: "error",
-          message: "كلمة السر غير صحيحة."
-        };
-      }
-
+      passwordOk = legacyData.password === cleanPass;
     } else {
-
-      const passwordOk = await verifyPassword(
+      passwordOk = await verifyPassword(
         cleanPass,
-        userData.salt,
-        userData.passwordHash
+        legacyData.salt,
+        legacyData.passwordHash
       );
-
-      if (!passwordOk) {
-        return {
-          status: "error",
-          message: "كلمة السر غير صحيحة."
-        };
-      }
-
     }
 
-    // فحص حالة الحساب (الترتيب المنطقي السليم)
-    if (userData.status === "pending") {
+    if (!passwordOk) {
+      return { status: "error", message: "كلمة السر غير صحيحة." };
+    }
+
+    // كلمة السر صحيحة -> ننشئ حساب Firebase Auth حقيقي الآن
+    let migratedCred;
+    try {
+      migratedCred = await createUserWithEmailAndPassword(auth, email, cleanPass);
+    } catch (migrationAuthError) {
+      console.error("Auth migration error:", migrationAuthError);
       return {
         status: "error",
-        message: "تم إرسال طلبك وهو بانتظار موافقة المسؤول."
+        message: "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى."
       };
     }
 
-    if (userData.status === "rejected") {
+    uid = migratedCred.user.uid;
+
+    // نقل بيانات المستخدم (بدون أي حقول متعلقة بكلمة السر) لمستند
+    // جديد بمعرّف = uid، بدل المستند القديم بمعرّفه العشوائي
+    const {
+      password: _legacyPassword,
+      passwordHash: _legacyHash,
+      salt: _legacySalt,
+      ...safeLegacyData
+    } = legacyData;
+
+    try {
+      await setDoc(doc(db, "users", uid), safeLegacyData);
+    } catch (migrationWriteError) {
+      console.error("Legacy profile migration error:", migrationWriteError);
       return {
         status: "error",
-        message: "تم رفض طلب الانضمام، يرجى التواصل مع المسؤول."
+        message: "تم ترقية الحساب لكن حدث خطأ أثناء نقل البيانات، يرجى المحاولة مرة أخرى."
       };
     }
 
-    if (userData.status !== "active") {
-      return {
-        status: "error",
-        message: "الحساب غير مفعل."
-      };
-    }
+    // ملحوظة: المستند القديم (legacyDocSnap.id) بيفضل موجود عمداً
+    // كنسخة احتياطية بدل حذفه تلقائياً - يُنصح بمراجعته وحذفه يدوياً
+    // بعد التأكد إن الترحيل نجح لكل المستخدمين.
+  }
 
-    // ==================================================
-    // ترحيل الحسابات القديمة (Plaintext) للتشفير تلقائياً
-    // ==================================================
-    //
-    // بعد التأكد من صحة كلمة السر بالطريقة القديمة، نشفّرها
-    // الآن ونمسح النص العادي من Firestore - يحصل مرة واحدة فقط
-    // لكل مستخدم قديم، في أول تسجيل دخول ليه بعد هذا التحديث.
-    // لو فشلت خطوة الترحيل لأي سبب، الدخول لسه بينجح عادي
-    // (هنحاول تاني في المرة الجاية).
-    // ==================================================
+  // ==================================================
+  // من هنا: نفس منطق فحص الحساب القديم بالضبط، لكن القراءة
+  // من مستند users/{uid} مباشرة بدل الاستعلام برقم الهاتف
+  // ==================================================
 
-    if (isLegacyPlaintext) {
-      try {
-        const salt = generateSalt();
-        const passwordHash = await hashPassword(cleanPass, salt);
+  const userDocSnap = await getDoc(doc(db, "users", uid));
 
-        await updateDoc(doc(db, "users", docSnap.id), {
-          passwordHash,
-          salt,
-          password: null
-        });
-
-        userData.passwordHash = passwordHash;
-        userData.salt = salt;
-      } catch (migrationError) {
-        console.error("Password migration error:", migrationError);
-      }
-    }
-
-    // حماية أمنية: حذف أي بيانات متعلقة بكلمة السر من الكائن
-    // قبل إرجاعه وحفظه في LocalStorage
-    delete userData.password;
-    delete userData.passwordHash;
-    delete userData.salt;
-
-    return {
-      status: "success",
-      user: userData
-    };
-
-  } catch (error) {
-
-    console.error("Login Service Error:", error);
-
+  if (!userDocSnap.exists()) {
     return {
       status: "error",
-      message: "حدث خطأ أثناء الاتصال بقاعدة البيانات."
+      message: "بيانات الحساب غير موجودة."
     };
-
   }
+
+  const data = userDocSnap.data();
+
+  const userData = {
+    id: uid,
+    ...data,
+
+    status: (data.status || "").trim().toLowerCase(),
+    role: (data.role || "").trim().toLowerCase(),
+
+    permissions: (data.permissions || "")
+      .split(",")
+      .map(p => p.trim().toLowerCase())
+      .filter(Boolean)
+      .join(",")
+  };
+
+  if (DEBUG) {
+    console.log("USER DATA:", userData);
+  }
+
+  if (userData.status === "pending") {
+    return {
+      status: "error",
+      message: "تم إرسال طلبك وهو بانتظار موافقة المسؤول."
+    };
+  }
+
+  if (userData.status === "rejected") {
+    return {
+      status: "error",
+      message: "تم رفض طلب الانضمام، يرجى التواصل مع المسؤول."
+    };
+  }
+
+  if (userData.status !== "active") {
+    return {
+      status: "error",
+      message: "الحساب غير مفعل."
+    };
+  }
+
+  return {
+    status: "success",
+    user: userData
+  };
 }

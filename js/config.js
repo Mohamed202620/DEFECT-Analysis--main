@@ -16,6 +16,10 @@ import {
   getStorage
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
 
+import {
+  getAuth
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+
 
 // ============================================================
 // Google Apps Script - نسخة احتياطية
@@ -148,6 +152,32 @@ export const db =
 
 export const storage =
   getStorage(app);
+
+
+export const auth =
+  getAuth(app);
+
+
+// ============================================================
+// Firebase Authentication - تحويل رقم الموبايل لإيميل داخلي
+// ============================================================
+//
+// التطبيق بيستخدم رقم الموبايل كمعرّف دخول (زي ما هو في الواجهة)
+// لكن Firebase Authentication (Email/Password - مجاني بالكامل بدون
+// Blaze، بعكس Phone Auth اللي بيحتاج SMS) محتاج إيميل. الدالة دي
+// بتحوّل الرقم لإيميل داخلي وهمي يُستخدم فقط كمعرّف لـ Firebase Auth
+// (المستخدم نفسه لسه بيكتب رقم موبايله في واجهة الدخول زي ما هو).
+// ============================================================
+
+export function phoneToAuthEmail(phone) {
+
+  const digitsOnly =
+    String(phone || "")
+      .replace(/\D/g, "");
+
+  return `${digitsOnly}@maintenance-defect-system.local`;
+
+}
 
 
 // ============================================================

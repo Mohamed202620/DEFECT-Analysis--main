@@ -7,17 +7,21 @@
 
 import {
   db,
-  DEFAULT_USER_PERMISSIONS
+  auth,
+  DEFAULT_USER_PERMISSIONS,
+  phoneToAuthEmail
 } from "../config.js";
 
-// أداة تشفير كلمات السر (PBKDF2) - راجع services/crypto.js لتفاصيل السبب
-import { generateSalt, hashPassword } from "./crypto.js";
+import {
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 
 import {
   collection,
   getDocs,
   addDoc,
   doc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -137,6 +141,13 @@ export async function fetchUsers() {
 
 /**
  * تسجيل مستخدم جديد
+ *
+ * بيتم إنشاء حساب Firebase Authentication حقيقي (Email/Password،
+ * برقم موبايل محوَّل لإيميل داخلي عبر phoneToAuthEmail - راجع
+ * config.js) بدل التشفير اليدوي القديم بـ PBKDF2. مستند بيانات
+ * المستخدم في Firestore بيتخزن بنفس معرّف الحساب (uid) بدل معرّف
+ * عشوائي، عشان قواعد الأمان (firestore.rules) تقدر تربط الطلبات
+ * بصاحبها فعلياً عبر request.auth.uid.
  */
 export async function registerUserApi(userData) {
 
@@ -147,61 +158,84 @@ export async function registerUserApi(userData) {
         userData.phone || ""
       ).trim();
 
-
-    // منع تكرار رقم الهاتف
-    if (phone) {
-
-      const q =
-        query(
-          collection(db, "users"),
-          where("phone", "==", phone)
-        );
+    const password =
+      String(
+        userData.password || ""
+      );
 
 
-      const querySnapshot =
-        await getDocs(q);
+    if (!phone) {
+      return {
+        status: "error",
+        message: "رقم الموبايل مطلوب."
+      };
+    }
 
 
-      if (!querySnapshot.empty) {
+    // منع تكرار رقم الهاتف (فحص إضافي قبل محاولة إنشاء حساب Auth،
+    // اللي هيرفض تلقائياً برضه لو الإيميل الداخلي المشتق منه مكرر)
+    const q =
+      query(
+        collection(db, "users"),
+        where("phone", "==", phone)
+      );
 
-        return {
+    const querySnapshot =
+      await getDocs(q);
 
-          status:
-            "error",
+    if (!querySnapshot.empty) {
 
-          message:
-            "رقم الهاتف مسجل بالفعل."
+      return {
 
-        };
+        status:
+          "error",
 
-      }
+        message:
+          "رقم الهاتف مسجل بالفعل."
+
+      };
 
     }
 
 
     // ========================================================
-    // تشفير كلمة السر قبل التخزين (بدل حفظها Plaintext)
-    // ========================================================
-    //
-    // بنفصل password عن باقي بيانات المستخدم، وبنستبدلها بـ
-    // passwordHash + salt. راجع services/crypto.js لتفاصيل السبب.
+    // إنشاء حساب Firebase Authentication حقيقي
     // ========================================================
 
-    const { password, ...userDataWithoutPassword } = userData;
+    const email = phoneToAuthEmail(phone);
 
-    const salt = generateSalt();
-    const passwordHash = await hashPassword(password, salt);
+    let cred;
+    try {
+      cred = await createUserWithEmailAndPassword(auth, email, password);
+    } catch (authError) {
 
-    const docRef =
-      await addDoc(
-        collection(db, "users"),
+      const message =
+        authError.code === "auth/email-already-in-use"
+          ? "رقم الهاتف مسجل بالفعل."
+          : authError.code === "auth/weak-password"
+            ? "كلمة السر ضعيفة جداً (٦ أحرف على الأقل)."
+            : "حدث خطأ أثناء إنشاء حساب الدخول.";
+
+      return { status: "error", message };
+    }
+
+
+    // ========================================================
+    // مستند بيانات المستخدم الإضافية - بدون أي حقل خاص بكلمة السر
+    // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
+    // ========================================================
+
+    const { password: _pw, ...userDataWithoutPassword } = userData;
+
+    try {
+
+      await setDoc(
+        doc(db, "users", cred.user.uid),
         {
 
           ...userDataWithoutPassword,
 
-          passwordHash,
-
-          salt,
+          phone,
 
           // الحساب الجديد ينتظر الموافقة
           role:
@@ -219,6 +253,19 @@ export async function registerUserApi(userData) {
         }
       );
 
+    } catch (firestoreError) {
+
+      // نادراً ما يحصل: حساب Auth اتعمل لكن فشل كتابة مستند
+      // البيانات. نسجّل الخطأ بوضوح - المستخدم يقدر يعيد المحاولة
+      // بنفس البيانات لاحقاً بعد حل المشكلة (مثلاً مراجعة القواعد).
+      console.error("Error saving user profile after auth creation:", firestoreError);
+
+      return {
+        status: "error",
+        message: "تم إنشاء حساب الدخول لكن حدث خطأ أثناء حفظ بياناتك، يرجى التواصل مع المسؤول."
+      };
+    }
+
 
     return {
 
@@ -226,7 +273,7 @@ export async function registerUserApi(userData) {
         "success",
 
       id:
-        docRef.id,
+        cred.user.uid,
 
       message:
         "تم إرسال طلب التسجيل، بانتظار موافقة المسؤول"
@@ -251,6 +298,62 @@ export async function registerUserApi(userData) {
         error.message
 
     };
+
+  }
+
+}
+
+
+// ============================================================
+// TECHNICIANS (لقائمة اختيار الفني عند تصنيف/إسناد التذكرة)
+// ============================================================
+
+/**
+ * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
+ * تصنيف وإسناد التذاكر (راجع ticketsApi.js -> assignTicketApi).
+ * الاستعلام مقيّد بحقل role عمداً (where) بدل جلب كل المستخدمين،
+ * عشان يتوافق مع قاعدة الأمان الخاصة بقراءة /users كمجموعة
+ * (راجع firestore.rules).
+ */
+export async function fetchTechniciansApi() {
+
+  try {
+
+    const q =
+      query(
+        collection(db, "users"),
+        where("role", "in", ["technician", "engineer"])
+      );
+
+    const querySnapshot =
+      await getDocs(q);
+
+    const technicians = [];
+
+    querySnapshot.forEach(docSnap => {
+
+      const data = docSnap.data();
+
+      if ((data.status || "").trim().toLowerCase() !== "active") {
+        return;
+      }
+
+      technicians.push({
+        id: docSnap.id,
+        name: data.name || "",
+        role: data.role || "",
+        department: data.department || ""
+      });
+
+    });
+
+    return { status: "success", data: technicians };
+
+  } catch (error) {
+
+    console.error("Error fetching technicians:", error);
+
+    return { status: "error", message: error.message };
 
   }
 
@@ -465,6 +568,14 @@ export async function updateUserStatusApi(
 // DELETE USER
 // ============================================================
 
+// ⚠️ ملحوظة بعد تفعيل Firebase Authentication:
+// الدالة دي بتحذف مستند بيانات المستخدم من Firestore فقط. حساب
+// Firebase Auth نفسه (اللي بيسمح بتسجيل الدخول) مينفعش يتحذف من
+// كود العميل (Client SDK) لأي مستخدم غير المستخدم المسجّل دخوله
+// حالياً - محتاج Firebase Admin SDK من سيرفر/Cloud Function.
+// عملياً: حذف مستند users/{uid} كافي لمنع الدخول (فحص status/role
+// في login.js هيفشل لو المستند مش موجود)، لكن حساب Auth بيفضل
+// موجود فعلياً حتى يتم حذفه لاحقاً عبر Admin SDK لو احتجتم ده.
 export async function deleteUserApi(userId) {
 
   try {

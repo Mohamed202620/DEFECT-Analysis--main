@@ -65,3 +65,57 @@ export function hasPermission(permission) {
 
 window.hasPermission = hasPermission;
 window.can = hasPermission;
+
+// ============================================================
+// أزرار دورة حياة التذكرة (Ticket Lifecycle Actions)
+// ============================================================
+//
+// دالة واحدة مركزية بتقرر "مين يقدر يعمل إيه" حسب حالة التذكرة
+// ودور المستخدم الحالي - تُستخدم في ticketsBoard.js لعرض الأزرار
+// الصحيحة فقط لكل تذكرة.
+// ============================================================
+
+export function getTicketActions(ticket) {
+
+  const role = currentRole;
+  const myName = localStorage.getItem("name") || "";
+  const status = String(ticket?.status || "").trim().toLowerCase();
+
+  const actions = [];
+
+  switch (status) {
+
+    case "pending":
+      if (role === "manager" || role === "admin") {
+        actions.push({ key: "assign", label: "🛠️ تصنيف وإسناد" });
+      }
+      break;
+
+    case "assigned":
+    case "reopened":
+      if (
+        (role === "technician" || role === "engineer" || role === "admin") &&
+        (role === "admin" || ticket.assignedTo === myName)
+      ) {
+        actions.push({ key: "resolve", label: "✅ تم الإصلاح" });
+      }
+      break;
+
+    case "resolved":
+      if (
+        (role === "operator" || role === "admin") &&
+        (role === "admin" || ticket.reportedBy === myName)
+      ) {
+        actions.push({ key: "confirm", label: "✔️ تأكيد الإغلاق" });
+        actions.push({ key: "reject", label: "❌ رفض ورجوع للفني" });
+      }
+      break;
+
+    // "closed" حالة نهائية - بدون أزرار
+  }
+
+  return actions;
+
+}
+
+window.getTicketActions = getTicketActions;

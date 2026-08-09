@@ -260,13 +260,23 @@ window.confirmIssue = async function() {
     location,
     suggestion,
     image: selectedIssueImage, // مستقبلاً سيتم رفعها كـ imageUrl
+
+    // اسم/معرّف المُبلّغ بشكل مسطّح (يُستخدم في دورة حياة التذكرة:
+    // قواعد الأمان وواجهة "Review & Closure" - راجع ticketsBoard.js)
+    reportedBy: localStorage.getItem("name") || "",
+    reportedByUid: localStorage.getItem("userId") || "",
+
     reporter: {
       name: localStorage.getItem("name") || "",
       job: localStorage.getItem("job") || "",
       department: localStorage.getItem("department") || "",
       shift: localStorage.getItem("shift") || ""
     },
-    status: "open",
+
+    // دورة حياة التذكرة تبدأ دائماً بـ pending (كانت "open" سابقاً -
+    // تم تصحيحها لتطابق حالات: pending -> assigned -> resolved ->
+    // closed | reopened)
+    status: "pending",
     createdAt: new Date().toISOString()
   };
 
