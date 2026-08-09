@@ -1,6 +1,7 @@
 // استيراد قاعدة البيانات ومتغير DEBUG من ملف الإعدادات المركزي
 import { db, DEBUG } from '../config.js'; 
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { collection, query, where, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { generateSalt, hashPassword, verifyPassword } from '../services/crypto.js';
 
 /**
  * خدمة تسجيل الدخول عبر Firebase Firestore
@@ -75,12 +76,43 @@ export async function login(phone, pass) {
       console.log("USER DATA:", userData);
     }
 
+    // ==================================================
     // فحص كلمة السر
-    if (userData.password !== cleanPass) {
-      return {
-        status: "error",
-        message: "كلمة السر غير صحيحة."
-      };
+    // ==================================================
+    //
+    // النمط الجديد: passwordHash + salt (مشفّرة بـ PBKDF2)
+    // النمط القديم: password (نص عادي - حسابات أُنشئت قبل
+    //   تفعيل التشفير). بنتحقق منها بنفس الطريقة القديمة،
+    //   وبعد نجاح الدخول بنرحّلها تلقائياً للنمط الجديد
+    //   ونمسح النص العادي - بدون ما يحتاج المستخدم يعمل أي حاجة.
+    // ==================================================
+
+    const isLegacyPlaintext = !userData.passwordHash && !!data.password;
+
+    if (isLegacyPlaintext) {
+
+      if (data.password !== cleanPass) {
+        return {
+          status: "error",
+          message: "كلمة السر غير صحيحة."
+        };
+      }
+
+    } else {
+
+      const passwordOk = await verifyPassword(
+        cleanPass,
+        userData.salt,
+        userData.passwordHash
+      );
+
+      if (!passwordOk) {
+        return {
+          status: "error",
+          message: "كلمة السر غير صحيحة."
+        };
+      }
+
     }
 
     // فحص حالة الحساب (الترتيب المنطقي السليم)
@@ -105,8 +137,40 @@ export async function login(phone, pass) {
       };
     }
 
-    // حماية أمنية: حذف كلمة السر من الكائن قبل إرجاعه وحفظه في LocalStorage
+    // ==================================================
+    // ترحيل الحسابات القديمة (Plaintext) للتشفير تلقائياً
+    // ==================================================
+    //
+    // بعد التأكد من صحة كلمة السر بالطريقة القديمة، نشفّرها
+    // الآن ونمسح النص العادي من Firestore - يحصل مرة واحدة فقط
+    // لكل مستخدم قديم، في أول تسجيل دخول ليه بعد هذا التحديث.
+    // لو فشلت خطوة الترحيل لأي سبب، الدخول لسه بينجح عادي
+    // (هنحاول تاني في المرة الجاية).
+    // ==================================================
+
+    if (isLegacyPlaintext) {
+      try {
+        const salt = generateSalt();
+        const passwordHash = await hashPassword(cleanPass, salt);
+
+        await updateDoc(doc(db, "users", docSnap.id), {
+          passwordHash,
+          salt,
+          password: null
+        });
+
+        userData.passwordHash = passwordHash;
+        userData.salt = salt;
+      } catch (migrationError) {
+        console.error("Password migration error:", migrationError);
+      }
+    }
+
+    // حماية أمنية: حذف أي بيانات متعلقة بكلمة السر من الكائن
+    // قبل إرجاعه وحفظه في LocalStorage
     delete userData.password;
+    delete userData.passwordHash;
+    delete userData.salt;
 
     return {
       status: "success",

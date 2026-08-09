@@ -21,8 +21,37 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- أداة F12 للموبايل (Eruda Console) -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+  <!--
+    تم تحويلها من التشغيل التلقائي الدائم إلى وضع اختياري فقط:
+    كانت شغالة لكل زائر في كل زيارة، وده بيدي أي مستخدم عادي
+    كونسول كامل يقدر يتلاعب بيه في localStorage (وبالتالي
+    بالدور/الصلاحيات المحفوظة محلياً). دلوقتي بتتفعّل فقط لو:
+      - فيه ?debug=1 في رابط الصفحة، أو
+      - localStorage.debug = "true" (بيفضل محفوظ للمرات الجاية)
+    لإيقافها تاني بعد التفعيل: احذف ?debug من الرابط ونفّذ في
+    الكونسول: localStorage.removeItem('debug')
+  -->
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var wantsDebug = params.get('debug') === '1';
+
+      if (wantsDebug) {
+        localStorage.setItem('debug', 'true');
+      }
+
+      var debugEnabled = localStorage.getItem('debug') === 'true';
+
+      if (debugEnabled) {
+        var erudaScript = document.createElement('script');
+        erudaScript.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        erudaScript.onload = function () {
+          if (window.eruda) window.eruda.init();
+        };
+        document.head.appendChild(erudaScript);
+      }
+    })();
+  </script>
 
   <!-- سكريبت منع التذبذب في الألوان -->
   <script>

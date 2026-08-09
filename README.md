@@ -18,14 +18,49 @@
 ## 📂 هيكل المشروع (Project Structure)
 
 ```text
-├── index.html           # واجهة الصفحة الواحدة الرئيسي
-├── manifest.json        # إعدادات تطبيق PWA
-├── sw.js                # Service Worker للتخزين المؤقت
-├── config.js            # إعدادات السيرفر والترجمات
-├── router.js            # التنقل بين الصفحات والأدوار
-├── workflow.js          # منطق ضغط الصور وحفظ البيانات
-├── homeView.js          # الصفحة الرئيسية ولوحة التحكم
-├── pmView.js            # نماذج الصيانة الوقائية
-├── reportView.js        # نماذج بلاغات الأعطال
-├── reportsView.js       # تصدير التقارير
-└── README.md            # توثيق المشروع
+├── index.html              # واجهة الصفحة الواحدة الرئيسي
+├── manifest.json           # إعدادات تطبيق PWA
+├── sw.js                   # Service Worker للتخزين المؤقت
+├── firestore.rules         # قواعد أمان Firestore الموصى بها (راجع قسم الأمان بالأسفل)
+└── js/
+    ├── config.js           # إعدادات Firebase والترجمات
+    ├── router.js           # نقطة الدخول - يجمع الموديولات التالية
+    ├── permissions.js      # نظام الصلاحيات (hasPermission)
+    ├── theme.js            # الوضع الليلي/النهاري
+    ├── renderCore.js       # navigateTo() / render()
+    ├── pageRenderer.js     # جدول التوجيه بين الصفحات
+    ├── authHandlers.js     # معالجات تسجيل الدخول/الخروج/التسجيل
+    ├── workflow.js         # منطق ضغط الصور وحفظ العيوب
+    ├── errorScanner.js     # Machine Error Scanner (OCR)
+    ├── knowledgeBase.js    # قاعدة المعرفة
+    ├── statistics.js       # الإحصائيات
+    ├── auth/
+    │   ├── login.js        # تسجيل الدخول + التحقق من كلمة السر
+    │   ├── register.js     # تسجيل حساب جديد
+    │   └── logout.js       # تسجيل الخروج
+    ├── services/
+    │   ├── api.js              # نقطة دخول مركزية (Barrel) - يُعيد تصدير كل ما يلي
+    │   ├── crypto.js           # تشفير كلمات السر (PBKDF2)
+    │   ├── imageUpload.js      # رفع الصور على ImgBB
+    │   ├── usersApi.js         # المستخدمون
+    │   ├── defectsApi.js       # بلاغات عيوب الإنتاج
+    │   ├── ticketsApi.js       # بلاغات الأعطال
+    │   ├── dashboardApi.js     # بيانات لوحة المتابعة
+    │   ├── machineErrorsApi.js # قاعدة معرفة أعطال الماكينات
+    │   ├── pmApi.js            # الصيانة الوقائية
+    │   └── suggestionsApi.js   # مقترحات الكايزن
+    ├── components/          # مكونات واجهة قابلة لإعادة الاستخدام
+    └── views/                # صفحات التطبيق (Home, Issue, PM, Reports...)
+```
+
+---
+
+## 🔒 ملاحظات أمان مهمة
+
+المشروع بيتواصل مباشرة من المتصفح مع Firestore (بدون باك-إند وسيط أو Firebase Authentication رسمي). ده قرار معماري بسيط ومناسب لمشروع صغير، لكن له حدود لازم تعرفها:
+
+1. **كلمات السر مشفّرة الآن (PBKDF2 + Salt)** عبر `js/services/crypto.js` - راجع الملف لتفاصيل السبب والطريقة. الحسابات القديمة (لو موجودة بكلمة سر نص عادي) بتترحّل تلقائياً لأول تسجيل دخول ليها بعد هذا التحديث.
+2. **`firestore.rules`**: ملف قواعد أمان جاهز في جذر المشروع - **لازم تنسخه فعليًا** إلى Firebase Console (Firestore Database → Rules) أو تنشره بـ Firebase CLI، إضافته للمشروع وحدها مش كافية.
+3. **الحد الأساسي المتبقي**: بما إن مفيش Firebase Authentication حقيقي، مفيش طريقة تقنية تربط أي طلب لـ Firestore بمستخدم معروف - فالـ Rules مقدرش تفرّق حاليًا بين مستخدم عادي وأدمن. الخطوة الجذرية الموصى بها للمستقبل: الانتقال لـ Firebase Authentication (Phone Auth أو Email/Password) بدل نظام الدخول المخصص الحالي.
+4. **أداة Eruda (كونسول للموبايل)**: بقت مُعطّلة افتراضيًا، وبتتفعّل فقط بإضافة `?debug=1` للرابط أو بضبط `localStorage.debug = "true"` يدويًا.
+5. **`IMGBB_API_KEY`** في `config.js` مفتاح ظاهر في كود الموقع بحكم إنه تطبيق Static بالكامل بدون سيرفر - ده طبيعي لخدمات زي دي لكن يُفضّل عمل Rotate له من وقت للتاني من حساب ImgBB.

@@ -15,6 +15,14 @@ import {
 
 import { navigateTo } from './renderCore.js';
 import { setCurrentRole, setCurrentPermissions } from './permissions.js';
+import { DEBUG } from './config.js';
+
+// طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات المستخدم
+// كاملة (الاسم/الهاتف/الدور/الصلاحيات) في الكونسول لكل عملية
+// دخول أو تحميل مستخدمين، حتى لو مش في وضع تطوير
+function dlog(...args) {
+  if (DEBUG) console.log(...args);
+}
 
 // ============================================================
 // LOGIN
@@ -82,7 +90,7 @@ const result =
   );  
 
 
-console.log(  
+dlog(  
   "LOGIN RESULT:",  
   result  
 );  
@@ -434,7 +442,7 @@ alert(
 window.loadUsers =
 async function () {
 
-console.log(
+dlog(
 "DEBUG: Load Users Started..."
 );
 
@@ -475,7 +483,7 @@ const result =
   await fetchUsers();  
 
 
-console.log(  
+dlog(  
   "DEBUG: API Result:",  
   result  
 );  
@@ -514,7 +522,7 @@ const usersList =
     : [];  
 
 
-console.log(  
+dlog(  
   "DEBUG: Users Count:",  
   usersList.length  
 );  
