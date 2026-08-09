@@ -28,6 +28,9 @@ service cloud.firestore {
     // ==========================================================
     match /users/{userId} {
 
+      // التعديل المطلوب: السماح بالإنشاء لمن لم يقم بتسجيل الدخول
+      allow create: if request.auth == null;
+
       // إنشاء حساب جديد: بعد ما تم بالفعل إنشاء حساب Firebase Auth
       // (createUserWithEmailAndPassword) من registerUserApi، هنا
       // بس بنسمح بكتابة مستند البيانات الإضافية بنفس الـ uid،
