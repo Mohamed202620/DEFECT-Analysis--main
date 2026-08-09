@@ -5,7 +5,7 @@
 
 import {
   db,
-  storage,
+  IMGBB_API_KEY,
   DEFAULT_USER_PERMISSIONS
 } from "../config.js";
 
@@ -24,15 +24,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
-import {
-  ref,
-  uploadString,
-  getDownloadURL
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
-
-
 // ============================================================
-// رفع الصور على Firebase Storage
+// رفع الصور على ImgBB (مجاني بالكامل - بدون بطاقة ائتمان)
 // ============================================================
 //
 // السبب: كانت الصور (Base64) تُخزَّن مباشرة داخل مستندات
@@ -41,25 +34,25 @@ import {
 // "Error loading documents" في Firebase Console عند تصفح
 // مجموعة machineErrors تحديداً بسبب حجم حقل الصورة الكبير.
 //
-// الحل: رفع كل صورة فعلياً إلى Firebase Storage، وتخزين رابط
-// التحميل (Download URL) فقط داخل مستند Firestore بدل الـ
-// Base64 الكامل - المستند بقى صغير جداً (كيلوبايتات قليلة).
+// كان الحل الأول المقترح هو Firebase Storage، لكن Firebase بقى
+// من فبراير 2026 بيطلب ربط بطاقة ائتمان (Blaze Plan) حتى
+// للاستخدام المجاني - لذلك تم الاستغناء عنه واستخدام ImgBB بدلاً
+// منه: خدمة استضافة صور مجانية بالكامل وبدون أي بطاقة، تحتاج
+// فقط مفتاح API مجاني (IMGBB_API_KEY في config.js).
 //
-// ملاحظة مهمة: يتطلب هذا وجود Firebase Storage مفعّل على
-// المشروع + قواعد أمان (Storage Rules) تسمح بالرفع للمستخدمين
-// المسجلين، وإلا سيفشل الرفع برسالة "unauthorized" واضحة بدل
-// الفشل الصامت أو الحفظ الكامل كـ Base64.
+// المستند في Firestore بيتخزن فيه رابط الصورة (URL) بس، مش
+// الـ Base64 الكامل - فبيفضل صغير جداً.
 // ============================================================
 
 /**
- * رفع صورة Base64 (Data URL) إلى Firebase Storage
- * وإرجاع رابط التحميل النهائي (Download URL)
+ * رفع صورة Base64 (Data URL) إلى ImgBB
+ * وإرجاع رابط الصورة النهائي (Display URL)
  *
  * @param {string} base64 صورة بصيغة data:image/... (من compressImage)
- * @param {string} path المسار داخل Storage (مثال: "defects/DF-123/image1.jpg")
+ * @param {string} name اسم وصفي للصورة (لتنظيم الأرشيف على ImgBB فقط)
  * @returns {Promise<string|null>} رابط الصورة، أو null إذا لم تكن هناك صورة
  */
-async function uploadBase64Image(base64, path) {
+async function uploadBase64Image(base64, name = "image") {
 
   if (
     !base64 ||
@@ -69,11 +62,36 @@ async function uploadBase64Image(base64, path) {
     return null;
   }
 
-  const imageRef = ref(storage, path);
+  if (!IMGBB_API_KEY || IMGBB_API_KEY.includes("ضع_مفتاح")) {
+    throw new Error(
+      "لم يتم ضبط مفتاح ImgBB (IMGBB_API_KEY) في config.js بعد."
+    );
+  }
 
-  await uploadString(imageRef, base64, "data_url");
+  // ImgBB يطلب الـ base64 بدون البادئة "data:image/...;base64,"
+  const rawBase64 = base64.split(",")[1] || base64;
 
-  return await getDownloadURL(imageRef);
+  const formData = new FormData();
+  formData.append("image", rawBase64);
+  formData.append("name", name);
+
+  const response = await fetch(
+    `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`,
+    {
+      method: "POST",
+      body: formData
+    }
+  );
+
+  const result = await response.json();
+
+  if (!result || !result.success) {
+    throw new Error(
+      result?.error?.message || "فشل رفع الصورة على ImgBB"
+    );
+  }
+
+  return result.data.display_url || result.data.url;
 
 }
 
@@ -524,9 +542,9 @@ export async function saveDefectApi(
     // رفع الصور الثلاث بالتوازي (كل صورة فارغة/null تُرجع null فوراً)
     const [image1Url, image2Url, image3Url] =
       await Promise.all([
-        uploadBase64Image(image1, `defects/${defectId}/image1.jpg`),
-        uploadBase64Image(image2, `defects/${defectId}/image2.jpg`),
-        uploadBase64Image(image3, `defects/${defectId}/image3.jpg`)
+        uploadBase64Image(image1, `${defectId}_1`),
+        uploadBase64Image(image2, `${defectId}_2`),
+        uploadBase64Image(image3, `${defectId}_3`)
       ]);
 
     const docRef =
@@ -612,7 +630,7 @@ export async function saveIssueApi(
     const imageUrl =
       await uploadBase64Image(
         image,
-        `tickets/${issueId}/image.jpg`
+        issueId
       );
 
     const docRef =
@@ -1053,7 +1071,7 @@ export async function saveMachineErrorApi(payload) {
 
     const imageUrl = await uploadBase64Image(
       image,
-      `machineErrors/${normalized}-${Date.now()}.jpg`
+      `machineError_${normalized}`
     );
 
     const docRef = await addDoc(
@@ -1134,7 +1152,7 @@ export async function logMachineErrorOccurrenceApi(payload) {
 
     const imageUrl = await uploadBase64Image(
       image,
-      `machineErrorLogs/${normalized}-${Date.now()}.jpg`
+      `machineErrorLog_${normalized}`
     );
 
     const docRef = await addDoc(
