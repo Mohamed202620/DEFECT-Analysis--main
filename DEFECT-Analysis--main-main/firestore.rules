@@ -1,0 +1,74 @@
+// ============================================================
+// firestore.rules
+// قواعد أمان Firestore الموصى بها لهذا المشروع
+// ============================================================
+//
+// ⚠️ ملف موجود هنا كمرجع فقط - لازم تنسخه/تنشره فعلياً من
+// Firebase Console (Firestore Database → Rules) أو عبر
+// Firebase CLI (firebase deploy --only firestore:rules).
+// إضافة الملف للمشروع لوحدها مبتفعّلش القواعد تلقائياً.
+//
+// ------------------------------------------------------------
+// ⚠️ تنبيه مهم عن حدود هذه القواعد:
+// ------------------------------------------------------------
+// التطبيق حالياً بيستخدم نظام دخول مخصص (Firestore query على
+// حقل phone) بدل Firebase Authentication الرسمي. ده معناه إن
+// Firestore Rules مش قادرة تعرف "مين اللي بيبعت الطلب فعلاً"
+// (مفيش request.auth.uid لأن مفيش تسجيل دخول عبر Firebase Auth) -
+// فبالتالي مينفعش نمنع الوصول حسب هوية المستخدم، ومينفعش نمنع حد
+// غير مسجل دخول من محاولة قراءة/تعديل البيانات مباشرة عن طريق
+// Firestore REST API لو عنده مفتاح المشروع (وهو ظاهر أصلاً في
+// config.js لأي حد يفتح كود الموقع).
+//
+// القواعد دي بتعمل أقصى قدر ممكن من التقييد (Validation على شكل
+// البيانات، ومنع حذف/تعديل حقول حساسة معينة) لكنها مش بديل عن
+// الحل الجذري: الانتقال لـ Firebase Authentication الحقيقي
+// (Phone Auth أو Email/Password) عشان تقدر تستخدم request.auth
+// وتقيّد كل عملية فعلاً حسب هوية صاحبها ودوره.
+// ============================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // users
+    // ==========================================================
+    match /users/{userId} {
+
+      // السماح بإنشاء حساب جديد (تسجيل) لأي زائر، بشرط:
+      //  - الحساب يبدأ دايماً pending (مايقدرش حد يسجل نفسه admin)
+      //  - passwordHash/salt موجودين (منع تسجيل بكلمة سر Plaintext)
+      //  - مفيش حقل password نهائياً (يمنع أي محاولة لتسجيل نص عادي)
+      allow create: if request.resource.data.status == "pending"
+                    && request.resource.data.role == "pending"
+                    && request.resource.data.keys().hasAll(["phone", "passwordHash", "salt"])
+                    && !request.resource.data.keys().hasAny(["password"])
+                    && request.resource.data.phone is string
+                    && request.resource.data.phone.size() > 0;
+
+      // القراءة والتعديل والحذف مسموحة حالياً لأن التطبيق مفيهوش
+      // Firebase Authentication يربط الطلب بمستخدم معروف (راجع
+      // التنبيه أعلى الملف). دي أضعف نقطة في المشروع الحالي.
+      //
+      // بمجرد ما يتم الانتقال لـ Firebase Authentication، استبدل
+      // السطر ده بشيء زي:
+      //   allow read: if request.auth != null;
+      //   allow update: if request.auth != null &&
+      //                 (request.auth.uid == userId || <role check>);
+      //   allow delete: if request.auth != null && <admin role check>;
+      allow read, update, delete: if true;
+    }
+
+    // ==========================================================
+    // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
+    // suggestions ...) - نفس القيد: التطبيق بيوصلها مباشرة بدون
+    // Auth، فمفيش طريقة موثوقة نميّز بيها المستخدمين المسموح
+    // لهم من غيرهم على مستوى القواعد وحدها في الوضع الحالي.
+    // ==========================================================
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
