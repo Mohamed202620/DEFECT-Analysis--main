@@ -53,35 +53,72 @@ service cloud.firestore {
     // ==========================================================
     match /users/{userId} {
 
-      // إنشاء حساب جديد: بعد ما تم بالفعل إنشاء حساب Firebase Auth
-      // (createUserWithEmailAndPassword) من registerUserApi، هنا
-      // بس بنسمح بكتابة مستند البيانات الإضافية بنفس الـ uid،
-      // ودايماً status/role = pending (مايقدرش حد يسجل نفسه admin)
+      // إنشاء حساب جديد - حالتين فقط:
+      //  ١) تسجيل عادي (registerUserApi): لازم status/role = pending
+      //     دايماً (مايقدرش حد يسجل نفسه admin من الأول)
+      //  ٢) ترحيل حساب قديم (login.js عند اكتشاف حساب بدون Auth):
+      //     مسموح نحافظ على role/status الأصليين، لكن فقط لو
+      //     البيانات دي فعلاً منسوخة حرفياً من مستند قديم موجود
+      //     بالفعل (migratedFromId) بنفس رقم الهاتف ونفس role/status
+      //     - يعني مينفعش حد يختلق مستند وهمي بـ role=admin ويدّعي
+      //     إنه "ترحيل"، لازم يكون فيه مستند قديم حقيقي بنفس القيم
       allow create: if isSignedIn()
                     && request.auth.uid == userId
-                    && request.resource.data.status == "pending"
-                    && request.resource.data.role == "pending"
                     && request.resource.data.phone is string
                     && request.resource.data.phone.size() > 0
-                    && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt"]);
+                    && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt"])
+                    && (
+                      (request.resource.data.status == "pending"
+                       && request.resource.data.role == "pending")
+                      ||
+                      (
+                        "migratedFromId" in request.resource.data
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.phone == request.resource.data.phone
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.role == request.resource.data.role
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.status == request.resource.data.status
+                      )
+                    );
 
       // قراءة مستند واحد: صاحبه، أو أدمن/مدير
       allow get: if isSignedIn()
                  && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
 
-      // قراءة قائمة (list) - حالتين فقط:
+      // قراءة قائمة (list) - ثلاث حالات:
       //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
       //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
       //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
       //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
       //     في قائمة إسناد التذاكر
-      allow list: if isSignedIn()
-                  && (myRole() in ["admin", "manager"]
-                      || resource.data.role in ["technician", "engineer"]);
+      //  ٣) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
+      //     (limit(1)) - ضروري لآلية الترحيل التلقائي من النظام
+      //     القديم في js/auth/login.js: قبل ما يبقى للمستخدم حساب
+      //     Firebase Auth، محتاج نستعلم على بياناته القديمة برقم
+      //     هاتفه عشان نتحقق من كلمة سره القديمة وننشئله حساب Auth
+      //     حقيقي. بدون السطر ده، أي حساب لسه ماترحّلش هيفضل عاجز
+      //     عن الدخول نهائياً حتى لو كلمة سره صح.
+      //     ⚠️ يُنصح بحذف هذا الاستثناء بعد التأكد إن كل المستخدمين
+      //     القدامى دخلوا مرة واحدة على الأقل بعد التحديث (وبالتالي
+      //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
+      allow list: if (isSignedIn()
+                      && (myRole() in ["admin", "manager"]
+                          || resource.data.role in ["technician", "engineer"]))
+                  || (!isSignedIn() && request.query.limit <= 1);
 
-      // تعديل: صاحب الحساب لبياناته، أو أدمن (تغيير الدور/الحالة/الصلاحيات)
+      // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
+      // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
+      // بنفسه (ده كان ثغرة: كان أي مستخدم مسجّل دخول يقدر يرقّي
+      // نفسه لـ admin بسطر واحد في الكونسول). تغيير الدور/الحالة/
+      // الصلاحيات مقصور على الأدمن فقط.
       allow update: if isSignedIn()
-                    && (request.auth.uid == userId || myRole() == "admin");
+                    && (
+                      myRole() == "admin"
+                      || (
+                        request.auth.uid == userId
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.status == resource.data.status
+                        && request.resource.data.permissions == resource.data.permissions
+                      )
+                    );
 
       allow delete: if myRole() == "admin";
     }
