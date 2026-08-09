@@ -231,7 +231,10 @@ window.confirmIssue = async function() {
   const description = document.getElementById('issueDescription')?.value?.trim();
   const location = document.getElementById('issueLocation')?.value?.trim();
   const suggestion = document.getElementById('issueSuggestion')?.value?.trim();
-  const issueId = document.getElementById('generatedIssueId')?.textContent;
+  // ✅ توليد معرف فريد للبلاغ بنفس أسلوب defectId
+  // (العنصر generatedIssueId# غير موجود فعلياً في IssueView، لذا كان
+  // issueId يصل دائماً كـ undefined قبل هذا التعديل)
+  const issueId = "IS-" + Date.now();
 
   if (!line || !machine || !category || !description) {
     alert("⚠️ يرجى استكمال البيانات الأساسية: (الخط، الماكينة، نوع العطل، والوصف)");

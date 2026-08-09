@@ -70,6 +70,17 @@
       padding: 0; 
       min-height: 100vh; 
     }
+
+    /* تستخدمها BottomNav.js - كانت غير معرّفة سابقاً فيظهر الشريط
+       السفلي بدون تنسيق (شفاف بلا خلفية ولا حدود) */
+    .dyn-card {
+      background-color: var(--app-card-bg);
+      border-color: var(--app-border);
+    }
+
+    .dyn-text-muted {
+      color: var(--app-text);
+    }
   </style>
 </head>
 <body>

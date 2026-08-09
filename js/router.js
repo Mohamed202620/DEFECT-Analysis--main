@@ -26,6 +26,10 @@ import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
+import { ErrorScannerView } from './views/ErrorScannerView.js';
+
+// استيراد جانبي (Side-effect) لربط دوال ميزة Machine Error Scanner بـ window
+import './errorScanner.js';
 
 import {
 RequestsView,
@@ -166,6 +170,13 @@ case 'quality':
     : unauthorizedPage("quality");  
 
 
+case 'errorScanner':  
+
+  return hasPermission("maintenance")  
+    ? ErrorScannerView()  
+    : unauthorizedPage("maintenance");  
+
+
 case 'report':  
 
   return hasPermission("reports")  
@@ -251,9 +262,52 @@ case 'system':
 
 default:  
 
-  return LoginView();
+  // إذا كان المستخدم مسجلاً دخوله بالفعل، فإن أي صفحة غير معروفة
+  // (مثل صفحات لم تُبنَ بعد: qr, ai, kb, stats...) يجب ألا تُعيده
+  // لشاشة تسجيل الدخول (يبدو كخروج مفاجئ)، بل تُظهر له رسالة واضحة
+  const isLoggedIn =  
+    localStorage.getItem("phone") ||  
+    localStorage.getItem("userId");  
+
+  return isLoggedIn  
+    ? comingSoonPage(page)  
+    : LoginView();
 
 }
+
+}
+
+// ============================================================
+// قيد التطوير (صفحات لم تُبنَ بعد)
+// ============================================================
+
+function comingSoonPage(page) {
+
+return PageView(
+
+"🚧 قيد التطوير",  
+
+`  
+  <div  
+    class="  
+      bg-[#1E293B]  
+      p-6  
+      rounded-xl  
+      border  
+      border-blue-500/30  
+      text-center  
+      text-xs  
+      text-blue-300  
+      font-bold  
+    "  
+  >  
+
+    هذه الميزة (${page || ""}) لم تُفعّل بعد وسيتم إضافتها قريباً.  
+
+  </div>  
+`
+
+);
 
 }
 
@@ -311,6 +365,27 @@ app.innerHTML =
   renderPage(currentPage);  
 
 app.style.opacity = "1";  
+
+
+// ========================================================  
+// HOME CHART AUTO LOAD  
+// (كان initMainChart مستورداً ولم يكن يُستدعى أبداً، لذلك
+// كان الرسم البياني في الرئيسية لا يظهر أبداً)
+// ========================================================  
+
+if (currentPage === "home") {  
+
+  setTimeout(() => {  
+
+    if (typeof initMainChart === "function") {  
+
+      initMainChart();  
+
+    }  
+
+  }, 100);  
+
+}  
 
 
 // ========================================================  
