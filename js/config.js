@@ -40,7 +40,7 @@ export const GOOGLE_SCRIPT_URL =
 //
 // ============================================================
 
-export const IMGBB_API_KEY = "ضع_مفتاح_ImgBB_هنا";
+export const IMGBB_API_KEY = "9e43fc30da5df3c4cdf213f1725504c7";
 
 
 // ============================================================
