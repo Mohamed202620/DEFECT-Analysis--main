@@ -78,16 +78,10 @@ window.can = hasPermission;
 export function getTicketActions(ticket) {
 
   const role = currentRole;
-  const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
   const status = String(ticket?.status || "").trim().toLowerCase();
 
   const actions = [];
-
-  const isMine =
-    role === "admin" ||
-    ticket.assignedToUid === myUid ||
-    ticket.assignedTo === myName;
 
   switch (status) {
 
@@ -98,32 +92,35 @@ export function getTicketActions(ticket) {
       break;
 
     case "assigned":
-      if ((role === "technician" || role === "engineer" || role === "admin") && isMine) {
+      if (
+        (role === "technician" || role === "engineer" || role === "admin") &&
+        (role === "admin" || ticket.assignedToUid === myUid)
+      ) {
         actions.push({ key: "start", label: "▶️ بدء التنفيذ" });
       }
       break;
 
     case "in_progress":
-      if ((role === "technician" || role === "engineer" || role === "admin") && isMine) {
-        actions.push({ key: "resolve", label: "✅ تم الإصلاح" });
+      if (
+        (role === "technician" || role === "engineer" || role === "admin") &&
+        (role === "admin" || ticket.assignedToUid === myUid)
+      ) {
+        actions.push({ key: "complete", label: "✅ تم الإصلاح" });
       }
       break;
 
-    case "resolved":
+    case "awaiting_confirmation":
       if (
         (role === "operator" || role === "admin") &&
-        (role === "admin" || ticket.reportedBy === myName || ticket.reportedByUid === myUid)
+        (role === "admin" || ticket.reportedByUid === myUid)
       ) {
-        actions.push({ key: "confirm", label: "✔️ تأكيد الإغلاق" });
-        actions.push({ key: "reject", label: "❌ رفض ورجوع للفني" });
+        actions.push({ key: "confirm", label: "✔️ تم الإصلاح بالفعل" });
+        actions.push({ key: "reject", label: "❌ لم يتم الإصلاح" });
       }
       break;
 
-    // "closed" حالة نهائية - بدون أزرار تغيير حالة
+    // "closed" حالة نهائية - بدون أزرار
   }
-
-  // زر "تفاصيل" متاح دايماً لأي حد يقدر يشوف التذكرة أصلاً (تايملاين + صور)
-  actions.push({ key: "details", label: "🔍 تفاصيل" });
 
   return actions;
 

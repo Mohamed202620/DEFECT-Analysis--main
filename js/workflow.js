@@ -1,4 +1,4 @@
-import { saveDefectApi, fetchTicketsApi } from './services/api.js';
+import { saveDefectApi, fetchTicketsForDashboardApi } from './services/api.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -389,7 +389,7 @@ window.initMainChart = initMainChart;
 
 export async function loadDashboardStats() {
 
-  const result = await fetchTicketsApi();
+  const result = await fetchTicketsForDashboardApi();
 
   if (!result || result.status !== 'success') return;
 

@@ -143,6 +143,44 @@ if (
 
 }
 
+// ========================================================  
+// TICKETS BOARD AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "tickets") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadTicketsBoard === "function") {  
+
+      window.loadTicketsBoard();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// TICKET DETAILS AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "ticketDetails") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadTicketDetails === "function") {  
+
+      window.loadTicketDetails();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
 }, 150);
 
 }
@@ -228,6 +266,13 @@ if (!isLoggedIn) {
 }  
 
 render();
+
+// تفعيل جرس الإشعارات لو فيه جلسة دخول محفوظة بالفعل (تحديث
+// الصفحة/فتحها من جديد بدون تسجيل خروج) - راجع authHandlers.js
+// لتفعيله بعد نجاح تسجيل الدخول مباشرة
+if (isLoggedIn && typeof window.initNotificationBell === "function") {
+  window.initNotificationBell();
+}
 
 }
 );

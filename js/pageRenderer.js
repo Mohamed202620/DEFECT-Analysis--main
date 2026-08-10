@@ -90,7 +90,7 @@ case 'quality':
 
 case 'tickets':  
 
-  // لوحة متابعة دورة حياة التذكرة - نفس نمط صفحة 'users' تماماً
+  // لوحة متابعة دورة حياة التذاكر - نفس نمط صفحة 'users' تماماً
   // (PageView + حاوية بيتم ملؤها ببيانات Firestore عبر window.loadTicketsBoard)
   return hasPermission("maintenance")  
     ? PageView(  
@@ -98,21 +98,13 @@ case 'tickets':
         `  
           <div class="space-y-3">  
 
-            <div class="flex gap-2">
-              <button  
-                onclick="window.loadTicketsBoard()"  
-                class="flex-1 bg-blue-600 hover:bg-blue-500 rounded-lg p-3 font-bold text-white text-xs">  
-                🔄 تحديث القائمة  
-              </button>  
-              <button
-                onclick="window.toggleNotificationsPanel()"
-                class="relative bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-4 font-bold text-white text-sm">
-                🔔
-                <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
-              </button>
-            </div>
+            <button  
+              onclick="window.loadTicketsBoard()"  
+              class="w-full bg-blue-600 hover:bg-blue-500 rounded-lg p-3 font-bold text-white text-xs">  
+              🔄 تحديث القائمة  
+            </button>  
 
-            <div id="notifPanel" class="hidden bg-[#1E293B] border border-gray-800 rounded-xl p-2 max-h-64 overflow-y-auto"></div>
+            <div id="ticketsFiltersContainer"></div>  
 
             <div id="ticketsBoardContainer" class="mt-4">  
               <div class="text-center text-gray-500 text-xs py-8">  
@@ -122,6 +114,22 @@ case 'tickets':
 
           </div>  
         `  
+      )  
+    : unauthorizedPage("maintenance");  
+
+
+case 'ticketDetails':  
+
+  // تفاصيل تذكرة واحدة + Timeline - نفس نمط 'tickets' (PageView +
+  // حاوية بيتم ملؤها عبر window.loadTicketDetails، راجع renderCore.js
+  // للتحميل التلقائي عند فتح الصفحة، وticketDetails.js لمعرّف
+  // التذكرة المطلوب عرضها عبر window.__currentTicketId)
+  return hasPermission("maintenance")  
+    ? PageView(  
+        "📄 تفاصيل التذكرة",  
+        `<div id="ticketDetailsContainer">  
+          <div class="text-center text-gray-400 text-xs py-8">جاري التحميل...</div>  
+        </div>`  
       )  
     : unauthorizedPage("maintenance");  
 

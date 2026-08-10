@@ -137,10 +137,7 @@ export async function login(phone, pass) {
     uid = migratedCred.user.uid;
 
     // نقل بيانات المستخدم (بدون أي حقول متعلقة بكلمة السر) لمستند
-    // جديد بمعرّف = uid، بدل المستند القديم بمعرّفه العشوائي.
-    // migratedFromId: معرّف المستند القديم - مطلوب عشان قاعدة
-    // الأمان (firestore.rules) تقدر تتحقق إن role/status المنسوخين
-    // فعلاً جايين من مستند قديم حقيقي بنفس القيم، مش مُلفّقين
+    // جديد بمعرّف = uid، بدل المستند القديم بمعرّفه العشوائي
     const {
       password: _legacyPassword,
       passwordHash: _legacyHash,
@@ -149,10 +146,7 @@ export async function login(phone, pass) {
     } = legacyData;
 
     try {
-      await setDoc(doc(db, "users", uid), {
-        ...safeLegacyData,
-        migratedFromId: legacyDocSnap.id
-      });
+      await setDoc(doc(db, "users", uid), safeLegacyData);
     } catch (migrationWriteError) {
       console.error("Legacy profile migration error:", migrationWriteError);
       return {

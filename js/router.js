@@ -29,4 +29,12 @@ import './errorScanner.js';
 // (window.loadTicketsBoard / window.handleTicketAction)
 import './ticketsBoard.js';
 
+// استيراد جانبي (Side-effect) لربط دوال صفحة تفاصيل التذكرة بـ window
+// (window.openTicketDetails / window.loadTicketDetails)
+import './ticketDetails.js';
+
+// استيراد جانبي (Side-effect) لربط جرس الإشعارات بـ window
+// (window.initNotificationBell / window.destroyNotificationBell)
+import './components/NotificationBell.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

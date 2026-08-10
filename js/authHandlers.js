@@ -214,6 +214,12 @@ setCurrentPermissions(
 
 navigateTo("home");
 
+// تفعيل جرس الإشعارات بعد نجاح تسجيل الدخول مباشرة (راجع
+// components/NotificationBell.js - مُحمّل جانبياً من router.js)
+if (typeof window.initNotificationBell === "function") {
+  window.initNotificationBell();
+}
+
 } catch (error) {
 
 console.error(  
@@ -647,6 +653,12 @@ container.innerHTML = `
 
 window.logout =
 function () {
+
+// إزالة جرس الإشعارات والاشتراك اللحظي قبل مسح الجلسة (راجع
+// components/NotificationBell.js)
+if (typeof window.destroyNotificationBell === "function") {
+  window.destroyNotificationBell();
+}
 
 localStorage.clear();
 
