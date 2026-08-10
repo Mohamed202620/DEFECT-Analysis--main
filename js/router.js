@@ -22,6 +22,10 @@ import './theme.js';
 import './permissions.js';
 import './authHandlers.js';
 
+// استيراد جانبي (Side-effect) لربط زر تبديل اللغة (عربي/إنجليزي)
+// بـ window - متاح دايماً حتى قبل تسجيل الدخول (بعكس جرس الإشعارات)
+import './components/LanguageToggle.js';
+
 // استيراد جانبي (Side-effect) لربط دوال ميزة Machine Error Scanner بـ window
 import './errorScanner.js';
 

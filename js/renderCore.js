@@ -13,9 +13,38 @@ import { initStatsView } from './statistics.js';
 
 export let currentPage = 'login';
 
-export let currentLang = 'ar';
+// اللغة الحالية - كانت موجودة كقيمة ثابتة "ar" فقط بدون أي طريقة
+// فعلية لتغييرها (كل الصفحات بتقرأ window.currentLang لكن محدش
+// كان بيغيّرها) - دلوقتي بتتحفظ في localStorage عشان تفضل بعد
+// تحديث الصفحة، وبتتقرأ منه عند الإقلاع
+export let currentLang = localStorage.getItem('lang') || 'ar';
 
 window.currentLang = currentLang;
+
+document.documentElement.setAttribute('lang', currentLang);
+document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+
+/**
+ * تبديل اللغة (عربي/إنجليزي) - بتحدّث dir/lang على <html>، تحفظ
+ * الاختيار، وتعيد رسم الصفحة الحالية بالكامل (كل صفحة أصلاً بتقرأ
+ * window.currentLang في كل استدعاء، فمفيش داعي لأي تعديل تاني)
+ */
+window.toggleLanguage = function () {
+
+  currentLang = currentLang === 'ar' ? 'en' : 'ar';
+  window.currentLang = currentLang;
+  localStorage.setItem('lang', currentLang);
+
+  document.documentElement.setAttribute('lang', currentLang);
+  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+
+  if (typeof window.refreshLanguageToggleLabel === 'function') {
+    window.refreshLanguageToggleLabel();
+  }
+
+  render();
+
+};
 
 // ============================================================
 // RENDER
