@@ -182,6 +182,25 @@ if (currentPage === "pm") {
 
 
 // ========================================================  
+// REPORTS FILTERS AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "reports") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadReportsFilters === "function") {  
+
+      window.loadReportsFilters();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
 // TICKET DETAILS AUTO LOAD  
 // ========================================================  
 
