@@ -43,9 +43,14 @@ export {
   fetchTicketsForTechnicianApi,
   fetchResolvedTicketsApi,
   assignTicketApi,
+  startTicketApi,
   resolveTicketApi,
   closeTicketApi,
-  reopenTicketApi
+  reopenTicketApi,
+  fetchTicketLogsApi,
+  fetchTicketByIdApi,
+  fetchMyNotificationsApi,
+  markNotificationReadApi
 } from "./ticketsApi.js";
 
 export { fetchDashboardDataApi } from "./dashboardApi.js";

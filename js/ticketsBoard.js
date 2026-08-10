@@ -8,6 +8,7 @@
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { openActionModal } from './components/ActionModal.js';
+import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 import {
   fetchPendingTicketsApi,
@@ -15,25 +16,30 @@ import {
   fetchResolvedTicketsApi,
   fetchTechniciansApi,
   assignTicketApi,
+  startTicketApi,
   resolveTicketApi,
   closeTicketApi,
-  reopenTicketApi
+  reopenTicketApi,
+  fetchMyNotificationsApi,
+  markNotificationReadApi
 } from './services/api.js';
 
 const STATUS_LABELS = {
-  pending: "بانتظار التصنيف",
-  assigned: "مُسندة",
-  resolved: "بانتظار الفحص",
+  pending: "جديد",
+  assigned: "تم الإسناد",
+  in_progress: "قيد التنفيذ",
+  resolved: "بانتظار تأكيد المُبلغ",
   closed: "مغلقة",
-  reopened: "أُعيد فتحها"
+  reopened: "قيد التنفيذ" // توافق مع أي بيانات قديمة قبل التحديث
 };
 
 const STATUS_CLASSES = {
   pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
   assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
   resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
   closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-red-500/10 text-red-400 border border-red-500/20"
+  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
 };
 
 function ticketCardHtml(ticket) {
@@ -120,6 +126,9 @@ window.loadTicketsBoard = async function () {
   const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
 
+  // تحميل عدد الإشعارات غير المقروءة (لا يوقف عرض التذاكر لو فشل)
+  loadNotificationsBadge();
+
   try {
 
     let result;
@@ -178,6 +187,11 @@ window.handleTicketAction = async function (ticketId, action) {
 
   let result;
 
+  if (action === "details") {
+    openTicketDetailsModal(ticketId);
+    return;
+  }
+
   if (action === "assign") {
 
     const techResult = await fetchTechniciansApi();
@@ -218,19 +232,24 @@ window.handleTicketAction = async function (ticketId, action) {
 
     result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
 
+  } else if (action === "start") {
+
+    result = await startTicketApi(ticketId);
+
   } else if (action === "resolve") {
 
     const values = await openActionModal({
       title: "✅ تسجيل إتمام الإصلاح",
       submitLabel: "تم الإصلاح",
       fields: [
-        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم..." }
+        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم...", required: true },
+        { id: "afterImages", label: "صور بعد الإصلاح", type: "images", required: true }
       ]
     });
 
     if (!values || !values.mechanicNotes) return;
 
-    result = await resolveTicketApi(ticketId, values.mechanicNotes);
+    result = await resolveTicketApi(ticketId, values.mechanicNotes, values.afterImages);
 
   } else if (action === "confirm") {
 
@@ -242,7 +261,7 @@ window.handleTicketAction = async function (ticketId, action) {
       title: "❌ رفض الإصلاح",
       submitLabel: "رفض وإعادة فتح",
       fields: [
-        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب..." }
+        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب...", required: true }
       ]
     });
 
@@ -258,6 +277,86 @@ window.handleTicketAction = async function (ticketId, action) {
     window.loadTicketsBoard();
   } else {
     alert("❌ " + (result?.message || "حدث خطأ أثناء تنفيذ الإجراء"));
+  }
+
+};
+
+
+// ============================================================
+// إشعارات داخل التطبيق (In-App Notifications) - زر جرس + قائمة
+// منسدلة بسيطة، بتُحمّل مع كل فتح لصفحة التذاكر
+// ============================================================
+
+const NOTIFICATION_ICONS = {
+  assigned: "🛠️",
+  resolved: "✅",
+  closed: "✔️",
+  rejected: "❌"
+};
+
+async function loadNotificationsBadge() {
+
+  const badge = document.getElementById("notifBadge");
+  const myUid = localStorage.getItem("userId") || "";
+  if (!badge || !myUid) return;
+
+  const result = await fetchMyNotificationsApi(myUid);
+  if (result.status !== "success") return;
+
+  const unread = result.data.filter(n => !n.read).length;
+
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+
+}
+
+/**
+ * فتح/تحديث قائمة الإشعارات المنسدلة (زر الجرس في رأس صفحة التذاكر)
+ */
+window.toggleNotificationsPanel = async function () {
+
+  const panel = document.getElementById("notifPanel");
+  if (!panel) return;
+
+  const isHidden = panel.classList.contains("hidden");
+
+  if (!isHidden) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
+
+  const myUid = localStorage.getItem("userId") || "";
+  const result = await fetchMyNotificationsApi(myUid);
+
+  if (result.status !== "success" || !result.data.length) {
+    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+    return;
+  }
+
+  panel.innerHTML = result.data.map(n => `
+    <div onclick="window.handleNotificationClick('${n.id}', '${n.ticketId}')"
+      class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
+      <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${n.message}</div>
+    </div>
+  `).join("");
+
+};
+
+window.handleNotificationClick = async function (notificationId, ticketId) {
+
+  await markNotificationReadApi(notificationId);
+  document.getElementById("notifPanel")?.classList.add("hidden");
+  loadNotificationsBadge();
+
+  if (ticketId) {
+    openTicketDetailsModal(ticketId);
   }
 
 };
