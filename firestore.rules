@@ -78,30 +78,35 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // tickets - دورة حياة التذكرة
-    // pending -> assigned -> resolved -> closed
-    //                     resolved -> reopened -> resolved ...
+    // tickets - دورة حياة التذكرة (5 مراحل)
+    // جديد (pending) -> تم الإسناد (assigned) -> قيد التنفيذ (in_progress)
+    // -> بانتظار التأكيد (pending_confirmation/resolved) -> مغلق (closed)
     // ==========================================================
     match /tickets/{ticketId} {
 
       allow read: if isActive();
 
       allow create: if isActive()
-                    && request.resource.data.status == "pending"
+                    && request.resource.data.status in ["pending", "جديد"]
                     && request.resource.data.reportedByUid == request.auth.uid;
 
       allow update: if isActive() && myRole() in ["manager", "admin"]
-                    && resource.data.status == "pending"
-                    && request.resource.data.status == "assigned";
+                    && resource.data.status in ["pending", "جديد"]
+                    && request.resource.data.status in ["assigned", "تم الإسناد"];
 
       allow update: if isActive()
-                    && resource.data.status in ["assigned", "reopened"]
-                    && request.resource.data.status == "resolved"
+                    && resource.data.status in ["assigned", "تم الإسناد"]
+                    && request.resource.data.status in ["in_progress", "قيد التنفيذ"]
                     && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
 
       allow update: if isActive()
-                    && resource.data.status == "resolved"
-                    && request.resource.data.status in ["closed", "reopened"]
+                    && resource.data.status in ["assigned", "in_progress", "reopened", "تم الإسناد", "قيد التنفيذ"]
+                    && request.resource.data.status in ["resolved", "pending_confirmation", "بانتظار تأكيد المُبلغ"]
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      allow update: if isActive()
+                    && resource.data.status in ["resolved", "pending_confirmation", "بانتظار تأكيد المُبلغ"]
+                    && request.resource.data.status in ["closed", "in_progress", "reopened", "قيد التنفيذ", "مغلق"]
                     && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
     }
 
