@@ -14,6 +14,7 @@ import {
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
   fetchResolvedTicketsApi,
+  fetchTicketsApi,
   fetchTechniciansApi,
   assignTicketApi,
   startTicketApi,
@@ -133,7 +134,11 @@ window.loadTicketsBoard = async function () {
 
     let result;
 
-    if (role === "manager" || role === "admin") {
+    if (role === "admin") {
+      // الأدمن بيشوف كل التذاكر بكل حالاتها (صورة كاملة على النظام)
+      result = await fetchTicketsApi();
+
+    } else if (role === "manager") {
       result = await fetchPendingTicketsApi();
 
     } else if (role === "technician" || role === "engineer") {
