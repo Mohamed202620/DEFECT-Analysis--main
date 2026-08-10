@@ -8,7 +8,7 @@ import {
   fetchMyNotificationsApi,
   markNotificationReadApi,
   subscribeToUnreadCount
-} from './services/api.js';
+} from '../services/api.js';
 
 let unsubscribeFn = null;
 
