@@ -163,6 +163,25 @@ if (currentPage === "tickets") {
 
 
 // ========================================================  
+// PM HISTORY AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "pm") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadPmHistory === "function") {  
+
+      window.loadPmHistory();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
 // TICKET DETAILS AUTO LOAD  
 // ========================================================  
 

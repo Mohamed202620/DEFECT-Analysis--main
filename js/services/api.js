@@ -71,6 +71,6 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi } from "./pmApi.js";
+export { savePmApi, fetchPmRecordsApi } from "./pmApi.js";
 
 export { saveSuggestionApi } from "./suggestionsApi.js";
