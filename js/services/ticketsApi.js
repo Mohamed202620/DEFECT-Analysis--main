@@ -27,6 +27,7 @@ import {
   query,
   where,
   orderBy
+  ,onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -392,6 +393,46 @@ export async function updateTicketStatusApi(ticketId, status, notes = "") {
     console.error("Error updating ticket:", error);
     return { status: "error", message: error.message };
 
+  }
+
+}
+
+
+/**
+ * Real-time listener: جلب التذاكر المخصّصة للمستخدم الحالي (غير المغلقة)
+ * onUpdate: callback يُستدعى عند كل تحديث => onUpdate({ status, data })
+ * Returns: unsubscribe function
+ */
+export function getMyTickets(onUpdate) {
+
+  const myUid = currentUser().uid;
+
+  try {
+
+    const q = query(
+      collection(db, "tickets"),
+      where("assignedToUid", "==", myUid),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const tickets = [];
+      querySnapshot.forEach(docSnap => {
+        const data = { id: docSnap.id, ...docSnap.data() };
+        if (data.status !== "closed") tickets.push(data);
+      });
+      onUpdate && onUpdate({ status: "success", data: tickets });
+    }, (error) => {
+      console.error("getMyTickets onSnapshot error:", error);
+      onUpdate && onUpdate({ status: "error", message: error.message });
+    });
+
+    return unsubscribe;
+
+  } catch (error) {
+    console.error("Error setting up my tickets listener:", error);
+    onUpdate && onUpdate({ status: "error", message: error.message });
+    return () => {};
   }
 
 }
