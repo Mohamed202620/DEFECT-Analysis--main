@@ -16,6 +16,8 @@ import {
   createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+
 import {
   collection,
   getDocs,
@@ -264,6 +266,14 @@ export async function registerUserApi(userData) {
         status: "error",
         message: "تم إنشاء حساب الدخول لكن حدث خطأ أثناء حفظ بياناتك، يرجى التواصل مع المسؤول."
       };
+    }
+
+    // بعد إنشاء حساب Auth ومستند المستخدم، نسجل خروج المستخدم من الجلسة
+    // لأن الحساب ما زال في حالة pending ولا يجب أن يبقى مسجلاً دخوله.
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn('Warning: failed to signOut after registration:', err?.message || err);
     }
 
 

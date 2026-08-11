@@ -6,6 +6,8 @@ import {
   createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 
+import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+
 import {
   collection,
   query,
@@ -201,6 +203,7 @@ export async function login(phone, pass) {
   }
 
   if (userData.status === "pending") {
+    await signOut(auth);
     return {
       status: "error",
       message: "تم إرسال طلبك وهو بانتظار موافقة المسؤول."
@@ -208,6 +211,7 @@ export async function login(phone, pass) {
   }
 
   if (userData.status === "rejected") {
+    await signOut(auth);
     return {
       status: "error",
       message: "تم رفض طلب الانضمام، يرجى التواصل مع المسؤول."
@@ -215,6 +219,7 @@ export async function login(phone, pass) {
   }
 
   if (userData.status !== "active") {
+    await signOut(auth);
     return {
       status: "error",
       message: "الحساب غير مفعل."
