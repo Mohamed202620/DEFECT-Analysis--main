@@ -1,4 +1,8 @@
-export const ErrorScannerView = () => `
+export const ErrorScannerView = () => {
+  const selectedMachineType = localStorage.getItem('selectedMachineType') || '';
+  window.selectedMachineType = selectedMachineType;
+
+  return `
 <div class="p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
 
   <!-- زر الرجوع -->
@@ -19,6 +23,23 @@ export const ErrorScannerView = () => `
     <p class="text-[11px] text-gray-400">
       صوّر الخطأ الظاهر على شاشة الماكينة، وسيتم قراءته والبحث عنه تلقائياً في قاعدة المعرفة.
     </p>
+
+    <!-- اختيار نوع الماكينة: يتم حفظه محلياً للاستخدام لاحقاً -->
+    <div>
+      <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
+        <span class="text-[10px] text-gray-400">🔒</span>
+        <span>نوع الماكينة</span>
+      </label>
+      <select id="machineTypeSelect"
+        onchange="const value = this.value; localStorage.setItem('selectedMachineType', value); window.selectedMachineType = value;"
+        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm appearance-none">
+        <option value="" ${selectedMachineType === '' ? 'selected' : ''}>اختر نوع الماكينة</option>
+        <option value="Belvac Necker" ${selectedMachineType === 'Belvac Necker' ? 'selected' : ''}>Belvac Necker</option>
+        <option value="Palletizer" ${selectedMachineType === 'Palletizer' ? 'selected' : ''}>Palletizer</option>
+        <option value="Labeler" ${selectedMachineType === 'Labeler' ? 'selected' : ''}>Labeler</option>
+        <option value="Case Packer" ${selectedMachineType === 'Case Packer' ? 'selected' : ''}>Case Packer</option>
+      </select>
+    </div>
 
     <!-- التقاط الصورة -->
     <div class="grid grid-cols-2 gap-3">
@@ -75,3 +96,4 @@ export const ErrorScannerView = () => `
   </div>
 </div>
 `;
+};
