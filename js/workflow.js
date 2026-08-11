@@ -1,4 +1,4 @@
-import { saveDefectApi, fetchTicketsForDashboardApi } from './services/api.js';
+import { saveDefectApi, fetchTicketsApi } from './services/api.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -283,8 +283,12 @@ window.confirmIssue = async function() {
   try {
     const { saveIssueApi } = await import('./services/api.js');
     const res = await saveIssueApi(payload);
-    if (res && res.status === 'success') {
-      alert("✅ تم حفظ وإرسال البلاغ بنجاح");
+    if (res && (res.status === 'success' || res.status === 'queued')) {
+      alert(
+        res.status === 'queued'
+          ? "📴 لا يوجد اتصال حالياً - تم حفظ البلاغ محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت"
+          : "✅ تم حفظ وإرسال البلاغ بنجاح"
+      );
       
       // ✅ 3. إعادة ضبط حقول البلاغ بعد الحفظ قبل العودة للرئيسية
       selectedIssueImage = null;
@@ -389,7 +393,7 @@ window.initMainChart = initMainChart;
 
 export async function loadDashboardStats() {
 
-  const result = await fetchTicketsForDashboardApi();
+  const result = await fetchTicketsApi();
 
   if (!result || result.status !== 'success') return;
 

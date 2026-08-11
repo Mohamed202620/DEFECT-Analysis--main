@@ -13,38 +13,9 @@ import { initStatsView } from './statistics.js';
 
 export let currentPage = 'login';
 
-// اللغة الحالية - كانت موجودة كقيمة ثابتة "ar" فقط بدون أي طريقة
-// فعلية لتغييرها (كل الصفحات بتقرأ window.currentLang لكن محدش
-// كان بيغيّرها) - دلوقتي بتتحفظ في localStorage عشان تفضل بعد
-// تحديث الصفحة، وبتتقرأ منه عند الإقلاع
-export let currentLang = localStorage.getItem('lang') || 'ar';
+export let currentLang = 'ar';
 
 window.currentLang = currentLang;
-
-document.documentElement.setAttribute('lang', currentLang);
-document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
-
-/**
- * تبديل اللغة (عربي/إنجليزي) - بتحدّث dir/lang على <html>، تحفظ
- * الاختيار، وتعيد رسم الصفحة الحالية بالكامل (كل صفحة أصلاً بتقرأ
- * window.currentLang في كل استدعاء، فمفيش داعي لأي تعديل تاني)
- */
-window.toggleLanguage = function () {
-
-  currentLang = currentLang === 'ar' ? 'en' : 'ar';
-  window.currentLang = currentLang;
-  localStorage.setItem('lang', currentLang);
-
-  document.documentElement.setAttribute('lang', currentLang);
-  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
-
-  if (typeof window.refreshLanguageToggleLabel === 'function') {
-    window.refreshLanguageToggleLabel();
-  }
-
-  render();
-
-};
 
 // ============================================================
 // RENDER
@@ -172,82 +143,6 @@ if (
 
 }
 
-// ========================================================  
-// TICKETS BOARD AUTO LOAD  
-// ========================================================  
-
-if (currentPage === "tickets") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadTicketsBoard === "function") {  
-
-      window.loadTicketsBoard();  
-
-    }  
-
-  }, 100);  
-
-}  
-
-
-// ========================================================  
-// PM HISTORY AUTO LOAD  
-// ========================================================  
-
-if (currentPage === "pm") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadPmHistory === "function") {  
-
-      window.loadPmHistory();  
-
-    }  
-
-  }, 100);  
-
-}  
-
-
-// ========================================================  
-// REPORTS FILTERS AUTO LOAD  
-// ========================================================  
-
-if (currentPage === "reports") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadReportsFilters === "function") {  
-
-      window.loadReportsFilters();  
-
-    }  
-
-  }, 100);  
-
-}  
-
-
-// ========================================================  
-// TICKET DETAILS AUTO LOAD  
-// ========================================================  
-
-if (currentPage === "ticketDetails") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadTicketDetails === "function") {  
-
-      window.loadTicketDetails();  
-
-    }  
-
-  }, 100);  
-
-}  
-
-
 }, 150);
 
 }
@@ -333,13 +228,6 @@ if (!isLoggedIn) {
 }  
 
 render();
-
-// تفعيل جرس الإشعارات لو فيه جلسة دخول محفوظة بالفعل (تحديث
-// الصفحة/فتحها من جديد بدون تسجيل خروج) - راجع authHandlers.js
-// لتفعيله بعد نجاح تسجيل الدخول مباشرة
-if (isLoggedIn && typeof window.initNotificationBell === "function") {
-  window.initNotificationBell();
-}
 
 }
 );

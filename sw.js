@@ -1,5 +1,5 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v1.2'; 
+const CACHE_NAME = 'maint-system-v1.3'; 
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -41,8 +41,13 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
 
-  // تجاوز طلبات الـ API إذا كانت موجودة (حتى لا يتم تخزين البيانات المتغيرة باستمرار)
-  // if (req.url.includes('/api/')) { return; }
+  // نكيّش طلبات GET بس (ملفات الواجهة: HTML/JS/CSS/الصور).
+  // طلبات الكتابة (POST/PUT..) بتاعة Firestore/ImgBB مالهاش لازمة
+  // في الكاش أصلاً، وCache API مش بيدعمها أساساً (كانت بتطلع
+  // خطأ "Request method 'POST' is unsupported" في الكونسول).
+  if (req.method !== 'GET') {
+    return; // سيب الطلب يمشي للشبكة عادي من غير أي تدخل من الـ SW
+  }
 
   e.respondWith(
     caches.match(req).then((cachedRes) => {

@@ -38,26 +38,21 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
-  fetchTicketsForDashboardApi,
-  fetchTicketByIdApi,
-  fetchTicketLogsApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
-  fetchAwaitingConfirmationTicketsApi,
+  fetchResolvedTicketsApi,
   assignTicketApi,
   startTicketApi,
-  completeTicketApi,
-  confirmTicketApi,
-  rejectTicketApi
-} from "./ticketsApi.js";
-
-export {
-  createNotificationApi,
+  resolveTicketApi,
+  closeTicketApi,
+  reopenTicketApi,
+  fetchTicketLogsApi,
+  fetchTicketByIdApi,
   fetchMyNotificationsApi,
   markNotificationReadApi,
-  subscribeToUnreadCount
-} from "./notificationsApi.js";
+  syncOfflineTicketsApi
+} from "./ticketsApi.js";
 
 export { fetchDashboardDataApi } from "./dashboardApi.js";
 
@@ -71,6 +66,6 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi, fetchPmRecordsApi } from "./pmApi.js";
+export { savePmApi } from "./pmApi.js";
 
 export { saveSuggestionApi } from "./suggestionsApi.js";

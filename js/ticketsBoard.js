@@ -1,54 +1,47 @@
 // ============================================================
 // ticketsBoard.js
 // لوحة متابعة دورة حياة التذكرة - تُعرض حسب دور المستخدم الحالي:
-//   - manager/admin       -> تذاكر pending (تصنيف وإسناد) + فلاتر
-//   - technician/engineer -> تذاكره (assigned/in_progress)
-//   - operator            -> تذاكره (awaiting_confirmation)
-// كل بطاقة فيها رابط لصفحة التفاصيل (Timeline كامل).
+//   - manager/admin  -> تذاكر pending (تصنيف وإسناد)
+//   - technician/engineer -> تذاكر assigned/reopened المُسندة له
+//   - operator        -> تذاكر resolved (فحص وإغلاق/رفض)
 // ============================================================
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { openActionModal } from './components/ActionModal.js';
+import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 import {
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
-  fetchAwaitingConfirmationTicketsApi,
+  fetchResolvedTicketsApi,
+  fetchTicketsApi,
   fetchTechniciansApi,
   assignTicketApi,
   startTicketApi,
-  completeTicketApi,
-  confirmTicketApi,
-  rejectTicketApi
+  resolveTicketApi,
+  closeTicketApi,
+  reopenTicketApi,
+  fetchMyNotificationsApi,
+  markNotificationReadApi
 } from './services/api.js';
 
-export const STATUS_LABELS = {
+const STATUS_LABELS = {
   pending: "جديد",
   assigned: "تم الإسناد",
   in_progress: "قيد التنفيذ",
-  awaiting_confirmation: "بانتظار تأكيد المُبلغ",
-  closed: "مغلق"
+  resolved: "بانتظار تأكيد المُبلغ",
+  closed: "مغلقة",
+  reopened: "قيد التنفيذ" // توافق مع أي بيانات قديمة قبل التحديث
 };
 
 const STATUS_CLASSES = {
   pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
   assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
   in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  awaiting_confirmation: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20"
+  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
+  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
 };
-
-// كاش بسيط لقائمة الفنيين (لملء فلتر "الفني" ونافذة الإسناد) - بيتحمل
-// مرة واحدة لكل زيارة للصفحة، مش بيتكرر مع كل تحديث للقائمة
-let techniciansCache = null;
-let lastLoadedTickets = [];
-
-async function getTechnicians() {
-  if (techniciansCache) return techniciansCache;
-  const result = await fetchTechniciansApi();
-  techniciansCache = result.status === "success" ? result.data : [];
-  return techniciansCache;
-}
 
 function ticketCardHtml(ticket) {
 
@@ -56,7 +49,7 @@ function ticketCardHtml(ticket) {
 
   const actionsHtml = actions.map(a => `
     <button
-      onclick="event.stopPropagation(); window.handleTicketAction('${ticket.id}', '${a.key}')"
+      onclick="window.handleTicketAction('${ticket.id}', '${a.key}')"
       class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
       ${a.label}
     </button>
@@ -66,9 +59,7 @@ function ticketCardHtml(ticket) {
   const machineName = ticket.machine || ticket.machineName || "-";
 
   return `
-    <div
-      onclick="window.openTicketDetails('${ticket.id}')"
-      class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3 cursor-pointer hover:border-blue-500/40 transition-all">
+    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3">
       <div class="flex justify-between items-center">
         <span class="font-bold text-sm text-gray-100">${machineName}</span>
         <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
@@ -84,49 +75,33 @@ function ticketCardHtml(ticket) {
         ${ticket.type ? `<span>🏷️ ${ticket.type}</span>` : ""}
       </div>
 
+      ${ticket.mechanicNotes ? `
+        <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
+          🔧 ملاحظات الفني: ${ticket.mechanicNotes}
+        </div>
+      ` : ""}
+
+      ${ticket.operatorFeedback ? `
+        <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
+          ⚠️ ملاحظات المُبلّغ: ${ticket.operatorFeedback}
+        </div>
+      ` : ""}
+
       ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-1">${actionsHtml}</div>` : ""}
     </div>
   `;
 
 }
 
-function filtersHtml(tickets, role) {
+function renderTicketsList(containerId, tickets, emptyMessage) {
 
-  if (role !== "manager" && role !== "admin") return "";
-
-  const statuses = [...new Set(tickets.map(t => t.status))];
-  const technicianNames = [...new Set(tickets.map(t => t.assignedTo).filter(Boolean))];
-
-  return `
-    <div class="flex gap-2 mb-3">
-      <select id="ticketsFilterStatus" onchange="window.applyTicketsFilter()"
-        class="flex-1 bg-[#0F172A] border border-gray-700 rounded-lg p-2 text-[11px] text-white">
-        <option value="">كل الحالات</option>
-        ${statuses.map(s => `<option value="${s}">${STATUS_LABELS[s] || s}</option>`).join("")}
-      </select>
-      <select id="ticketsFilterTechnician" onchange="window.applyTicketsFilter()"
-        class="flex-1 bg-[#0F172A] border border-gray-700 rounded-lg p-2 text-[11px] text-white">
-        <option value="">كل الفنيين</option>
-        ${technicianNames.map(n => `<option value="${n}">${n}</option>`).join("")}
-      </select>
-    </div>
-  `;
-
-}
-
-function renderTicketsList(tickets, emptyMessage) {
-
-  const container = document.getElementById("ticketsBoardContainer");
+  const container = document.getElementById(containerId);
   if (!container) return;
 
-  const role = getCurrentRole();
-  const filtersBlock = document.getElementById("ticketsFiltersContainer");
-  if (filtersBlock) {
-    filtersBlock.innerHTML = filtersHtml(tickets, role);
-  }
-
   if (!tickets.length) {
-    container.innerHTML = `<div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>`;
+    container.innerHTML = `
+      <div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>
+    `;
     return;
   }
 
@@ -135,93 +110,78 @@ function renderTicketsList(tickets, emptyMessage) {
 }
 
 /**
- * إعادة تطبيق الفلاتر الحالية (status/technician) على آخر قائمة
- * تم تحميلها - بدون طلب جديد من Firestore
- */
-window.applyTicketsFilter = function () {
-
-  const statusFilter = document.getElementById("ticketsFilterStatus")?.value || "";
-  const techFilter = document.getElementById("ticketsFilterTechnician")?.value || "";
-
-  let filtered = lastLoadedTickets;
-
-  if (statusFilter) {
-    filtered = filtered.filter(t => t.status === statusFilter);
-  }
-  if (techFilter) {
-    filtered = filtered.filter(t => t.assignedTo === techFilter);
-  }
-
-  const container = document.getElementById("ticketsBoardContainer");
-  if (!container) return;
-
-  container.innerHTML = filtered.length
-    ? filtered.map(ticketCardHtml).join("")
-    : `<div class="text-center text-gray-500 text-xs py-8">لا توجد نتائج مطابقة للفلترة.</div>`;
-
-};
-
-/**
  * تحميل لوحة التذاكر حسب دور المستخدم الحالي - مُستدعاة من
- * pageRenderer.js عند فتح صفحة 'tickets'
+ * pageRenderer.js عند فتح صفحة 'tickets' (زي نمط loadUsers()
+ * الحالي بالظبط: containerId ثابت + دالة تحميل مرتبطة بـ window)
  */
 window.loadTicketsBoard = async function () {
 
   const container = document.getElementById("ticketsBoardContainer");
   if (!container) return;
 
-  container.innerHTML = `<div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>`;
+  container.innerHTML = `
+    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>
+  `;
 
   const role = getCurrentRole();
+  const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
+
+  // تحميل عدد الإشعارات غير المقروءة (لا يوقف عرض التذاكر لو فشل)
+  loadNotificationsBadge();
 
   try {
 
     let result;
 
-    if (role === "manager" || role === "admin") {
-      // الأدمن/المدير: شاشة إسناد شاملة (pending) + إمكانية متابعة
-      // كل التذاكر النشطة عبر الفلاتر
-      const [pendingRes, activeRes, awaitingRes] = await Promise.all([
-        fetchPendingTicketsApi(),
-        fetchTicketsForTechnicianApi(myUid, { allTickets: true }),
-        fetchAwaitingConfirmationTicketsApi(myUid, { allTickets: true })
-      ]);
+    if (role === "admin") {
+      // الأدمن بيشوف كل التذاكر بكل حالاتها (صورة كاملة على النظام)
+      result = await fetchTicketsApi();
 
-      const merged = [
-        ...(pendingRes.status === "success" ? pendingRes.data : []),
-        ...(activeRes.status === "success" ? activeRes.data : []),
-        ...(awaitingRes.status === "success" ? awaitingRes.data : [])
-      ];
-
-      result = { status: "success", data: merged };
+    } else if (role === "manager") {
+      result = await fetchPendingTicketsApi();
 
     } else if (role === "technician" || role === "engineer") {
-      result = await fetchTicketsForTechnicianApi(myUid);
+      result = await fetchTicketsForTechnicianApi(myName);
 
     } else if (role === "operator") {
-      result = await fetchAwaitingConfirmationTicketsApi(myUid);
+      result = await fetchResolvedTicketsApi();
 
     } else {
-      lastLoadedTickets = [];
-      renderTicketsList([], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
+      renderTicketsList("ticketsBoardContainer", [], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
       return;
     }
 
     if (!result || result.status !== "success") {
+      // ملحوظة: مبنعرضش result.message هنا عمداً - ممكن تكون رسالة
+      // خطأ خام من Firebase (زي رابط إنشاء Index) مش مناسبة لعرضها
+      // للمستخدم العادي. التفاصيل الحقيقية اتسجلت بالفعل في
+      // Console عبر console.error() جوه دالة الـ API نفسها.
+      console.error("Ticket fetch error:", result?.message);
       container.innerHTML = `
-        <div class="text-red-400 text-center text-xs py-6">خطأ: ${result?.message || "فشل تحميل التذاكر"}</div>
+        <div class="text-red-400 text-center text-xs py-6">
+          تعذر تحميل التذاكر حالياً. حاول تحديث الصفحة، ولو استمرت المشكلة تواصل مع الأدمن.
+        </div>
       `;
       return;
     }
 
-    lastLoadedTickets = Array.isArray(result.data) ? result.data : [];
-    renderTicketsList(lastLoadedTickets, "لا توجد تذاكر حالياً في قائمتك.");
+    let tickets = Array.isArray(result.data) ? result.data : [];
+
+    // المُبلّغ (operator) يشوف بس التذاكر اللي هو بلّغ عنها -
+    // فلترة على مستوى العميل (راجع ملاحظة fetchResolvedTicketsApi)
+    if (role === "operator") {
+      tickets = tickets.filter(t => t.reportedByUid === myUid || t.reportedBy === myName);
+    }
+
+    renderTicketsList("ticketsBoardContainer", tickets, "لا توجد تذاكر حالياً في قائمتك.");
 
   } catch (error) {
 
     console.error("Error loading tickets board:", error);
-    container.innerHTML = `<div class="text-red-400 text-center text-xs py-6">حدث خطأ أثناء تحميل التذاكر.</div>`;
+    container.innerHTML = `
+      <div class="text-red-400 text-center text-xs py-6">حدث خطأ أثناء تحميل التذاكر.</div>
+    `;
 
   }
 
@@ -229,16 +189,23 @@ window.loadTicketsBoard = async function () {
 
 
 /**
- * تنفيذ إجراء على تذكرة - بيفتح نافذة صغيرة (ActionModal) لجمع
- * البيانات المطلوبة لكل إجراء ثم يستدعي دالة الـ API المناسبة.
+ * تنفيذ إجراء على تذكرة (تصنيف/إسناد، حل، تأكيد، رفض) - بيفتح
+ * نافذة صغيرة (ActionModal) لجمع البيانات المطلوبة لكل إجراء
+ * ثم يستدعي دالة الـ API المناسبة من ticketsApi.js
  */
 window.handleTicketAction = async function (ticketId, action) {
 
   let result;
 
+  if (action === "details") {
+    openTicketDetailsModal(ticketId);
+    return;
+  }
+
   if (action === "assign") {
 
-    const technicians = await getTechnicians();
+    const techResult = await fetchTechniciansApi();
+    const technicians = techResult.status === "success" ? techResult.data : [];
 
     if (!technicians.length) {
       alert("⚠️ لا يوجد فنيون/مهندسون نشطون حالياً لإسناد التذكرة لهم.");
@@ -279,38 +246,38 @@ window.handleTicketAction = async function (ticketId, action) {
 
     result = await startTicketApi(ticketId);
 
-  } else if (action === "complete") {
+  } else if (action === "resolve") {
 
     const values = await openActionModal({
       title: "✅ تسجيل إتمام الإصلاح",
       submitLabel: "تم الإصلاح",
       fields: [
-        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم..." },
-        { id: "images", label: "صور الإصلاح (1 إلى 3 صور)", type: "file" }
+        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم...", required: true },
+        { id: "afterImages", label: "صور بعد الإصلاح", type: "images", required: true }
       ]
     });
 
     if (!values || !values.mechanicNotes) return;
 
-    result = await completeTicketApi(ticketId, values.mechanicNotes, values.images);
+    result = await resolveTicketApi(ticketId, values.mechanicNotes, values.afterImages);
 
   } else if (action === "confirm") {
 
-    result = await confirmTicketApi(ticketId);
+    result = await closeTicketApi(ticketId);
 
   } else if (action === "reject") {
 
     const values = await openActionModal({
-      title: "❌ الإصلاح لم يتم",
-      submitLabel: "رفض وإعادة للفني",
+      title: "❌ رفض الإصلاح",
+      submitLabel: "رفض وإعادة فتح",
       fields: [
-        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب..." }
+        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب...", required: true }
       ]
     });
 
     if (!values || !values.operatorFeedback) return;
 
-    result = await rejectTicketApi(ticketId, values.operatorFeedback);
+    result = await reopenTicketApi(ticketId, values.operatorFeedback);
 
   } else {
     return;
@@ -319,7 +286,98 @@ window.handleTicketAction = async function (ticketId, action) {
   if (result?.status === "success") {
     window.loadTicketsBoard();
   } else {
-    alert("❌ " + (result?.message || "حدث خطأ أثناء تنفيذ الإجراء"));
+    // نفس مبدأ حماية المستخدم من رسائل الأخطاء الخام (Firebase/
+    // Firestore بتكون دايماً بالإنجليزي، ورسائل التحقق بتاعتنا
+    // بالعربي) - لو الرسالة عربي بنعرضها زي ما هي، غير كده بنعرض
+    // رسالة عامة ونسجل التفاصيل الحقيقية في الكونسول بس
+    const msg = result?.message || "";
+    const isArabicMessage = /[\u0600-\u06FF]/.test(msg);
+
+    if (!isArabicMessage) {
+      console.error("Ticket action error:", msg);
+    }
+
+    alert("❌ " + (isArabicMessage ? msg : "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى أو تواصل مع الأدمن."));
+  }
+
+};
+
+
+// ============================================================
+// إشعارات داخل التطبيق (In-App Notifications) - زر جرس + قائمة
+// منسدلة بسيطة، بتُحمّل مع كل فتح لصفحة التذاكر
+// ============================================================
+
+const NOTIFICATION_ICONS = {
+  assigned: "🛠️",
+  resolved: "✅",
+  closed: "✔️",
+  rejected: "❌"
+};
+
+async function loadNotificationsBadge() {
+
+  const badge = document.getElementById("notifBadge");
+  const myUid = localStorage.getItem("userId") || "";
+  if (!badge || !myUid) return;
+
+  const result = await fetchMyNotificationsApi(myUid);
+  if (result.status !== "success") return;
+
+  const unread = result.data.filter(n => !n.read).length;
+
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
+
+}
+
+/**
+ * فتح/تحديث قائمة الإشعارات المنسدلة (زر الجرس في رأس صفحة التذاكر)
+ */
+window.toggleNotificationsPanel = async function () {
+
+  const panel = document.getElementById("notifPanel");
+  if (!panel) return;
+
+  const isHidden = panel.classList.contains("hidden");
+
+  if (!isHidden) {
+    panel.classList.add("hidden");
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
+
+  const myUid = localStorage.getItem("userId") || "";
+  const result = await fetchMyNotificationsApi(myUid);
+
+  if (result.status !== "success" || !result.data.length) {
+    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+    return;
+  }
+
+  panel.innerHTML = result.data.map(n => `
+    <div onclick="window.handleNotificationClick('${n.id}', '${n.ticketId}')"
+      class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
+      <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${n.message}</div>
+    </div>
+  `).join("");
+
+};
+
+window.handleNotificationClick = async function (notificationId, ticketId) {
+
+  await markNotificationReadApi(notificationId);
+  document.getElementById("notifPanel")?.classList.add("hidden");
+  loadNotificationsBadge();
+
+  if (ticketId) {
+    openTicketDetailsModal(ticketId);
   }
 
 };

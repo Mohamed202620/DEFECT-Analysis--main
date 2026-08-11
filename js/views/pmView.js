@@ -38,50 +38,6 @@ export const PMFormFields = (isEn) => `
   </div>
 `;
 
-window.loadPmHistory = async function () {
-
-  const container = document.getElementById('pmHistoryContainer');
-  if (!container) return;
-
-  container.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
-
-  const { fetchPmRecordsApi } = await import('../services/api.js');
-  const result = await fetchPmRecordsApi();
-
-  if (!result || result.status !== 'success') {
-    container.innerHTML = `<div class="text-center text-red-400 text-[11px] py-4">${result?.message || 'فشل تحميل السجل'}</div>`;
-    return;
-  }
-
-  const records = result.data || [];
-
-  if (!records.length) {
-    container.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد سجلات صيانة وقائية بعد.</div>`;
-    return;
-  }
-
-  container.innerHTML = records.map(r => {
-    const checklistDone = Object.values(r.checklist || {}).filter(Boolean).length;
-    const checklistTotal = Object.keys(r.checklist || {}).length;
-    return `
-      <div class="bg-[#0E1117] border border-gray-800 rounded-xl p-3 mb-2">
-        <div class="flex justify-between items-center">
-          <span class="text-xs font-bold text-gray-100">${r.machine || '-'}</span>
-          <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-            ${checklistDone}/${checklistTotal} ✓
-          </span>
-        </div>
-        ${r.notes ? `<p class="text-[11px] text-gray-400 mt-1">${r.notes}</p>` : ''}
-        <div class="flex justify-between items-center mt-1 text-[10px] text-gray-500">
-          <span>👤 ${r.reporter?.name || '-'}</span>
-          <span>${r.createdAt ? new Date(r.createdAt).toLocaleString('ar-EG') : ''}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-};
-
 export const PMView = () => {
   const isEn = window.currentLang === 'en';
   
@@ -158,16 +114,6 @@ export const PMView = () => {
         <span>${isEn ? 'Save & Submit ✅' : 'حفظ وإرسال ✅'}</span>
       </button>
     </form>
-
-    <!-- سجل الصيانة الوقائية -->
-    <div class="mt-6">
-      <h3 class="text-xs font-bold text-blue-400 mb-2 flex items-center gap-1">
-        <span>📜</span> ${isEn ? 'PM History' : 'سجل الصيانة الوقائية'}
-      </h3>
-      <div id="pmHistoryContainer">
-        <div class="text-center text-gray-500 text-[11px] py-4">${isEn ? 'Loading...' : 'جاري التحميل...'}</div>
-      </div>
-    </div>
   </div>
   `;
 };

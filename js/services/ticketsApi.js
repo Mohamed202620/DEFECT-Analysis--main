@@ -1,21 +1,15 @@
 // ============================================================
 // ticketsApi.js
-// بلاغات الأعطال (Tickets) - دورة حياة كاملة:
-//
-//   pending (جديد) -> assigned (تم الإسناد) -> in_progress (قيد التنفيذ)
-//   -> awaiting_confirmation (بانتظار تأكيد المُبلغ) -> closed (مغلق)
-//
-//   الاستثناء الوحيد للرجوع للخلف:
-//   awaiting_confirmation -> in_progress (لو المُبلّغ رفض الإصلاح)
-//
-// كل انتقال حالة بيتسجّل تلقائياً كـ Log غير قابل للتعديل/الحذف في
-// tickets/{ticketId}/logs/{logId}، وبيبعت إشعار داخلي (notifications)
-// للطرف المعني بالخطوة الجاية.
+// بلاغات الأعطال (Tickets/Issues) - حفظ / جلب / دورة حياة التذكرة
+// الحالات: pending(جديد) -> assigned(تم الإسناد) -> in_progress(قيد التنفيذ)
+//          -> resolved(بانتظار تأكيد المُبلغ) -> closed(مغلق) [نهائية]
+//                                     resolved -> in_progress (رفض مع سبب)
 // ============================================================
 
 import { db } from "../config.js";
-import { uploadBase64Image, uploadTicketImages } from "./imageUpload.js";
-import { createNotificationApi } from "./notificationsApi.js";
+import { uploadBase64Image } from "./imageUpload.js";
+import { getCurrentRole } from "../permissions.js";
+import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket } from "./offlineQueue.js";
 
 import {
   collection,
@@ -27,39 +21,491 @@ import {
   query,
   where,
   orderBy
-  ,onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
 // ============================================================
-// Helpers
+// ISSUES / TICKETS (بلاغات الأعطال)
 // ============================================================
 
-function currentUser() {
-  return {
-    uid: localStorage.getItem("userId") || "",
-    name: localStorage.getItem("name") || "",
-    role: (localStorage.getItem("role") || "").trim().toLowerCase()
-  };
+
+/**
+ * حفظ بلاغ عطل جديد (يُستخدم من IssueView / workflow.js -> confirmIssue)
+ * يتم الحفظ في نفس مجموعة "tickets" التي تُقرأ بواسطة
+ * fetchTicketsApi و updateTicketStatusApi حفاظاً على توافق الـ Architecture الحالي
+ */
+export async function saveIssueApi(
+  payload,
+  { skipOfflineQueue = false } = {}
+) {
+
+  // Offline-First: لو مفيش إنترنت، بنحفظ البلاغ (بما فيه الصورة
+  // Base64) محلياً في IndexedDB بدل ما نحاول نتصل بـ Firestore
+  // ونفشل. skipOfflineQueue بتتفعّل بس وقت المزامنة التلقائية
+  // (syncOfflineTicketsApi) عشان منعملش لفة تخزين محلي لا نهائية.
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+
+    try {
+      const localId = await queueOfflineTicket(payload);
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - تم حفظ البلاغ محلياً وسيتم رفعه تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline ticket:", error);
+      return { status: "error", message: "تعذر حفظ البلاغ محلياً" };
+    }
+
+  }
+
+  try {
+
+    // فصل حقل الصورة Base64 عن باقي البيانات ورفعها إلى Storage
+    const {
+      image,
+      ...restPayload
+    } = payload;
+
+    const issueId =
+      payload.issueId ||
+      ("IS-" + Date.now());
+
+    const imageUrl =
+      await uploadBase64Image(
+        image,
+        issueId
+      );
+
+    const docRef =
+      await addDoc(
+        collection(db, "tickets"),
+        {
+
+          ...restPayload,
+
+          issueId,
+
+          ...(imageUrl && { imageUrl }),
+
+          // دورة حياة التذكرة تبدأ دائماً بـ pending (راجع workflow.js)
+          status:
+            payload?.status ||
+            "pending",
+
+          createdAt:
+            payload?.createdAt ||
+            new Date().toISOString()
+
+        }
+      );
+
+
+    return {
+
+      status:
+        "success",
+
+      id:
+        docRef.id
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error saving issue/ticket:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
 }
 
+
+/**
+ * Auto-Upload: بتتنادى تلقائياً من مستمع حدث 'online' (راجع
+ * offlineBanner.js) - بتسحب كل البلاغات المحفوظة محلياً في
+ * IndexedDB، وترفع كل واحدة فيها لـ Firestore (والصورة معاها عبر
+ * ImgBB زي أي بلاغ عادي)، وبعد نجاح كل رفعة بتمسحها من التخزين
+ * المحلي. لو بلاغ فشل رفعه (مثلاً النت اتقطع تاني فجأة) بيفضل
+ * محفوظ في IndexedDB عشان يتحاول تاني في المرة الجاية.
+ */
+export async function syncOfflineTicketsApi() {
+
+  const queued = await getQueuedTickets();
+
+  if (!queued.length) {
+    return { status: "success", synced: 0, total: 0 };
+  }
+
+  let synced = 0;
+
+  for (const item of queued) {
+
+    try {
+
+      const result = await saveIssueApi(item.payload, { skipOfflineQueue: true });
+
+      if (result.status === "success") {
+        await removeQueuedTicket(item.localId);
+        synced++;
+      }
+
+    } catch (error) {
+      console.error("Error syncing offline ticket:", item.localId, error);
+      // بيفضل في الطابور يتحاول تاني المرة الجاية
+    }
+
+  }
+
+  return { status: "success", synced, total: queued.length };
+
+}
+
+
+
+// TICKETS
+// ============================================================
+
+
+/**
+ * جلب كل التذاكر (تُستخدم في لوحة الإحصائيات العامة - loadDashboardStats)
+ */
+export async function fetchTicketsApi() {
+
+  try {
+
+    const ticketsRef =
+      collection(
+        db,
+        "tickets"
+      );
+
+
+    const q =
+      query(
+        ticketsRef,
+        orderBy(
+          "createdAt",
+          "desc"
+        )
+      );
+
+
+    const querySnapshot =
+      await getDocs(q);
+
+
+    const tickets = [];
+
+
+    querySnapshot.forEach(
+      docSnap => {
+
+        tickets.push({
+
+          id:
+            docSnap.id,
+
+          ...docSnap.data()
+
+        });
+
+      }
+    );
+
+
+    return {
+
+      status:
+        "success",
+
+      data:
+        tickets
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error fetching tickets:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// استعلامات لوحات المتابعة حسب الدور (Ticket Lifecycle Queries)
+// ============================================================
+//
+// ملحوظة عن الفهارس (Indexes):
+// أول مرة تستدعوا أي دالة فيها where() أكتر من واحد أو
+// where() + orderBy() على حقول مختلفة، Firestore هيرفضها ويطبع
+// في الـ Console رسالة خطأ فيها رابط مباشر لإنشاء الـ composite
+// index المطلوب تلقائياً - افتحوا الرابط واضغطوا Create، مرة واحدة
+// بس لكل استعلام، مش محتاجين تبنوه يدوي من Firebase Console.
+// ============================================================
+
+
+/**
+ * STEP 2 - لوحة مدير الصيانة: التذاكر بانتظار التصنيف والإسناد
+ */
+export async function fetchPendingTicketsApi() {
+
+  try {
+
+    const q =
+      query(
+        collection(db, "tickets"),
+        where("status", "==", "pending"),
+        orderBy("createdAt", "desc")
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const tickets = [];
+    querySnapshot.forEach(docSnap => {
+      tickets.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data: tickets };
+
+  } catch (error) {
+
+    const fallback = emptyResultOnMissingIndex(error, "fetchPendingTicketsApi");
+    if (fallback) return fallback;
+
+    console.error("Error fetching pending tickets:", error);
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+/**
+ * STEP 3 - لوحة الفني: التذاكر المُسندة له (تم إسنادها أو قيد التنفيذ)
+ */
+export async function fetchTicketsForTechnicianApi(technicianName) {
+
+  try {
+
+    const q =
+      query(
+        collection(db, "tickets"),
+        where("assignedTo", "==", technicianName),
+        where("status", "in", ["assigned", "in_progress"]),
+        orderBy("createdAt", "desc")
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const tickets = [];
+    querySnapshot.forEach(docSnap => {
+      tickets.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data: tickets };
+
+  } catch (error) {
+
+    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForTechnicianApi");
+    if (fallback) return fallback;
+
+    console.error("Error fetching technician tickets:", error);
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+/**
+ * STEP 4 - لوحة المُبلّغ (Operator): التذاكر بانتظار الفحص والإغلاق
+ * جلب عام لكل التذاكر resolved - الفلترة على المُبلّغ الحالي
+ * (reportedByUid) بتتم في واجهة العرض (ticketsBoard.js) عشان
+ * نتفادى الحاجة لـ composite index إضافي (status + reportedByUid).
+ */
+export async function fetchResolvedTicketsApi() {
+
+  try {
+
+    const q =
+      query(
+        collection(db, "tickets"),
+        where("status", "==", "resolved"),
+        orderBy("createdAt", "desc")
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const tickets = [];
+    querySnapshot.forEach(docSnap => {
+      tickets.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data: tickets };
+
+  } catch (error) {
+
+    const fallback = emptyResultOnMissingIndex(error, "fetchResolvedTicketsApi");
+    if (fallback) return fallback;
+
+    console.error("Error fetching resolved tickets:", error);
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+// ============================================================
+// UPDATE TICKET
+// ============================================================
+
+
+/**
+ * تحديث حالة التذكرة (دالة عامة - لا تزال متاحة لأي استخدام قديم)
+ */
+export async function updateTicketStatusApi(
+  ticketId,
+  status,
+  notes = ""
+) {
+
+  try {
+
+    const ticketRef =
+      doc(
+        db,
+        "tickets",
+        ticketId
+      );
+
+
+    await updateDoc(
+      ticketRef,
+      {
+
+        status,
+
+        notes,
+
+        updatedAt:
+          new Date().toISOString(),
+
+        updatedBy:
+          localStorage.getItem("name")
+          || ""
+
+      }
+    );
+
+
+    return {
+
+      status:
+        "success"
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error updating ticket:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// دورة حياة التذكرة (Ticket Lifecycle Transitions)
+// ============================================================
+
+// دالة داخلية صغيرة عشان كل انتقال يسجّل نفس بيانات
+// "مين عمل التحديث وإمتى" بشكل موحّد
 function stampUpdate(extra = {}) {
-  const me = currentUser();
   return {
     ...extra,
     updatedAt: new Date().toISOString(),
-    updatedBy: me.name
+    updatedBy: localStorage.getItem("name") || ""
   };
 }
 
-/**
- * إضافة سطر Log غير قابل للتعديل/الحذف لتذكرة معيّنة (راجع
- * firestore.rules -> match /tickets/{ticketId}/logs/{logId}:
- * مسموح create فقط، مفيش أي قاعدة update/delete = ممنوعة تلقائياً)
- */
-async function addTicketLogApi(ticketId, action, message, meta = {}) {
+// ============================================================
+// حماية المستخدم من رسائل Firestore الخام (خصوصاً "الفهرس
+// (Index) الناقص" اللي بترجع رابط Firebase Console داخل نص
+// الخطأ نفسه). لو ده اللي حصل، منعتبرهوش "خطأ" خالص - بنرجّع
+// نتيجة ناجحة بقائمة فاضية، فالمستخدم يشوف "لا توجد تذاكر حالياً"
+// بشكل طبيعي تماماً بدل أي رسالة أو رابط تقني. التفاصيل الحقيقية
+// بتتسجل في Console بس (للأدمن/المطوّر) عشان يعرف يعمل الفهرس
+// المطلوب مرة واحدة (راجع ملاحظات firestore.rules).
+// ============================================================
+function isMissingIndexError(error) {
+  return error?.code === "failed-precondition";
+}
 
-  const me = currentUser();
+function emptyResultOnMissingIndex(error, context) {
+  if (isMissingIndexError(error)) {
+    console.warn(
+      `[${context}] محتاج Index في Firestore لسه ماتعملش - ` +
+      `تم إخفاء الخطأ عن المستخدم وعرض قائمة فاضية مؤقتاً. ` +
+      `التفاصيل: ${error.message}`
+    );
+    return { status: "success", data: [] };
+  }
+  return null; // مش خطأ فهرس - يترفع عادي زي ما هو
+}
+
+// ============================================================
+// سجل التغييرات التلقائي (Ticket Logs) - subcollection:
+// tickets/{ticketId}/logs/{logId} - append-only (راجع firestore.rules)
+// ============================================================
+
+async function addTicketLog(ticketId, { action, fromStatus, toStatus, note = "" }) {
 
   try {
 
@@ -67,26 +513,26 @@ async function addTicketLogApi(ticketId, action, message, meta = {}) {
       collection(db, "tickets", ticketId, "logs"),
       {
         action,
-        message,
-        by: me.name,
-        byUid: me.uid,
-        byRole: me.role,
-        createdAt: new Date().toISOString(),
-        ...meta
+        fromStatus,
+        toStatus,
+        note,
+        by: localStorage.getItem("name") || "",
+        byUid: localStorage.getItem("userId") || "",
+        byRole: getCurrentRole() || "",
+        at: new Date().toISOString()
       }
     );
 
   } catch (error) {
-    // فشل تسجيل الـ Log ميوقفش العملية الأساسية (تغيير الحالة) -
-    // بنسجّل الخطأ بس في الكونسول عشان نراجعه لاحقاً
-    console.error(`Error adding ticket log (${action}):`, error);
+    // فشل تسجيل اللوج مايوقفش العملية الأساسية، بس بنسجله في الكونسول
+    console.error("Error adding ticket log:", error);
   }
 
 }
 
 /**
- * جلب سجل العمليات الكامل لتذكرة (تُستخدم في صفحة TicketDetails
- * لعرض الـ Timeline الرأسي)
+ * جلب سجل تغييرات تذكرة معينة (لعرضها كـ Timeline في شاشة
+ * Ticket Details) - مرتب من الأقدم للأحدث
  */
 export async function fetchTicketLogsApi(ticketId) {
 
@@ -94,7 +540,7 @@ export async function fetchTicketLogsApi(ticketId) {
 
     const q = query(
       collection(db, "tickets", ticketId, "logs"),
-      orderBy("createdAt", "asc")
+      orderBy("at", "asc")
     );
 
     const querySnapshot = await getDocs(q);
@@ -115,92 +561,20 @@ export async function fetchTicketLogsApi(ticketId) {
 
 }
 
-
-// ============================================================
-// ISSUES / TICKETS - إنشاء وجلب
-// ============================================================
-
-
 /**
- * حفظ بلاغ عطل جديد (يُستخدم من IssueView / workflow.js -> confirmIssue)
- */
-export async function saveIssueApi(payload) {
-
-  try {
-
-    const { image, ...restPayload } = payload;
-
-    const issueId = payload.issueId || ("IS-" + Date.now());
-
-    const imageUrl = await uploadBase64Image(image, issueId);
-
-    const docRef = await addDoc(
-      collection(db, "tickets"),
-      {
-        ...restPayload,
-        issueId,
-        ...(imageUrl && { imageUrl }),
-        // دورة حياة التذكرة تبدأ دائماً بـ pending (جديد)
-        status: payload?.status || "pending",
-        createdAt: payload?.createdAt || new Date().toISOString()
-      }
-    );
-
-    await addTicketLogApi(docRef.id, "created", "تم إنشاء البلاغ");
-
-    return { status: "success", id: docRef.id };
-
-  } catch (error) {
-
-    console.error("Error saving issue/ticket:", error);
-    return { status: "error", message: error.message };
-
-  }
-
-}
-
-
-/**
- * جلب كل التذاكر (لوحة الإحصائيات العامة - loadDashboardStats)
- */
-export async function fetchTicketsApi() {
-
-  try {
-
-    const q = query(collection(db, "tickets"), orderBy("createdAt", "desc"));
-    const querySnapshot = await getDocs(q);
-
-    const tickets = [];
-    querySnapshot.forEach(docSnap => {
-      tickets.push({ id: docSnap.id, ...docSnap.data() });
-    });
-
-    return { status: "success", data: tickets };
-
-  } catch (error) {
-
-    console.error("Error fetching tickets:", error);
-    return { status: "error", message: error.message };
-
-  }
-
-}
-
-
-/**
- * جلب تذكرة واحدة بالتفصيل (صفحة TicketDetails)
+ * جلب تذكرة واحدة بالتفصيل (شاشة Ticket Details)
  */
 export async function fetchTicketByIdApi(ticketId) {
 
   try {
 
-    const snap = await getDoc(doc(db, "tickets", ticketId));
+    const docSnap = await getDoc(doc(db, "tickets", ticketId));
 
-    if (!snap.exists()) {
+    if (!docSnap.exists()) {
       return { status: "error", message: "التذكرة غير موجودة" };
     }
 
-    return { status: "success", data: { id: snap.id, ...snap.data() } };
+    return { status: "success", data: { id: docSnap.id, ...docSnap.data() } };
 
   } catch (error) {
 
@@ -211,186 +585,85 @@ export async function fetchTicketByIdApi(ticketId) {
 
 }
 
+// ============================================================
+// إشعارات داخل التطبيق (In-App Notifications)
+// ============================================================
 
-/**
- * جلب التذاكر المناسبة للوحة الإحصائيات (home/stats) حسب دور
- * المستخدم الحالي - بديل عن fetchTicketsApi() غير المُقيّد، عشان
- * يتوافق مع قاعدة قراءة القائمة الجديدة في firestore.rules (كل
- * دور يقدر يقرأ بس التذاكر المصرّح له بيها: أدمن/مدير كل شيء،
- * الفني تذاكره، المُبلّغ تذاكره - بدون فلترة status هنا عمداً
- * عشان الإحصائيات تشمل تاريخه الكامل مش بس التذاكر النشطة حالياً)
- */
-export async function fetchTicketsForDashboardApi() {
+async function createNotification(forUid, { type, message, ticketId }) {
 
-  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
-  const myUid = localStorage.getItem("userId") || "";
+  if (!forUid) return; // مفيش مستخدم مستهدف (مثلاً لسه معندناش assignedToUid)
 
   try {
 
-    if (role === "admin" || role === "manager") {
-      return await fetchTicketsApi();
-    }
-
-    if (role === "technician" || role === "engineer") {
-      const q = query(collection(db, "tickets"), where("assignedToUid", "==", myUid));
-      const querySnapshot = await getDocs(q);
-      const tickets = [];
-      querySnapshot.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
-      return { status: "success", data: tickets };
-    }
-
-    if (role === "operator") {
-      const q = query(collection(db, "tickets"), where("reportedByUid", "==", myUid));
-      const querySnapshot = await getDocs(q);
-      const tickets = [];
-      querySnapshot.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
-      return { status: "success", data: tickets };
-    }
-
-    return { status: "success", data: [] };
+    await addDoc(
+      collection(db, "notifications"),
+      {
+        forUid,
+        type,
+        message,
+        ticketId,
+        read: false,
+        createdAt: new Date().toISOString()
+      }
+    );
 
   } catch (error) {
-
-    console.error("Error fetching dashboard tickets:", error);
-    return { status: "error", message: error.message };
-
+    console.error("Error creating notification:", error);
   }
 
 }
 
-
-// ============================================================
-// استعلامات لوحات المتابعة حسب الدور
-// ============================================================
-//
-// ملحوظة عن الفهارس (Indexes): أول استدعاء لأي استعلام فيه
-// where() متعدد أو where()+orderBy() على حقول مختلفة، Firestore
-// هيطبع رسالة خطأ في الـ Console فيها رابط مباشر لإنشاء الـ
-// composite index تلقائياً - افتحوا الرابط واضغطوا Create مرة واحدة.
-// ============================================================
-
-
 /**
- * لوحة مدير الصيانة/الأدمن: تذاكر "جديد" بانتظار التصنيف والإسناد
+ * جلب آخر إشعارات المستخدم الحالي (زر الجرس في صفحة التذاكر)
  */
-export async function fetchPendingTicketsApi() {
+export async function fetchMyNotificationsApi(uid) {
 
   try {
 
     const q = query(
-      collection(db, "tickets"),
-      where("status", "==", "pending"),
+      collection(db, "notifications"),
+      where("forUid", "==", uid),
       orderBy("createdAt", "desc")
     );
 
     const querySnapshot = await getDocs(q);
 
-    const tickets = [];
-    querySnapshot.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
+    const notifications = [];
+    querySnapshot.forEach(docSnap => {
+      notifications.push({ id: docSnap.id, ...docSnap.data() });
+    });
 
-    return { status: "success", data: tickets };
+    return { status: "success", data: notifications.slice(0, 30) };
 
   } catch (error) {
 
-    console.error("Error fetching pending tickets:", error);
+    const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
+    if (fallback) return fallback;
+
+    console.error("Error fetching notifications:", error);
     return { status: "error", message: error.message };
 
   }
 
 }
-
 
 /**
- * لوحة الفني: تذاكره (تم الإسناد + قيد التنفيذ)، أو كل التذاكر
- * النشطة لو أدمن/مدير عايز يشوفها كلها (allTickets = true)
+ * تعليم إشعار كمقروء
  */
-export async function fetchTicketsForTechnicianApi(technicianUid, { allTickets = false } = {}) {
-
-  try {
-
-    const constraints = [
-      where("status", "in", ["assigned", "in_progress"]),
-      orderBy("createdAt", "desc")
-    ];
-
-    if (!allTickets) {
-      constraints.unshift(where("assignedToUid", "==", technicianUid));
-    }
-
-    const q = query(collection(db, "tickets"), ...constraints);
-    const querySnapshot = await getDocs(q);
-
-    const tickets = [];
-    querySnapshot.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
-
-    return { status: "success", data: tickets };
-
-  } catch (error) {
-
-    console.error("Error fetching technician tickets:", error);
-    return { status: "error", message: error.message };
-
-  }
-
-}
-
-
-/**
- * لوحة المُبلّغ: تذاكره اللي بانتظار تأكيده هو تحديداً، أو كل
- * التذاكر بانتظار تأكيد لو أدمن/مدير (allTickets = true) - راجع
- * ملحوظة الفهارس فوق: التصفية بـ reportedByUid لازم تبقى جزء من
- * الاستعلام نفسه (مش فلترة بعد الجلب) عشان تتوافق مع قاعدة قراءة
- * القائمة (list) في firestore.rules.
- */
-export async function fetchAwaitingConfirmationTicketsApi(reporterUid, { allTickets = false } = {}) {
-
-  try {
-
-    const constraints = [
-      where("status", "==", "awaiting_confirmation"),
-      orderBy("createdAt", "desc")
-    ];
-
-    if (!allTickets) {
-      constraints.unshift(where("reportedByUid", "==", reporterUid));
-    }
-
-    const q = query(collection(db, "tickets"), ...constraints);
-    const querySnapshot = await getDocs(q);
-
-    const tickets = [];
-    querySnapshot.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
-
-    return { status: "success", data: tickets };
-
-  } catch (error) {
-
-    console.error("Error fetching awaiting-confirmation tickets:", error);
-    return { status: "error", message: error.message };
-
-  }
-
-}
-
-
-// ============================================================
-// UPDATE TICKET (دالة عامة قديمة - لسه متاحة لأي استخدام موجود)
-// ============================================================
-
-export async function updateTicketStatusApi(ticketId, status, notes = "") {
+export async function markNotificationReadApi(notificationId) {
 
   try {
 
     await updateDoc(
-      doc(db, "tickets", ticketId),
-      stampUpdate({ status, notes })
+      doc(db, "notifications", notificationId),
+      { read: true }
     );
 
     return { status: "success" };
 
   } catch (error) {
 
-    console.error("Error updating ticket:", error);
+    console.error("Error marking notification read:", error);
     return { status: "error", message: error.message };
 
   }
@@ -399,75 +672,43 @@ export async function updateTicketStatusApi(ticketId, status, notes = "") {
 
 
 /**
- * Real-time listener: جلب التذاكر المخصّصة للمستخدم الحالي (غير المغلقة)
- * onUpdate: callback يُستدعى عند كل تحديث => onUpdate({ status, data })
- * Returns: unsubscribe function
- */
-export function getMyTickets(onUpdate) {
-
-  const myUid = currentUser().uid;
-
-  try {
-
-    const q = query(
-      collection(db, "tickets"),
-      where("assignedToUid", "==", myUid),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const tickets = [];
-      querySnapshot.forEach(docSnap => {
-        const data = { id: docSnap.id, ...docSnap.data() };
-        if (data.status !== "closed") tickets.push(data);
-      });
-      onUpdate && onUpdate({ status: "success", data: tickets });
-    }, (error) => {
-      console.error("getMyTickets onSnapshot error:", error);
-      onUpdate && onUpdate({ status: "error", message: error.message });
-    });
-
-    return unsubscribe;
-
-  } catch (error) {
-    console.error("Error setting up my tickets listener:", error);
-    onUpdate && onUpdate({ status: "error", message: error.message });
-    return () => {};
-  }
-
-}
-
-
-// ============================================================
-// دورة حياة التذكرة (Ticket Lifecycle Transitions)
-// ============================================================
-
-
-/**
- * STEP 2 - مدير الصيانة/الأدمن يصنّف التذكرة ويسندها لفني.
+ * STEP 2 - مدير الصيانة يصنّف التذكرة ويسندها لفني/قسم.
  * pending -> assigned
+ * assignedToUid ضروري لقواعد الأمان (firestore.rules) اللي بتتحقق
+ * إن الفني اللي هيحل التذكرة هو نفسه المُسندة له فعلاً.
  */
 export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUid }) {
 
-  if (!type || !assignedTo || !assignedToUid) {
-    return { status: "error", message: "type و assignedTo و assignedToUid مطلوبين" };
+  if (!type || !assignedTo) {
+    return { status: "error", message: "type و assignedTo مطلوبين" };
   }
 
   try {
 
     await updateDoc(
       doc(db, "tickets", ticketId),
-      stampUpdate({ status: "assigned", type, assignedTo, assignedToUid })
+      stampUpdate({
+        status: "assigned",
+        type,
+        assignedTo,
+        ...(assignedToUid && { assignedToUid })
+      })
     );
 
-    await addTicketLogApi(ticketId, "assigned", `تم إسناد التذكرة إلى ${assignedTo} (${type})`, { assignedTo, assignedToUid, type });
-
-    await createNotificationApi({
-      userId: assignedToUid,
-      title: "تذكرة جديدة مُسندة إليك",
-      message: `تم إسناد بلاغ (${type}) إليك`,
-      ticketId
+    addTicketLog(ticketId, {
+      action: "assign",
+      fromStatus: "pending",
+      toStatus: "assigned",
+      note: `تم الإسناد إلى ${assignedTo}`
     });
+
+    if (assignedToUid) {
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: `تم إسناد بلاغ صيانة جديد إليك`,
+        ticketId
+      });
+    }
 
     return { status: "success" };
 
@@ -482,7 +723,7 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
 
 
 /**
- * STEP 3A - الفني يبدأ التنفيذ فعلياً.
+ * STEP 3 - الفني يبدأ التنفيذ فعلياً.
  * assigned -> in_progress
  */
 export async function startTicketApi(ticketId) {
@@ -494,7 +735,11 @@ export async function startTicketApi(ticketId) {
       stampUpdate({ status: "in_progress" })
     );
 
-    await addTicketLogApi(ticketId, "started", "بدأ الفني تنفيذ الإصلاح");
+    addTicketLog(ticketId, {
+      action: "start",
+      fromStatus: "assigned",
+      toStatus: "in_progress"
+    });
 
     return { status: "success" };
 
@@ -509,56 +754,56 @@ export async function startTicketApi(ticketId) {
 
 
 /**
- * STEP 3B - الفني ينهي الإصلاح: يضيف ملاحظاته ويرفع 1-3 صور
- * (عبر ImgBB - نفس أسلوب باقي صور النظام) - التذكرة منتقلتش
- * لمغلقة، بل بانتظار تأكيد المُبلّغ.
- * in_progress -> awaiting_confirmation
+ * STEP 4 - الفني ينهي الإصلاح، يضيف ملاحظاته، ويرفع 1-3 صور بعد
+ * الإصلاح (عبر نظام الصور الحالي - ImgBB، مش Firebase Storage).
+ * in_progress -> resolved
  */
-export async function completeTicketApi(ticketId, mechanicNotes, imageFiles = []) {
+export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []) {
 
   if (!mechanicNotes || !mechanicNotes.trim()) {
-    return { status: "error", message: "mechanicNotes مطلوبة لتسجيل إتمام الإصلاح" };
+    return { status: "error", message: "ملاحظات الفني مطلوبة" };
   }
 
-  const fileList = Array.from(imageFiles || []);
-  if (fileList.length < 1) {
-    return { status: "error", message: "لازم ترفع صورة واحدة على الأقل للإصلاح (بحد أقصى 3)" };
-  }
-  if (fileList.length > 3) {
-    return { status: "error", message: "الحد الأقصى 3 صور فقط" };
+  const images = (afterImages || []).filter(Boolean).slice(0, 3);
+
+  if (!images.length) {
+    return { status: "error", message: "لازم صورة واحدة على الأقل بعد الإصلاح (بحد أقصى 3)" };
   }
 
   try {
 
-    let imageUrls = [];
-    try {
-      imageUrls = await uploadTicketImages(ticketId, fileList);
-    } catch (uploadError) {
-      return { status: "error", message: uploadError.message };
-    }
+    // رفع الصور بالتوازي على ImgBB (نفس نظام الصور المستخدم في
+    // باقي التطبيق - imageUpload.js)
+    const afterImageUrls = (
+      await Promise.all(
+        images.map((img, i) => uploadBase64Image(img, `${ticketId}_after_${i + 1}`))
+      )
+    ).filter(Boolean);
 
     await updateDoc(
       doc(db, "tickets", ticketId),
       stampUpdate({
-        status: "awaiting_confirmation",
+        status: "resolved",
         mechanicNotes: mechanicNotes.trim(),
-        repairImages: imageUrls
+        afterImages: afterImageUrls
       })
     );
 
-    await addTicketLogApi(ticketId, "completed", "أنهى الفني الإصلاح وبانتظار تأكيد المُبلّغ", {
-      mechanicNotes: mechanicNotes.trim(),
-      images: imageUrls
+    addTicketLog(ticketId, {
+      action: "resolve",
+      fromStatus: "in_progress",
+      toStatus: "resolved",
+      note: mechanicNotes.trim()
     });
 
+    // إشعار المُبلّغ الأصلي إن بلاغه اتصلح ومحتاج تأكيد
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
     const reportedByUid = ticketSnap.exists() ? ticketSnap.data().reportedByUid : null;
 
     if (reportedByUid) {
-      await createNotificationApi({
-        userId: reportedByUid,
-        title: "بلاغك بانتظار تأكيدك",
-        message: "الفني أنهى الإصلاح - يرجى فحص الماكينة وتأكيد الحالة",
+      createNotification(reportedByUid, {
+        type: "resolved",
+        message: `تم إصلاح بلاغك - برجاء التأكد والتأكيد`,
         ticketId
       });
     }
@@ -567,7 +812,7 @@ export async function completeTicketApi(ticketId, mechanicNotes, imageFiles = []
 
   } catch (error) {
 
-    console.error("Error completing ticket:", error);
+    console.error("Error resolving ticket:", error);
     return { status: "error", message: error.message };
 
   }
@@ -576,28 +821,31 @@ export async function completeTicketApi(ticketId, mechanicNotes, imageFiles = []
 
 
 /**
- * STEP 4A - المُبلّغ يفحص الماكينة ويؤكد إن الإصلاح تم فعلاً.
- * awaiting_confirmation -> closed
+ * STEP 5A - المُبلّغ يفحص الماكينة ويوافق على الإصلاح.
+ * resolved -> closed (حالة نهائية)
  */
-export async function confirmTicketApi(ticketId) {
+export async function closeTicketApi(ticketId) {
 
   try {
+
+    const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
+    const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
 
     await updateDoc(
       doc(db, "tickets", ticketId),
       stampUpdate({ status: "closed" })
     );
 
-    await addTicketLogApi(ticketId, "confirmed", "أكّد المُبلّغ إتمام الإصلاح - تم إغلاق التذكرة");
-
-    const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
-    const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
+    addTicketLog(ticketId, {
+      action: "close",
+      fromStatus: "resolved",
+      toStatus: "closed"
+    });
 
     if (assignedToUid) {
-      await createNotificationApi({
-        userId: assignedToUid,
-        title: "تم إغلاق التذكرة",
-        message: "المُبلّغ أكّد الإصلاح وتم إغلاق التذكرة",
+      createNotification(assignedToUid, {
+        type: "closed",
+        message: `تم تأكيد إغلاق البلاغ - شكراً لك`,
         ticketId
       });
     }
@@ -606,7 +854,7 @@ export async function confirmTicketApi(ticketId) {
 
   } catch (error) {
 
-    console.error("Error confirming ticket:", error);
+    console.error("Error closing ticket:", error);
     return { status: "error", message: error.message };
 
   }
@@ -615,17 +863,20 @@ export async function confirmTicketApi(ticketId) {
 
 
 /**
- * STEP 4B - المُبلّغ يرفض الإصلاح ويكتب السبب - الاستثناء
- * الوحيد للرجوع للخلف في دورة حياة التذكرة.
- * awaiting_confirmation -> in_progress
+ * STEP 5B - المُبلّغ يرفض الإصلاح مع سبب واضح، وترجع التذكرة
+ * للفني عشان يكمل الشغل - الاستثناء الوحيد المسموح للرجوع للخلف
+ * في دورة الحياة (resolved -> in_progress، مش لأي حالة سابقة تانية)
  */
-export async function rejectTicketApi(ticketId, operatorFeedback) {
+export async function reopenTicketApi(ticketId, operatorFeedback) {
 
   if (!operatorFeedback || !operatorFeedback.trim()) {
-    return { status: "error", message: "operatorFeedback مطلوبة لرفض الإصلاح" };
+    return { status: "error", message: "سبب الرفض مطلوب" };
   }
 
   try {
+
+    const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
+    const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
 
     await updateDoc(
       doc(db, "tickets", ticketId),
@@ -635,18 +886,17 @@ export async function rejectTicketApi(ticketId, operatorFeedback) {
       })
     );
 
-    await addTicketLogApi(ticketId, "rejected", `رفض المُبلّغ الإصلاح: ${operatorFeedback.trim()}`, {
-      operatorFeedback: operatorFeedback.trim()
+    addTicketLog(ticketId, {
+      action: "reject",
+      fromStatus: "resolved",
+      toStatus: "in_progress",
+      note: operatorFeedback.trim()
     });
 
-    const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
-    const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
-
     if (assignedToUid) {
-      await createNotificationApi({
-        userId: assignedToUid,
-        title: "تم رفض الإصلاح",
-        message: `المُبلّغ رفض الإصلاح: ${operatorFeedback.trim()}`,
+      createNotification(assignedToUid, {
+        type: "rejected",
+        message: `تم رفض الإصلاح: ${operatorFeedback.trim()}`,
         ticketId
       });
     }
@@ -655,7 +905,7 @@ export async function rejectTicketApi(ticketId, operatorFeedback) {
 
   } catch (error) {
 
-    console.error("Error rejecting ticket:", error);
+    console.error("Error reopening ticket:", error);
     return { status: "error", message: error.message };
 
   }

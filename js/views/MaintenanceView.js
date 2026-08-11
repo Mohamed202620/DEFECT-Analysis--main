@@ -63,9 +63,9 @@ export const MaintenanceView = () => `
       <span class="text-[10px] text-gray-400 mt-1">جداول وفحوصات دورية</span>
     </div>
 
-    <!-- التقارير -->
+    <!-- التقارير (بتوديك لشاشة التذاكر الحقيقية - متابعة كل البلاغات وحالاتها) -->
     <div 
-      onclick="window.navigateTo('reports')" 
+      onclick="window.navigateTo('tickets')" 
       class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-purple-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
       <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         📊

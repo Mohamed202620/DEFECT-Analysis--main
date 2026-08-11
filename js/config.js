@@ -9,7 +9,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
 
 import {
-  getFirestore
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 import {
@@ -146,8 +149,22 @@ export const app =
     : initializeApp(firebaseConfig);
 
 
-export const db =
-  getFirestore(app);
+// Offline Persistence (Firestore v9+): بيخلي البيانات اللي
+// اتقرت قبل كده متاحة للقراءة حتى من غير إنترنت (IndexedDB محلي
+// جوه المتصفح، بيدير نفسه تلقائياً). لو المتصفح مايدعمش الميزة
+// دي (نادر جداً) بنرجع لـ getFirestore العادي بدل ما نكسر التطبيق.
+export const db = (() => {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    });
+  } catch (error) {
+    console.warn("[Firestore] تعذّر تفعيل Offline Persistence، هيشتغل التطبيق عادي بس بدون تخزين محلي:", error.message);
+    return getFirestore(app);
+  }
+})();
 
 
 export const storage =

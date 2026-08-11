@@ -8,7 +8,7 @@
 // - رسمان بيانيان (Chart.js): أكثر الماكينات عطلاً + توزيع الأولويات
 // ============================================================
 
-import { fetchTicketsForDashboardApi } from './services/api.js';
+import { fetchTicketsApi } from './services/api.js';
 
 // ============================================================
 // حالة الموديول
@@ -82,7 +82,7 @@ export async function initStatsView() {
     summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4 col-span-2">جاري تحميل الإحصائيات...</div>`;
   }
 
-  const result = await fetchTicketsForDashboardApi();
+  const result = await fetchTicketsApi();
 
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
 
