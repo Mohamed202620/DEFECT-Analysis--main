@@ -89,6 +89,15 @@ export const ErrorScannerView = () => {
         class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm resize-none shadow-sm"></textarea>
     </div>
 
+    <div>
+      <label for="errScanManual" class="block mb-2 text-xs font-bold text-gray-300">
+        أو ابحث يدوياً
+      </label>
+      <input id="errScanManual" type="text"
+        placeholder="اكتب رقم العطل او النص"
+        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm" />
+    </div>
+
     <button type="button"
       onclick="window.searchMachineError()"
       class="w-full py-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-white text-base transition active:scale-95 shadow-lg shadow-indigo-500/20">

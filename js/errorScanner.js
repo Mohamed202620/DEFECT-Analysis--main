@@ -17,7 +17,8 @@ import {
   saveMachineErrorApi,
   verifyMachineErrorApi,
   logMachineErrorOccurrenceApi,
-  fetchMachineErrorHistoryApi
+  fetchMachineErrorHistoryApi,
+  fetchAllMachineErrorsApi
 } from './services/api.js';
 
 // ============================================================
@@ -125,6 +126,49 @@ function setStatus(message, isError = false) {
 }
 
 // ============================================================
+// دوال مساعدة لبحث العطل اليدوي وتصفية نوع الماكينة
+// ============================================================
+
+function normalizeSearchTerm(term) {
+  return String(term || '').trim().toLowerCase();
+}
+
+async function fetchAllMachineErrors() {
+  const result = await fetchAllMachineErrorsApi();
+  return Array.isArray(result.data) ? result.data : [];
+}
+
+function matchesMachineError(error, searchTerm) {
+  const normalized = normalizeSearchTerm(searchTerm);
+  return (
+    String(error.errorCode || '').toLowerCase().includes(normalized) ||
+    String(error.errorMessage || '').toLowerCase().includes(normalized) ||
+    String(error.machine || '').toLowerCase().includes(normalized) ||
+    String(error.line || '').toLowerCase().includes(normalized) ||
+    String(error.cause || '').toLowerCase().includes(normalized) ||
+    String(error.solution || '').toLowerCase().includes(normalized)
+  );
+}
+
+function chooseErrorByMachineType(candidates, selectedMachineType) {
+  if (!selectedMachineType || candidates.length <= 1) {
+    return candidates[0] || null;
+  }
+  return candidates.find(error => error.machine === selectedMachineType) || null;
+}
+
+async function searchMachineErrorsByText(searchTerm) {
+  const allErrors = await fetchAllMachineErrors();
+  return allErrors.filter(error => matchesMachineError(error, searchTerm));
+}
+
+async function fetchMachineErrorsByCode(code) {
+  const normalizedCode = normalizeSearchTerm(code);
+  const allErrors = await fetchAllMachineErrors();
+  return allErrors.filter(error => normalizeSearchTerm(error.errorCode) === normalizedCode);
+}
+
+// ============================================================
 // معالجة اختيار/التقاط صورة شاشة العطل + تشغيل OCR
 // ============================================================
 
@@ -191,9 +235,12 @@ window.searchMachineError = async function () {
 
   const codeInput = el('errScanCode');
   const code = codeInput?.value?.trim() || '';
+  const manualInput = el('errScanManual');
+  const manualSearch = manualInput?.value?.trim() || '';
+  const selectedMachineType = String(window.selectedMachineType || '').trim();
 
-  if (!code) {
-    alert('⚠️ يرجى إدخال أو استخراج كود العطل أولاً.');
+  if (!code && !manualSearch) {
+    alert('⚠️ يرجى إدخال أو استخراج كود العطل أولاً أو استخدام البحث اليدوي.');
     return;
   }
 
@@ -202,23 +249,65 @@ window.searchMachineError = async function () {
     resultsBox.innerHTML = `<div class="text-center text-gray-400 text-xs py-6">🔍 جاري البحث في قاعدة المعرفة...</div>`;
   }
 
-  const result = await findMachineErrorByCode(code);
+  // أولاً: البحث برقم العطل إن وجد
+  if (code) {
+    const result = await findMachineErrorByCode(code);
 
-  if (result.status !== 'success') {
-    if (resultsBox) {
-      resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${result.message || 'حدث خطأ أثناء البحث'}</div>`;
+    if (result.status !== 'success') {
+      if (resultsBox) {
+        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${result.message || 'حدث خطأ أثناء البحث'}</div>`;
+      }
+      return;
     }
-    return;
+
+    if (result.found) {
+      let foundError = result.data;
+
+      if (selectedMachineType) {
+        const sameCodeErrors = await fetchMachineErrorsByCode(code);
+        const matchedByMachine = chooseErrorByMachineType(sameCodeErrors, selectedMachineType);
+
+        if (sameCodeErrors.length > 1 && !matchedByMachine) {
+          lastFoundError = null;
+          renderNotFound(code);
+          return;
+        }
+
+        if (matchedByMachine) {
+          foundError = matchedByMachine;
+        }
+      }
+
+      lastFoundError = foundError;
+      renderFoundError(foundError);
+      loadErrorHistory(foundError.errorCode);
+      return;
+    }
   }
 
-  if (result.found) {
-    lastFoundError = result.data;
-    renderFoundError(result.data);
-    loadErrorHistory(result.data.errorCode);
-  } else {
-    lastFoundError = null;
-    renderNotFound(code);
+  // ثانياً: البحث اليدوي إن كان هناك نص
+  if (manualSearch) {
+    const candidates = await searchMachineErrorsByText(manualSearch);
+
+    if (candidates.length) {
+      const matchedByMachine = chooseErrorByMachineType(candidates, selectedMachineType);
+
+      if (candidates.length > 1 && selectedMachineType && !matchedByMachine) {
+        lastFoundError = null;
+        renderNotFound(manualSearch);
+        return;
+      }
+
+      const foundError = matchedByMachine || candidates[0];
+      lastFoundError = foundError;
+      renderFoundError(foundError);
+      loadErrorHistory(foundError.errorCode);
+      return;
+    }
   }
+
+  lastFoundError = null;
+  renderNotFound(code || manualSearch || '');
 
 };
 
