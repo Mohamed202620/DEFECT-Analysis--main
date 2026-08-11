@@ -83,9 +83,9 @@ function extractErrorCode(rawText) {
 // باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق
 // ============================================================
 
-const LINE_OPTIONS = ['Line 1', 'Line 2'];
+export const LINE_OPTIONS = ['Line 1', 'Line 2'];
 
-const MACHINE_OPTIONS = [
+export const MACHINE_OPTIONS = [
   'Coil Handling',
   'Baler',
   'Cupper',

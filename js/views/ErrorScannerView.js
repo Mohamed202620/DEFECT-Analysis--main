@@ -1,6 +1,15 @@
+import { MACHINE_OPTIONS } from '../errorScanner.js';
+
 export const ErrorScannerView = () => {
   const selectedMachineType = localStorage.getItem('selectedMachineType') || '';
   window.selectedMachineType = selectedMachineType;
+
+  const machineOptionsHtml = [
+    `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>اختر نوع الماكينة</option>`,
+    ...MACHINE_OPTIONS.map((machine) =>
+      `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
+    )
+  ].join('');
 
   return `
 <div class="p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
@@ -33,11 +42,7 @@ export const ErrorScannerView = () => {
       <select id="machineTypeSelect"
         onchange="const value = this.value; localStorage.setItem('selectedMachineType', value); window.selectedMachineType = value;"
         class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm appearance-none">
-        <option value="" ${selectedMachineType === '' ? 'selected' : ''}>اختر نوع الماكينة</option>
-        <option value="Belvac Necker" ${selectedMachineType === 'Belvac Necker' ? 'selected' : ''}>Belvac Necker</option>
-        <option value="Palletizer" ${selectedMachineType === 'Palletizer' ? 'selected' : ''}>Palletizer</option>
-        <option value="Labeler" ${selectedMachineType === 'Labeler' ? 'selected' : ''}>Labeler</option>
-        <option value="Case Packer" ${selectedMachineType === 'Case Packer' ? 'selected' : ''}>Case Packer</option>
+        ${machineOptionsHtml}
       </select>
     </div>
 
