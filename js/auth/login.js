@@ -173,7 +173,34 @@ export async function login(phone, pass) {
   // من مستند users/{uid} مباشرة بدل الاستعلام برقم الهاتف
   // ==================================================
 
-  const userDocSnap = await getDoc(doc(db, "users", uid));
+  let userDocSnap = await getDoc(doc(db, "users", uid));
+
+  if (!userDocSnap.exists()) {
+    // إذا يوجد حساب Auth لكن لا يوجد مستند users/{uid}، حاولنا الترحيل
+    // من بيانات المستخدم القديم برقم الهاتف نفسه إذا كانت موجودة.
+    const usersRef = collection(db, "users");
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacySnapshot = await getDocs(legacyQuery);
+
+    if (!legacySnapshot.empty) {
+      const legacyDocSnap = legacySnapshot.docs[0];
+      const legacyData = legacyDocSnap.data();
+      const { password: _legacyPassword, passwordHash: _legacyHash, salt: _legacySalt, ...safeLegacyData } = legacyData;
+      try {
+        await setDoc(doc(db, "users", uid), {
+          ...safeLegacyData,
+          migratedFromId: legacyDocSnap.id
+        });
+        userDocSnap = await getDoc(doc(db, "users", uid));
+      } catch (migrationWriteError) {
+        console.error("Legacy profile migration error for missing users/{uid}:", migrationWriteError);
+        return {
+          status: "error",
+          message: "بيانات الحساب غير موجودة. يرجى التواصل مع المسؤول."
+        };
+      }
+    }
+  }
 
   if (!userDocSnap.exists()) {
     return {

@@ -13,10 +13,10 @@ import {
 } from "../config.js";
 
 import {
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  signOut,
+  deleteUser
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 
 import {
   collection,
@@ -258,13 +258,27 @@ export async function registerUserApi(userData) {
     } catch (firestoreError) {
 
       // نادراً ما يحصل: حساب Auth اتعمل لكن فشل كتابة مستند
-      // البيانات. نسجّل الخطأ بوضوح - المستخدم يقدر يعيد المحاولة
-      // بنفس البيانات لاحقاً بعد حل المشكلة (مثلاً مراجعة القواعد).
+      // البيانات. نحاول حذف حساب Auth المتخلف لنمنع وجود مستخدم
+      // Authentication بلا مستند المستخدم في Firestore.
       console.error("Error saving user profile after auth creation:", firestoreError);
+
+      try {
+        if (auth.currentUser) {
+          await deleteUser(auth.currentUser);
+        }
+      } catch (cleanupError) {
+        console.error("Failed to delete orphaned auth user:", cleanupError);
+      }
+
+      try {
+        await signOut(auth);
+      } catch (signOutError) {
+        console.warn("Failed to sign out after cleanup:", signOutError);
+      }
 
       return {
         status: "error",
-        message: "تم إنشاء حساب الدخول لكن حدث خطأ أثناء حفظ بياناتك، يرجى التواصل مع المسؤول."
+        message: "تم إنشاء حساب الدخول لكن حدث خطأ أثناء حفظ بياناتك، يرجى المحاولة مرة أخرى."
       };
     }
 
