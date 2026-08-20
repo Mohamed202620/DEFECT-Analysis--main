@@ -17,7 +17,7 @@ export const MaintenanceView = () => `
   </div>
 
   <!-- شبكة الإجراءات السريعة -->
-  <div class="grid grid-cols-2 gap-3.5">
+  <div class="grid gap-3.5" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
 
     <!-- تسجيل عطل -->
     <div 
@@ -50,28 +50,6 @@ export const MaintenanceView = () => `
       </div>
       <span class="font-bold text-xs text-gray-100">نظام كايزن</span>
       <span class="text-[10px] text-gray-400 mt-1">مقترحات التحسين المستمر</span>
-    </div>
-
-    <!-- الصيانة الوقائية -->
-    <div 
-      onclick="window.navigateTo('pm')" 
-      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
-      <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
-        📝
-      </div>
-      <span class="font-bold text-xs text-gray-100">الصيانة الوقائية</span>
-      <span class="text-[10px] text-gray-400 mt-1">جداول وفحوصات دورية</span>
-    </div>
-
-    <!-- التقارير (بتوديك لشاشة التذاكر الحقيقية - متابعة كل البلاغات وحالاتها) -->
-    <div 
-      onclick="window.navigateTo('tickets')" 
-      class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-purple-500/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all active:scale-95 shadow-md group">
-      <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
-        📊
-      </div>
-      <span class="font-bold text-xs text-gray-100">التقارير</span>
-      <span class="text-[10px] text-gray-400 mt-1">سجل وإحصائيات الأعطال</span>
     </div>
 
     <!-- Machine Error Scanner (زر عريض بارز) -->
