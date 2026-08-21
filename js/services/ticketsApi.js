@@ -196,38 +196,32 @@ function createSnapshotListener(q, context, callback) {
 export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, callback) {
   try {
 
-    // 1. تبويب "بلاغاتي" (My Tickets) - التذاكر التي قام المستخدم بإنشائها
+    // 1. تبويب "بلاغاتي" (My Tickets) - تعتمد على reportedBy لضمان ظهور كل التذاكر (القديمة والحديثة)
     if (status === "my_tickets") {
-      const field = myUid ? "reportedByUid" : "reportedBy";
-      const val = myUid || myName;
       const q = query(
         collection(db, "tickets"),
-        where(field, "==", val),
+        where("reportedBy", "==", myName),
         orderBy("createdAt", "desc")
       );
       return createSnapshotListener(q, "subscribeToTicketsBoardApi(my_tickets)", callback);
     }
 
-    // 2. تبويب "المُسندة إليّ" (Assigned To Me) - التذاكر المُسندة للفني وقيد التنفيذ
+    // 2. تبويب "المُسندة إليّ" (Assigned To Me)
     if (status === "assigned_to_me") {
-      const field = myUid ? "assignedToUid" : "assignedTo";
-      const val = myUid || myName;
       const q = query(
         collection(db, "tickets"),
-        where(field, "==", val),
+        where("assignedTo", "==", myName),
         where("status", "in", ["assigned", "in_progress", "reopened"]),
         orderBy("createdAt", "desc")
       );
       return createSnapshotListener(q, "subscribeToTicketsBoardApi(assigned_to_me)", callback);
     }
 
-    // 3. تبويب "بانتظار تأكيدي" (Awaiting Confirm) - بلاغات أصلحها الفني وتنتظر مراجعة مُنشئ البلاغ
+    // 3. تبويب "بانتظار تأكيدي" (Awaiting Confirm)
     if (status === "awaiting_confirm") {
-      const field = myUid ? "reportedByUid" : "reportedBy";
-      const val = myUid || myName;
       const q = query(
         collection(db, "tickets"),
-        where(field, "==", val),
+        where("reportedBy", "==", myName),
         where("status", "==", "resolved"),
         orderBy("createdAt", "desc")
       );
