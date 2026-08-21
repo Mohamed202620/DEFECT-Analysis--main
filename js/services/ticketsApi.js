@@ -688,6 +688,9 @@ function isMissingIndexError(error) {
 
 function emptyResultOnMissingIndex(error, context) {
   if (isMissingIndexError(error)) {
+    // السطر ده هيظهرلك نافذة فيها رابط جاهز لإنشاء الفهرس عشان تنسخه
+    prompt("انسخ الرابط الموجود هنا وافتحه في متصفحك لإنشاء الفهرس:", error.message);
+    
     console.warn(
       `[${context}] محتاج Index في Firestore لسه ماتعملش - ` +
       `تم إخفاء الخطأ عن المستخدم وعرض قائمة فاضية مؤقتاً. ` +
@@ -1063,11 +1066,12 @@ export async function closeTicketApi(ticketId) {
 /**
  * STEP 5B - المُبلّغ يرفض الإصلاح مع سبب واضح، وترجع التذكرة
  * للفني عشان يكمل الشغل - الاستثناء الوحيد المسموح للرجوع للخلف
- * في دورة الحياة (resolved -> in_progress، مش لأي حالة سابقة تانية)
+ * في خط السير.
+ * resolved -> in_progress
  */
-export async function reopenTicketApi(ticketId, operatorFeedback) {
+export async function rejectTicketApi(ticketId, reason) {
 
-  if (!operatorFeedback || !operatorFeedback.trim()) {
+  if (!reason || !reason.trim()) {
     return { status: "error", message: "سبب الرفض مطلوب" };
   }
 
@@ -1078,23 +1082,20 @@ export async function reopenTicketApi(ticketId, operatorFeedback) {
 
     await updateDoc(
       doc(db, "tickets", ticketId),
-      stampUpdate({
-        status: "in_progress",
-        operatorFeedback: operatorFeedback.trim()
-      })
+      stampUpdate({ status: "in_progress" })
     );
 
     addTicketLog(ticketId, {
       action: "reject",
       fromStatus: "resolved",
       toStatus: "in_progress",
-      note: operatorFeedback.trim()
+      note: reason.trim()
     });
 
     if (assignedToUid) {
       createNotification(assignedToUid, {
         type: "rejected",
-        message: `تم رفض الإصلاح: ${operatorFeedback.trim()}`,
+        message: `تم رفض إصلاح البلاغ لأن المشكلة لم تحل بالكامل - برجاء المراجعة`,
         ticketId
       });
     }
@@ -1103,7 +1104,7 @@ export async function reopenTicketApi(ticketId, operatorFeedback) {
 
   } catch (error) {
 
-    console.error("Error reopening ticket:", error);
+    console.error("Error rejecting ticket:", error);
     return { status: "error", message: error.message };
 
   }
