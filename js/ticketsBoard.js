@@ -166,6 +166,7 @@ window.loadTicketsBoard = function () {
 
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
+  const myName = localStorage.getItem("name") || "";
 
   // تحميل عدد الإشعارات غير المقروءة (لا يوقف عرض التذاكر لو فشل)
   loadNotificationsBadge();
@@ -180,7 +181,7 @@ window.loadTicketsBoard = function () {
   `;
 
   unsubscribeTicketsListener = subscribeToTicketsBoardApi(
-    { role, myUid, status: currentStatusFilter },
+    { role, myUid, myName, status: currentStatusFilter },
     (result) => {
 
       if (!result || result.status !== "success") {

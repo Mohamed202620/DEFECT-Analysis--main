@@ -21,8 +21,7 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot,
-  or
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -391,85 +390,142 @@ export async function fetchResolvedTicketsApi() {
 
 /**
  * لوحة متابعة البلاغات (كارت "متابعة البلاغات" في صفحة الصيانة) -
- * Real-time listener واحد موحّد بيجمع فلتر الصلاحيات (حسب uid
- * المستخدم الحالي) + فلتر تبويب الحالة (الكل/جديد/قيد المعالجة/
- * مغلق) في استعلام واحد، ويرجّع دالة unsubscribe عشان تُقفل من
- * الطرف المستدعي (ticketsBoard.js) عند تغيير الفلتر أو مغادرة
- * الصفحة.
+ * Real-time listener بيجمع فلتر الصلاحيات + فلتر تبويب الحالة
+ * (الكل/جديد/قيد المعالجة/مغلق)، ويرجّع دالة unsubscribe عشان
+ * تُقفل من الطرف المستدعي (ticketsBoard.js) عند تغيير الفلتر أو
+ * مغادرة الصفحة.
  *
- * فلتر الصلاحيات:
- *   - admin / manager (مدير) -> بدون فلتر مستخدم (كل البلاغات)
- *   - أي دور تاني (مُبلّغ/فني/...) -> or(reportedByUid == uid,
- *     assignedToUid == uid) - شرط OR واحد على مستوى Firestore
- *     نفسه، فلو المستخدم هو المُبلّغ والفني المُسند إليه لنفس
- *     البلاغ مع بعض، البلاغ برضه بيرجع مرة واحدة بس (Firestore
- *     بيرجّع كل مستند مرة واحدة حتى لو حقق أكتر من شرط OR - مفيش
- *     حاجة اسمها تكرار محتاج فلترة يدوية على مستوى العميل).
- *     (reportedByUid/assignedToUid هما الحقول الحقيقية الموجودة
- *     بالفعل في الـ Schema لضمان الأمان - راجع firestore.rules -
- *     مش reportedBy/assignedTo النصية اللي بتتعرض كاسم للمستخدم فقط)
+ * فلتر الصلاحيات (بأسماء الحقول الفعلية الموجودة في الداتا -
+ * reportedBy/assignedTo، مقارنة بالاسم المخزّن في localStorage
+ * "name"، مش reportedByUid/assignedToUid):
+ *   - admin / manager (مدير)      -> بدون فلتر مستخدم (كل البلاغات)
+ *   - أي دور تاني (مُبلّغ/فني/...) -> reportedBy == اسمي OR
+ *     assignedTo == اسمي
+ *
+ * Firestore الأساسي (where بسيط) مبيدعمش OR بين قيم حقلين مختلفين
+ * في استعلام واحد، فبنفتح Listener منفصل لكل شرط (reportedBy /
+ * assignedTo) وندمج نتيجتين في نتيجة واحدة على مستوى العميل، مع
+ * إزالة أي تكرار حسب id البلاغ - فلو نفس المستخدم هو المُبلّغ
+ * والفني المُسند إليه لنفس البلاغ مع بعض، البلاغ بيظهر مرة واحدة
+ * بس.
  *
  * فلتر الحالة (status):
  *   - "all"          -> بدون فلتر status
  *   - غير كده         -> where("status", "==", status)
  *
- * @param {{role: string, myUid: string, status: string}} params
+ * @param {{role: string, myUid: string, myName: string, status: string}} params
  * @param {(result: {status: string, data?: any[], message?: string}) => void} callback
- * @returns {() => void} دالة unsubscribe لإيقاف الـ listener
+ * @returns {() => void} دالة unsubscribe لإيقاف كل الـ listeners المفتوحة
  */
-export function subscribeToTicketsBoardApi({ role, myUid, status }, callback) {
+export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, callback) {
 
   try {
 
-    const clauses = [];
+    const statusClauses = () =>
+      (status && status !== "all") ? [where("status", "==", status)] : [];
 
-    if (role !== "admin" && role !== "manager") {
-      clauses.push(
-        or(
-          where("reportedByUid", "==", myUid),
-          where("assignedToUid", "==", myUid)
-        )
-      );
-    }
-    // admin / manager -> بدون فلتر مستخدم (يشوفوا كل البلاغات)
+    const handleError = (error, context) => {
 
-    if (status && status !== "all") {
-      clauses.push(where("status", "==", status));
-    }
-
-    const q = query(
-      collection(db, "tickets"),
-      ...clauses,
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-
-        const tickets = [];
-        querySnapshot.forEach(docSnap => {
-          tickets.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        callback({ status: "success", data: tickets });
-
-      },
-      (error) => {
-
-        const fallback = emptyResultOnMissingIndex(error, "subscribeToTicketsBoardApi");
-        if (fallback) {
-          callback(fallback);
-          return;
-        }
-
-        console.error("Error in tickets board listener:", error);
-        callback({ status: "error", message: error.message });
-
+      const fallback = emptyResultOnMissingIndex(error, context);
+      if (fallback) {
+        callback(fallback);
+        return;
       }
+
+      console.error(`Error in ${context}:`, error);
+      callback({ status: "error", message: error.message });
+
+    };
+
+    // مدير/أدمن: بدون فلتر مستخدم - Listener واحد بس
+    if (role === "admin" || role === "manager") {
+
+      const q = query(
+        collection(db, "tickets"),
+        ...statusClauses(),
+        orderBy("createdAt", "desc")
+      );
+
+      return onSnapshot(
+        q,
+        (querySnapshot) => {
+
+          const tickets = [];
+          querySnapshot.forEach(docSnap => {
+            tickets.push({ id: docSnap.id, ...docSnap.data() });
+          });
+
+          callback({ status: "success", data: tickets });
+
+        },
+        (error) => handleError(error, "subscribeToTicketsBoardApi")
+      );
+
+    }
+
+    // مُبلّغ/فني/أي دور تاني: reportedBy == اسمي OR assignedTo == اسمي
+    let reportedTickets = [];
+    let assignedTickets = [];
+    let reportedReady = false;
+    let assignedReady = false;
+
+    const emitMerged = () => {
+
+      // مستنيين أول نتيجة توصل من الاتنين قبل ما نبعت أي حاجة
+      // للـ callback، عشان منعرضش نتيجة ناقصة لحظة فتح الصفحة
+      if (!reportedReady || !assignedReady) return;
+
+      const merged = new Map();
+      [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
+
+      const tickets = Array.from(merged.values()).sort(
+        (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+      );
+
+      callback({ status: "success", data: tickets });
+
+    };
+
+    const unsubReported = onSnapshot(
+      query(
+        collection(db, "tickets"),
+        where("reportedBy", "==", myName),
+        ...statusClauses(),
+        orderBy("createdAt", "desc")
+      ),
+      (querySnapshot) => {
+        reportedTickets = [];
+        querySnapshot.forEach(docSnap => {
+          reportedTickets.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        reportedReady = true;
+        emitMerged();
+      },
+      (error) => handleError(error, "subscribeToTicketsBoardApi(reportedBy)")
     );
 
-    return unsubscribe;
+    const unsubAssigned = onSnapshot(
+      query(
+        collection(db, "tickets"),
+        where("assignedTo", "==", myName),
+        ...statusClauses(),
+        orderBy("createdAt", "desc")
+      ),
+      (querySnapshot) => {
+        assignedTickets = [];
+        querySnapshot.forEach(docSnap => {
+          assignedTickets.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        assignedReady = true;
+        emitMerged();
+      },
+      (error) => handleError(error, "subscribeToTicketsBoardApi(assignedTo)")
+    );
+
+    return () => {
+      unsubReported();
+      unsubAssigned();
+    };
 
   } catch (error) {
 
@@ -480,6 +536,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, status }, callback) {
   }
 
 }
+
 
 
 // ============================================================
