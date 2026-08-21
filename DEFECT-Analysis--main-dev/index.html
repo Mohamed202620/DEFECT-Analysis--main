@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" id="html-tag">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
+  <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
+
+  <!-- PWA Manifest & Theme -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0E1117">
+
+  <!-- دعم أجهزة iOS (Apple PWA Tags) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MaintSystem">
+  <link rel="apple-touch-icon" href="1000230635.png">
+
+  <!-- Chart.js & Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- أداة F12 للموبايل (Eruda Console) -->
+  <!--
+    تم تحويلها من التشغيل التلقائي الدائم إلى وضع اختياري فقط:
+    كانت شغالة لكل زائر في كل زيارة، وده بيدي أي مستخدم عادي
+    كونسول كامل يقدر يتلاعب بيه في localStorage (وبالتالي
+    بالدور/الصلاحيات المحفوظة محلياً). دلوقتي بتتفعّل فقط لو:
+      - فيه ?debug=1 في رابط الصفحة، أو
+      - localStorage.debug = "true" (بيفضل محفوظ للمرات الجاية)
+    لإيقافها تاني بعد التفعيل: احذف ?debug من الرابط ونفّذ في
+    الكونسول: localStorage.removeItem('debug')
+  -->
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var wantsDebug = params.get('debug') === '1';
+
+      if (wantsDebug) {
+        localStorage.setItem('debug', 'true');
+      }
+
+      var debugEnabled = localStorage.getItem('debug') === 'true';
+
+      if (debugEnabled) {
+        var erudaScript = document.createElement('script');
+        erudaScript.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        erudaScript.onload = function () {
+          if (window.eruda) window.eruda.init();
+        };
+        document.head.appendChild(erudaScript);
+      }
+    })();
+  </script>
+
+  <!-- سكريبت منع التذبذب في الألوان -->
+  <script>
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    window.hideSplash = function () {
+      const splash = document.getElementById('splash');
+      if (splash) {
+        splash.style.opacity = '0';
+        setTimeout(() => splash.remove(), 700);
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --app-main-bg: #f3f4f6; 
+      --app-header-bg: rgba(255, 255, 255, 0.95);
+      --app-card-bg: #ffffff;
+      --app-border: #e5e7eb;
+      --app-text: #1f2937;
+    }
+    
+    .dark, body.dark, html.dark, [data-theme="dark"] {
+      --app-main-bg: #0f172a; 
+      --app-header-bg: rgba(14, 17, 23, 0.9);
+      --app-card-bg: rgba(30, 41, 59, 0.4);
+      --app-border: rgba(255, 255, 255, 0.08);
+      --app-text: #f3f4f6;
+    }
+
+    * { 
+      box-sizing: border-box; 
+      font-family: system-ui, -apple-system, sans-serif; 
+    }
+
+    body, html, #app { 
+      background-color: var(--app-main-bg) !important; 
+      color: var(--app-text) !important; 
+      margin: 0; 
+      padding: 0; 
+      min-height: 100vh; 
+    }
+
+    /* تستخدمها BottomNav.js - كانت غير معرّفة سابقاً فيظهر الشريط
+       السفلي بدون تنسيق (شفاف بلا خلفية ولا حدود) */
+    .dyn-card {
+      background-color: var(--app-card-bg);
+      border-color: var(--app-border);
+    }
+
+    .dyn-text-muted {
+      color: var(--app-text);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Splash Screen -->
+  <div id="splash" class="fixed inset-0 w-full h-full bg-[#0E1117] flex flex-col items-center justify-center z-50 transition-opacity duration-700">
+    <div class="flex-1 flex items-center justify-center p-4 w-full max-w-sm">
+      <img src="1000230635.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
+    </div>
+
+    <div class="pb-10 flex flex-col items-center gap-5">
+      <div class="px-5 py-1.5 bg-[#1E293B] rounded-full text-xs text-blue-400 border border-gray-700/60 font-semibold shadow-inner">
+        v1.0 - 2026
+      </div>
+      <div class="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    </div>
+  </div>
+
+  <!-- Container -->
+  <div id="app"></div>
+
+  <!-- Error Handlers & SW -->
+  <script>
+    window.addEventListener("error", function (e) {
+      console.error("Application Error:", e.error || e.message);
+      window.hideSplash();
+    });
+
+    window.addEventListener("unhandledrejection", function (e) {
+      console.error("Promise Error:", e.reason);
+      window.hideSplash();
+    });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW Registered:', reg.scope))
+          .catch(err => console.error('SW Error:', err));
+      });
+    }
+
+    setTimeout(() => { window.hideSplash(); }, 3000);
+  </script>
+
+  <!-- Router Loader & Session Checker -->
+  <script type="module">
+    const routerPath = `./js/router.js`;
+
+    import(routerPath)
+    .then((router) => {
+        console.log("Router loaded successfully:", router);
+
+        const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
+        const initialHash = window.location.hash.replace("#", "");
+
+        let targetPage = "login";
+
+        if (!isLoggedIn) {
+            targetPage = (initialHash === "register") ? "register" : "login";
+        } else {
+            if (initialHash && initialHash !== "login" && initialHash !== "register") {
+                targetPage = initialHash;
+            } else {
+                targetPage = localStorage.getItem('lastPage') || 'home';
+            }
+        }
+
+        if (typeof router.navigateTo === 'function') {
+            router.navigateTo(targetPage, false);
+        } else if (typeof window.navigateTo === 'function') {
+            window.navigateTo(targetPage, false);
+        } else if (typeof router.init === 'function') {
+            router.init();
+        } else if (typeof window.initApp === 'function') {
+            window.initApp();
+        }
+
+        window.hideSplash();
+    })
+    .catch((err) => {
+        console.error("Router error:", err);
+        window.hideSplash();
+
+        const appDiv = document.getElementById("app");
+        if (appDiv) {
+            appDiv.innerHTML = `
+            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+                <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
+                    <h3 class="text-base font-bold text-red-400 mb-2">
+                        ⚠️ تعذر تحميل التطبيق
+                    </h3>
+                    <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
+                        ${err.message || err}
+                    </p>
+                    <p class="text-[11px] text-gray-400 mt-3">
+                        اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
+                    </p>
+                </div>
+            </div>
+            `;
+        }
+    });
+  </script>
+</body>
+</html>
