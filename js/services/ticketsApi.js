@@ -168,67 +168,64 @@ export async function fetchResolvedTicketsApi() {
 }
 
 // ============================================================
-// Real-time Listener للوحة متابعة التذاكر حسب الدور والتبويب
+// Real-time Listener للوحة متابعة التذاكر حسب الدور والتبويب (مع الترتيب المحلي لمنع مشاكل الـ Indexes)
 // ============================================================
-
-function createSnapshotListener(q, context, callback) {
-  return onSnapshot(
-    q,
-    (querySnapshot) => {
-      const tickets = [];
-      querySnapshot.forEach(docSnap => {
-        tickets.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      callback({ status: "success", data: tickets });
-    },
-    (error) => {
-      const fallback = emptyResultOnMissingIndex(error, context);
-      if (fallback) {
-        callback(fallback);
-        return;
-      }
-      console.error(`Error in ${context}:`, error);
-      callback({ status: "error", message: error.message });
-    }
-  );
-}
 
 export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, callback) {
   try {
+    const ticketsRef = collection(db, "tickets");
 
-    // 1. تبويب "بلاغاتي" (My Tickets) - تعتمد على reportedBy لضمان ظهور كل التذاكر (القديمة والحديثة)
-    if (status === "my_tickets") {
-      const q = query(
-        collection(db, "tickets"),
-        where("reportedBy", "==", myName),
-        orderBy("createdAt", "desc")
+    const handleSnapshotWithoutOrder = (q, context) => {
+      return onSnapshot(
+        q,
+        (querySnapshot) => {
+          const tickets = [];
+          querySnapshot.forEach(docSnap => {
+            tickets.push({ id: docSnap.id, ...docSnap.data() });
+          });
+          // ترتيب محلياً حسب التاريخ من الأحدث للأقدم
+          tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+          callback({ status: "success", data: tickets });
+        },
+        (error) => {
+          const fallback = emptyResultOnMissingIndex(error, context);
+          if (fallback) {
+            callback(fallback);
+            return;
+          }
+          console.error(`Error in ${context}:`, error);
+          callback({ status: "error", message: error.message });
+        }
       );
-      return createSnapshotListener(q, "subscribeToTicketsBoardApi(my_tickets)", callback);
+    };
+
+    // 1. تبويب "بلاغاتي" (My Tickets)
+    if (status === "my_tickets") {
+      const q = query(ticketsRef, where("reportedBy", "==", myName));
+      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(my_tickets)");
     }
 
     // 2. تبويب "المُسندة إليّ" (Assigned To Me)
     if (status === "assigned_to_me") {
       const q = query(
-        collection(db, "tickets"),
+        ticketsRef, 
         where("assignedTo", "==", myName),
-        where("status", "in", ["assigned", "in_progress", "reopened"]),
-        orderBy("createdAt", "desc")
+        where("status", "in", ["assigned", "in_progress", "reopened"])
       );
-      return createSnapshotListener(q, "subscribeToTicketsBoardApi(assigned_to_me)", callback);
+      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(assigned_to_me)");
     }
 
     // 3. تبويب "بانتظار تأكيدي" (Awaiting Confirm)
     if (status === "awaiting_confirm") {
       const q = query(
-        collection(db, "tickets"),
+        ticketsRef, 
         where("reportedBy", "==", myName),
-        where("status", "==", "resolved"),
-        orderBy("createdAt", "desc")
+        where("status", "==", "resolved")
       );
-      return createSnapshotListener(q, "subscribeToTicketsBoardApi(awaiting_confirm)", callback);
+      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(awaiting_confirm)");
     }
 
-    // 4. الفلاتر العامة (خاصة بالأدمن/المدير أو عند اختيار "الكل")
+    // 4. الفلاتر العامة (الأدمن والمدير)
     const STATUS_QUERY_ALIASES = {
       pending: ["pending", "open"],
       in_progress: ["in_progress", "reopened", "assigned"]
@@ -237,21 +234,15 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     const statusClauses = () => {
       if (!status || status === "all") return [];
       const values = STATUS_QUERY_ALIASES[status];
-      return values
-        ? [where("status", "in", values)]
-        : [where("status", "==", status)];
+      return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
 
     if (role === "admin" || role === "manager") {
-      const q = query(
-        collection(db, "tickets"),
-        ...statusClauses(),
-        orderBy("createdAt", "desc")
-      );
-      return createSnapshotListener(q, "subscribeToTicketsBoardApi(admin/manager)", callback);
+      const q = query(ticketsRef, ...statusClauses());
+      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(admin/manager)");
     }
 
-    // استعلام مزدوج كمرجع للفنيين في حالة اختيار تبويب عام مثل "الكل"
+    // الفنيين والمهندسين في الحالات العامة
     let reportedTickets = [];
     let assignedTickets = [];
     let reportedReady = false;
@@ -267,58 +258,26 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       callback({ status: "success", data: tickets });
     };
 
-    const handleBranchError = (error, context, markBranchReady) => {
-      const fallback = emptyResultOnMissingIndex(error, context);
-      if (fallback) {
-        markBranchReady();
-        return;
-      }
-      console.error(`Error in ${context}:`, error);
-      callback({ status: "error", message: error.message });
-    };
-
     const unsubReported = onSnapshot(
-      query(
-        collection(db, "tickets"),
-        where("reportedBy", "==", myName),
-        ...statusClauses(),
-        orderBy("createdAt", "desc")
-      ),
-      (querySnapshot) => {
+      query(ticketsRef, where("reportedBy", "==", myName), ...statusClauses()),
+      (snapshot) => {
         reportedTickets = [];
-        querySnapshot.forEach(docSnap => {
-          reportedTickets.push({ id: docSnap.id, ...docSnap.data() });
-        });
+        snapshot.forEach(docSnap => reportedTickets.push({ id: docSnap.id, ...docSnap.data() }));
         reportedReady = true;
         emitMerged();
       },
-      (error) => handleBranchError(error, "subscribeToTicketsBoardApi(reportedBy)", () => {
-        reportedTickets = [];
-        reportedReady = true;
-        emitMerged();
-      })
+      () => { reportedTickets = []; reportedReady = true; emitMerged(); }
     );
 
     const unsubAssigned = onSnapshot(
-      query(
-        collection(db, "tickets"),
-        where("assignedTo", "==", myName),
-        ...statusClauses(),
-        orderBy("createdAt", "desc")
-      ),
-      (querySnapshot) => {
+      query(ticketsRef, where("assignedTo", "==", myName), ...statusClauses()),
+      (snapshot) => {
         assignedTickets = [];
-        querySnapshot.forEach(docSnap => {
-          assignedTickets.push({ id: docSnap.id, ...docSnap.data() });
-        });
+        snapshot.forEach(docSnap => assignedTickets.push({ id: docSnap.id, ...docSnap.data() }));
         assignedReady = true;
         emitMerged();
       },
-      (error) => handleBranchError(error, "subscribeToTicketsBoardApi(assignedTo)", () => {
-        assignedTickets = [];
-        assignedReady = true;
-        emitMerged();
-      })
+      () => { assignedTickets = []; assignedReady = true; emitMerged(); }
     );
 
     return () => {
