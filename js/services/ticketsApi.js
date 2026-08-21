@@ -21,7 +21,8 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  writeBatch
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 // ============================================================
@@ -396,18 +397,17 @@ async function createNotification(forUid, { type, message, ticketId }) {
   }
 }
 
+// ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index
+// في Firestore - الترتيب بيتم محلياً بنفس أسلوب subscribeToTicketsBoardApi
 export async function fetchMyNotificationsApi(uid) {
   try {
-    const q = query(
-      collection(db, "notifications"),
-      where("forUid", "==", uid),
-      orderBy("createdAt", "desc")
-    );
+    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
     const querySnapshot = await getDocs(q);
     const notifications = [];
     querySnapshot.forEach(docSnap => {
       notifications.push({ id: docSnap.id, ...docSnap.data() });
     });
+    notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     return { status: "success", data: notifications.slice(0, 30) };
   } catch (error) {
     const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
@@ -417,12 +417,73 @@ export async function fetchMyNotificationsApi(uid) {
   }
 }
 
+// اشتراك لحظي (Realtime) في إشعارات المستخدم - يُستخدم لتحديث
+// الجرس والقائمة المنبثقة تلقائياً بدون إعادة تحميل
+export function subscribeToMyNotificationsApi(uid, callback) {
+  try {
+    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
+    return onSnapshot(
+      q,
+      (querySnapshot) => {
+        const notifications = [];
+        querySnapshot.forEach(docSnap => {
+          notifications.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        callback({ status: "success", data: notifications.slice(0, 30) });
+      },
+      (error) => {
+        const fallback = emptyResultOnMissingIndex(error, "subscribeToMyNotificationsApi");
+        if (fallback) {
+          callback(fallback);
+          return;
+        }
+        console.error("Error subscribing to notifications:", error);
+        callback({ status: "error", message: error.message });
+      }
+    );
+  } catch (error) {
+    console.error("Error subscribing to notifications:", error);
+    callback({ status: "error", message: error.message });
+    return () => {};
+  }
+}
+
 export async function markNotificationReadApi(notificationId) {
   try {
     await updateDoc(doc(db, "notifications", notificationId), { read: true });
     return { status: "success" };
   } catch (error) {
     console.error("Error marking notification read:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+// تحديد كل إشعارات المستخدم الحالي كمقروءة دفعة واحدة (Batch Write)
+// where("forUid","==") + where("read","==") فلترتين equality بس -> بدون Index
+export async function markAllNotificationsAsRead(uid) {
+  try {
+    const q = query(
+      collection(db, "notifications"),
+      where("forUid", "==", uid),
+      where("read", "==", false)
+    );
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) {
+      return { status: "success", updated: 0 };
+    }
+
+    const batch = writeBatch(db);
+    querySnapshot.forEach(docSnap => {
+      batch.update(docSnap.ref, { read: true });
+    });
+    await batch.commit();
+
+    return { status: "success", updated: querySnapshot.size };
+  } catch (error) {
+    const fallback = emptyResultOnMissingIndex(error, "markAllNotificationsAsRead");
+    if (fallback) return { status: "success", updated: 0 };
+    console.error("Error marking all notifications as read:", error);
     return { status: "error", message: error.message };
   }
 }

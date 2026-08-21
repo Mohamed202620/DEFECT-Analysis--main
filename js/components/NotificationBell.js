@@ -1,16 +1,21 @@
 // ============================================================
 // NotificationBell.js
 // جرس الإشعارات - عنصر عائم (Fixed) يُضاف مرة واحدة لكل الصفحات
-// بعد تسجيل الدخول. عدد غير المقروء لحظي (onSnapshot).
+// بعد تسجيل الدخول. تبويبين (جديدة / أرشيف) + تحديد الكل كمقروء.
+// كل الإشعارات بتتجاب مرة واحدة عبر اشتراك لحظي واحد (onSnapshot)
+// والتبويبين والعداد بيتفلتروا محلياً من نفس القائمة - بدون أي
+// طلبات إضافية لـ Firestore وبدون مشاكل Composite Index.
 // ============================================================
 
 import {
-  fetchMyNotificationsApi,
   markNotificationReadApi,
-  subscribeToUnreadCount
+  markAllNotificationsAsRead,
+  subscribeToMyNotificationsApi
 } from '../services/api.js';
 
 let unsubscribeFn = null;
+let allNotifications = [];
+let activeTab = "unread"; // "unread" | "archive"
 
 function bellButtonHtml() {
   return `
@@ -24,38 +29,69 @@ function bellButtonHtml() {
         </span>
       </button>
       <div id="notificationDropdown"
-        class="hidden absolute top-14 left-0 w-72 max-h-80 overflow-y-auto bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl p-2">
+        class="hidden absolute top-14 left-0 w-72 max-h-96 overflow-hidden flex flex-col bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl">
+        <div class="flex items-center gap-1 p-2 border-b border-gray-700">
+          <button id="notifTabUnread"
+            class="flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-all">الجديدة</button>
+          <button id="notifTabArchive"
+            class="flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-all">الأرشيف</button>
+        </div>
+        <div id="notificationList" class="overflow-y-auto p-2 flex-1"></div>
+        <div class="p-2 border-t border-gray-700">
+          <button id="notifMarkAllBtn"
+            class="w-full text-[11px] font-bold py-1.5 rounded-lg bg-blue-500/10 text-blue-400 active:scale-95 transition-all">
+            تحديد الكل كمقروء
+          </button>
+        </div>
       </div>
     </div>
   `;
 }
 
-async function renderDropdown() {
+function renderTabs() {
+  const unreadCount = allNotifications.filter(n => !n.read).length;
+  const tabUnread = document.getElementById("notifTabUnread");
+  const tabArchive = document.getElementById("notifTabArchive");
+  if (!tabUnread || !tabArchive) return;
 
-  const dropdown = document.getElementById("notificationDropdown");
-  if (!dropdown) return;
+  tabUnread.textContent = `الجديدة${unreadCount ? ` (${unreadCount})` : ""}`;
+  tabArchive.textContent = "الأرشيف";
 
-  const myUid = localStorage.getItem("userId") || "";
-  dropdown.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
+  tabUnread.className = `flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-all ${
+    activeTab === "unread" ? "bg-blue-500 text-white" : "text-gray-400"
+  }`;
+  tabArchive.className = `flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-all ${
+    activeTab === "archive" ? "bg-blue-500 text-white" : "text-gray-400"
+  }`;
+}
 
-  const result = await fetchMyNotificationsApi(myUid);
-  const items = result.status === "success" ? result.data : [];
+function renderList() {
+  const list = document.getElementById("notificationList");
+  if (!list) return;
+
+  const items = allNotifications.filter(n => (activeTab === "unread" ? !n.read : n.read));
 
   if (!items.length) {
-    dropdown.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+    list.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-6">${
+      activeTab === "unread" ? "لا توجد إشعارات جديدة" : "الأرشيف فارغ"
+    }</div>`;
     return;
   }
 
-  dropdown.innerHTML = items.map(n => `
+  list.innerHTML = items.map(n => `
     <div
       onclick="window.handleNotificationClick('${n.id}', '${n.ticketId || ""}')"
       class="p-2.5 rounded-xl mb-1 cursor-pointer transition-all ${n.read ? "opacity-60" : "bg-blue-500/10 border border-blue-500/20"} hover:opacity-100">
-      <div class="text-[11px] font-bold text-gray-100">${n.title || ""}</div>
-      <div class="text-[10px] text-gray-400 mt-0.5">${n.message || ""}</div>
+      <div class="text-[11px] font-bold text-gray-100">${n.title || n.message || ""}</div>
+      ${n.title ? `<div class="text-[10px] text-gray-400 mt-0.5">${n.message || ""}</div>` : ""}
       <div class="text-[9px] text-gray-600 mt-1">${n.createdAt ? new Date(n.createdAt).toLocaleString("ar-EG") : ""}</div>
     </div>
   `).join("");
+}
 
+function renderDropdown() {
+  renderTabs();
+  renderList();
 }
 
 window.handleNotificationClick = async function (notificationId, ticketId) {
@@ -84,6 +120,7 @@ window.initNotificationBell = function () {
   if (!myUid) return;
 
   document.body.insertAdjacentHTML("beforeend", bellButtonHtml());
+  activeTab = "unread";
 
   document.getElementById("notificationBellBtn").addEventListener("click", () => {
     const dropdown = document.getElementById("notificationDropdown");
@@ -93,14 +130,38 @@ window.initNotificationBell = function () {
     if (isHidden) renderDropdown();
   });
 
-  unsubscribeFn = subscribeToUnreadCount(myUid, count => {
+  document.getElementById("notifTabUnread").addEventListener("click", () => {
+    activeTab = "unread";
+    renderDropdown();
+  });
+
+  document.getElementById("notifTabArchive").addEventListener("click", () => {
+    activeTab = "archive";
+    renderDropdown();
+  });
+
+  document.getElementById("notifMarkAllBtn").addEventListener("click", async () => {
+    await markAllNotificationsAsRead(myUid);
+    // التحديث بيوصل تلقائياً عبر الاشتراك اللحظي (onSnapshot)
+  });
+
+  unsubscribeFn = subscribeToMyNotificationsApi(myUid, (result) => {
+    allNotifications = result.status === "success" ? result.data : [];
+
     const badge = document.getElementById("notificationBadge");
-    if (!badge) return;
-    if (count > 0) {
-      badge.textContent = count > 99 ? "99+" : String(count);
-      badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
+    const unreadCount = allNotifications.filter(n => !n.read).length;
+    if (badge) {
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+        badge.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+      }
+    }
+
+    const dropdown = document.getElementById("notificationDropdown");
+    if (dropdown && !dropdown.classList.contains("hidden")) {
+      renderDropdown();
     }
   });
 
@@ -116,6 +177,8 @@ window.destroyNotificationBell = function () {
     unsubscribeFn = null;
   }
 
+  allNotifications = [];
+  activeTab = "unread";
   document.getElementById("notificationBellWrapper")?.remove();
 
 };

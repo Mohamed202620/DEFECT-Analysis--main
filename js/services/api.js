@@ -51,7 +51,9 @@ export {
   fetchTicketLogsApi,
   fetchTicketByIdApi,
   fetchMyNotificationsApi,
+  subscribeToMyNotificationsApi,
   markNotificationReadApi,
+  markAllNotificationsAsRead,
   syncOfflineTicketsApi
 } from "./ticketsApi.js";
 
