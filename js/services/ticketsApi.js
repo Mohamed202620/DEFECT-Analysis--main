@@ -421,8 +421,25 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 
   try {
 
-    const statusClauses = () =>
-      (status && status !== "all") ? [where("status", "==", status)] : [];
+    // BUGFIX (V3): بعض التذاكر القديمة اتحفظت بأسماء status قديمة قبل
+    // توحيد الحالات (راجع تعليق workflow.js عند إنشاء التذكرة، وتعليق
+    // STATUS_LABELS في ticketsBoard.js) - "open" كانت التسمية القديمة
+    // لنفس حالة "pending"، و"reopened" كانت التسمية القديمة لنفس حالة
+    // "in_progress". لازم فلتر التبويب يطابق القيمتين الحالية والقديمة
+    // مع بعض وإلا التذاكر القديمة دي هتفضل مختفية من التبويب المخصص
+    // لها (بينما تظهر عادي في "الكل" لأنه من غير فلتر status أصلاً).
+    const STATUS_QUERY_ALIASES = {
+      pending: ["pending", "open"],
+      in_progress: ["in_progress", "reopened"]
+    };
+
+    const statusClauses = () => {
+      if (!status || status === "all") return [];
+      const values = STATUS_QUERY_ALIASES[status];
+      return values
+        ? [where("status", "in", values)]
+        : [where("status", "==", status)];
+    };
 
     const handleError = (error, context) => {
 
@@ -486,6 +503,27 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 
     };
 
+    // BUGFIX (V3): لو أي واحد من الاستعلامين (reportedBy/assignedTo)
+    // رجّع خطأ Index مفقود، كان بينادي على callback() مباشرة ويتجاوز
+    // reportedReady/assignedReady تماماً - فلو الاستعلام التاني (الشغال
+    // فعلاً) رجع نتيجة بعد كده، emitMerged() كانت بترفض تبعتها لأن
+    // الفلاج بتاع الاستعلام اللي فشل فضل false للأبد، فالمستخدم يفضل
+    // شايف "لا توجد تذاكر" حتى لو فعلياً عنده بلاغات. الإصلاح: بدل ما
+    // نقفل الموضوع بـ callback مباشر، نعتبر فرع الخطأ ده "جاهز" بقائمة
+    // فاضية ونكمل نفس مسار الدمج الطبيعي زي أي نتيجة تانية.
+    const handleBranchError = (error, context, markBranchReady) => {
+
+      const fallback = emptyResultOnMissingIndex(error, context);
+      if (fallback) {
+        markBranchReady();
+        return;
+      }
+
+      console.error(`Error in ${context}:`, error);
+      callback({ status: "error", message: error.message });
+
+    };
+
     const unsubReported = onSnapshot(
       query(
         collection(db, "tickets"),
@@ -501,7 +539,11 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
         reportedReady = true;
         emitMerged();
       },
-      (error) => handleError(error, "subscribeToTicketsBoardApi(reportedBy)")
+      (error) => handleBranchError(error, "subscribeToTicketsBoardApi(reportedBy)", () => {
+        reportedTickets = [];
+        reportedReady = true;
+        emitMerged();
+      })
     );
 
     const unsubAssigned = onSnapshot(
@@ -519,7 +561,11 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
         assignedReady = true;
         emitMerged();
       },
-      (error) => handleError(error, "subscribeToTicketsBoardApi(assignedTo)")
+      (error) => handleBranchError(error, "subscribeToTicketsBoardApi(assignedTo)", () => {
+        assignedTickets = [];
+        assignedReady = true;
+        emitMerged();
+      })
     );
 
     return () => {
