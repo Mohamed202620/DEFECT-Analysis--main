@@ -20,7 +20,8 @@ import {
   updateDoc,
   query,
   where,
-  orderBy
+  orderBy,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -381,6 +382,91 @@ export async function fetchResolvedTicketsApi() {
 
     console.error("Error fetching resolved tickets:", error);
     return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+/**
+ * لوحة متابعة البلاغات (كارت "متابعة البلاغات" في صفحة الصيانة) -
+ * Real-time listener واحد موحّد بيجمع فلتر الصلاحيات (حسب uid
+ * المستخدم الحالي) + فلتر تبويب الحالة (الكل/جديد/قيد المعالجة/
+ * مغلق) في استعلام واحد، ويرجّع دالة unsubscribe عشان تُقفل من
+ * الطرف المستدعي (ticketsBoard.js) عند تغيير الفلتر أو مغادرة
+ * الصفحة.
+ *
+ * فلتر الصلاحيات (حسب uid - نفس الحقول الموجودة بالفعل في
+ * الـ Schema لضمان الأمان في firestore.rules، مش reportedBy/
+ * assignedTo النصية اللي بتتعرض للمستخدم فقط):
+ *   - operator (مشغل)              -> reportedByUid == uid
+ *   - technician/engineer (فني)    -> assignedToUid == uid
+ *   - admin/manager (مدير)         -> بدون فلتر مستخدم (كل البلاغات)
+ *
+ * فلتر الحالة (status):
+ *   - "all"          -> بدون فلتر status
+ *   - غير كده         -> where("status", "==", status)
+ *
+ * @param {{role: string, myUid: string, status: string}} params
+ * @param {(result: {status: string, data?: any[], message?: string}) => void} callback
+ * @returns {() => void} دالة unsubscribe لإيقاف الـ listener
+ */
+export function subscribeToTicketsBoardApi({ role, myUid, status }, callback) {
+
+  try {
+
+    const clauses = [];
+
+    if (role === "operator") {
+      clauses.push(where("reportedByUid", "==", myUid));
+    } else if (role === "technician" || role === "engineer") {
+      clauses.push(where("assignedToUid", "==", myUid));
+    }
+    // admin / manager -> بدون فلتر مستخدم (يشوفوا كل البلاغات)
+
+    if (status && status !== "all") {
+      clauses.push(where("status", "==", status));
+    }
+
+    const q = query(
+      collection(db, "tickets"),
+      ...clauses,
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+
+        const tickets = [];
+        querySnapshot.forEach(docSnap => {
+          tickets.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        callback({ status: "success", data: tickets });
+
+      },
+      (error) => {
+
+        const fallback = emptyResultOnMissingIndex(error, "subscribeToTicketsBoardApi");
+        if (fallback) {
+          callback(fallback);
+          return;
+        }
+
+        console.error("Error in tickets board listener:", error);
+        callback({ status: "error", message: error.message });
+
+      }
+    );
+
+    return unsubscribe;
+
+  } catch (error) {
+
+    console.error("Error subscribing to tickets board:", error);
+    callback({ status: "error", message: error.message });
+    return () => {};
 
   }
 

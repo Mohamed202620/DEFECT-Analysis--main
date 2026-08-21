@@ -11,10 +11,7 @@ import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 import {
-  fetchPendingTicketsApi,
-  fetchTicketsForTechnicianApi,
-  fetchResolvedTicketsApi,
-  fetchTicketsApi,
+  subscribeToTicketsBoardApi,
   fetchTechniciansApi,
   assignTicketApi,
   startTicketApi,
@@ -109,80 +106,130 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 
 }
 
+// ============================================================
+// تبويبات الحالة (الكل / جديد / قيد المعالجة / مغلق)
+// ============================================================
+
+const STATUS_TABS = [
+  { key: "all", label: "الكل" },
+  { key: "pending", label: "جديد" },
+  { key: "in_progress", label: "قيد المعالجة" },
+  { key: "closed", label: "مغلق" }
+];
+
+// حالة الفلتر الحالي + مرجع دالة إلغاء اشتراك الـ onSnapshot
+// الحالي (Real-time listener) - مستوى الموديول عشان يفضل موجود
+// بين استدعاء وتاني لنفس الصفحة
+let currentStatusFilter = "all";
+let unsubscribeTicketsListener = null;
+
+function renderStatusTabs() {
+
+  const container = document.getElementById("ticketsTabsContainer");
+  if (!container) return;
+
+  container.innerHTML = STATUS_TABS.map(tab => `
+    <button
+      onclick="window.setTicketsStatusFilter('${tab.key}')"
+      class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
+        currentStatusFilter === tab.key
+          ? "bg-blue-600 border-blue-600 text-white"
+          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+      }">
+      ${tab.label}
+    </button>
+  `).join("");
+
+}
+
 /**
- * تحميل لوحة التذاكر حسب دور المستخدم الحالي - مُستدعاة من
- * pageRenderer.js عند فتح صفحة 'tickets' (زي نمط loadUsers()
- * الحالي بالظبط: containerId ثابت + دالة تحميل مرتبطة بـ window)
+ * تحميل لوحة التذاكر حسب دور المستخدم الحالي + تبويب الحالة
+ * المختار - مُستدعاة من renderCore.js تلقائياً عند فتح صفحة
+ * 'tickets' (نفس نمط AUTO LOAD بتاع users/kb/stats)، ومن تبويبات
+ * الحالة عند تغييرها. البيانات Real-time بالكامل عبر onSnapshot -
+ * أي تغيير في Firestore بيحدّث القائمة تلقائياً بدون أي زرار
+ * "تحديث" يدوي.
  */
-window.loadTicketsBoard = async function () {
+window.loadTicketsBoard = function () {
+
+  renderStatusTabs();
 
   const container = document.getElementById("ticketsBoardContainer");
   if (!container) return;
 
-  container.innerHTML = `
-    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>
-  `;
+  // أوقف أي Listener سابق (تغيير فلتر/إعادة دخول للصفحة) قبل ما
+  // نفتح واحد جديد - عشان منسيبش أكتر من اشتراك شغال في نفس الوقت
+  if (typeof unsubscribeTicketsListener === "function") {
+    unsubscribeTicketsListener();
+    unsubscribeTicketsListener = null;
+  }
 
   const role = getCurrentRole();
-  const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
 
   // تحميل عدد الإشعارات غير المقروءة (لا يوقف عرض التذاكر لو فشل)
   loadNotificationsBadge();
 
-  try {
+  if (!role) {
+    renderTicketsList("ticketsBoardContainer", [], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
+    return;
+  }
 
-    let result;
+  container.innerHTML = `
+    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>
+  `;
 
-    if (role === "admin") {
-      // الأدمن بيشوف كل التذاكر بكل حالاتها (صورة كاملة على النظام)
-      result = await fetchTicketsApi();
+  unsubscribeTicketsListener = subscribeToTicketsBoardApi(
+    { role, myUid, status: currentStatusFilter },
+    (result) => {
 
-    } else if (role === "manager") {
-      result = await fetchPendingTicketsApi();
+      if (!result || result.status !== "success") {
+        // ملحوظة: مبنعرضش result.message هنا عمداً - ممكن تكون رسالة
+        // خطأ خام من Firebase (زي رابط إنشاء Index) مش مناسبة لعرضها
+        // للمستخدم العادي. التفاصيل الحقيقية اتسجلت بالفعل في
+        // Console عبر console.error() جوه دالة الـ API نفسها.
+        console.error("Ticket subscription error:", result?.message);
+        container.innerHTML = `
+          <div class="text-red-400 text-center text-xs py-6">
+            تعذر تحميل التذاكر حالياً. حاول مرة أخرى، ولو استمرت المشكلة تواصل مع الأدمن.
+          </div>
+        `;
+        return;
+      }
 
-    } else if (role === "technician" || role === "engineer") {
-      result = await fetchTicketsForTechnicianApi(myName);
+      const tickets = Array.isArray(result.data) ? result.data : [];
+      renderTicketsList("ticketsBoardContainer", tickets, "لا توجد تذاكر حالياً في قائمتك.");
 
-    } else if (role === "operator") {
-      result = await fetchResolvedTicketsApi();
-
-    } else {
-      renderTicketsList("ticketsBoardContainer", [], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
-      return;
     }
+  );
 
-    if (!result || result.status !== "success") {
-      // ملحوظة: مبنعرضش result.message هنا عمداً - ممكن تكون رسالة
-      // خطأ خام من Firebase (زي رابط إنشاء Index) مش مناسبة لعرضها
-      // للمستخدم العادي. التفاصيل الحقيقية اتسجلت بالفعل في
-      // Console عبر console.error() جوه دالة الـ API نفسها.
-      console.error("Ticket fetch error:", result?.message);
-      container.innerHTML = `
-        <div class="text-red-400 text-center text-xs py-6">
-          تعذر تحميل التذاكر حالياً. حاول تحديث الصفحة، ولو استمرت المشكلة تواصل مع الأدمن.
-        </div>
-      `;
-      return;
-    }
+};
 
-    let tickets = Array.isArray(result.data) ? result.data : [];
+/**
+ * تغيير تبويب الحالة (الكل/جديد/قيد المعالجة/مغلق) - بيوقف
+ * الـ listener الحالي ويفتح واحد جديد بالفلتر الجديد (فلتر
+ * الصلاحيات + فلتر الحالة سوا في نفس الاستعلام)
+ */
+window.setTicketsStatusFilter = function (status) {
 
-    // المُبلّغ (operator) يشوف بس التذاكر اللي هو بلّغ عنها -
-    // فلترة على مستوى العميل (راجع ملاحظة fetchResolvedTicketsApi)
-    if (role === "operator") {
-      tickets = tickets.filter(t => t.reportedByUid === myUid || t.reportedBy === myName);
-    }
+  if (status === currentStatusFilter) return;
 
-    renderTicketsList("ticketsBoardContainer", tickets, "لا توجد تذاكر حالياً في قائمتك.");
+  currentStatusFilter = status;
+  window.loadTicketsBoard();
 
-  } catch (error) {
+};
 
-    console.error("Error loading tickets board:", error);
-    container.innerHTML = `
-      <div class="text-red-400 text-center text-xs py-6">حدث خطأ أثناء تحميل التذاكر.</div>
-    `;
+/**
+ * إيقاف الـ Real-time Listener بتاع لوحة التذاكر - بتتنادى من
+ * renderCore.js عند مغادرة صفحة 'tickets' لأي صفحة تانية، عشان
+ * منسيبش اشتراك شغال في الخلفية من غير داعي (تسريب موارد + قراءات
+ * Firestore غير ضرورية)
+ */
+window.cleanupTicketsBoard = function () {
 
+  if (typeof unsubscribeTicketsListener === "function") {
+    unsubscribeTicketsListener();
+    unsubscribeTicketsListener = null;
   }
 
 };
@@ -284,7 +331,10 @@ window.handleTicketAction = async function (ticketId, action) {
   }
 
   if (result?.status === "success") {
-    window.loadTicketsBoard();
+    // ملحوظة: مفيش داعي لإعادة تحميل القائمة يدوياً هنا - لوحة
+    // التذاكر Real-time بالكامل عبر onSnapshot (subscribeToTicketsBoardApi)
+    // فالـ listener هيستقبل التحديث تلقائياً بمجرد ما التغيير يوصل
+    // Firestore، من غير أي إعادة اشتراك يدوية
   } else {
     // نفس مبدأ حماية المستخدم من رسائل الأخطاء الخام (Firebase/
     // Firestore بتكون دايماً بالإنجليزي، ورسائل التحقق بتاعتنا

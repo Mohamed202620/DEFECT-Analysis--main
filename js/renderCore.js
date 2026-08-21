@@ -17,6 +17,11 @@ export let currentLang = 'ar';
 
 window.currentLang = currentLang;
 
+// الصفحة المعروضة فعلياً قبل استدعاء render() الحالي - بتُستخدم
+// بس عشان نعرف "بنغادر صفحة إيه" (زي 'tickets') فنقفل أي Real-time
+// listener خاص بيها قبل ما نبدّل المحتوى (راجع TICKETS CLEANUP تحت)
+let activePage = null;
+
 // ============================================================
 // RENDER
 // ============================================================
@@ -27,6 +32,24 @@ const app =
 document.getElementById("app");
 
 if (!app) return;
+
+// ========================================================
+// TICKETS CLEANUP
+// (لو كنا في صفحة 'tickets' وهنغادرها لصفحة تانية، اقفل الـ
+// onSnapshot listener بتاع لوحة متابعة البلاغات أولاً)
+// ========================================================
+
+if (
+  activePage === "tickets" &&
+  currentPage !== "tickets" &&
+  typeof window.cleanupTicketsBoard === "function"
+) {
+
+  window.cleanupTicketsBoard();
+
+}
+
+activePage = currentPage;
 
 app.style.opacity = "0.4";
 
@@ -117,6 +140,27 @@ if (currentPage === "users") {
     ) {  
 
       window.loadUsers();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// TICKETS AUTO LOAD
+// (لوحة متابعة البلاغات - Real-time عبر onSnapshot، بتتفعّل
+// تلقائياً من غير أي زرار "تحديث" يدوي - راجع ticketsBoard.js)
+// ========================================================  
+
+if (currentPage === "tickets") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadTicketsBoard === "function") {  
+
+      window.loadTicketsBoard();  
 
     }  
 

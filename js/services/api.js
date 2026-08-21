@@ -42,6 +42,7 @@ export {
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
   fetchResolvedTicketsApi,
+  subscribeToTicketsBoardApi,
   assignTicketApi,
   startTicketApi,
   resolveTicketApi,

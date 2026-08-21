@@ -91,7 +91,12 @@ case 'quality':
 case 'tickets':  
 
   // لوحة متابعة دورة حياة التذكرة - نفس نمط صفحة 'users' تماماً
-  // (PageView + حاوية بيتم ملؤها ببيانات Firestore عبر window.loadTicketsBoard)
+  // (PageView + حاوية بيتم ملؤها ببيانات Firestore عبر
+  // window.loadTicketsBoard). البيانات دلوقتي Real-time بالكامل
+  // عبر onSnapshot (راجع ticketsBoard.js + subscribeToTicketsBoardApi)
+  // فمفيش زرار "تحديث" يدوي ولا حالة تحميل أولى تنتظر ضغطة -
+  // renderCore.js بينادي window.loadTicketsBoard() تلقائياً عند
+  // فتح الصفحة (نفس نمط AUTO LOAD بتاع users/kb/stats).
   return hasPermission("maintenance")  
     ? PageView(  
         "📋 متابعة البلاغات",  
@@ -99,14 +104,10 @@ case 'tickets':
           <div class="space-y-3">  
 
             <div class="flex gap-2">
-              <button  
-                onclick="window.loadTicketsBoard()"  
-                class="flex-1 bg-blue-600 hover:bg-blue-500 rounded-lg p-3 font-bold text-white text-xs">  
-                🔄 تحديث القائمة  
-              </button>  
+              <div id="ticketsTabsContainer" class="flex-1 flex gap-2 overflow-x-auto"></div>
               <button
                 onclick="window.toggleNotificationsPanel()"
-                class="relative bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-4 font-bold text-white text-sm">
+                class="relative shrink-0 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-4 font-bold text-white text-sm">
                 🔔
                 <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
               </button>
@@ -116,7 +117,7 @@ case 'tickets':
 
             <div id="ticketsBoardContainer" class="mt-4">  
               <div class="text-center text-gray-500 text-xs py-8">  
-                اضغط "تحديث القائمة" لعرض التذاكر.  
+                جاري تحميل التذاكر...
               </div>  
             </div>  
 
