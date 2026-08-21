@@ -273,5 +273,10 @@ if (!isLoggedIn) {
 
 render();
 
+// تفعيل جرس الإشعارات لو فيه جلسة دخول محفوظة بالفعل (Refresh)
+if (isLoggedIn && typeof window.initNotificationBell === "function") {
+  window.initNotificationBell();
+}
+
 }
 );

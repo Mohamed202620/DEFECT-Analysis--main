@@ -33,4 +33,10 @@ import './ticketsBoard.js';
 // التلقائية عند عودة الإنترنت (Offline-First)
 import './offlineBanner.js';
 
+// استيراد جانبي (Side-effect) لربط جرس الإشعارات بـ window
+// (window.initNotificationBell / window.destroyNotificationBell)
+// ملاحظة: كان هذا الملف موجوداً بدون أي import له في المشروع،
+// فكانت الدالتين غير معرّفتين أبداً ولم يكن الجرس يظهر مطلقاً
+import './components/NotificationBell.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

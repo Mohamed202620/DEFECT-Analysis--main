@@ -214,6 +214,10 @@ setCurrentPermissions(
 
 navigateTo("home");
 
+if (typeof window.initNotificationBell === "function") {
+  window.initNotificationBell();
+}
+
 } catch (error) {
 
 console.error(  
@@ -647,6 +651,10 @@ container.innerHTML = `
 
 window.logout =
 function () {
+
+if (typeof window.destroyNotificationBell === "function") {
+  window.destroyNotificationBell();
+}
 
 localStorage.clear();
 
