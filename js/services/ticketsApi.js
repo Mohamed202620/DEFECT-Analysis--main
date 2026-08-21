@@ -21,7 +21,8 @@ import {
   query,
   where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  or
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -396,12 +397,17 @@ export async function fetchResolvedTicketsApi() {
  * الطرف المستدعي (ticketsBoard.js) عند تغيير الفلتر أو مغادرة
  * الصفحة.
  *
- * فلتر الصلاحيات (حسب uid - نفس الحقول الموجودة بالفعل في
- * الـ Schema لضمان الأمان في firestore.rules، مش reportedBy/
- * assignedTo النصية اللي بتتعرض للمستخدم فقط):
- *   - operator (مشغل)              -> reportedByUid == uid
- *   - technician/engineer (فني)    -> assignedToUid == uid
- *   - admin/manager (مدير)         -> بدون فلتر مستخدم (كل البلاغات)
+ * فلتر الصلاحيات:
+ *   - admin / manager (مدير) -> بدون فلتر مستخدم (كل البلاغات)
+ *   - أي دور تاني (مُبلّغ/فني/...) -> or(reportedByUid == uid,
+ *     assignedToUid == uid) - شرط OR واحد على مستوى Firestore
+ *     نفسه، فلو المستخدم هو المُبلّغ والفني المُسند إليه لنفس
+ *     البلاغ مع بعض، البلاغ برضه بيرجع مرة واحدة بس (Firestore
+ *     بيرجّع كل مستند مرة واحدة حتى لو حقق أكتر من شرط OR - مفيش
+ *     حاجة اسمها تكرار محتاج فلترة يدوية على مستوى العميل).
+ *     (reportedByUid/assignedToUid هما الحقول الحقيقية الموجودة
+ *     بالفعل في الـ Schema لضمان الأمان - راجع firestore.rules -
+ *     مش reportedBy/assignedTo النصية اللي بتتعرض كاسم للمستخدم فقط)
  *
  * فلتر الحالة (status):
  *   - "all"          -> بدون فلتر status
@@ -417,10 +423,13 @@ export function subscribeToTicketsBoardApi({ role, myUid, status }, callback) {
 
     const clauses = [];
 
-    if (role === "operator") {
-      clauses.push(where("reportedByUid", "==", myUid));
-    } else if (role === "technician" || role === "engineer") {
-      clauses.push(where("assignedToUid", "==", myUid));
+    if (role !== "admin" && role !== "manager") {
+      clauses.push(
+        or(
+          where("reportedByUid", "==", myUid),
+          where("assignedToUid", "==", myUid)
+        )
+      );
     }
     // admin / manager -> بدون فلتر مستخدم (يشوفوا كل البلاغات)
 

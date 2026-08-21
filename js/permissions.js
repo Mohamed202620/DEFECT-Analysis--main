@@ -84,36 +84,51 @@ export function getTicketActions(ticket) {
 
   const actions = [];
 
-  const isMine =
+  // العلاقة الفعلية بالبلاغ (مش اسم الدور المخزّن) - عشان لو
+  // المستخدم هو المُبلّغ والفني المُسند إليه لنفس البلاغ مع بعض،
+  // تتجمع صلاحيات الدورين بدون تعارض (كل حالة بتاعة تذكرة أصلاً
+  // بتفتح مجموعة أزرار واحدة بس - مفيش تعارض ممكن يحصل)
+  const isAssignee =
     role === "admin" ||
     ticket.assignedToUid === myUid ||
-    ticket.assignedTo === myName;
+    (!!myName && ticket.assignedTo === myName);
+
+  const isReporter =
+    role === "admin" ||
+    ticket.reportedByUid === myUid ||
+    (!!myName && ticket.reportedBy === myName);
 
   switch (status) {
 
     case "pending":
+      // تصنيف وإسناد البلاغ - صلاحية إدارية بحتة (مدير/أدمن)، مش
+      // جزء من ثنائية مُبلّغ/فني
       if (role === "manager" || role === "admin") {
         actions.push({ key: "assign", label: "🛠️ تصنيف وإسناد" });
       }
       break;
 
     case "assigned":
-      if ((role === "technician" || role === "engineer" || role === "admin") && isMine) {
+      // الفني المُسند إليه فقط يقدر يبدأ التنفيذ
+      if (isAssignee) {
         actions.push({ key: "start", label: "▶️ بدء التنفيذ" });
       }
       break;
 
     case "in_progress":
-      if ((role === "technician" || role === "engineer" || role === "admin") && isMine) {
+      // الفني المُسند إليه فقط يقدر ينهي المعالجة (لا يقدر يغلق
+      // البلاغ نيابة عن المُبلّغ - ده بيحوّل الحالة لـ "resolved"
+      // بانتظار مراجعة المُبلّغ بس)
+      if (isAssignee) {
         actions.push({ key: "resolve", label: "✅ تم الإصلاح" });
       }
       break;
 
     case "resolved":
-      if (
-        (role === "operator" || role === "admin") &&
-        (role === "admin" || ticket.reportedBy === myName || ticket.reportedByUid === myUid)
-      ) {
+      // المُبلّغ فقط (بعد ما الفني ينهي المعالجة) يقدر يراجع
+      // ويأكّد الإغلاق أو يرفض مع سبب - المُبلّغ محدش غيره يقدر
+      // يغلق البلاغ قبل ما الفني يخلص
+      if (isReporter) {
         actions.push({ key: "confirm", label: "✔️ تأكيد الإغلاق" });
         actions.push({ key: "reject", label: "❌ رفض ورجوع للفني" });
       }
