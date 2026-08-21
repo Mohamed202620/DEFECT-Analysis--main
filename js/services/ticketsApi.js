@@ -167,11 +167,77 @@ export async function fetchResolvedTicketsApi() {
   }
 }
 
+// ============================================================
+// Real-time Listener للوحة متابعة التذاكر حسب الدور والتبويب
+// ============================================================
+
+function createSnapshotListener(q, context, callback) {
+  return onSnapshot(
+    q,
+    (querySnapshot) => {
+      const tickets = [];
+      querySnapshot.forEach(docSnap => {
+        tickets.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      callback({ status: "success", data: tickets });
+    },
+    (error) => {
+      const fallback = emptyResultOnMissingIndex(error, context);
+      if (fallback) {
+        callback(fallback);
+        return;
+      }
+      console.error(`Error in ${context}:`, error);
+      callback({ status: "error", message: error.message });
+    }
+  );
+}
+
 export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, callback) {
   try {
+
+    // 1. تبويب "بلاغاتي" (My Tickets) - التذاكر التي قام المستخدم بإنشائها
+    if (status === "my_tickets") {
+      const field = myUid ? "reportedByUid" : "reportedBy";
+      const val = myUid || myName;
+      const q = query(
+        collection(db, "tickets"),
+        where(field, "==", val),
+        orderBy("createdAt", "desc")
+      );
+      return createSnapshotListener(q, "subscribeToTicketsBoardApi(my_tickets)", callback);
+    }
+
+    // 2. تبويب "المُسندة إليّ" (Assigned To Me) - التذاكر المُسندة للفني وقيد التنفيذ
+    if (status === "assigned_to_me") {
+      const field = myUid ? "assignedToUid" : "assignedTo";
+      const val = myUid || myName;
+      const q = query(
+        collection(db, "tickets"),
+        where(field, "==", val),
+        where("status", "in", ["assigned", "in_progress", "reopened"]),
+        orderBy("createdAt", "desc")
+      );
+      return createSnapshotListener(q, "subscribeToTicketsBoardApi(assigned_to_me)", callback);
+    }
+
+    // 3. تبويب "بانتظار تأكيدي" (Awaiting Confirm) - بلاغات أصلحها الفني وتنتظر مراجعة مُنشئ البلاغ
+    if (status === "awaiting_confirm") {
+      const field = myUid ? "reportedByUid" : "reportedBy";
+      const val = myUid || myName;
+      const q = query(
+        collection(db, "tickets"),
+        where(field, "==", val),
+        where("status", "==", "resolved"),
+        orderBy("createdAt", "desc")
+      );
+      return createSnapshotListener(q, "subscribeToTicketsBoardApi(awaiting_confirm)", callback);
+    }
+
+    // 4. الفلاتر العامة (خاصة بالأدمن/المدير أو عند اختيار "الكل")
     const STATUS_QUERY_ALIASES = {
       pending: ["pending", "open"],
-      in_progress: ["in_progress", "reopened"]
+      in_progress: ["in_progress", "reopened", "assigned"]
     };
 
     const statusClauses = () => {
@@ -182,35 +248,16 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
         : [where("status", "==", status)];
     };
 
-    const handleError = (error, context) => {
-      const fallback = emptyResultOnMissingIndex(error, context);
-      if (fallback) {
-        callback(fallback);
-        return;
-      }
-      console.error(`Error in ${context}:`, error);
-      callback({ status: "error", message: error.message });
-    };
-
     if (role === "admin" || role === "manager") {
       const q = query(
         collection(db, "tickets"),
         ...statusClauses(),
         orderBy("createdAt", "desc")
       );
-      return onSnapshot(
-        q,
-        (querySnapshot) => {
-          const tickets = [];
-          querySnapshot.forEach(docSnap => {
-            tickets.push({ id: docSnap.id, ...docSnap.data() });
-          });
-          callback({ status: "success", data: tickets });
-        },
-        (error) => handleError(error, "subscribeToTicketsBoardApi")
-      );
+      return createSnapshotListener(q, "subscribeToTicketsBoardApi(admin/manager)", callback);
     }
 
+    // استعلام مزدوج كمرجع للفنيين في حالة اختيار تبويب عام مثل "الكل"
     let reportedTickets = [];
     let assignedTickets = [];
     let reportedReady = false;
@@ -324,13 +371,11 @@ function isMissingIndexError(error) {
   return error?.code === "failed-precondition";
 }
 
-// تم تنظيف هذه الدالة بحذف سطر الـ prompt لأن الفهارس جاهزة الآن
 function emptyResultOnMissingIndex(error, context) {
   if (isMissingIndexError(error)) {
     console.warn(
-      `[${context}] محتاج Index في Firestore لسه ماتعملش - ` +
-      `تم إخفاء الخطأ عن المستخدم وعرض قائمة فاضية مؤقتاً. ` +
-      `التفاصيل: ${error.message}`
+      `[${context}] محتاج Index في Firestore - ` +
+      `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
     );
     return { status: "success", data: [] };
   }
