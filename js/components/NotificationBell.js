@@ -26,8 +26,9 @@ function bellButtonHtml() {
         </span>
       </button>
 
-      <div id="notificationDropdown"
-        class="hidden absolute left-0 mt-2 w-72 max-h-96 overflow-hidden flex flex-col bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl z-50">
+            <div id="notificationDropdown"
+        class="hidden absolute top-full left-0 mt-2 w-64 max-h-96 overflow-hidden flex flex-col bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl z-50">
+ 
 
         <div class="flex items-center gap-1 p-2 border-b border-gray-700">
           <button id="notifTabUnread"
