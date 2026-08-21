@@ -324,10 +324,9 @@ function isMissingIndexError(error) {
   return error?.code === "failed-precondition";
 }
 
+// تم تنظيف هذه الدالة بحذف سطر الـ prompt لأن الفهارس جاهزة الآن
 function emptyResultOnMissingIndex(error, context) {
   if (isMissingIndexError(error)) {
-    prompt("انسخ الرابط الموجود هنا وافتحه في متصفحك لإنشاء الفهرس (Index):", error.message);
-    
     console.warn(
       `[${context}] محتاج Index في Firestore لسه ماتعملش - ` +
       `تم إخفاء الخطأ عن المستخدم وعرض قائمة فاضية مؤقتاً. ` +
