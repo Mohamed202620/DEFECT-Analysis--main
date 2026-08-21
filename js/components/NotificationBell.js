@@ -1,8 +1,8 @@
 // ============================================================
 // NotificationBell.js
-// جرس الإشعارات - زر عائم وثابت (Fixed) في زاوية الشاشة
+// جرس الإشعارات - زر عائم وثابت في أعلى اليسار بجانب زر الثيم
 // يظهر في جميع الصفحات بثبات تام، مع تبويبين (جديدة / أرشيف)
-// وتحديث لحظي عبر onSnapshot بدون أي مشاكل إحداثيات أو اختفاء.
+// وتحديث لحظي عبر onSnapshot بدون أي تداخل مع العناوين.
 // ============================================================
 
 import {
@@ -17,7 +17,7 @@ let activeTab = "unread"; // "unread" | "archive"
 
 function bellButtonHtml() {
   return `
-    <div id="notificationBellWrapper" class="fixed top-3 right-4 z-50">
+    <div id="notificationBellWrapper" class="fixed top-3 left-4 z-50">
       <button id="notificationBellBtn"
         class="w-11 h-11 rounded-full bg-[#1E293B] border border-gray-700 shadow-xl flex items-center justify-center relative active:scale-95 transition-all">
         <span class="text-lg">🔔</span>
@@ -29,7 +29,7 @@ function bellButtonHtml() {
       </button>
 
       <div id="notificationDropdown"
-        class="hidden absolute right-0 mt-2 w-72 max-h-96 overflow-hidden flex flex-col bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl z-50">
+        class="hidden absolute left-0 mt-2 w-72 max-h-96 overflow-hidden flex flex-col bg-[#1E293B] border border-gray-700 rounded-2xl shadow-2xl z-50">
 
         <div class="flex items-center gap-1 p-2 border-b border-gray-700">
           <button id="notifTabUnread"
