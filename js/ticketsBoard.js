@@ -15,7 +15,6 @@ import {
   resolveTicketApi,
   closeTicketApi,
   reopenTicketApi,
-  rejectTicketApi,
   fetchMyNotificationsApi,
   markNotificationReadApi
 } from './services/api.js';
@@ -318,7 +317,7 @@ window.handleTicketAction = async function (ticketId, action) {
 
     if (!values || !values.operatorFeedback) return;
 
-    result = await rejectTicketApi(ticketId, values.operatorFeedback);
+    result = await reopenTicketApi(ticketId, values.operatorFeedback);
 
   } else {
     return;
