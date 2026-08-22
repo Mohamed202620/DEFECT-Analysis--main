@@ -293,6 +293,42 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
   }
 }
 
+// ============================================================
+// جلب تذاكر آخر N يوم لتقرير قابل للتصدير - مرة واحدة (getDocs
+// مش Realtime) وبنفس منطق فلترة الصلاحيات المُستخدم بالظبط في
+// subscribeToTicketsBoardApi (admin/manager = كل التذاكر،
+// وغيرهم = بلاغاتي + المُسندة إليّ فقط). فلترة التاريخ بتتم محلياً
+// (زي باقي الملف) لتفادي أي حاجة لـ Composite Index.
+// ============================================================
+export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }) {
+  try {
+    const ticketsRef = collection(db, "tickets");
+    let tickets = [];
+
+    if (role === "admin" || role === "manager") {
+      const snap = await getDocs(query(ticketsRef));
+      snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
+    } else {
+      const [reportedSnap, assignedSnap] = await Promise.all([
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
+      ]);
+      const merged = new Map();
+      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      tickets = Array.from(merged.values());
+    }
+
+    const filtered = tickets.filter(t => String(t.createdAt || "") >= sinceISO);
+    filtered.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+    return { status: "success", data: filtered };
+  } catch (error) {
+    console.error("Error fetching tickets for report:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 export async function updateTicketStatusApi(ticketId, status, notes = "") {
   try {
     const ticketRef = doc(db, "tickets", ticketId);

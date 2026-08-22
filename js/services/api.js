@@ -50,6 +50,7 @@ export {
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
+  fetchTicketsForReportApi,
   fetchMyNotificationsApi,
   subscribeToMyNotificationsApi,
   markNotificationReadApi,

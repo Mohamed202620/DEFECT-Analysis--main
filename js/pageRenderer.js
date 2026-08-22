@@ -115,6 +115,13 @@ case 'tickets':
 
             <div id="notifPanel" class="hidden bg-[#1E293B] border border-gray-800 rounded-xl p-2 max-h-64 overflow-y-auto"></div>
 
+            <button
+              id="monthlyReportBtn"
+              onclick="window.generateMonthlyReport()"
+              class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg py-2.5 font-bold text-white text-xs transition-all">
+              🗓️ تقرير شهري (PDF)
+            </button>
+
             <div id="ticketsBoardContainer" class="mt-4">  
               <div class="text-center text-gray-500 text-xs py-8">  
                 جاري تحميل التذاكر...
