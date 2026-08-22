@@ -49,6 +49,23 @@ if (
 
 }
 
+// ========================================================
+// KAIZEN BOARD CLEANUP
+// (لو كنا في صفحة 'kaizenBoard' وهنغادرها لصفحة تانية، اقفل الـ
+// onSnapshot listener بتاعها - نفس فكرة تنظيف صفحة التذاكر لكن
+// مستقلة تماماً، راجع kaizenBoard.js)
+// ========================================================
+
+if (
+  activePage === "kaizenBoard" &&
+  currentPage !== "kaizenBoard" &&
+  typeof window.cleanupKaizenBoard === "function"
+) {
+
+  window.cleanupKaizenBoard();
+
+}
+
 activePage = currentPage;
 
 app.style.opacity = "0.4";
@@ -161,6 +178,27 @@ if (currentPage === "tickets") {
     if (typeof window.loadTicketsBoard === "function") {  
 
       window.loadTicketsBoard();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// KAIZEN BOARD AUTO LOAD
+// (لوحة متابعة الكايزن - Real-time عبر onSnapshot، بتتفعّل تلقائياً
+// من غير أي زرار "تحديث" يدوي - راجع kaizenBoard.js)
+// ========================================================  
+
+if (currentPage === "kaizenBoard") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadKaizenBoard === "function") {  
+
+      window.loadKaizenBoard();  
 
     }  
 

@@ -72,4 +72,9 @@ export {
 
 export { savePmApi } from "./pmApi.js";
 
-export { saveSuggestionApi } from "./suggestionsApi.js";
+export {
+  saveSuggestionApi,
+  subscribeToSuggestionsBoardApi,
+  updateSuggestionStatusApi,
+  fetchSuggestionsForReportApi
+} from "./suggestionsApi.js";

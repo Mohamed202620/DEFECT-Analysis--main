@@ -134,6 +134,38 @@ case 'tickets':
     : unauthorizedPage("maintenance");  
 
 
+case 'kaizenBoard':  
+
+  // لوحة متابعة الكايزن (مراجعة واعتماد المقترحات) - نفس فكرة
+  // صفحة 'tickets' (Realtime + آخر 60 + Pagination)، لكن منطقها
+  // مستقل بالكامل في kaizenBoard.js (بدون أي تعديل على ticketsBoard.js)
+  return hasPermission("maintenance")  
+    ? PageView(  
+        "💡 متابعة الكايزن",  
+        `  
+          <div class="space-y-3">  
+
+            <div id="kaizenTabsContainer" class="flex gap-2 overflow-x-auto"></div>
+
+            <button
+              id="kaizenReportBtn"
+              onclick="window.generateKaizenMonthlyReport()"
+              class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg py-2.5 font-bold text-white text-xs transition-all">
+              🗓️ تقرير شهري (PDF)
+            </button>
+
+            <div id="kaizenBoardContainer" class="mt-4">  
+              <div class="text-center text-gray-500 text-xs py-8">  
+                جاري تحميل المقترحات...
+              </div>  
+            </div>  
+
+          </div>  
+        `  
+      )  
+    : unauthorizedPage("maintenance");  
+
+
 case 'errorScanner':  
 
   // ملاحظة: "errorScanner" صلاحية دقيقة جديدة (تطابق نمط باقي صلاحيات
