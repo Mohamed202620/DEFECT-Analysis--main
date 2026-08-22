@@ -26,6 +26,21 @@ export const SuggestionView = () => {
       date: new Date().toISOString()
     };
 
+    // الصورة المرفقة (إن وُجدت) - كانت تُقرأ من DOM ولا تُرسل إطلاقاً
+    const fileInput = document.getElementById("suggestionFile");
+    const file = fileInput?.files?.[0];
+
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        alert(isEn ? '⚠️ Only image files are supported.' : '⚠️ الملف المختار ليس صورة، الصور فقط مدعومة حالياً.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert(isEn ? '❌ Image is too large (max 10MB)' : '❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)');
+        return;
+      }
+    }
+
     const submitBtn = event.target?.querySelector('button[type="submit"]');
     const originalText = submitBtn ? submitBtn.innerHTML : '';
 
@@ -35,6 +50,11 @@ export const SuggestionView = () => {
     }
 
     try {
+      if (file) {
+        const { compressImage } = await import('../workflow.js');
+        data.image = await compressImage(file, 900, 0.75);
+      }
+
       const { saveSuggestionApi } = await import('../services/api.js');
       const result = await saveSuggestionApi(data);
 
@@ -119,7 +139,7 @@ export const SuggestionView = () => {
             <option value="Palletizer">Palletizer</option>
             <option value="Depalletizer">Depalletizer</option>
             <option value="Front End Line Control">Front End Line Control</option>
-            <option value="Mid Line Line Control">Mid Line Line Control</option>
+            <option value="Mid Line Control">Mid Line Control</option>
             <option value="Back End Line Control">Back End Line Control</option>
           </select>
         </div>
@@ -167,9 +187,9 @@ export const SuggestionView = () => {
       <!-- مرفقات وصور -->
       <div>
         <label class="block text-xs font-bold text-gray-300 mb-1">
-          ${isEn ? 'Attach Photo / File (Optional)' : 'إرفاق صورة أو مستند (قبل / بعد)'}
+          ${isEn ? 'Attach Photo (Optional)' : 'إرفاق صورة (قبل / بعد)'}
         </label>
-        <input type="file" id="suggestionFile" accept="image/*,.pdf" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-amber-400 hover:file:bg-gray-700 cursor-pointer transition-colors">
+        <input type="file" id="suggestionFile" accept="image/*" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-amber-400 hover:file:bg-gray-700 cursor-pointer transition-colors">
       </div>
 
       <!-- إرسال مجهول -->

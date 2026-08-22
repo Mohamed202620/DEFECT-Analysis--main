@@ -53,7 +53,9 @@ const KAIZEN_TABS = [
 function suggestionCardHtml(suggestion) {
 
   const status = suggestion.status || "new";
-  const isPM = getCurrentRole() === "manager"; // الـ PM فقط يقدر يغيّر الحالة
+  // PM أو الأدمن يقدروا يغيّروا الحالة - نفس صلاحية العرض الكامل
+  // المُطبَّقة فعلاً في subscribeToSuggestionsBoardApi (admin/manager)
+  const isPM = ["manager", "admin"].includes(getCurrentRole());
   const displayName = suggestion.anonymous ? "🕶️ مقترح مجهول" : (suggestion.name || "-");
 
   const statusChangeHtml = isPM ? `
@@ -278,8 +280,8 @@ window.setKaizenPage = function (page) {
  */
 window.setSuggestionStatus = async function (suggestionId, newStatus) {
 
-  if (getCurrentRole() !== "manager") {
-    alert("⚠️ تغيير حالة المقترح متاح فقط لمدير الإنتاج (PM).");
+  if (!["manager", "admin"].includes(getCurrentRole())) {
+    alert("⚠️ تغيير حالة المقترح متاح فقط لمدير الإنتاج (PM) أو الأدمن.");
     return;
   }
 

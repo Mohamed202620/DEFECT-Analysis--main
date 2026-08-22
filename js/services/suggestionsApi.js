@@ -5,6 +5,7 @@
 // ============================================================
 
 import { db } from "../config.js";
+import { uploadBase64Image } from "./imageUpload.js";
 
 import {
   collection,
@@ -30,10 +31,17 @@ export async function saveSuggestionApi(payload) {
 
   try {
 
+    // نفس نمط saveIssueApi (ticketsApi.js): استخراج الصورة (Base64)
+    // من الـ payload، رفعها على ImgBB، وتخزين الرابط فقط (imageUrl)
+    // بدل الـ Base64 الكامل داخل مستند Firestore
+    const { image, ...restPayload } = payload;
+    const imageUrl = await uploadBase64Image(image, "suggestion_" + Date.now());
+
     const docRef = await addDoc(
       collection(db, "suggestions"),
       {
-        ...payload,
+        ...restPayload,
+        ...(imageUrl && { imageUrl }),
         status: payload?.status || "new",
         createdAt: new Date().toISOString()
       }
