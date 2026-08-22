@@ -78,6 +78,21 @@ function suggestionCardHtml(suggestion) {
     <img src="${suggestion.imageUrl}" class="w-full max-h-40 object-cover rounded-lg border border-gray-800 mt-2" />
   ` : "";
 
+  // زر "التفاصيل" - يفتح Modal للعرض فقط (بدون أي تعديل على الحالة
+  // أو الصلاحيات)، ويعتمد على بيانات المقترح المخزَّنة أصلاً في
+  // kaizenItemsById بدل تمريرها داخل الـ HTML نفسه
+  const detailsButtonHtml = `
+    <button
+      onclick="window.openKaizenSuggestionDetails('${suggestion.id}')"
+      class="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border border-gray-700 bg-[#0E1117] text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all active:scale-95">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+      <span>التفاصيل</span>
+    </button>
+  `;
+
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3">
       <div class="flex justify-between items-center">
@@ -103,6 +118,7 @@ function suggestionCardHtml(suggestion) {
       </div>
 
       ${imageHtml}
+      ${detailsButtonHtml}
       ${statusChangeHtml}
     </div>
   `;
@@ -122,6 +138,10 @@ let kaizenCurrentPage = 1;
 let kaizenCurrentStatusFilter = "all";
 let kaizenCappedItems = [];
 let unsubscribeKaizenListener = null;
+
+// خريطة id → بيانات المقترح الكاملة، تُستخدم فقط لعرض تفاصيل
+// المقترح داخل الـ Modal (بدل تمرير كل البيانات داخل الـ HTML)
+let kaizenItemsById = {};
 
 function renderKaizenTabs() {
 
@@ -237,6 +257,10 @@ window.loadKaizenBoard = function () {
 
       const items = Array.isArray(result.data) ? result.data : [];
       kaizenCappedItems = items.slice(0, MAX_KAIZEN_ITEMS);
+
+      kaizenItemsById = {};
+      kaizenCappedItems.forEach(item => { kaizenItemsById[item.id] = item; });
+
       renderKaizenPage();
 
     }
@@ -303,6 +327,163 @@ window.cleanupKaizenBoard = function () {
     unsubscribeKaizenListener();
     unsubscribeKaizenListener = null;
   }
+
+  if (typeof window.closeKaizenSuggestionDetails === "function") {
+    window.closeKaizenSuggestionDetails();
+  }
+
+};
+
+// ============================================================
+// Modal تفاصيل المقترح - عرض فقط (خطوة 1)
+// لا يعدّل أي حالة/صلاحية/Workflow، فقط يعرض بيانات المقترح
+// الكاملة بشكل واضح فوق نفس اللوحة، بنفس ألوان وتنسيق باقي
+// مكونات لوحة الكايزن (Dark + RTL + Responsive)
+// ============================================================
+
+/**
+ * تنسيق تاريخ ووقت المقترح لعرضه داخل الـ Modal (عربي، مفصّل أكتر
+ * من التاريخ المختصر المستخدم في التقرير الشهري)
+ */
+function formatKaizenDetailsDate(iso) {
+  if (!iso) return "-";
+  try {
+    return new Date(iso).toLocaleDateString("ar-EG", {
+      year: "numeric", month: "long", day: "numeric",
+      hour: "2-digit", minute: "2-digit"
+    });
+  } catch (error) {
+    return iso;
+  }
+}
+
+/**
+ * صف واحد من صفوف تفاصيل المقترح داخل الـ Modal - بيتجاهل نفسه
+ * تلقائياً لو مفيش قيمة (زي حالة "الماكينة إن وجدت")
+ */
+function kaizenDetailRowHtml(icon, label, value) {
+  if (!value) return "";
+  return `
+    <div class="flex gap-2.5 items-start py-2.5 border-b border-gray-800/70 last:border-b-0">
+      <span class="text-sm shrink-0 mt-0.5">${icon}</span>
+      <div class="min-w-0 flex-1">
+        <div class="text-[10px] font-bold text-gray-500 mb-0.5">${label}</div>
+        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${value}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildKaizenDetailsModalHtml(suggestion) {
+
+  const status = suggestion.status || "new";
+  const displayName = suggestion.anonymous ? "🕶️ مقترح مجهول" : (suggestion.name || "-");
+
+  const imageHtml = suggestion.imageUrl ? `
+    <div class="pt-1">
+      <div class="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5">
+        <span>🖼️</span> الصورة المرفقة
+      </div>
+      <img src="${suggestion.imageUrl}" class="w-full max-h-64 object-cover rounded-xl border border-gray-800" />
+    </div>
+  ` : "";
+
+  return `
+    <div
+      id="kaizenDetailsModalOverlay"
+      class="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+      onclick="if (event.target === this) window.closeKaizenSuggestionDetails()"
+    >
+      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl">
+
+        <!-- Header -->
+        <div class="flex items-start justify-between gap-2 p-4 border-b border-gray-800 shrink-0">
+          <div class="min-w-0 flex-1">
+            <div class="text-[10px] font-bold text-amber-400 mb-1 flex items-center gap-1">
+              <span>💡</span> تفاصيل مقترح الكايزن
+            </div>
+            <h3 class="text-sm font-bold text-gray-100 break-words">${suggestion.title || "-"}</h3>
+          </div>
+          <button
+            onclick="window.closeKaizenSuggestionDetails()"
+            aria-label="إغلاق"
+            class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-[#0E1117] border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 transition-all active:scale-95">
+            ✕
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="overflow-y-auto p-4 space-y-0.5">
+
+          <div class="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-800/70">
+            <span class="text-[10px] font-bold text-gray-500">الحالة الحالية</span>
+            <span class="text-[10px] px-2.5 py-1 rounded-full font-bold ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
+              ${KAIZEN_STATUS_LABELS[status] || status}
+            </span>
+          </div>
+
+          ${kaizenDetailRowHtml("⚠️", "المشكلة الحالية", suggestion.problem)}
+          ${kaizenDetailRowHtml("💡", "الحل المقترح", suggestion.solution)}
+          ${kaizenDetailRowHtml("🏢", "القسم", suggestion.department)}
+          ${kaizenDetailRowHtml("🏭", "خط الإنتاج", suggestion.line)}
+          ${kaizenDetailRowHtml("⚙️", "الماكينة", suggestion.machine)}
+          ${kaizenDetailRowHtml("🏷️", "تصنيف التحسين", suggestion.category)}
+          ${kaizenDetailRowHtml("👤", "مقدم المقترح", displayName)}
+          ${kaizenDetailRowHtml("📅", "التاريخ", formatKaizenDetailsDate(suggestion.createdAt))}
+
+          ${imageHtml}
+
+        </div>
+
+        <!-- Footer -->
+        <div class="p-3 border-t border-gray-800 shrink-0">
+          <button
+            onclick="window.closeKaizenSuggestionDetails()"
+            class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs font-bold text-gray-300 hover:border-gray-600 transition-all active:scale-95">
+            إغلاق
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+}
+
+function handleKaizenDetailsEscape(event) {
+  if (event.key === "Escape") window.closeKaizenSuggestionDetails();
+}
+
+/**
+ * فتح Modal تفاصيل المقترح - عرض فقط، بيقرأ البيانات من
+ * kaizenItemsById (نفس البيانات المعروضة أصلاً في الكارت/اللوحة،
+ * بدون أي طلب إضافي لـ Firestore وبدون أي تعديل على الحالة)
+ */
+window.openKaizenSuggestionDetails = function (suggestionId) {
+
+  const suggestion = kaizenItemsById[suggestionId];
+  if (!suggestion) return;
+
+  let root = document.getElementById("kaizenDetailsModalRoot");
+  if (!root) {
+    root = document.createElement("div");
+    root.id = "kaizenDetailsModalRoot";
+    document.body.appendChild(root);
+  }
+
+  root.innerHTML = buildKaizenDetailsModalHtml(suggestion);
+  document.addEventListener("keydown", handleKaizenDetailsEscape);
+
+};
+
+/**
+ * إغلاق Modal تفاصيل المقترح
+ */
+window.closeKaizenSuggestionDetails = function () {
+
+  const root = document.getElementById("kaizenDetailsModalRoot");
+  if (root) root.innerHTML = "";
+  document.removeEventListener("keydown", handleKaizenDetailsEscape);
 
 };
 
