@@ -1,0 +1,297 @@
+// ============================================================
+// firestore.rules
+// قواعد أمان Firestore - نسخة مبنية على Firebase Authentication
+// الحقيقي (Email/Password، برقم موبايل محوَّل لإيميل داخلي - راجع
+// config.js -> phoneToAuthEmail)
+// ============================================================
+//
+// ⚠️ ملف موجود هنا كمرجع فقط - لازم تنسخه/تنشره فعلياً من
+// Firebase Console (Firestore Database → Rules) أو عبر
+// Firebase CLI (firebase deploy --only firestore:rules).
+// إضافة الملف للمشروع لوحدها مبتفعّلش القواعد تلقائياً.
+//
+// ------------------------------------------------------------
+// خطوة لازمة قبل النشر:
+// ------------------------------------------------------------
+// فعّلوا Firebase Authentication -> Sign-in method -> Email/Password
+// من Firebase Console (خطوة مجانية، بدون Blaze). القواعد دي
+// مبنية على افتراض إن كل عمليات تسجيل الدخول/التسجيل بقت تمر
+// عبر Firebase Auth (راجع js/auth/login.js و js/services/usersApi.js).
+// ============================================================
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================================
+    // Helpers
+    // ==========================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // بيانات ملف المستخدم الحالي (users/{uid}) - استدعاء get() له
+    // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
+    // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function myRole() {
+      return isSignedIn() ? myProfile().role : "";
+    }
+
+    // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
+    function isActive() {
+      return isSignedIn() && myProfile().status == "active";
+    }
+
+    // ==========================================================
+    // users
+    // ==========================================================
+    match /users/{userId} {
+
+      // إنشاء حساب جديد - حالتين فقط:
+      //  ١) تسجيل عادي (registerUserApi): لازم status/role = pending
+      //     دايماً (مايقدرش حد يسجل نفسه admin من الأول)
+      //  ٢) ترحيل حساب قديم (login.js عند اكتشاف حساب بدون Auth):
+      //     مسموح نحافظ على role/status الأصليين، لكن فقط لو
+      //     البيانات دي فعلاً منسوخة حرفياً من مستند قديم موجود
+      //     بالفعل (migratedFromId) بنفس رقم الهاتف ونفس role/status
+      //     - يعني مينفعش حد يختلق مستند وهمي بـ role=admin ويدّعي
+      //     إنه "ترحيل"، لازم يكون فيه مستند قديم حقيقي بنفس القيم
+      allow create: if isSignedIn()
+                    && request.auth.uid == userId
+                    && request.resource.data.phone is string
+                    && request.resource.data.phone.size() > 0
+                    && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt"])
+                    && (
+                      (request.resource.data.status == "pending"
+                       && request.resource.data.role == "pending")
+                      ||
+                      (
+                        "migratedFromId" in request.resource.data
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.phone == request.resource.data.phone
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.role == request.resource.data.role
+                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.status == request.resource.data.status
+                      )
+                    );
+
+      // قراءة مستند واحد: صاحبه، أو أدمن/مدير
+      allow get: if isSignedIn()
+                 && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
+
+      // قراءة قائمة (list) - ثلاث حالات:
+      //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
+      //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
+      //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
+      //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
+      //     في قائمة إسناد التذاكر
+      //  ٣) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
+      //     (limit(1)) - ضروري لآلية الترحيل التلقائي من النظام
+      //     القديم في js/auth/login.js: قبل ما يبقى للمستخدم حساب
+      //     Firebase Auth، محتاج نستعلم على بياناته القديمة برقم
+      //     هاتفه عشان نتحقق من كلمة سره القديمة وننشئله حساب Auth
+      //     حقيقي. بدون السطر ده، أي حساب لسه ماترحّلش هيفضل عاجز
+      //     عن الدخول نهائياً حتى لو كلمة سره صح.
+      //     ⚠️ يُنصح بحذف هذا الاستثناء بعد التأكد إن كل المستخدمين
+      //     القدامى دخلوا مرة واحدة على الأقل بعد التحديث (وبالتالي
+      //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
+      allow list: if (isSignedIn()
+                      && (myRole() in ["admin", "manager"]
+                          || resource.data.role in ["technician", "engineer"]))
+                  || (!isSignedIn() && request.query.limit <= 1);
+
+      // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
+      // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
+      // بنفسه (ده كان ثغرة: كان أي مستخدم مسجّل دخول يقدر يرقّي
+      // نفسه لـ admin بسطر واحد في الكونسول). تغيير الدور/الحالة/
+      // الصلاحيات مقصور على الأدمن فقط.
+      allow update: if isSignedIn()
+                    && (
+                      myRole() == "admin"
+                      || (
+                        request.auth.uid == userId
+                        && request.resource.data.role == resource.data.role
+                        && request.resource.data.status == resource.data.status
+                        && request.resource.data.permissions == resource.data.permissions
+                      )
+                    );
+
+      allow delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // tickets - دورة حياة التذكرة (بدون رجوع للخلف إلا استثناء واحد)
+    // pending(جديد) -> assigned(تم الإسناد) -> in_progress(قيد التنفيذ)
+    //   -> resolved(بانتظار تأكيد المُبلغ) -> closed(مغلق) [نهائية]
+    //                              resolved -> in_progress (رفض المُبلغ مع سبب)
+    // ==========================================================
+    match /tickets/{ticketId} {
+
+      allow read: if isActive();
+
+      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة، لازم تبدأ
+      // pending وتكون منسوبة له فعلياً (reportedByUid)
+      allow create: if isActive()
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.reportedByUid == request.auth.uid;
+
+      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
+      allow update: if isActive() && myRole() in ["manager", "admin"]
+                    && resource.data.status == "pending"
+                    && request.resource.data.status == "assigned";
+
+      // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة
+      // بالتحديد (assignedToUid) بيبدأ التنفيذ فعلياً، أو أدمن
+      allow update: if isActive()
+                    && resource.data.status == "assigned"
+                    && request.resource.data.status == "in_progress"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      // STEP 4 - in_progress -> resolved: نفس الفني المُسند له
+      // بيسجّل إتمام الإصلاح (مع صور بعد الإصلاح)، أو أدمن
+      allow update: if isActive()
+                    && resource.data.status == "in_progress"
+                    && request.resource.data.status == "resolved"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض مع
+      // سبب - الاستثناء الوحيد المسموح للرجوع للخلف): صاحب البلاغ
+      // الأصلي (reportedByUid) أو أدمن فقط
+      allow update: if isActive()
+                    && resource.data.status == "resolved"
+                    && request.resource.data.status in ["closed", "in_progress"]
+                    && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
+
+      // سجل التغييرات (Logs) - سجل تلقائي فقط، مفيش تعديل أو حذف
+      // (append-only) - أي مستخدم مفعّل يقدر يقرأ سجل تذكرة يقدر
+      // يقرأها هو أصلاً (نفس شرط قراءة التذكرة)
+      match /logs/{logId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ==========================================================
+    // notifications - إشعارات داخل التطبيق (In-App) لكل مستخدم
+    // ==========================================================
+    match /notifications/{notificationId} {
+
+      // كل مستخدم يشوف إشعاراته هو بس - القاعدة بتتطبق على كل
+      // مستند في نتيجة الاستعلام، فلو حد حاول يجيب إشعارات غيره
+      // هيترفض الاستعلام كامل (نفس أسلوب قاعدة list في users)
+      allow read, list: if isActive() && resource.data.forUid == request.auth.uid;
+
+      // أي مستخدم مفعّل يقدر ينشئ إشعار لمستخدم تاني (لازم يحصل
+      // ده تلقائياً مع كل انتقال حالة تذكرة - راجع ticketsApi.js)
+      allow create: if isActive();
+
+      // المستخدم يقدر يعلّم إشعاره هو بس كمقروء، من غير ما يغيّر
+      // أي حقل تاني في المستند
+      allow update: if isActive()
+                    && resource.data.forUid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
+
+      allow delete: if false;
+    }
+
+
+    // ==========================================================
+    // suggestions - مقترحات الكايزن (Kaizen) - دورة حياة صارمة
+    // مطابقة تمامًا لمنطق services/suggestionsApi.js:
+    //
+    // new(جديد) -> under_review(قيد مراجعة) [admin]
+    //           -> rejected(مرفوض) [admin، سبب إجباري]
+    // under_review -> in_progress(قيد تنفيذ) [admin، موافقة+إسناد لفني]
+    //              -> rejected(مرفوض) [admin، مسموح حتى لو بالفعل قيد
+    //                 المراجعة، سبب إجباري]
+    //              -> revision_requested(طلب تعديل) [admin، ملاحظات إجبارية]
+    // revision_requested -> under_review [admin]
+    // in_progress -> implemented(تم التنفيذ) [الفني المسؤول المُسند
+    //                إليه (assignedToUid)، أو admin]
+    // rejected / implemented = حالتان نهائيتان - ممنوع أي تحديث بعدهما
+    //
+    // الدور الإداري المعتمد هنا هو "admin" فقط - لا يوجد أي دور PM/
+    // manager لهذا الـWorkflow (خلافاً لـ tickets اللي بيسمح لـ manager
+    // أيضاً - ده مقصود ومختلف عمداً بناءً على متطلبات مقترحات الكايزن)
+    // ==========================================================
+    match /suggestions/{suggestionId} {
+
+      allow read: if isActive();
+
+      // إنشاء مقترح جديد - أي مستخدم مفعّل، لازم يبدأ status == "new"
+      // دايماً (زي ما بيفرضه saveSuggestionApi أصلاً من جهة العميل)
+      allow create: if isActive()
+                    && request.resource.data.status == "new";
+
+      // STEP 1a - new -> under_review: أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "new"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 1b / 2b - (new | under_review) -> rejected: أدمن فقط،
+      // سبب الرفض إجباري وغير فارغ (rejectionReason) - مسموح صراحة
+      // حتى لو كان المقترح بالفعل "قيد المراجعة"
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status in ["new", "under_review"]
+                    && request.resource.data.status == "rejected"
+                    && request.resource.data.rejectionReason is string
+                    && request.resource.data.rejectionReason.size() > 0;
+
+      // STEP 2a - under_review -> in_progress: أدمن فقط، وموافقة مع
+      // إسناد لفني مسؤول (assignedTo/assignedToUid إجباريين ومش فاضيين)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "in_progress"
+                    && request.resource.data.assignedTo is string
+                    && request.resource.data.assignedTo.size() > 0
+                    && request.resource.data.assignedToUid is string
+                    && request.resource.data.assignedToUid.size() > 0;
+
+      // STEP 2c - under_review -> revision_requested: أدمن فقط،
+      // ملاحظات طلب التعديل إجبارية وغير فارغة (revisionNotes)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "revision_requested"
+                    && request.resource.data.revisionNotes is string
+                    && request.resource.data.revisionNotes.size() > 0;
+
+      // STEP 3 - revision_requested -> under_review (رجوع للمراجعة
+      // بعد التعديل): أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "revision_requested"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 4 - in_progress -> implemented: الفني المسؤول المُسند
+      // إليه بالتحديد (assignedToUid) فقط، أو أدمن - حالة نهائية بعدها
+      allow update: if isActive()
+                    && resource.data.status == "in_progress"
+                    && request.resource.data.status == "implemented"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      allow delete: if false;
+
+      // سجل تغييرات المقترح (Logs) - append-only، نفس فكرة
+      // tickets/{ticketId}/logs بالضبط
+      match /logs/{logId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ==========================================================
+    // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
+    // defects ...) - أي مستخدم مفعّل (status == active) يقدر
+    // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
+    // match block خاص بيها فوق match /{document=**} ده.
+    // ==========================================================
+    match /{document=**} {
+      allow read, write: if isActive();
+    }
+  }
+}
