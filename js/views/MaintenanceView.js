@@ -63,6 +63,24 @@ export const MaintenanceView = () => `
       <span class="text-[10px] text-gray-400 mt-1">مراجعة واعتماد المقترحات</span>
     </div>
 
+    <!-- البحث والفلترة المتقدمة (زر عريض بارز) -->
+    <div 
+      onclick="window.navigateTo('maintenanceSearch')" 
+      class="col-span-2 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-blue-500/40 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all active:scale-98 shadow-md group">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+          🔎
+        </div>
+        <div class="text-right">
+          <span class="font-bold text-xs text-gray-100 block">البحث والفلترة المتقدمة</span>
+          <span class="text-[10px] text-gray-400">فلترة البلاغات وسجلات الصيانة الوقائية معاً</span>
+        </div>
+      </div>
+      <span class="text-xs text-blue-400 font-bold bg-blue-500/10 px-3 py-1 rounded-lg border border-blue-500/20 shadow-sm">
+        فتح ↩
+      </span>
+    </div>
+
     <!-- Machine Error Scanner (زر عريض بارز) -->
     <div 
       onclick="window.navigateTo('errorScanner')" 

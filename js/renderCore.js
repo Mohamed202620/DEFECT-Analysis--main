@@ -10,6 +10,7 @@ import { initMainChart, loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
+import { initMaintenanceSearchView } from './maintenanceSearch.js';
 
 export let currentPage = 'login';
 
@@ -135,6 +136,27 @@ if (currentPage === "stats") {
     if (typeof initStatsView === "function") {  
 
       initStatsView();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// MAINTENANCE SEARCH AUTO LOAD
+// (صفحة "البحث والفلترة المتقدمة" - تحميل بلاغات الأعطال وسجلات
+// الصيانة الوقائية مرة واحدة عند فتح الصفحة، بنفس أسلوب STATS/KB)
+// ========================================================  
+
+if (currentPage === "maintenanceSearch") {  
+
+  setTimeout(() => {  
+
+    if (typeof initMaintenanceSearchView === "function") {  
+
+      initMaintenanceSearchView();  
 
     }  
 

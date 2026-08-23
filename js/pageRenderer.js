@@ -18,6 +18,7 @@ import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
 import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
+import { MaintenanceSearchView } from './views/MaintenanceSearchView.js';
 import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
@@ -52,6 +53,16 @@ case 'maintenance':
 
   return hasPermission("maintenance")  
     ? MaintenanceView()  
+    : unauthorizedPage("maintenance");  
+
+
+case 'maintenanceSearch':  
+
+  // صفحة "البحث والفلترة المتقدمة" - نفس صلاحية شاشة قسم الصيانة
+  // نفسها (maintenance)، بما إنها صفحة فرعية منها (زر الدخول ليها
+  // موجود جوه MaintenanceView.js)
+  return hasPermission("maintenance")  
+    ? MaintenanceSearchView()  
     : unauthorizedPage("maintenance");  
 
 
