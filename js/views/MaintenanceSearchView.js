@@ -101,8 +101,14 @@ export const MaintenanceSearchView = () => `
 
     </div>
 
-    <!-- ملخص النتائج -->
-    <div id="mResultsSummary" class="text-[10px] text-gray-500 px-1"></div>
+    <!-- ملخص النتائج + تصدير -->
+    <div class="flex items-center justify-between gap-2">
+      <div id="mResultsSummary" class="text-[10px] text-gray-500 px-1"></div>
+      <button type="button" onclick="window.exportMaintenanceSearchResults()"
+        class="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all">
+        📤 تصدير CSV
+      </button>
+    </div>
 
     <!-- النتائج -->
     <div id="mResultsBox" class="space-y-2"></div>

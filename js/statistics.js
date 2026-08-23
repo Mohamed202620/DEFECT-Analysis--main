@@ -181,6 +181,53 @@ function computeLineBreakdown(tickets) {
 }
 
 // ============================================================
+// حساب متوسط زمن الإصلاح (MTTR) - إضافة جديدة
+// تقريبي: نعتمد على updatedAt (آخر مرة اتحدّثت فيها التذكرة) كبديل
+// عملي لتاريخ الإصلاح الفعلي، لأن الحقل ده موجود بالفعل على كل
+// تذكرة (stampUpdate في ticketsApi.js بيحدّثه مع كل تغيير حالة) -
+// من غير ما نضيف أي حقل جديد أو نلمس بنية البيانات
+// ============================================================
+
+function computeMTTR(tickets) {
+  const resolvedTickets = tickets.filter(t => {
+    const status = String(t.status || '').trim().toLowerCase();
+    return CLOSED_STATUSES.includes(status) && t.createdAt && t.updatedAt;
+  });
+
+  if (!resolvedTickets.length) return { avgHours: null, sampleSize: 0 };
+
+  const totalHours = resolvedTickets.reduce((sum, t) => {
+    const created = new Date(t.createdAt);
+    const updated = new Date(t.updatedAt);
+    if (isNaN(created) || isNaN(updated) || updated < created) return sum;
+    return sum + (updated - created) / (1000 * 60 * 60);
+  }, 0);
+
+  return { avgHours: totalHours / resolvedTickets.length, sampleSize: resolvedTickets.length };
+}
+
+// ============================================================
+// حساب أداء الفنيين - عدد البلاغات المُنجزة لكل فني (Top 5) -
+// إضافة جديدة، بتعتمد على حقل assignedTo الموجود بالفعل
+// ============================================================
+
+function computeTechnicianPerformance(tickets, limitCount = 5) {
+  const counts = {};
+
+  tickets.forEach(t => {
+    const status = String(t.status || '').trim().toLowerCase();
+    if (!CLOSED_STATUSES.includes(status)) return;
+    const tech = String(t.assignedTo || '').trim();
+    if (!tech) return;
+    counts[tech] = (counts[tech] || 0) + 1;
+  });
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limitCount);
+}
+
+// ============================================================
 // الرسم الشامل: يُستدعى عند تحميل الصفحة أو تبديل الفترة
 // ============================================================
 
@@ -191,6 +238,8 @@ function renderAll() {
   renderMachineChart(periodTickets);
   renderPriorityChart(periodTickets);
   renderLineBreakdown(periodTickets);
+  renderMttr(periodTickets);
+  renderTechnicianPerformance(periodTickets);
 }
 
 // ============================================================
@@ -348,6 +397,71 @@ function renderLineBreakdown(tickets) {
         </div>
         <div class="w-full h-2 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">
           <div class="h-full bg-indigo-500 rounded-full" style="width: ${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// عرض متوسط زمن الإصلاح (MTTR) - إضافة جديدة
+// ============================================================
+
+function renderMttr(tickets) {
+  const box = el('statsMttrBox');
+  if (!box) return;
+
+  const { avgHours, sampleSize } = computeMTTR(tickets);
+
+  if (!sampleSize) {
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد بلاغات مُنجزة كافية لحساب متوسط زمن الإصلاح خلال هذه الفترة.</div>`;
+    return;
+  }
+
+  const displayValue = avgHours < 1
+    ? `${Math.round(avgHours * 60)} دقيقة`
+    : avgHours < 24
+      ? `${avgHours.toFixed(1)} ساعة`
+      : `${(avgHours / 24).toFixed(1)} يوم`;
+
+  box.innerHTML = `
+    <div class="flex items-center justify-between">
+      <div class="text-2xl font-bold text-cyan-400">${displayValue}</div>
+      <div class="text-[10px] text-gray-500 text-left">
+        متوسط زمن الإصلاح<br>
+        بناءً على ${sampleSize} بلاغ مُنجز
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// عرض أداء الفنيين (Top 5 حسب عدد البلاغات المُنجزة) - إضافة جديدة
+// ============================================================
+
+function renderTechnicianPerformance(tickets) {
+  const box = el('statsTechBox');
+  if (!box) return;
+
+  const top = computeTechnicianPerformance(tickets);
+
+  if (!top.length) {
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد بيانات كافية عن أداء الفنيين خلال هذه الفترة.</div>`;
+    return;
+  }
+
+  const max = top[0][1];
+
+  box.innerHTML = top.map(([tech, count], i) => {
+    const pct = Math.round((count / max) * 100);
+    return `
+      <div>
+        <div class="flex items-center justify-between text-[11px] mb-1">
+          <span class="text-gray-300 font-bold">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '•'} ${tech}</span>
+          <span class="text-gray-400">${count} بلاغ</span>
+        </div>
+        <div class="w-full h-2 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">
+          <div class="h-full bg-emerald-500 rounded-full" style="width: ${pct}%"></div>
         </div>
       </div>
     `;

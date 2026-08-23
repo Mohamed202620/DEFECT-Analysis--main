@@ -21,6 +21,9 @@ import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 let allRecords = [];     // كل السجلات (بلاغات + PM) بعد تطبيق نطاق الصلاحيات
 let isLoaded = false;
+let loadError = false;   // إصلاح: فشل تحميل tickets/pmRecords كان بيتحول
+                          // بصمت لحالة "لا توجد نتائج" - المستخدم كان
+                          // مش هيعرف إن فيه مشكلة اتصال فعلية
 let currentType = 'all'; // all | ticket | pm
 
 const TYPE_META = {
@@ -49,6 +52,28 @@ const STATUS_CLASSES = {
 };
 
 const PRIORITY_LABELS = { High: "🔴 عالية", Medium: "🟡 متوسطة", Low: "🟢 منخفضة" };
+
+// إصلاح: نصوص المستخدم (الوصف/الملاحظات/الأسماء) كانت بتتحقن مباشرة
+// جوه innerHTML من غير أي تنقية - أي نص فيه < أو > أو " كان ممكن
+// يكسر شكل الكارت أو يحقن HTML/سكريبت داخل الصفحة (نفس فئة المشكلة
+// اللي اتصلحت في ActionModal.js). كل نص مستخدم بيتعرض هنا لازم يعدي
+// من الدالة دي الأول.
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// إصلاح: فلتر الحالة كان بيقارن مطابقة تامة بس، فكانت التذاكر بحالة
+// "reopened" (اللي بتتعامل معاها باقي الصفحة بصرياً كـ"قيد التنفيذ" -
+// نفس الـ label ونفس الكلاس فوق) بتختفي لو اخترت فلتر "قيد التنفيذ"،
+// رغم إنها المفروض تظهر (نفس فكرة STATUS_QUERY_ALIASES الموجودة
+// أصلاً في subscribeToTicketsBoardApi بتاعة ticketsApi.js)
+const STATUS_FILTER_ALIASES = {
+  in_progress: ["in_progress", "reopened"]
+};
 
 function el(id) {
   return document.getElementById(id);
@@ -79,6 +104,10 @@ export async function initMaintenanceSearchView() {
     ? ticketsResult.data : [];
   const pmRecords = (pmResult.status === 'success' && Array.isArray(pmResult.data))
     ? pmResult.data : [];
+
+  // إصلاح: لو الاتنين فشلوا فعلياً (مش مجرد صفر نتائج) نعلّم على
+  // كده عشان renderResults تعرض رسالة خطأ واضحة بدل "لا توجد نتائج"
+  loadError = ticketsResult.status !== 'success' && pmResult.status !== 'success';
 
   // تطبيق نطاق الصلاحيات: admin/manager يشوفوا الكل، غيرهم يشوفوا
   // بس السجلات المرتبطة بيهم فعلاً (نفس فكرة subscribeToTicketsBoardApi)
@@ -141,6 +170,11 @@ window.openMaintenanceSearchTicketDetails = function (ticketId) {
 // بناء وعرض النتائج المفلترة
 // ============================================================
 
+// حالة إضافية: آخر قائمة مفلترة مُعروضة فعلياً - محفوظة عشان زرار
+// التصدير (CSV) يصدّر بالظبط اللي المستخدم شايفه على الشاشة، بدون
+// إعادة حساب الفلاتر تاني
+let lastFilteredList = [];
+
 function renderResults() {
 
   const box = el('mResultsBox');
@@ -148,6 +182,20 @@ function renderResults() {
   if (!box) return;
 
   if (!isLoaded) return;
+
+  if (loadError) {
+    if (summaryBox) summaryBox.innerHTML = '';
+    box.innerHTML = `
+      <div class="text-center text-red-400 text-[11px] py-8 space-y-2">
+        <div>⚠️ تعذّر تحميل البيانات - تأكد من الاتصال بالإنترنت.</div>
+        <button onclick="window.retryMaintenanceSearchLoad()"
+          class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
+          إعادة المحاولة
+        </button>
+      </div>
+    `;
+    return;
+  }
 
   const searchTerm = (el('mSearchInput')?.value || '').trim().toLowerCase();
   const statusFilter = el('mStatusFilter')?.value || 'all';
@@ -164,7 +212,8 @@ function renderResults() {
   if (statusFilter !== 'all') {
     // الحالة مفهوم خاص ببلاغات الأعطال فقط - سجلات الـ PM بتُستبعد
     // تلقائياً لو تم اختيار فلتر حالة مُحدد
-    list = list.filter(r => r._kind === 'ticket' && String(r.status || '').toLowerCase() === statusFilter);
+    const aliasValues = STATUS_FILTER_ALIASES[statusFilter] || [statusFilter];
+    list = list.filter(r => r._kind === 'ticket' && aliasValues.includes(String(r.status || '').toLowerCase()));
   }
 
   if (priorityFilter !== 'all') {
@@ -190,6 +239,8 @@ function renderResults() {
     return sortOrder === 'oldest' ? -diff : diff;
   });
 
+  lastFilteredList = list;
+
   if (summaryBox) {
     summaryBox.innerHTML = `عدد النتائج: <span class="text-gray-300 font-bold">${list.length}</span> من إجمالي ${allRecords.length} سجل`;
   }
@@ -207,12 +258,89 @@ function renderResults() {
 }
 
 // ============================================================
+// إعادة محاولة تحميل البيانات بعد فشل (تُستدعى من زرار "إعادة
+// المحاولة" في حالة الخطأ)
+// ============================================================
+
+window.retryMaintenanceSearchLoad = function () {
+  isLoaded = false;
+  initMaintenanceSearchView();
+};
+
+// ============================================================
+// تصدير النتائج المفلترة الحالية كملف CSV (يفتح في Excel مباشرة)
+// - بيصدّر بالظبط اللي المستخدم شايفه بعد آخر بحث/فلترة، مش كل
+//   السجلات، ومحترم لنفس نطاق الصلاحيات (allRecords أصلاً مفلترة
+//   حسب الدور من initMaintenanceSearchView)
+// ============================================================
+
+function csvEscape(value) {
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+window.exportMaintenanceSearchResults = function () {
+  if (!lastFilteredList.length) {
+    alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
+    return;
+  }
+
+  const headers = ['النوع', 'الماكينة', 'الحالة/الحالة الفنية', 'الأولوية', 'الوصف/الملاحظات', 'بلّغ/الفني', 'مُسندة إلى', 'تاريخ الإنشاء'];
+
+  const rows = lastFilteredList.map(r => {
+    if (r._kind === 'ticket') {
+      const status = String(r.status || '').toLowerCase();
+      return [
+        'بلاغ عطل',
+        r.machine || '',
+        STATUS_LABELS[status] || r.status || '',
+        r.priority ? (PRIORITY_LABELS[r.priority] || r.priority) : '',
+        r.description || '',
+        r.reportedBy || '',
+        r.assignedTo || '',
+        r.createdAt || ''
+      ];
+    }
+    const checklist = r.checklist || {};
+    const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
+    return [
+      'صيانة وقائية',
+      r.machine || '',
+      `${doneCount}/3 بنود`,
+      '',
+      r.notes || '',
+      r.reporter?.name || '',
+      '',
+      r.createdAt || ''
+    ];
+  });
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(csvEscape).join(','))
+    .join('\n');
+
+  // BOM (\uFEFF) عشان Excel يفتح العربي صح من غير ترميز غريب
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `maintenance-search-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// ============================================================
 // كارت نتيجة - بلاغ عطل (نفس شكل/ألوان ticketsBoard.js)
 // ============================================================
 
 function ticketResultCard(t) {
   const status = String(t.status || '').trim().toLowerCase();
-  const machineName = t.machine || t.machineName || '-';
+  const machineName = escapeHtml(t.machine || t.machineName || '-');
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -222,17 +350,17 @@ function ticketResultCard(t) {
           ${machineName}
         </span>
         <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
-          ${STATUS_LABELS[status] || status || '-'}
+          ${STATUS_LABELS[status] || escapeHtml(status) || '-'}
         </span>
       </div>
 
-      ${t.description ? `<p class="text-[11px] text-gray-400">${t.description}</p>` : ''}
+      ${t.description ? `<p class="text-[11px] text-gray-400">${escapeHtml(t.description)}</p>` : ''}
 
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        ${t.priority ? `<span>${PRIORITY_LABELS[t.priority] || t.priority}</span>` : ''}
-        ${t.reportedBy ? `<span>👤 بلّغ: ${t.reportedBy}</span>` : ''}
-        ${t.assignedTo ? `<span>🛠️ مُسندة إلى: ${t.assignedTo}</span>` : ''}
-        ${t.createdAt ? `<span>🕓 ${new Date(t.createdAt).toLocaleDateString('ar-EG')}</span>` : ''}
+        ${t.priority ? `<span>${PRIORITY_LABELS[t.priority] || escapeHtml(t.priority)}</span>` : ''}
+        ${t.reportedBy ? `<span>👤 بلّغ: ${escapeHtml(t.reportedBy)}</span>` : ''}
+        ${t.assignedTo ? `<span>🛠️ مُسندة إلى: ${escapeHtml(t.assignedTo)}</span>` : ''}
+        ${t.createdAt ? `<span>🕓 ${escapeHtml(new Date(t.createdAt).toLocaleDateString('ar-EG'))}</span>` : ''}
       </div>
 
       <button
@@ -257,19 +385,19 @@ function pmResultCard(p) {
       <div class="flex justify-between items-center">
         <span class="font-bold text-gray-100 flex items-center gap-1.5">
           <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">📝 صيانة وقائية</span>
-          ${p.machine || '-'}
+          ${escapeHtml(p.machine || '-')}
         </span>
         <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           ✅ ${doneCount}/3 بنود
         </span>
       </div>
 
-      ${p.notes ? `<p class="text-[11px] text-gray-400">${p.notes}</p>` : ''}
+      ${p.notes ? `<p class="text-[11px] text-gray-400">${escapeHtml(p.notes)}</p>` : ''}
 
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        ${p.reporter?.name ? `<span>👤 الفني: ${p.reporter.name}</span>` : ''}
-        ${p.reporter?.shift ? `<span>🕒 الوردية: ${p.reporter.shift}</span>` : ''}
-        ${p.createdAt ? `<span>🕓 ${new Date(p.createdAt).toLocaleDateString('ar-EG')}</span>` : ''}
+        ${p.reporter?.name ? `<span>👤 الفني: ${escapeHtml(p.reporter.name)}</span>` : ''}
+        ${p.reporter?.shift ? `<span>🕒 الوردية: ${escapeHtml(p.reporter.shift)}</span>` : ''}
+        ${p.createdAt ? `<span>🕓 ${escapeHtml(new Date(p.createdAt).toLocaleDateString('ar-EG'))}</span>` : ''}
       </div>
     </div>
   `;

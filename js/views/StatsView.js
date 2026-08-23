@@ -81,6 +81,26 @@ export const StatsView = () => `
     </div>
   </div>
 
+  <!-- متوسط زمن الإصلاح (MTTR) -->
+  <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
+    <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+      <span class="text-xs font-bold text-gray-200">⏱️ متوسط زمن الإصلاح</span>
+    </div>
+    <div id="statsMttrBox">
+      <div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>
+    </div>
+  </div>
+
+  <!-- أداء الفنيين -->
+  <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
+    <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+      <span class="text-xs font-bold text-gray-200">🧑‍🔧 أداء الفنيين (الأكثر إنجازاً)</span>
+    </div>
+    <div id="statsTechBox" class="space-y-2.5">
+      <div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>
+    </div>
+  </div>
+
 </div>
 
 ${BottomNav("quality")}
