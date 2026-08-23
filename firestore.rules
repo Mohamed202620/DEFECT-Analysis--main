@@ -201,10 +201,94 @@ service cloud.firestore {
 
 
     // ==========================================================
+    // suggestions - مقترحات الكايزن (Kaizen) - دورة حياة صارمة
+    // مطابقة تمامًا لمنطق services/suggestionsApi.js:
+    //
+    // new(جديد) -> under_review(قيد مراجعة) [admin]
+    //           -> rejected(مرفوض) [admin، سبب إجباري]
+    // under_review -> in_progress(قيد تنفيذ) [admin، موافقة+إسناد لفني]
+    //              -> rejected(مرفوض) [admin، مسموح حتى لو بالفعل قيد
+    //                 المراجعة، سبب إجباري]
+    //              -> revision_requested(طلب تعديل) [admin، ملاحظات إجبارية]
+    // revision_requested -> under_review [admin]
+    // in_progress -> implemented(تم التنفيذ) [الفني المسؤول المُسند
+    //                إليه (assignedToUid)، أو admin]
+    // rejected / implemented = حالتان نهائيتان - ممنوع أي تحديث بعدهما
+    //
+    // الدور الإداري المعتمد هنا هو "admin" فقط - لا يوجد أي دور PM/
+    // manager لهذا الـWorkflow (خلافاً لـ tickets اللي بيسمح لـ manager
+    // أيضاً - ده مقصود ومختلف عمداً بناءً على متطلبات مقترحات الكايزن)
+    // ==========================================================
+    match /suggestions/{suggestionId} {
+
+      allow read: if isActive();
+
+      // إنشاء مقترح جديد - أي مستخدم مفعّل، لازم يبدأ status == "new"
+      // دايماً (زي ما بيفرضه saveSuggestionApi أصلاً من جهة العميل)
+      allow create: if isActive()
+                    && request.resource.data.status == "new";
+
+      // STEP 1a - new -> under_review: أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "new"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 1b / 2b - (new | under_review) -> rejected: أدمن فقط،
+      // سبب الرفض إجباري وغير فارغ (rejectionReason) - مسموح صراحة
+      // حتى لو كان المقترح بالفعل "قيد المراجعة"
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status in ["new", "under_review"]
+                    && request.resource.data.status == "rejected"
+                    && request.resource.data.rejectionReason is string
+                    && request.resource.data.rejectionReason.size() > 0;
+
+      // STEP 2a - under_review -> in_progress: أدمن فقط، وموافقة مع
+      // إسناد لفني مسؤول (assignedTo/assignedToUid إجباريين ومش فاضيين)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "in_progress"
+                    && request.resource.data.assignedTo is string
+                    && request.resource.data.assignedTo.size() > 0
+                    && request.resource.data.assignedToUid is string
+                    && request.resource.data.assignedToUid.size() > 0;
+
+      // STEP 2c - under_review -> revision_requested: أدمن فقط،
+      // ملاحظات طلب التعديل إجبارية وغير فارغة (revisionNotes)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "revision_requested"
+                    && request.resource.data.revisionNotes is string
+                    && request.resource.data.revisionNotes.size() > 0;
+
+      // STEP 3 - revision_requested -> under_review (رجوع للمراجعة
+      // بعد التعديل): أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "revision_requested"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 4 - in_progress -> implemented: الفني المسؤول المُسند
+      // إليه بالتحديد (assignedToUid) فقط، أو أدمن - حالة نهائية بعدها
+      allow update: if isActive()
+                    && resource.data.status == "in_progress"
+                    && request.resource.data.status == "implemented"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      allow delete: if false;
+
+      // سجل تغييرات المقترح (Logs) - append-only، نفس فكرة
+      // tickets/{ticketId}/logs بالضبط
+      match /logs/{logId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
-    // suggestions, defects ...) - أي مستخدم مفعّل (status == active)
-    // يقدر يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً،
-    // ضيفوا match block خاص بيها فوق match /{document=**} ده.
+    // defects ...) - أي مستخدم مفعّل (status == active) يقدر
+    // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
+    // match block خاص بيها فوق match /{document=**} ده.
     // ==========================================================
     match /{document=**} {
       allow read, write: if isActive();

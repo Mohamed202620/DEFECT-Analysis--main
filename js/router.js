@@ -30,7 +30,7 @@ import './errorScanner.js';
 import './ticketsBoard.js';
 
 // استيراد جانبي (Side-effect) لربط دوال لوحة متابعة الكايزن بـ window
-// (window.loadKaizenBoard / window.setSuggestionStatus) - منطق مستقل
+// (window.loadKaizenBoard / window.handleKaizenAction) - منطق مستقل
 // تماماً عن ticketsBoard.js، بيستخدم بس دوال services/api.js المشتركة
 import './kaizenBoard.js';
 

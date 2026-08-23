@@ -94,7 +94,7 @@ function renderList() {
 
   list.innerHTML = items.map(n => `
     <div
-      onclick="window.handleNotificationClick('${n.id}', '${n.ticketId || ""}')"
+      onclick="window.handleNotificationClick('${n.id}', '${n.ticketId || ""}', '${n.suggestionId || ""}')"
       class="p-2.5 rounded-xl mb-1 cursor-pointer transition-all ${
         n.read ? "opacity-60" : "bg-blue-500/10 border border-blue-500/20"
       } hover:opacity-100">
@@ -110,13 +110,19 @@ function renderDropdown() {
   renderList();
 }
 
-window.handleNotificationClick = async function (notificationId, ticketId) {
+window.handleNotificationClick = async function (notificationId, ticketId, suggestionId) {
   await markNotificationReadApi(notificationId);
   const dropdown = document.getElementById("notificationDropdown");
   if (dropdown) dropdown.classList.add("hidden");
 
   if (ticketId && typeof window.openTicketDetails === "function") {
     window.openTicketDetails(ticketId);
+  } else if (suggestionId && typeof window.navigateTo === "function") {
+    // مفيش تخزين محلي مستقل لتفاصيل مقترح بعينه خارج صفحة لوحة
+    // الكايزن نفسها، فبنكتفي بتوجيه المستخدم لصفحة اللوحة (نفس ما
+    // بيحصل مع باقي أزرار التنقل في المشروع) - بدون أي طلب إضافي
+    // أو ملف جديد
+    window.navigateTo("kaizenBoard");
   }
 };
 

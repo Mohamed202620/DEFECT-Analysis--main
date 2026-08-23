@@ -130,3 +130,65 @@ export function getTicketActions(ticket) {
 }
 
 window.getTicketActions = getTicketActions;
+
+// ============================================================
+// أزرار دورة حياة مقترح الكايزن (Kaizen Suggestion Lifecycle Actions)
+// نفس فكرة getTicketActions بالضبط، لكن الدور الإداري المعتمد هنا
+// هو "admin" فقط (لا PM ولا manager) - راجع kaizenBoard.js
+// ============================================================
+
+export function getSuggestionActions(suggestion) {
+
+  const role = currentRole;
+  const myUid = localStorage.getItem("userId") || "";
+  const status = String(suggestion?.status || "new").trim().toLowerCase();
+
+  const isAdmin = role === "admin";
+  const isAssignedTechnician = !!myUid && suggestion?.assignedToUid === myUid;
+
+  const actions = [];
+
+  switch (status) {
+
+    case "new":
+      // بدء المراجعة أو الرفض المباشر - أدمن فقط
+      if (isAdmin) {
+        actions.push({ key: "review", label: "🔍 بدء المراجعة" });
+        actions.push({ key: "reject", label: "❌ رفض" });
+      }
+      break;
+
+    case "under_review":
+      // موافقة وإسناد لفني، أو طلب تعديل، أو رفض - أدمن فقط
+      if (isAdmin) {
+        actions.push({ key: "approve_assign", label: "✅ موافقة وإسناد" });
+        actions.push({ key: "request_revision", label: "✏️ طلب تعديل" });
+        actions.push({ key: "reject", label: "❌ رفض" });
+      }
+      break;
+
+    case "revision_requested":
+      // إعادة المقترح لقيد المراجعة بعد التعديل - أدمن فقط
+      if (isAdmin) {
+        actions.push({ key: "return_to_review", label: "↩️ إعادة للمراجعة" });
+      }
+      break;
+
+    case "in_progress":
+      // تسجيل اكتمال التنفيذ - الفني المسؤول المُسند إليه، أو الأدمن
+      if (isAdmin || isAssignedTechnician) {
+        actions.push({ key: "implement", label: "🏁 تم التنفيذ" });
+      }
+      break;
+
+    // "rejected" / "implemented" حالتان نهائيتان - لا أزرار تغيير حالة
+  }
+
+  // زر التفاصيل متاح دائماً
+  actions.push({ key: "details", label: "🔍 تفاصيل" });
+
+  return actions;
+
+}
+
+window.getSuggestionActions = getSuggestionActions;

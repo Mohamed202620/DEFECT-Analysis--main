@@ -75,6 +75,11 @@ export { savePmApi } from "./pmApi.js";
 export {
   saveSuggestionApi,
   subscribeToSuggestionsBoardApi,
-  updateSuggestionStatusApi,
-  fetchSuggestionsForReportApi
+  fetchSuggestionsForReportApi,
+  reviewSuggestionApi,
+  rejectSuggestionApi,
+  requestSuggestionRevisionApi,
+  returnSuggestionToReviewApi,
+  assignAndApproveSuggestionApi,
+  implementSuggestionApi
 } from "./suggestionsApi.js";

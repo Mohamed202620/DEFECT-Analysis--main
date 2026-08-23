@@ -7,22 +7,31 @@
 // عامة زي permissions.js و services/api.js)
 // ============================================================
 
-import { getCurrentRole } from './permissions.js';
+import { getCurrentRole, getSuggestionActions } from './permissions.js';
+import { openActionModal } from './components/ActionModal.js';
 
 import {
   subscribeToSuggestionsBoardApi,
-  updateSuggestionStatusApi,
-  fetchSuggestionsForReportApi
+  fetchSuggestionsForReportApi,
+  reviewSuggestionApi,
+  rejectSuggestionApi,
+  requestSuggestionRevisionApi,
+  returnSuggestionToReviewApi,
+  assignAndApproveSuggestionApi,
+  implementSuggestionApi,
+  fetchTechniciansApi
 } from './services/api.js';
 
 // ============================================================
-// حالات الكايزن
+// حالات الكايزن - المرحلة النهائية للـWorkflow (راجع
+// services/suggestionsApi.js لتفاصيل الانتقالات المسموحة)
 // ============================================================
 
 const KAIZEN_STATUS_LABELS = {
   new: "جديد",
   under_review: "قيد المراجعة",
-  approved: "تمت الموافقة",
+  in_progress: "قيد التنفيذ",
+  revision_requested: "طلب تعديل",
   rejected: "مرفوض",
   implemented: "تم التنفيذ"
 };
@@ -30,33 +39,21 @@ const KAIZEN_STATUS_LABELS = {
 const KAIZEN_STATUS_CLASSES = {
   new: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
   under_review: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  approved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+  in_progress: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
+  revision_requested: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
   rejected: "bg-red-500/10 text-red-400 border border-red-500/20",
-  implemented: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+  implemented: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
 };
 
 const KAIZEN_TABS = [
   { key: "all", label: "الكل" },
   { key: "new", label: "🆕 جديد" },
   { key: "under_review", label: "🔍 قيد المراجعة" },
-  { key: "approved", label: "✅ موافقة" },
+  { key: "in_progress", label: "⚙️ قيد التنفيذ" },
+  { key: "revision_requested", label: "✏️ طلب تعديل" },
   { key: "rejected", label: "❌ مرفوض" },
   { key: "implemented", label: "🏁 تم التنفيذ" }
 ];
-
-// دورة عمل الكايزن - الانتقالات المسموحة من كل حالة (نفس فكرة
-// getTicketActions في permissions.js: حالات نهائية زي "مرفوض" و
-// "تم التنفيذ" ملهاش أي زرار تغيير حالة تاني، وباقي الحالات بتتحرك
-// للأمام فقط. الصلاحية نفسها (manager/admin) زي ما هي، من غير أي
-// تعديل أو إضافة صلاحية جديدة - هنا بس بنحدد إيه الحالات التالية
-// المسموح نتحرك لها من كل حالة
-const KAIZEN_NEXT_STATUSES = {
-  new: ["under_review", "approved", "rejected"],
-  under_review: ["approved", "rejected"],
-  approved: ["implemented"],
-  rejected: [],
-  implemented: []
-};
 
 // ============================================================
 // كارت المقترح
@@ -65,29 +62,44 @@ const KAIZEN_NEXT_STATUSES = {
 function suggestionCardHtml(suggestion) {
 
   const status = suggestion.status || "new";
-  // manager أو admin بس يقدروا يغيّروا الحالة - نفس الدورين
-  // الحقيقيين المستخدمين فعلاً في باقي المشروع (permissions.js /
-  // ticketsApi.js / RequestsView.js)، مفيش أي دور أو صلاحية جديدة
-  const canChangeStatus = ["manager", "admin"].includes(getCurrentRole());
   const displayName = suggestion.anonymous ? "🕶️ مقترح مجهول" : (suggestion.name || "-");
 
-  // الأزرار المعروضة = فقط الحالات التالية المسموحة من الحالة
-  // الحالية (KAIZEN_NEXT_STATUSES) - مش كل الحالات الخمسة زي الأول.
-  // الحالات النهائية (مرفوض / تم التنفيذ) هتظهر من غيرها أي زرار،
-  // بنفس فكرة حالة "closed" في التذاكر (getTicketActions)
-  const nextStatuses = KAIZEN_NEXT_STATUSES[status] || [];
+  // أزرار الإجراءات المتاحة فعلياً حسب الحالة الحالية والدور (أدمن
+  // فقط للمراجعة/الموافقة/الرفض/طلب التعديل، والفني المسؤول المُسند
+  // إليه فقط لتسجيل التنفيذ) - راجع getSuggestionActions في permissions.js
+  const suggestionActions = getSuggestionActions(suggestion).filter(a => a.key !== "details");
 
-  const statusChangeHtml = (canChangeStatus && nextStatuses.length) ? `
+  const statusChangeHtml = suggestionActions.length ? `
     <div class="flex flex-wrap gap-1.5 pt-2 border-t border-gray-800 mt-2">
-      ${nextStatuses.map(s => `
+      ${suggestionActions.map(a => `
         <button
-          onclick="window.setSuggestionStatus('${suggestion.id}', '${s}')"
-          class="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95 bg-[#0E1117] border-gray-700 text-gray-400 hover:border-gray-600">
-          ${KAIZEN_STATUS_LABELS[s]}
+          onclick="window.handleKaizenAction('${suggestion.id}', '${a.key}')"
+          class="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95 bg-[#0E1117] border-gray-700 text-gray-300 hover:border-blue-500/50 hover:text-blue-400">
+          ${a.label}
         </button>
       `).join("")}
     </div>
   ` : "";
+
+  // معلومات إضافية عن آخر إجراء تم اتخاذه (سبب الرفض / ملاحظات طلب
+  // التعديل / الفني المسؤول) - تظهر في الكارت لو موجودة
+  const extraInfoHtml = `
+    ${suggestion.assignedTo ? `
+      <div class="text-[11px] bg-purple-500/5 border border-purple-500/20 rounded-lg p-2 text-purple-300">
+        🔧 الفني المسؤول: ${suggestion.assignedTo}
+      </div>
+    ` : ""}
+    ${suggestion.revisionNotes && status === "revision_requested" ? `
+      <div class="text-[11px] bg-orange-500/5 border border-orange-500/20 rounded-lg p-2 text-orange-300">
+        ✏️ ملاحظات طلب التعديل: ${suggestion.revisionNotes}
+      </div>
+    ` : ""}
+    ${suggestion.rejectionReason && status === "rejected" ? `
+      <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
+        ❌ سبب الرفض: ${suggestion.rejectionReason}
+      </div>
+    ` : ""}
+  `;
 
   const imageHtml = suggestion.imageUrl ? `
     <img src="${suggestion.imageUrl}" class="w-full max-h-40 object-cover rounded-lg border border-gray-800 mt-2" />
@@ -132,6 +144,7 @@ function suggestionCardHtml(suggestion) {
         ${suggestion.category ? `<span>🏷️ ${suggestion.category}</span>` : ""}
       </div>
 
+      ${extraInfoHtml}
       ${imageHtml}
       ${detailsButtonHtml}
       ${statusChangeHtml}
@@ -314,31 +327,107 @@ window.setKaizenPage = function (page) {
 };
 
 /**
- * تغيير حالة مقترح - مقيّد لدوري manager/admin فقط (نفس تحقق الواجهة
- * أيضاً مطبّق في suggestionCardHtml عشان الزرار أصلاً ميظهرش لغيرهم)،
- * ومتحقق كمان إن الانتقال المطلوب مسموح به ضمن دورة العمل
- * (KAIZEN_NEXT_STATUSES) قبل إرساله لـ Firestore
+ * تنفيذ إجراء على مقترح كايزن - كل إجراء بيتحقق من الصلاحية والحالة
+ * الحالية بنفسه (راجع services/suggestionsApi.js) - الأزرار أصلاً
+ * ميظهرش غير الإجراء المسموح به فعلياً لكل مستخدم (getSuggestionActions)
+ * لكن التحقق الحقيقي غير القابل للالتفاف حوله موجود في الـAPI/logic
+ * و firestore.rules، مش في الواجهة بس
  */
-window.setSuggestionStatus = async function (suggestionId, newStatus) {
+window.handleKaizenAction = async function (suggestionId, action) {
 
-  if (!["manager", "admin"].includes(getCurrentRole())) {
-    alert("⚠️ تغيير حالة المقترح متاح فقط لمدير الإنتاج أو الأدمن.");
+  if (action === "details") {
+    window.openKaizenSuggestionDetails(suggestionId);
     return;
   }
 
-  const currentSuggestion = kaizenItemsById[suggestionId];
-  const currentStatus = currentSuggestion?.status || "new";
-  const allowedNext = KAIZEN_NEXT_STATUSES[currentStatus] || [];
+  let result;
 
-  if (!allowedNext.includes(newStatus)) {
-    alert("⚠️ لا يمكن تغيير الحالة إلى هذه القيمة من الحالة الحالية للمقترح.");
+  if (action === "review") {
+
+    result = await reviewSuggestionApi(suggestionId);
+
+  } else if (action === "reject") {
+
+    const values = await openActionModal({
+      title: "❌ رفض مقترح الكايزن",
+      submitLabel: "رفض",
+      fields: [
+        { id: "reason", label: "سبب الرفض", type: "textarea", placeholder: "اذكر سبب الرفض...", required: true }
+      ]
+    });
+
+    if (!values || !values.reason) return;
+
+    result = await rejectSuggestionApi(suggestionId, values.reason);
+
+  } else if (action === "request_revision") {
+
+    const values = await openActionModal({
+      title: "✏️ طلب تعديل على المقترح",
+      submitLabel: "إرسال طلب التعديل",
+      fields: [
+        { id: "notes", label: "ملاحظات التعديل المطلوب", type: "textarea", placeholder: "وضّح المطلوب تعديله...", required: true }
+      ]
+    });
+
+    if (!values || !values.notes) return;
+
+    result = await requestSuggestionRevisionApi(suggestionId, values.notes);
+
+  } else if (action === "return_to_review") {
+
+    result = await returnSuggestionToReviewApi(suggestionId);
+
+  } else if (action === "approve_assign") {
+
+    const techResult = await fetchTechniciansApi();
+    const technicians = techResult.status === "success" ? techResult.data : [];
+
+    if (!technicians.length) {
+      alert("⚠️ لا يوجد فنيون/مهندسون نشطون حالياً لإسناد المقترح لهم.");
+      return;
+    }
+
+    const values = await openActionModal({
+      title: "✅ موافقة وإسناد المقترح",
+      submitLabel: "موافقة وإسناد",
+      fields: [
+        {
+          id: "assignedTo",
+          label: "إسناد إلى (الفني المسؤول)",
+          type: "select",
+          options: technicians.map(t => ({ value: `${t.id}::${t.name}`, label: `${t.name} (${t.role})` }))
+        }
+      ]
+    });
+
+    if (!values) return;
+
+    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
+    if (!assignedTo) return;
+
+    result = await assignAndApproveSuggestionApi(suggestionId, { assignedTo, assignedToUid });
+
+  } else if (action === "implement") {
+
+    const values = await openActionModal({
+      title: "🏁 تسجيل اكتمال تنفيذ المقترح",
+      submitLabel: "تم التنفيذ",
+      fields: [
+        { id: "notes", label: "ملاحظات التنفيذ (اختياري)", type: "textarea", placeholder: "وصف مختصر لما تم تنفيذه..." }
+      ]
+    });
+
+    if (!values) return;
+
+    result = await implementSuggestionApi(suggestionId, values.notes);
+
+  } else {
     return;
   }
 
-  const result = await updateSuggestionStatusApi(suggestionId, newStatus);
-
-  if (result.status !== "success") {
-    alert("❌ " + (result.message || "حدث خطأ أثناء تحديث الحالة، حاول مرة أخرى."));
+  if (result?.status !== "success") {
+    alert("❌ " + (result?.message || "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى."));
   }
   // التحديث بيوصل تلقائياً عبر الاشتراك اللحظي (onSnapshot)
 
@@ -384,29 +473,20 @@ function formatKaizenDetailsDate(iso) {
 }
 
 /**
- * صف واحد من صفوف تفاصيل المقترح داخل الـ Modal - يظهر دايماً حتى
- * لو القيمة فاضية (بيعرض "-" بدل ما يختفي الصف كله، عشان البيانات
- * الأساسية متبقاش ناقصة من العرض)
+ * صف واحد من صفوف تفاصيل المقترح داخل الـ Modal - بيتجاهل نفسه
+ * تلقائياً لو مفيش قيمة (زي حالة "الماكينة إن وجدت")
  */
 function kaizenDetailRowHtml(icon, label, value) {
+  if (!value) return "";
   return `
     <div class="flex gap-2.5 items-start py-2.5 border-b border-gray-800/70 last:border-b-0">
       <span class="text-sm shrink-0 mt-0.5">${icon}</span>
       <div class="min-w-0 flex-1">
         <div class="text-[10px] font-bold text-gray-500 mb-0.5">${label}</div>
-        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${value || "-"}</div>
+        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${value}</div>
       </div>
     </div>
   `;
-}
-
-/**
- * صف اختياري - يظهر فقط لو القيمة موجودة فعلاً (للحقول "إن وجدت"
- * زي الماكينة)
- */
-function kaizenDetailRowHtmlOptional(icon, label, value) {
-  if (!value) return "";
-  return kaizenDetailRowHtml(icon, label, value);
 }
 
 function buildKaizenDetailsModalHtml(suggestion) {
@@ -426,7 +506,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
   return `
     <div
       id="kaizenDetailsModalOverlay"
-      class="fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4"
+      class="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
       onclick="if (event.target === this) window.closeKaizenSuggestionDetails()"
     >
       <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl">
@@ -461,10 +541,15 @@ function buildKaizenDetailsModalHtml(suggestion) {
           ${kaizenDetailRowHtml("💡", "الحل المقترح", suggestion.solution)}
           ${kaizenDetailRowHtml("🏢", "القسم", suggestion.department)}
           ${kaizenDetailRowHtml("🏭", "خط الإنتاج", suggestion.line)}
-          ${kaizenDetailRowHtmlOptional("⚙️", "الماكينة", suggestion.machine)}
+          ${kaizenDetailRowHtml("⚙️", "الماكينة", suggestion.machine)}
           ${kaizenDetailRowHtml("🏷️", "تصنيف التحسين", suggestion.category)}
           ${kaizenDetailRowHtml("👤", "مقدم المقترح", displayName)}
           ${kaizenDetailRowHtml("📅", "التاريخ", formatKaizenDetailsDate(suggestion.createdAt))}
+          ${kaizenDetailRowHtml("🔧", "الفني المسؤول", suggestion.assignedTo)}
+          ${kaizenDetailRowHtml("✏️", "ملاحظات طلب التعديل", suggestion.revisionNotes)}
+          ${kaizenDetailRowHtml("❌", "سبب الرفض", suggestion.rejectionReason)}
+          ${kaizenDetailRowHtml("🏁", "ملاحظات التنفيذ", suggestion.implementationNotes)}
+          ${kaizenDetailRowHtml("🕒", "آخر تحديث", suggestion.updatedBy ? `${suggestion.updatedBy} - ${formatKaizenDetailsDate(suggestion.updatedAt)}` : "")}
 
           ${imageHtml}
 
@@ -611,6 +696,9 @@ function buildKaizenReportBlockHtml(suggestion, imageDataUrl) {
       </div>
       ${suggestion.problem ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;"><b>المشكلة:</b> ${escapeKaizenReportHtml(suggestion.problem)}</div>` : ""}
       ${suggestion.solution ? `<div style="font-size:11px; color:#065f46; margin-bottom:6px;"><b>الحل المقترح:</b> ${escapeKaizenReportHtml(suggestion.solution)}</div>` : ""}
+      ${suggestion.assignedTo ? `<div style="font-size:11px; color:#6d28d9; margin-bottom:6px;"><b>الفني المسؤول:</b> ${escapeKaizenReportHtml(suggestion.assignedTo)}</div>` : ""}
+      ${suggestion.revisionNotes ? `<div style="font-size:11px; color:#c2410c; margin-bottom:6px;"><b>ملاحظات طلب التعديل:</b> ${escapeKaizenReportHtml(suggestion.revisionNotes)}</div>` : ""}
+      ${suggestion.rejectionReason ? `<div style="font-size:11px; color:#b91c1c; margin-bottom:6px;"><b>سبب الرفض:</b> ${escapeKaizenReportHtml(suggestion.rejectionReason)}</div>` : ""}
       ${suggestion.updatedBy ? `<div style="font-size:10px; color:#94a3b8;">آخر تحديث بواسطة: ${escapeKaizenReportHtml(suggestion.updatedBy)} - ${formatKaizenReportDate(suggestion.updatedAt)}</div>` : ""}
       ${imageHtml}
     </div>
