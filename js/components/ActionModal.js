@@ -18,6 +18,18 @@ import { compressImage } from "../workflow.js";
  * @param {string} [options.submitLabel] - نص زر التأكيد
  * @returns {Promise<Object|null>} قيم الحقول ({ [id]: value }) أو null لو أُلغيت
  */
+// تنقية أي نص هيتحط داخل قيمة attribute في الـ HTML (زي value="..."
+// أو placeholder="...") - بدون كده، لو النص (مثلاً عنوان مقترح كايزن
+// قديم) فيه علامة تنصيص "، الـ attribute بيتقفل بدري وبيكسر باقي
+// الـ HTML بتاع الحقل (بيمنع ظهور/تعبئة الحقل صح جوه نافذة التعديل)
+function escapeModalAttr(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function openActionModal({ title, fields = [], submitLabel = "تأكيد" }) {
 
   return new Promise(resolve => {
@@ -50,7 +62,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
             <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
             <textarea id="modal_${field.id}" rows="3"
               class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
-              placeholder="${field.placeholder || ""}">${field.defaultValue || ""}</textarea>
+              placeholder="${escapeModalAttr(field.placeholder)}">${escapeModalAttr(field.defaultValue)}</textarea>
           </div>
         `;
       }

@@ -139,7 +139,16 @@ case 'kaizenBoard':
   // لوحة متابعة الكايزن (مراجعة واعتماد المقترحات) - نفس فكرة
   // صفحة 'tickets' (Realtime + آخر 60 + Pagination)، لكن منطقها
   // مستقل بالكامل في kaizenBoard.js (بدون أي تعديل على ticketsBoard.js)
-  return hasPermission("maintenance")  
+  //
+  // ملاحظة إصلاح: هذه الصفحة جزء من نظام الكايزن (نفس صلاحية صفحة
+  // 'suggestions')، وليست جزءاً من قسم الصيانة - كانت تتحقق خطأً من
+  // "maintenance" بدل "suggestions"، فكان أي مستخدم عنده صلاحية
+  // "كايزن" فقط (بدون صلاحية "قسم الصيانة") يوصله "غير مصرح" بمجرد
+  // محاولة فتح لوحة متابعة الكايزن (ومنها زر "تعديل وإعادة الإرسال"
+  // اللي بيظهر لصاحب المقترح لما تكون حالته "يحتاج تعديل")، ونفس
+  // الأمر لما يضغط على إشعار كايزن (راجع NotificationBell.js اللي
+  // بيوجّه هنا مباشرة). التحقق أصبح الآن من "suggestions" فعلاً.
+  return hasPermission("suggestions")  
     ? PageView(  
         "💡 متابعة الكايزن",  
         `  
@@ -163,7 +172,7 @@ case 'kaizenBoard':
           </div>  
         `  
       )  
-    : unauthorizedPage("maintenance");  
+    : unauthorizedPage("suggestions");  
 
 
 case 'errorScanner':  

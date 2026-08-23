@@ -1,4 +1,5 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { hasPermission } from "../permissions.js";
 
 export const HomeView = () => {
   const name = localStorage.getItem("name") || "المستخدم";
@@ -110,6 +111,41 @@ export const HomeView = () => {
         </button>
       </div>
     </div>
+
+    <!-- الوصول السريع لنظام الكايزن - إصلاح: قبل كده كان الوصول
+    الوحيد لصفحتَي "نظام كايزن" و"متابعة الكايزن" عبر شاشة قسم
+    الصيانة فقط (وهي مقفولة بصلاحية "maintenance")، فكان أي مستخدم
+    عنده صلاحية "كايزن" فقط (زي فني إنتاج مش تابع لقسم الصيانة)
+    مش لاقي أي طريقة يوصل بيها لمقترحاته أصلاً - حتى لو ضغط على
+    إشعار "يحتاج تعديل" - عشان محدش رابط ظاهر ليه. الزرارين دول
+    بيظهروا لأي حد عنده صلاحية "suggestions" بغض النظر عن صلاحية
+    الصيانة -->
+    ${hasPermission("suggestions") ? `
+    <div class="space-y-2">
+      <h3 class="text-xs font-bold text-gray-400 px-1">💡 الكايزن</h3>
+      <div class="grid grid-cols-2 gap-3">
+        <button 
+          onclick="window.navigateTo('suggestions')" 
+          class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-amber-500/40 p-3 rounded-xl flex items-center gap-3 text-right transition active:scale-95 shadow-md">
+          <span class="text-xl">💡</span>
+          <div>
+            <div class="font-bold text-xs text-white">إرسال مقترح</div>
+            <div class="text-[10px] text-gray-400">مقترح كايزن جديد</div>
+          </div>
+        </button>
+
+        <button 
+          onclick="window.navigateTo('kaizenBoard')" 
+          class="bg-[#1E293B] hover:bg-[#283548] border border-gray-800 hover:border-amber-500/40 p-3 rounded-xl flex items-center gap-3 text-right transition active:scale-95 shadow-md">
+          <span class="text-xl">📋</span>
+          <div>
+            <div class="font-bold text-xs text-white">متابعة مقترحاتي</div>
+            <div class="text-[10px] text-gray-400">الحالة والتعديل المطلوب</div>
+          </div>
+        </button>
+      </div>
+    </div>
+    ` : ""}
 
     <!-- الرسم البياني الرئيسي -->
     <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
