@@ -271,9 +271,28 @@ service cloud.firestore {
       // STEP 3b - revision_requested -> under_review: صاحب المقترح
       // نفسه (submittedByUid) يعدّل المقترح (عنوان/مشكلة/حل) بعد
       // ملاحظات الأدمن، ثم يعيد إرساله للمراجعة بنفسه
+      //
+      // إصلاح: بعض المقترحات القديمة (قبل إضافة تتبّع submittedByUid،
+      // أو لو اتسجّلت والحقل فاضي لأي سبب) مفيهاش الحقل ده أصلاً -
+      // فكان صاحبها الحقيقي (اللي بيظهر اسمه فعلاً على الكارت) عمره
+      // ما هيقدر يعدّل ويعيد الإرسال لأن resource.data.submittedByUid
+      // == request.auth.uid مستحيل تتحقق أصلاً (undefined != uid).
+      // الشرط الاحتياطي التاني بيسمح فقط لو الحقل ده مش موجود على
+      // السجل، ولازم كمان اسم المستخدم الحالي (users/{uid}.name)
+      // يطابق تمامًا اسم صاحب المقترح المسجَّل وقت الإرسال - وبمجرد
+      // ما يحصل resubmit مرة، الحقل submittedByUid بيتثبّت على القيمة
+      // الصحيحة (راجع resubmitSuggestionApi) فمايتكررش الاحتياج للمسار
+      // ده تاني على نفس السجل
       allow update: if isActive()
                     && resource.data.status == "revision_requested"
-                    && resource.data.submittedByUid == request.auth.uid
+                    && (
+                         resource.data.submittedByUid == request.auth.uid
+                         ||
+                         (
+                           !("submittedByUid" in resource.data)
+                           && resource.data.name == myProfile().name
+                         )
+                       )
                     && request.resource.data.status == "under_review"
                     && request.resource.data.title is string
                     && request.resource.data.title.size() > 0

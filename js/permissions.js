@@ -141,10 +141,25 @@ export function getSuggestionActions(suggestion) {
 
   const role = currentRole;
   const myUid = localStorage.getItem("userId") || "";
+  const myName = localStorage.getItem("name") || "";
   const status = String(suggestion?.status || "new").trim().toLowerCase();
 
   const isAdmin = role === "admin";
   const isAssignedTechnician = !!myUid && suggestion?.assignedToUid === myUid;
+
+  // ملكية المقترح - المرجع الأساسي هو submittedByUid (نفس منطق
+  // isReporter/isAssignee في getTicketActions أعلاه). لكن على عكس
+  // التذاكر، مقترحات الكايزن كانت بتتحقق من submittedByUid لوحده من
+  // غير أي احتياطي - فأي مقترح قديم اتسجل قبل إضافة هذا الحقل (أو
+  // اتسجل وهو فاضي لأي سبب) كان بيفقد صاحبه القدرة على "تعديل وإعادة
+  // الإرسال" نهائياً، وبيفقد أي إشعار متعلق بيه (راجع
+  // createSuggestionNotification في suggestionsApi.js اللي بيتجاهل
+  // الإرسال أصلاً لو submittedByUid فاضي). الاحتياطي بالاسم هنا بيتفعّل
+  // فقط لما الحقل يكون فاضي/مش موجود - لو موجود بيتم الاعتماد عليه
+  // حصرياً زي ما كان (بدون أي تراجع في الدقة للمقترحات الحديثة)
+  const isOwner =
+    (!!suggestion?.submittedByUid && suggestion.submittedByUid === myUid) ||
+    (!suggestion?.submittedByUid && !!myName && suggestion?.name === myName);
 
   const actions = [];
 
@@ -174,7 +189,7 @@ export function getSuggestionActions(suggestion) {
       if (isAdmin) {
         actions.push({ key: "return_to_review", label: "↩️ إعادة للمراجعة" });
       }
-      if (!!myUid && suggestion?.submittedByUid === myUid) {
+      if (isOwner) {
         actions.push({ key: "resubmit", label: "✏️ تعديل وإعادة الإرسال" });
       }
       break;
