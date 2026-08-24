@@ -1,6 +1,22 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl" id="html-tag">
+<html lang="en" dir="ltr" id="html-tag">
 <head>
+  <!-- تطبيق اللغة/الاتجاه المحفوظين فوراً قبل أي رسم للصفحة، عشان
+  نمنع "وميض" الاتجاه الغلط لحظة التحميل (Flash of wrong direction)
+  - نفس فكرة قراءة localStorage.theme بس للغة. الافتراضي عند أول
+  فتح للتطبيق (مفيش اختيار محفوظ) هو الإنجليزية/LTR زي ما هو مكتوب
+  فوق في وسم <html> أصلاً، فالسكريبت ده بيتدخل بس لو المستخدم كان
+  اختار العربية قبل كده -->
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("lang") === "ar") {
+          document.documentElement.setAttribute("lang", "ar");
+          document.documentElement.setAttribute("dir", "rtl");
+        }
+      } catch (e) {}
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
@@ -191,6 +207,25 @@
             window.initApp();
         }
 
+        // إصلاح: جرس الإشعارات كان بيعتمد بس على مستمع
+        // "DOMContentLoaded" جوه renderCore.js عشان يفعّل نفسه تاني
+        // عند إعادة فتح/تحديث الصفحة (لمستخدم مسجّل دخوله بالفعل) -
+        // لكن الحدث ده بيطلق قبل ما تحميل router.js (اللي بيتم عبر
+        // import() ديناميكي هنا فوق) يخلص أصلاً، لأن استيراد كل
+        // ملفات router.js (~15 ملف) بياخد وقت أطول من تحليل الصفحة
+        // نفسها. يعني المستمع ده كان بيتسجل بعد ما الحدث يكون
+        // اتطلق فعلاً، فمكانش بيتنفذ أبداً عند تحديث الصفحة - وده
+        // اللي كان بيدي إحساس إن الجرس "بيختفي" بعد أول تحديث رغم
+        // إنه بيظهر صح فور تسجيل الدخول (لأن authHandlers.js بينده
+        // مباشرة بدون انتظار أي حدث). النداء هنا بديل مضمون التنفيذ
+        // لأنه جوه الـ .then() اللي مستنّي فعلاً تحميل router.js
+        // بالكامل قبل ما يكمل - initNotificationBell() نفسها فيها
+        // حماية من التكرار (بترجع فوراً لو الجرس موجود بالفعل)
+        const isLoggedInForBell = localStorage.getItem("phone") || localStorage.getItem("userId");
+        if (isLoggedInForBell && typeof window.initNotificationBell === "function") {
+            window.initNotificationBell();
+        }
+
         window.hideSplash();
     })
     .catch((err) => {
@@ -199,17 +234,18 @@
 
         const appDiv = document.getElementById("app");
         if (appDiv) {
+            const isAr = (localStorage.getItem("lang") || "en") === "ar";
             appDiv.innerHTML = `
-            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="${isAr ? 'rtl' : 'ltr'}">
                 <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
                     <h3 class="text-base font-bold text-red-400 mb-2">
-                        ⚠️ تعذر تحميل التطبيق
+                        ${isAr ? '⚠️ تعذر تحميل التطبيق' : '⚠️ Failed to load the app'}
                     </h3>
                     <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
                         ${err.message || err}
                     </p>
                     <p class="text-[11px] text-gray-400 mt-3">
-                        اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
+                        ${isAr ? 'اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.' : 'Open the Eruda tool to inspect Console details.'}
                     </p>
                 </div>
             </div>
