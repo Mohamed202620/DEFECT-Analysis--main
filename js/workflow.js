@@ -1,4 +1,9 @@
 import { saveDefectApi, fetchTicketsApi } from './services/api.js';
+// إضافة: نفس دوال الحساب المستخدمة في صفحة الإحصائيات (statistics.js)
+// اتعملها export من هناك بدون تغيير منطقها، عشان نعرض نفس الأرقام
+// (MTTR / أكثر ماكينة / أفضل فني) في كارتات الرئيسية الجديدة من
+// غير ما نكرر الكود ومن غير أي استعلام إضافي على قاعدة البيانات
+import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from './statistics.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -442,6 +447,44 @@ export async function loadDashboardStats() {
   setText('statClosedCount', stats.closed);
   setText('statTodayCount', stats.today);
   setText('statTotalCount', stats.total);
+
+  // ============================================================
+  // إضافة: تنبيه "بلاغ حرج" + كارتات MTTR / أكثر ماكينة عطلاً /
+  // أفضل فني في الرئيسية - كل ده من نفس مصفوفة tickets اللي
+  // اتجابت فوق بالفعل، فمفيش أي طلب إضافي لقاعدة البيانات
+  // ============================================================
+
+  // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟
+  const hasCritical = tickets.some(t => {
+    const status = String(t.status || '').trim().toLowerCase();
+    const isOpen = !closedStatuses.includes(status);
+    return isOpen && String(t.priority || '').trim() === 'High';
+  });
+
+  const criticalBadge = document.getElementById('criticalBadge');
+  if (criticalBadge) {
+    criticalBadge.classList.toggle('hidden', !hasCritical);
+    criticalBadge.classList.toggle('flex', hasCritical);
+  }
+
+  // متوسط زمن الإصلاح (MTTR) - نفس حساب statistics.js بالظبط
+  const { avgHours, sampleSize } = computeMTTR(tickets);
+  const mttrDisplay = !sampleSize
+    ? '—'
+    : avgHours < 1
+      ? `${Math.round(avgHours * 60)} د`
+      : avgHours < 24
+        ? `${avgHours.toFixed(1)} س`
+        : `${(avgHours / 24).toFixed(1)} يوم`;
+  setText('statMttrValue', mttrDisplay);
+
+  // أكثر ماكينة عطلاً (أول عنصر بس من نفس دالة statistics.js)
+  const [topMachine] = computeTopMachines(tickets, 1);
+  setText('statTopMachineName', topMachine ? `${topMachine[0]} (${topMachine[1]})` : 'لا توجد بيانات');
+
+  // أفضل فني حسب عدد البلاغات المُنجزة (أول عنصر بس)
+  const [topTech] = computeTechnicianPerformance(tickets, 1);
+  setText('statTopTechName', topTech ? `${topTech[0]} (${topTech[1]})` : 'لا توجد بيانات');
 }
 
 window.loadDashboardStats = loadDashboardStats;

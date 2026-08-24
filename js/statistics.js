@@ -135,7 +135,10 @@ function computeSummary(tickets) {
 // حساب تكرار الأعطال حسب الماكينة (Top 5)
 // ============================================================
 
-function computeTopMachines(tickets, limitCount = 5) {
+// إضافة: export بدون تغيير أي منطق - عشان homeView.js/workflow.js
+// يقدروا يستخدموا نفس الحساب في كارت "أكثر ماكينة عطلاً" على
+// الرئيسية بدل ما نكرر نفس الكود في مكان تاني
+export function computeTopMachines(tickets, limitCount = 5) {
   const freq = {};
 
   tickets.forEach(t => {
@@ -188,7 +191,9 @@ function computeLineBreakdown(tickets) {
 // من غير ما نضيف أي حقل جديد أو نلمس بنية البيانات
 // ============================================================
 
-function computeMTTR(tickets) {
+// إضافة: export بدون تغيير أي منطق - عشان كارت MTTR الجديد في
+// الرئيسية (homeView.js عبر workflow.js) يستخدم نفس الحساب بالظبط
+export function computeMTTR(tickets) {
   const resolvedTickets = tickets.filter(t => {
     const status = String(t.status || '').trim().toLowerCase();
     return CLOSED_STATUSES.includes(status) && t.createdAt && t.updatedAt;
@@ -211,7 +216,9 @@ function computeMTTR(tickets) {
 // إضافة جديدة، بتعتمد على حقل assignedTo الموجود بالفعل
 // ============================================================
 
-function computeTechnicianPerformance(tickets, limitCount = 5) {
+// إضافة: export بدون تغيير أي منطق - عشان كارت "أفضل فني" الجديد
+// في الرئيسية يستخدم نفس الحساب بالظبط
+export function computeTechnicianPerformance(tickets, limitCount = 5) {
   const counts = {};
 
   tickets.forEach(t => {
