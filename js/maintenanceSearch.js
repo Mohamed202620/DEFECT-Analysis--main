@@ -62,9 +62,7 @@ const STATUS_CLASSES = {
 
 const PRIORITY_LABELS = { High: "🔴 عالية", Medium: "🟡 متوسطة", Low: "🟢 منخفضة" };
 
-// حالات مقترحات الكايزن (نفس القيم/التسميات المُستخدمة أصلاً في
-// kaizenBoard.js - مُعادة هنا بشكل مستقل بنفس فلسفة الملف: كل
-// شاشة عندها نسخة خاصة بيها بدل استيراد متشابك بين الشاشات)
+// حالات مقترحات الكايزن
 const SUGGESTION_STATUS_LABELS = {
   new: "جديد",
   under_review: "قيد المراجعة",
@@ -88,9 +86,6 @@ const SUGGESTION_ACTION_ICONS = {
   request_revision: "✏️", return_to_review: "↩️", resubmit: "✏️", implement: "🏁"
 };
 
-// خيارات فلتر "الحالة" تتغيّر حسب نوع السجل المختار - بلاغات
-// الأعطال ومقترحات الكايزن عندهم مفهوم "حالة" مختلف تماماً عن
-// بعضهم، والصيانة الوقائية أصلاً مالهاش "حالة" (بنود Checklist بس)
 const TICKET_STATUS_OPTIONS = [
   ['all', 'كل الحالات'],
   ['pending', 'جديد'],
@@ -110,11 +105,6 @@ const SUGGESTION_STATUS_OPTIONS = [
   ['implemented', 'تم التنفيذ']
 ];
 
-// إصلاح: نصوص المستخدم (الوصف/الملاحظات/الأسماء) كانت بتتحقن مباشرة
-// جوه innerHTML من غير أي تنقية - أي نص فيه < أو > أو " كان ممكن
-// يكسر شكل الكارت أو يحقن HTML/سكريبت داخل الصفحة (نفس فئة المشكلة
-// اللي اتصلحت في ActionModal.js). كل نص مستخدم بيتعرض هنا لازم يعدي
-// من الدالة دي الأول.
 function escapeHtml(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -123,9 +113,6 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-// إصلاح: فلتر الحالة كان بيقارن مطابقة تامة بس، فكانت التذاكر بحالة
-// "reopened" (اللي بتتعامل معاها باقي الصفحة بصرياً كـ"قيد التنفيذ" -
-// نفس الـ label ونفس الكلاس فوق) بتختفي لو اخترت فلتر "قيد التنفيذ"
 const STATUS_FILTER_ALIASES = {
   in_progress: ["in_progress", "reopened"]
 };
@@ -139,7 +126,6 @@ function el(id) {
 // ============================================================
 
 function updateFilterVisibilityForType(type) {
-
   const statusSelect = el('mStatusFilter');
   const priorityFilter = el('mPriorityFilter');
 
@@ -149,7 +135,6 @@ function updateFilterVisibilityForType(type) {
     statusSelect.innerHTML = options.map(([value, label]) =>
       `<option value="${value}">${label}</option>`
     ).join('');
-    // الحفاظ على القيمة المختارة لو لسه موجودة ضمن الخيارات الجديدة
     statusSelect.value = options.some(([value]) => value === previousValue) ? previousValue : 'all';
     statusSelect.classList.toggle('hidden', type === 'pm');
   }
@@ -157,7 +142,6 @@ function updateFilterVisibilityForType(type) {
   if (priorityFilter) {
     priorityFilter.classList.toggle('hidden', type === 'pm' || type === 'suggestion');
   }
-
 }
 
 // ============================================================
@@ -165,7 +149,6 @@ function updateFilterVisibilityForType(type) {
 // ============================================================
 
 function getDateRangeBounds() {
-
   const filterValue = el('mDateFilter')?.value || 'all';
   if (filterValue === 'all') return null;
 
@@ -176,19 +159,15 @@ function getDateRangeBounds() {
   if (filterValue === 'today') {
     from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
   } else if (filterValue === 'last7') {
     to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
-
   } else if (filterValue === 'month') {
     from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
   } else if (filterValue === 'year') {
     from = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
     to = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-
   } else if (filterValue === 'custom') {
     const fromValue = el('mDateFrom')?.value || '';
     const toValue = el('mDateTo')?.value || '';
@@ -198,13 +177,9 @@ function getDateRangeBounds() {
   }
 
   return { from, to };
-
 }
 
-// تبديل ظهور حقول "من/إلى" لما يختار المستخدم "نطاق مخصص"، وتُستدعى
-// أيضاً بمجرد تغيير فلتر التاريخ عشان تعيد رسم النتائج فوراً
 window.handleMaintenanceSearchDateFilterChange = function () {
-
   const filterValue = el('mDateFilter')?.value || 'all';
   const isCustom = filterValue === 'custom';
 
@@ -212,7 +187,6 @@ window.handleMaintenanceSearchDateFilterChange = function () {
   el('mDateTo')?.classList.toggle('hidden', !isCustom);
 
   renderResults();
-
 };
 
 // ============================================================
@@ -220,7 +194,6 @@ window.handleMaintenanceSearchDateFilterChange = function () {
 // ============================================================
 
 export async function initMaintenanceSearchView() {
-
   const box = el('mResultsBox');
   if (box) {
     box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-8">جاري تحميل البيانات...</div>`;
@@ -230,10 +203,6 @@ export async function initMaintenanceSearchView() {
   const myName = localStorage.getItem('name') || '';
   const myUid = localStorage.getItem('userId') || '';
 
-  // نطاق الصلاحيات: admin/manager/engineer يشوفوا كل شيء، أي دور
-  // تاني (فني...) يشوف بس بياناته المسموح له بيها - القرار ده بيتحدد
-  // مرة واحدة هنا وبيتبعت لكل دالة جلب، فالفلترة تحصل فعلياً جوه
-  // استعلام Firestore نفسه مش بعد الجلب (راجع services/api.js)
   const isFullAccess = hasFullDataAccess(role);
 
   const [ticketsResult, pmResult, suggestionsResult] = await Promise.all([
@@ -249,8 +218,6 @@ export async function initMaintenanceSearchView() {
   const suggestions = (suggestionsResult.status === 'success' && Array.isArray(suggestionsResult.data))
     ? suggestionsResult.data : [];
 
-  // لو المصادر التلاتة فشلت فعلياً (مش مجرد صفر نتائج) نعلّم على كده
-  // عشان renderResults تعرض رسالة خطأ واضحة بدل "لا توجد نتائج"
   loadError =
     ticketsResult.status !== 'success' &&
     pmResult.status !== 'success' &&
@@ -273,7 +240,6 @@ export async function initMaintenanceSearchView() {
 // ============================================================
 
 window.switchMaintenanceSearchType = function (type) {
-
   currentType = type;
 
   document.querySelectorAll('.m-type-btn').forEach(btn => {
@@ -288,7 +254,7 @@ window.switchMaintenanceSearchType = function (type) {
 };
 
 // ============================================================
-// تطبيق البحث/الفلاتر (تُستدعى من كل حقول الفلترة)
+// تطبيق البحث/الفلاتر
 // ============================================================
 
 window.applyMaintenanceSearchFilters = function () {
@@ -296,7 +262,7 @@ window.applyMaintenanceSearchFilters = function () {
 };
 
 // ============================================================
-// فتح تفاصيل بلاغ عطل (إعادة استخدام المودال الموجود بالفعل)
+// فتح تفاصيل بلاغ عطل
 // ============================================================
 
 window.openMaintenanceSearchTicketDetails = function (ticketId) {
@@ -304,12 +270,7 @@ window.openMaintenanceSearchTicketDetails = function (ticketId) {
 };
 
 // ============================================================
-// مودال تفاصيل مقترح كايزن - نسخة خفيفة مستقلة (نفس أسلوب/تصميم
-// TicketDetailsModal.js)، لكن بدون الاعتماد على أي حالة داخلية
-// لصفحة كايزن (kaizenBoard.js) عشان تشتغل بشكل مستقل تماماً حتى لو
-// المستخدم دخل صفحة البحث مباشرة من غير ما يفتح لوحة الكايزن -
-// بيانات المقترح نفسها متوفرة أصلاً في allRecords، وسجل الحالات
-// بيتجاب بطلب واحد بس (fetchSuggestionLogsApi) وقت فتح المودال
+// مودال تفاصيل مقترح كايزن
 // ============================================================
 
 function formatSuggestionDetailsDate(iso) {
@@ -346,7 +307,6 @@ function suggestionTimelineItemHtml(log) {
 }
 
 async function openSuggestionDetailsModal(suggestion) {
-
   const overlay = document.createElement("div");
   overlay.className =
     "fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4";
@@ -441,12 +401,9 @@ async function openSuggestionDetailsModal(suggestion) {
 
     </div>
   `;
-
 }
 
 window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
-  // بيانات المقترح متوفرة أصلاً جوه allRecords (نفس السجل المعروض في
-  // الكارت) - مفيش داعي لأي طلب جلب إضافي غير سجل الحالات وقت الفتح
   const suggestion = allRecords.find(r => r._kind === 'suggestion' && r.id === suggestionId);
   if (!suggestion) return;
   openSuggestionDetailsModal(suggestion);
@@ -456,14 +413,9 @@ window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
 // بناء وعرض النتائج المفلترة
 // ============================================================
 
-// حالة إضافية: آخر قائمة مفلترة مُعروضة فعلياً - محفوظة عشان أزرار
-// التصدير (CSV/PDF) تصدّر بالظبط اللي المستخدم شايفه على الشاشة،
-// بدون إعادة حساب الفلاتر تاني، وبنفس نطاق الصلاحيات (allRecords
-// أصلاً مفلترة حسب الدور من الاستعلام نفسه في initMaintenanceSearchView)
 let lastFilteredList = [];
 
 function renderResults() {
-
   const box = el('mResultsBox');
   const summaryBox = el('mResultsSummary');
   if (!box) return;
@@ -499,11 +451,8 @@ function renderResults() {
 
   if (statusFilter !== 'all') {
     if (currentType === 'suggestion') {
-      // مقترحات الكايزن فقط - بحالتها الخاصة (new/under_review/...)
       list = list.filter(r => r._kind === 'suggestion' && String(r.status || 'new').toLowerCase() === statusFilter);
     } else {
-      // الحالة هنا مفهوم خاص ببلاغات الأعطال فقط - سجلات الـ PM
-      // ومقترحات الكايزن بتُستبعد تلقائياً لو تم اختيار فلتر حالة بلاغ
       const aliasValues = STATUS_FILTER_ALIASES[statusFilter] || [statusFilter];
       list = list.filter(r => r._kind === 'ticket' && aliasValues.includes(String(r.status || '').toLowerCase()));
     }
@@ -567,8 +516,7 @@ function renderResults() {
 }
 
 // ============================================================
-// إعادة محاولة تحميل البيانات بعد فشل (تُستدعى من زرار "إعادة
-// المحاولة" في حالة الخطأ)
+// إعادة محاولة تحميل البيانات
 // ============================================================
 
 window.retryMaintenanceSearchLoad = function () {
@@ -577,11 +525,7 @@ window.retryMaintenanceSearchLoad = function () {
 };
 
 // ============================================================
-// جمع روابط الوسائط (صور/أي رابط ملف) المرتبطة بسجل معيّن - نفس
-// القائمة بتُستخدم في تصدير PDF (محاولة تضمين كصور) وفي عمود
-// "روابط الوسائط" بملف CSV (كنص/روابط كاملة قابلة للفتح لاحقاً -
-// أنسب من محاولة تضمين فيديو داخل PDF نفسه، خصوصاً إن ملفات الفيديو
-// أصلاً مش قابلة للتضمين كصورة ثابتة داخل مستند PDF)
+// جمع روابط الوسائط
 // ============================================================
 
 function collectRecordMediaUrls(record) {
@@ -593,15 +537,11 @@ function collectRecordMediaUrls(record) {
     if (record.imageUrl) urls.push(record.imageUrl);
     if (Array.isArray(record.implementationImages)) urls.push(...record.implementationImages);
   }
-  // سجلات الصيانة الوقائية (pm) مفيهاش صور حالياً في النموذج - لو
-  // اتضافت مستقبلاً هتنضم هنا تلقائياً بنفس الطريقة
   return urls.filter(Boolean);
 }
 
 // ============================================================
-// تصدير النتائج المفلترة الحالية كملف CSV (يفتح في Excel مباشرة)
-// - بيصدّر بالظبط اللي المستخدم شايفه بعد آخر بحث/فلترة، ومحترم
-//   لنفس نطاق الصلاحيات (allRecords أصلاً مفلترة من مصدر الجلب نفسه)
+// تصدير النتائج المفلترة الحالية كملف CSV (تعديل: تنسيق التاريخ والروابط)
 // ============================================================
 
 function csvEscape(value) {
@@ -618,6 +558,17 @@ window.exportMaintenanceSearchResults = function () {
     return;
   }
 
+  // دالة مساعدة لتنسيق التاريخ ليصبح مقروءاً (YYYY-MM-DD HH:mm)
+  const formatDateForExport = (isoStr) => {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return isoStr;
+    return d.toLocaleString('en-GB', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    }).replace(',', '');
+  };
+
   const headers = [
     'النوع', 'الماكينة', 'الحالة', 'الأولوية', 'الوصف/الملاحظات',
     'بلّغ/الفني/مقدّم المقترح', 'مُسندة إلى', 'تاريخ الإنشاء', 'روابط الوسائط'
@@ -625,7 +576,8 @@ window.exportMaintenanceSearchResults = function () {
 
   const rows = lastFilteredList.map(r => {
 
-    const mediaLinks = collectRecordMediaUrls(r).join(' | ');
+    const mediaLinks = collectRecordMediaUrls(r).join('\n');
+    const formattedDate = formatDateForExport(r.createdAt);
 
     if (r._kind === 'ticket') {
       const status = String(r.status || '').toLowerCase();
@@ -637,7 +589,7 @@ window.exportMaintenanceSearchResults = function () {
         r.description || '',
         r.reportedBy || '',
         r.assignedTo || '',
-        r.createdAt || '',
+        formattedDate,
         mediaLinks
       ];
     }
@@ -652,7 +604,7 @@ window.exportMaintenanceSearchResults = function () {
         [r.title, r.problem].filter(Boolean).join(' - '),
         r.anonymous ? 'مجهول' : (r.name || ''),
         r.assignedTo || '',
-        r.createdAt || '',
+        formattedDate,
         mediaLinks
       ];
     }
@@ -667,7 +619,7 @@ window.exportMaintenanceSearchResults = function () {
       r.notes || '',
       r.reporter?.name || '',
       '',
-      r.createdAt || '',
+      formattedDate,
       mediaLinks
     ];
   });
@@ -689,15 +641,10 @@ window.exportMaintenanceSearchResults = function () {
 };
 
 // ============================================================
-// تصدير النتائج المفلترة الحالية كملف PDF احترافي (RTL) - نفس
-// أسلوب التقرير الشهري الموجود فعلاً في ticketsBoard.js/kaizenBoard.js
-// بالظبط (HTML عربي RTL خارج الشاشة → html2canvas → jsPDF)، مُنفَّذ
-// هنا بشكل مستقل (بدون أي استيراد من الملفين) لنفس فلسفة المشروع في
-// كل شاشة تانية. بيحترم نفس نطاق الصلاحيات والفلاتر لأنه بيصدّر
-// lastFilteredList بالظبط - مفيش أي طلب Firestore إضافي هنا
+// تصدير النتائج المفلترة الحالية كملف PDF احترافي (RTL)
 // ============================================================
 
-const PDF_PAGE_WIDTH_PX = 794; // عرض صفحة A4 تقريباً بدقة 96dpi
+const PDF_PAGE_WIDTH_PX = 794;
 
 function formatPdfDate(iso) {
   try {
@@ -707,13 +654,6 @@ function formatPdfDate(iso) {
   }
 }
 
-/**
- * تحميل صورة من رابطها وضغطها قبل تضمينها في الـ PDF - بترجع null
- * بهدوء لو تعذر تحميلها (رابط فيديو/تعذر اتصال/CORS...) بدل ما توقف
- * التصدير كله؛ وده بالظبط اللي بيخلينا مش محتاجين نفرّق بين رابط
- * صورة أو فيديو يدوياً هنا - أي رابط مش قابل للعرض كصورة بيتجاهل
- * تلقائياً ويفضل متاح للمستخدم عبر عمود "روابط الوسائط" في CSV
- */
 async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
   try {
     const response = await fetch(url, { mode: "cors" });
@@ -749,7 +689,6 @@ async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
 }
 
 function buildPdfRecordBlockHtml(record, imageDataUrls, hasSkippedMedia) {
-
   const kind = record._kind;
   const kindLabel = kind === 'ticket' ? '🚨 بلاغ عطل' : kind === 'suggestion' ? '💡 مقترح كايزن' : '📝 صيانة وقائية';
   const titleText = kind === 'suggestion' ? (record.title || record.machine || '-') : (record.machine || record.machineName || '-');
@@ -783,9 +722,6 @@ function buildPdfRecordBlockHtml(record, imageDataUrls, hasSkippedMedia) {
     </div>
   ` : "";
 
-  // ملاحظة نصية (مش صورة) لو فيه روابط وسائط اتجاهلت أثناء التصدير
-  // (مش قابلة للعرض كصورة ثابتة - زي الفيديو) عشان المستخدم يعرف إنه
-  // يرجع لتصدير CSV لعمود "روابط الوسائط" لو محتاج يفتحها
   const skippedNoteHtml = hasSkippedMedia ? `
     <div style="font-size:10px; color:#b45309; margin-top:6px;">
       🎥 يوجد وسائط إضافية (فيديو/ملف) مرتبطة بهذا السجل - راجع تصدير CSV لروابطها الكاملة.
@@ -808,11 +744,9 @@ function buildPdfRecordBlockHtml(record, imageDataUrls, hasSkippedMedia) {
       ${skippedNoteHtml}
     </div>
   `;
-
 }
 
 window.exportMaintenanceSearchResultsPdf = async function () {
-
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
     alert("❌ مكتبات إنشاء PDF غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
     return;
@@ -833,9 +767,6 @@ window.exportMaintenanceSearchResultsPdf = async function () {
   let offscreen = null;
 
   try {
-
-    // 1) تحميل/ضغط صور كل سجل (بحد أقصى 4 لكل سجل - نفس حد التقرير
-    // الشهري الحالي - عشان الملف النهائي يفضل بحجم معقول)
     const recordsWithImages = [];
     for (const record of lastFilteredList) {
       const mediaUrls = collectRecordMediaUrls(record).slice(0, 4);
@@ -848,8 +779,6 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       recordsWithImages.push({ record, images: dataUrls, hasSkippedMedia });
     }
 
-    // 2) بناء محتوى الـ PDF كـ HTML خارج الشاشة (بالخط والاتجاه
-    // العربي الطبيعي للمتصفح) عشان يترسم بشكل صحيح عند تحويله لصورة
     offscreen = document.createElement("div");
     offscreen.style.position = "fixed";
     offscreen.style.top = "-99999px";
@@ -882,8 +811,6 @@ window.exportMaintenanceSearchResultsPdf = async function () {
 
     document.body.appendChild(offscreen);
 
-    // 3) تحويل المحتوى لصورة (Canvas) ثم تقسيمها على صفحات PDF -
-    // نفس الأسلوب بالظبط المُستخدم في التقرير الشهري الحالي
     const canvas = await window.html2canvas(offscreen, {
       scale: 1.5,
       useCORS: true,
@@ -923,11 +850,10 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       btn.innerHTML = originalLabel;
     }
   }
-
 };
 
 // ============================================================
-// كارت نتيجة - بلاغ عطل (نفس شكل/ألوان ticketsBoard.js)
+// كارت نتيجة - بلاغ عطل
 // ============================================================
 
 function ticketResultCard(t) {
@@ -996,8 +922,7 @@ function pmResultCard(p) {
 }
 
 // ============================================================
-// كارت نتيجة - مقترح كايزن (نفس فكرة شكل باقي الكروت، بألوان
-// amber/purple المُستخدمة أصلاً في kaizenBoard.js لتمييز الكايزن)
+// كارت نتيجة - مقترح كايزن
 // ============================================================
 
 function suggestionResultCard(s) {
