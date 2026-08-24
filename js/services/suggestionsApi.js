@@ -588,4 +588,45 @@ export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
   }
 }
 
+// ============================================================
+// جلب مقترحات الكايزن لصفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
+// - نفس فكرة fetchTicketsForSearchApi (ticketsApi.js): فلترة
+//   الصلاحيات على مستوى الاستعلام نفسه بدل جلب كل المقترحات ثم
+//   فلترتها محلياً. isFullAccess بيتحدد من الصفحة نفسها
+//   (admin/manager/engineer - راجع hasFullDataAccess في permissions.js)
+// - وصول محدود: مقترحاته هو (بالاسم - نفس subscribeToSuggestionsBoardApi)
+//   + أي مقترح مُسند إليه للتنفيذ (assignedToUid) حتى لو مش هو صاحبه،
+//   لأنه برضه "مسموح له بيها" فعلياً (زي ما بيوضح getSuggestionActions)
+// ============================================================
+export async function fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName }) {
+  try {
+    const suggestionsRef = collection(db, "suggestions");
+
+    if (isFullAccess) {
+      const snap = await getDocs(query(suggestionsRef));
+      const items = [];
+      snap.forEach(docSnap => items.push({ id: docSnap.id, ...docSnap.data() }));
+      return { status: "success", data: items };
+    }
+
+    const queries = [
+      getDocs(query(suggestionsRef, where("name", "==", myName || "")))
+    ];
+    if (myUid) {
+      queries.push(getDocs(query(suggestionsRef, where("assignedToUid", "==", myUid))));
+    }
+
+    const snaps = await Promise.all(queries);
+    const merged = new Map();
+    snaps.forEach(snap => {
+      snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+    });
+
+    return { status: "success", data: Array.from(merged.values()) };
+  } catch (error) {
+    console.error("Error fetching suggestions for search:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 

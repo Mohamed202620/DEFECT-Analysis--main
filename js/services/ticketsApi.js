@@ -329,6 +329,45 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
   }
 }
 
+// ============================================================
+// جلب بلاغات الأعطال لصفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
+// - نفس فكرة فلترة الصلاحيات على مستوى الاستعلام نفسه المُستخدمة في
+//   fetchTicketsForReportApi فوق (بدل جلب كل شيء ثم فلترته محلياً)،
+//   لكن isFullAccess بيتحدد من الصفحة نفسها (admin/manager/engineer -
+//   راجع hasFullDataAccess في permissions.js) بدل تكرار شرط دور مختلف
+//   هنا. بدون قيد تاريخ عند الجلب لأن فلتر التاريخ في الصفحة تفاعلي
+//   على نفس النتائج المجلوبة مرة واحدة (بدون أي طلب إضافي لـ Firestore)
+// ============================================================
+export async function fetchTicketsForSearchApi({ isFullAccess, myUid, myName }) {
+  try {
+    const ticketsRef = collection(db, "tickets");
+
+    if (isFullAccess) {
+      const snap = await getDocs(query(ticketsRef));
+      const tickets = [];
+      snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
+      return { status: "success", data: tickets };
+    }
+
+    // وصول محدود (فني/مهندس عادي): بلاغاته هو بس (بلّغ بيها أو
+    // مُسندة إليه) - استعلامين بالاسم (نفس أسلوب subscribeToTicketsBoardApi
+    // وfetchTicketsForReportApi) بدل استعلام واحد على كل التذاكر
+    const [reportedSnap, assignedSnap] = await Promise.all([
+      getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
+      getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
+    ]);
+
+    const merged = new Map();
+    reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+    assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+
+    return { status: "success", data: Array.from(merged.values()) };
+  } catch (error) {
+    console.error("Error fetching tickets for search:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 export async function updateTicketStatusApi(ticketId, status, notes = "") {
   try {
     const ticketRef = doc(db, "tickets", ticketId);

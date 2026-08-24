@@ -11,7 +11,8 @@ import {
   addDoc,
   getDocs,
   orderBy,
-  query
+  query,
+  where
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -96,6 +97,41 @@ export async function fetchPmRecordsApi() {
       return { status: "error", message: fallbackError.message };
     }
 
+  }
+
+}
+
+
+// ============================================================
+// جلب سجلات الصيانة الوقائية لصفحة "البحث والفلترة المتقدمة"
+// (maintenanceSearch) - بنفس فكرة fetchTicketsForSearchApi
+// (ticketsApi.js): فلترة الصلاحيات على مستوى الاستعلام نفسه بدل جلب
+// كل السجلات ثم فلترتها محلياً. isFullAccess بيتحدد من الصفحة نفسها
+// (admin/manager/engineer). سجلات الـ PM ملهاش reportedBy/assignedTo
+// زي التذاكر - المرجع الوحيد لصاحب السجل هو reporter.name (نفس
+// الحقل المُستخدم أصلاً في الفلترة المحلية القديمة بالضبط)
+// ============================================================
+export async function fetchPmRecordsForSearchApi({ isFullAccess, myName }) {
+
+  try {
+
+    const pmRef = collection(db, "pmRecords");
+
+    const q = isFullAccess
+      ? query(pmRef)
+      : query(pmRef, where("reporter.name", "==", myName || ""));
+
+    const querySnapshot = await getDocs(q);
+    const records = [];
+    querySnapshot.forEach(docSnap => {
+      records.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    return { status: "success", data: records };
+
+  } catch (error) {
+    console.error("Error fetching PM records for search:", error);
+    return { status: "error", message: error.message };
   }
 
 }

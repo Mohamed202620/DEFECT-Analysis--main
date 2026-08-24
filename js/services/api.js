@@ -51,6 +51,7 @@ export {
   fetchTicketLogsApi,
   fetchTicketByIdApi,
   fetchTicketsForReportApi,
+  fetchTicketsForSearchApi,
   fetchMyNotificationsApi,
   subscribeToMyNotificationsApi,
   markNotificationReadApi,
@@ -70,12 +71,13 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi, fetchPmRecordsApi } from "./pmApi.js";
+export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
 
 export {
   saveSuggestionApi,
   subscribeToSuggestionsBoardApi,
   fetchSuggestionsForReportApi,
+  fetchSuggestionsForSearchApi,
   reviewSuggestionApi,
   rejectSuggestionApi,
   requestSuggestionRevisionApi,
