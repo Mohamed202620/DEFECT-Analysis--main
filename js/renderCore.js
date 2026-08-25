@@ -89,6 +89,21 @@ app.innerHTML =
 app.style.opacity = "1";  
 
 
+// ========================================================
+// NOTIFICATIONS BADGE AUTO REFRESH
+// (شارة عدد الإشعارات غير المقروءة فوق زر 🔔 بالشريط السفلي -
+// BottomNav.js موجود في كل الصفحات تقريباً، فبنحدّث الشارة بعد كل
+// render() بنفس أسلوب باقي "AUTO LOAD" تحت. الدالة نفسها آمنة لو
+// الزرار مش موجود في الصفحة الحالية أصلاً - راجع NotificationsModal.js)
+// ========================================================
+
+if (typeof window.refreshNotificationsBadge === "function") {
+
+  window.refreshNotificationsBadge();
+
+}
+
+
 // ========================================================  
 // HOME CHART AUTO LOAD  
 // (initMainChart لم تكن تُستدعى أبداً سابقاً، لذلك كان الرسم
