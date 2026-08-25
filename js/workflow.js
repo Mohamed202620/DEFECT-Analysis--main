@@ -340,6 +340,10 @@ let chartInstance = null;
 // الفلتر الزمني الحالي - بيفضل محفوظ حتى لو المستخدم بدّل صفحة ورجع
 export let currentChartRange = 'weekly';
 
+// شكل عرض الرسم البياني الحالي - بيفضل محفوظ برضه زي الفلتر الزمني
+// 'area' (خط + تعبئة، الشكل الافتراضي القديم) / 'line' (خط بدون تعبئة) / 'bar' (أعمدة)
+export let currentChartType = 'area';
+
 // نفس تصنيف "مغلق" المستخدم في loadDashboardStats بالظبط - اتنقل هنا
 // كثابت مشترك عشان الرسم البياني وكارتات الـ KPI يتفقوا في نفس المنطق
 const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
@@ -442,18 +446,96 @@ function buildGradient(ctx, area, hexColor, alpha) {
 }
 
 // ------------------------------------------------------------
+// بناء الـ datasets حسب "شكل" الرسم البياني المختار (خط / مساحة / أعمدة)
+// - line: خط بدون تعبئة تحته
+// - area: نفس الشكل الافتراضي القديم (خط + تدرّج تعبئة)
+// - bar: أعمدة بدل الخط
+// ------------------------------------------------------------
+function buildChartDatasets(data, type, t) {
+  if (type === 'bar') {
+    return [
+      {
+        label: t.kpiOpen,
+        data: data.open,
+        backgroundColor: 'rgba(245, 158, 11, 0.7)',
+        borderColor: '#F59E0B',
+        borderWidth: 1,
+        borderRadius: 6
+      },
+      {
+        label: t.kpiClosed,
+        data: data.closed,
+        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+        borderColor: '#10B981',
+        borderWidth: 1,
+        borderRadius: 6
+      }
+    ];
+  }
+
+  const fill = type === 'area';
+  return [
+    {
+      label: t.kpiOpen,
+      data: data.open,
+      borderColor: '#F59E0B',
+      backgroundColor: fill
+        ? (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#F59E0B', '')
+        : 'transparent',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor: '#F59E0B',
+      tension: 0.4,
+      cubicInterpolationMode: 'monotone',
+      fill
+    },
+    {
+      label: t.kpiClosed,
+      data: data.closed,
+      borderColor: '#10B981',
+      backgroundColor: fill
+        ? (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#10B981', '')
+        : 'transparent',
+      borderWidth: 2,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      pointBackgroundColor: '#10B981',
+      tension: 0.4,
+      cubicInterpolationMode: 'monotone',
+      fill
+    }
+  ];
+}
+
+// ------------------------------------------------------------
 // إنشاء/تحديث الرسم البياني
 // - أول مرة (chartInstance غير موجود): بيتعمل new Chart()
 // - أي تحديث بعد كده (تبديل فلتر/لغة/داتا جديدة): بنعدّل labels
 //   والـ datasets في نفس الـ instance وننادي chart.update() بس،
 //   من غير ما نهدم/نعيد إنشاء الكانفاس بالكامل
 // ------------------------------------------------------------
-export function renderMainChart(range = currentChartRange, tickets = lastTicketsSnapshot) {
+export function renderMainChart(range = currentChartRange, tickets = lastTicketsSnapshot, type = currentChartType) {
   const canvas = document.getElementById('mainChart');
   if (!canvas) return;
 
+  // ***** إصلاح مشكلة اختفاء الرسم البياني عند الرجوع للرئيسية *****
+  // لما ننتقل لصفحة تانية، الكانفاس القديم (اللي chartInstance متعلّق
+  // بيه) بيتشال من الـ DOM بالكامل. لو رجعنا للرئيسية تاني، renderCore.js
+  // بيبني كانفاس جديد بنفس الـ id، لكن chartInstance فضل شايل مرجع
+  // للكانفاس *القديم* الميت، فـ chart.update() كان بيتنفذ على حاجة
+  // مش موجودة في الصفحة أصلاً وملهاش أي تأثير مرئي. الحل: لو الكانفاس
+  // اللي في الـ DOM دلوقتي مختلف عن اللي الانستانس القديم متعلّق بيه،
+  // نهدم الانستانس القديم ونسيبه يتعمل من جديد على الكانفاس الصحيح.
+  if (chartInstance && chartInstance.canvas !== canvas) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
+
   currentChartRange = range;
   window.mainChartRange = currentChartRange;
+  currentChartType = ['line', 'area', 'bar'].includes(type) ? type : currentChartType;
+  window.mainChartType = currentChartType;
   lastTicketsSnapshot = Array.isArray(tickets) ? tickets : lastTicketsSnapshot;
 
   const lang = window.currentLang || 'ar';
@@ -461,54 +543,39 @@ export function renderMainChart(range = currentChartRange, tickets = lastTickets
   const isRtl = lang === 'ar';
 
   const data = buildChartDataset(lastTicketsSnapshot, currentChartRange, lang);
+  const datasets = buildChartDatasets(data, currentChartType, t);
+  const chartJsType = currentChartType === 'bar' ? 'bar' : 'line';
+
+  // تغيير "شكل" الرسم (مثلاً من أعمدة لخط) بيحتاج هدم وإعادة إنشاء
+  // الانستانس، لأن Chart.js مش بيدعم تبديل النوع الأساسي بسلاسة عن
+  // طريق update() بس
+  if (chartInstance && chartInstance.config.type !== chartJsType) {
+    chartInstance.destroy();
+    chartInstance = null;
+  }
 
   if (chartInstance) {
     chartInstance.data.labels = data.labels;
-    chartInstance.data.datasets[0].label = t.kpiOpen;
-    chartInstance.data.datasets[0].data = data.open;
-    chartInstance.data.datasets[1].label = t.kpiClosed;
-    chartInstance.data.datasets[1].data = data.closed;
+    chartInstance.data.datasets[0].label = datasets[0].label;
+    chartInstance.data.datasets[0].data = datasets[0].data;
+    chartInstance.data.datasets[0].backgroundColor = datasets[0].backgroundColor;
+    chartInstance.data.datasets[0].fill = datasets[0].fill;
+    chartInstance.data.datasets[1].label = datasets[1].label;
+    chartInstance.data.datasets[1].data = datasets[1].data;
+    chartInstance.data.datasets[1].backgroundColor = datasets[1].backgroundColor;
+    chartInstance.data.datasets[1].fill = datasets[1].fill;
     chartInstance.options.rtl = isRtl;
     chartInstance.update();
     updateChartRangeButtons(currentChartRange);
+    updateChartTypeButtons(currentChartType);
     return;
   }
 
   chartInstance = new Chart(canvas, {
-    type: 'line',
+    type: chartJsType,
     data: {
       labels: data.labels,
-      datasets: [
-        {
-          // نفس نص كارت "أعطال مفتوحة" (t.kpiOpen) بدل تكرار ترجمة
-          // مستقلة لنفس المعنى
-          label: t.kpiOpen,
-          data: data.open,
-          borderColor: '#F59E0B',
-          backgroundColor: (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#F59E0B', ''),
-          borderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          pointBackgroundColor: '#F59E0B',
-          tension: 0.4,
-          cubicInterpolationMode: 'monotone',
-          fill: true
-        },
-        {
-          // نفس نص كارت "تم إصلاحها" (t.kpiClosed)
-          label: t.kpiClosed,
-          data: data.closed,
-          borderColor: '#10B981',
-          backgroundColor: (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#10B981', ''),
-          borderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          pointBackgroundColor: '#10B981',
-          tension: 0.4,
-          cubicInterpolationMode: 'monotone',
-          fill: true
-        }
-      ]
+      datasets
     },
     options: {
       responsive: true,
@@ -527,6 +594,7 @@ export function renderMainChart(range = currentChartRange, tickets = lastTickets
   });
 
   updateChartRangeButtons(currentChartRange);
+  updateChartTypeButtons(currentChartType);
 }
 
 // إبقاء initMainChart بنفس الاسم/التوقيع القديم (بينادي عليه
@@ -563,6 +631,15 @@ window.setMainChartRange = function (range) {
   renderMainChart(range, lastTicketsSnapshot);
 };
 
+// ------------------------------------------------------------
+// تبديل "شكل" الرسم البياني (خط / مساحة / أعمدة) - بتُستدعى من
+// أزرار الفلتر الجديدة في homeView.js، بنفس أسلوب setMainChartRange
+// ------------------------------------------------------------
+window.setMainChartType = function (type) {
+  if (!['line', 'area', 'bar'].includes(type)) return;
+  renderMainChart(currentChartRange, lastTicketsSnapshot, type);
+};
+
 // تحديث الشكل المرئي لأزرار الفلتر (النشط/غير النشط) بدون أي إعادة
 // رسم لباقي الصفحة
 function updateChartRangeButtons(activeRange) {
@@ -571,6 +648,22 @@ function updateChartRangeButtons(activeRange) {
 
   container.querySelectorAll('[data-range]').forEach(btn => {
     const isActive = btn.getAttribute('data-range') === activeRange;
+    btn.classList.toggle('bg-blue-600', isActive);
+    btn.classList.toggle('text-white', isActive);
+    btn.classList.toggle('shadow-sm', isActive);
+    btn.classList.toggle('dyn-text-muted', !isActive);
+    btn.classList.toggle('opacity-60', !isActive);
+  });
+}
+
+// تحديث الشكل المرئي لأزرار نوع الرسم البياني (النشط/غير النشط)،
+// نفس منطق updateChartRangeButtons بالظبط
+function updateChartTypeButtons(activeType) {
+  const container = document.getElementById('chartTypeControl');
+  if (!container) return;
+
+  container.querySelectorAll('[data-chart-type]').forEach(btn => {
+    const isActive = btn.getAttribute('data-chart-type') === activeType;
     btn.classList.toggle('bg-blue-600', isActive);
     btn.classList.toggle('text-white', isActive);
     btn.classList.toggle('shadow-sm', isActive);
