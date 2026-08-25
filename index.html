@@ -24,17 +24,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
-  <!-- أداة F12 للموبايل (Eruda Console) -->
-  <!--
-    تم تحويلها من التشغيل التلقائي الدائم إلى وضع اختياري فقط:
-    كانت شغالة لكل زائر في كل زيارة، وده بيدي أي مستخدم عادي
-    كونسول كامل يقدر يتلاعب بيه في localStorage (وبالتالي
-    بالدور/الصلاحيات المحفوظة محلياً). دلوقتي بتتفعّل فقط لو:
-      - فيه ?debug=1 في رابط الصفحة، أو
-      - localStorage.debug = "true" (بيفضل محفوظ للمرات الجاية)
-    لإيقافها تاني بعد التفعيل: احذف ?debug من الرابط ونفّذ في
-    الكونسول: localStorage.removeItem('debug')
-  -->
+  <!-- أداة Eruda Console للموبايل (وضع التعديل والتصحيح) -->
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
@@ -104,8 +94,6 @@
       min-height: 100vh; 
     }
 
-    /* تستخدمها BottomNav.js - كانت غير معرّفة سابقاً فيظهر الشريط
-       السفلي بدون تنسيق (شفاف بلا خلفية ولا حدود) */
     .dyn-card {
       background-color: var(--app-card-bg);
       border-color: var(--app-border);
@@ -189,16 +177,6 @@
             router.init();
         } else if (typeof window.initApp === 'function') {
             window.initApp();
-        }
-
-        // إصلاح: هذا هو المسار الفعلي اللي بيعرض الصفحة الأولى بعد
-        // أي فتح/تحديث للتطبيق (renderCore.js's DOMContentLoaded
-        // listener عادةً بيكون خلص وقته وميتنفذش - راجع التعليق في
-        // renderCore.js) - فتفعيل جرس الإشعارات هنا هو اللي يضمن
-        // ظهوره فعلاً لو المستخدم مسجّل دخول بالفعل، مش بس فور
-        // تسجيل دخول جديد
-        if (isLoggedIn && typeof window.initNotificationBell === 'function') {
-            window.initNotificationBell();
         }
 
         window.hideSplash();
