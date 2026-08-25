@@ -44,4 +44,12 @@ import './offlineBanner.js';
 // فكانت الدالتين غير معرّفتين أبداً ولم يكن الجرس يظهر مطلقاً
 import './components/NotificationBell.js';
 
+// استيراد جانبي (Side-effect) لإضافة زر تبديل اللغة (عربي/إنجليزي)
+// ملاحظة: نفس مشكلة NotificationBell.js بالظبط - كان هذا الملف
+// موجوداً بدون أي import له في المشروع، فالزر مكانش بيتضاف للصفحة
+// نهائياً. لازم يتحمّل بعد renderCore.js (مستورد بالفعل عبر
+// authHandlers.js فوق) عشان يقرأ window.currentLang الصح من أول
+// ظهور للزر
+import './components/LanguageToggle.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

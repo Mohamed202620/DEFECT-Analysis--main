@@ -191,6 +191,16 @@
             window.initApp();
         }
 
+        // إصلاح: هذا هو المسار الفعلي اللي بيعرض الصفحة الأولى بعد
+        // أي فتح/تحديث للتطبيق (renderCore.js's DOMContentLoaded
+        // listener عادةً بيكون خلص وقته وميتنفذش - راجع التعليق في
+        // renderCore.js) - فتفعيل جرس الإشعارات هنا هو اللي يضمن
+        // ظهوره فعلاً لو المستخدم مسجّل دخول بالفعل، مش بس فور
+        // تسجيل دخول جديد
+        if (isLoggedIn && typeof window.initNotificationBell === 'function') {
+            window.initNotificationBell();
+        }
+
         window.hideSplash();
     })
     .catch((err) => {

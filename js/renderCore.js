@@ -14,9 +14,19 @@ import { initMaintenanceSearchView } from './maintenanceSearch.js';
 
 export let currentPage = 'login';
 
-export let currentLang = 'ar';
+// إصلاح: كانت اللغة دايماً 'ar' في كل تحميل صفحة حتى لو المستخدم
+// بدّلها قبل كده - دلوقتي بنقرأ آخر لغة محفوظة (نفس أسلوب حفظ
+// الثيم في theme.js) عشان اختيار المستخدم يفضل زي ما هو بعد أي
+// تحديث/تسجيل دخول جديد
+export let currentLang = localStorage.getItem('lang') || 'ar';
 
 window.currentLang = currentLang;
+
+// مزامنة اتجاه/لغة صفحة HTML مع اللغة المحفوظة من أول تحميل (كانت
+// index.html ثابتة على lang="ar" dir="rtl" دايماً بغض النظر عن
+// اللغة الفعلية المحفوظة)
+document.documentElement.setAttribute('lang', currentLang);
+document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
 
 // الصفحة المعروضة فعلياً قبل استدعاء render() الحالي - بتُستخدم
 // بس عشان نعرف "بنغادر صفحة إيه" (زي 'tickets') فنقفل أي Real-time
@@ -284,6 +294,32 @@ window.render =
 render;
 
 // ============================================================
+// LANGUAGE TOGGLE
+// إصلاح: زر تبديل اللغة (LanguageToggle.js) كان بيستدعي
+// window.toggleLanguage() لكن الدالة دي مكانتش معرّفة في أي مكان
+// بالمشروع أصلاً - فمكانش بيحصل أي تبديل فعلي للغة/الترجمة حتى لو
+// كان الزر ظاهر. دلوقتي بتبدّل اللغة، تحفظها، تحدّث اتجاه الصفحة،
+// وتعيد رسم الصفحة الحالية بالترجمة الجديدة
+// ============================================================
+
+window.toggleLanguage = function () {
+
+  currentLang = currentLang === 'ar' ? 'en' : 'ar';
+  window.currentLang = currentLang;
+  localStorage.setItem('lang', currentLang);
+
+  document.documentElement.setAttribute('lang', currentLang);
+  document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+
+  if (typeof window.refreshLanguageToggleLabel === 'function') {
+    window.refreshLanguageToggleLabel();
+  }
+
+  render();
+
+};
+
+// ============================================================
 // INITIAL LOAD & ROUTING LISTENERS
 // ============================================================
 
@@ -298,6 +334,14 @@ render();
 }
 );
 
+// ملاحظة: هذا الـ listener فعلياً "ميت" في التطبيق الحالي - لأن
+// هذا الملف بيتحمّل عبر import() ديناميكي جوه index.html، وده بياخد
+// وقت (تحميل + تنفيذ عشرات ملفات JS المترابطة) بيخلّي حدث
+// "DOMContentLoaded" يكون اتطلق بالفعل قبل حتى ما يوصل التنفيذ هنا
+// ويسجّل الـ listener، فمعظم الوقت الكود جوّاه ميتنفذش أبداً.
+// التنقل الفعلي عند أول تحميل بيحصل من index.html نفسه (اللي بيعمل
+// router.navigateTo() بعد ما الـ import يخلص) - وهو اللي اتصلح
+// لتفعيل جرس الإشعارات كمان (راجع index.html)
 window.addEventListener(
 "DOMContentLoaded",
 () => {
@@ -306,7 +350,6 @@ const initialHash =
   window.location.hash  
     .replace("#", "");  
 
-// التحقق بالاعتماد على وجود رقم الهاتف أو الـ userId لضمان عدم الخروج الوهمي  
 const isLoggedIn =  
   localStorage.getItem("phone") ||  
   localStorage.getItem("userId");  
@@ -333,7 +376,6 @@ if (!isLoggedIn) {
 
 render();
 
-// تفعيل جرس الإشعارات لو فيه جلسة دخول محفوظة بالفعل (Refresh)
 if (isLoggedIn && typeof window.initNotificationBell === "function") {
   window.initNotificationBell();
 }
