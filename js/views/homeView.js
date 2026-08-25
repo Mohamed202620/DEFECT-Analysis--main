@@ -24,7 +24,7 @@ export const HomeView = () => {
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
   return `
-  <div class="p-4 max-w-md mx-auto pb-24 space-y-5">
+  <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5">
 
     <!-- الهيدر والترحيب -->
     <div class="flex items-center justify-between border-b pb-3" style="border-color: var(--app-border);">
@@ -59,7 +59,7 @@ export const HomeView = () => {
     </div>
 
     <!-- ملخص العدادات الحية -->
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 
       <!-- أعطال مفتوحة -->
       <div class="relative dyn-card border p-3.5 rounded-2xl flex items-center justify-between shadow-lg shadow-black/10 ring-1 ring-white/5 overflow-hidden">
@@ -136,6 +136,10 @@ export const HomeView = () => {
       </div>
     </div>
 
+    <!-- الوصول السريع + الوصول السريع لنظام الكايزن: عمودان جنباً
+         إلى جنب في الشاشات الكبيرة بدل عمود واحد -->
+    <div class="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start">
+
     <!-- الوصول السريع -->
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-70 px-1">${t.quickAccess}</h3>
@@ -206,6 +210,8 @@ export const HomeView = () => {
       </div>
     </div>
     ` : ""}
+
+    </div>
 
     <!-- الرسم البياني الرئيسي -->
     <div class="dyn-card border p-4 rounded-2xl space-y-3 shadow-lg shadow-black/10">
