@@ -39,12 +39,23 @@ export const HomeView = () => {
           <p class="text-[11px] dyn-text-muted opacity-60">${job}</p>
         </div>
       </div>
-      <button
-        onclick="window.toggleDarkMode()"
-        class="p-2 dyn-card border rounded-xl text-xs dyn-text-muted active:scale-95 transition shadow-sm"
-        title="Toggle theme / تبديل الوضع">
-        🌙 / ☀️
-      </button>
+
+      <!-- أدوات التحكم: تبديل الثيم وتبديل اللغة -->
+      <div class="flex flex-col items-center gap-1.5">
+        <button
+          onclick="window.toggleDarkMode()"
+          class="px-2.5 py-1 dyn-card border rounded-xl text-xs dyn-text-muted active:scale-95 transition shadow-sm"
+          title="Toggle theme / تبديل الوضع">
+          🌙 / ☀️
+        </button>
+
+        <button
+          onclick="const targetLang = (window.currentLang || 'en') === 'ar' ? 'en' : 'ar'; if (typeof window.switchLanguage === 'function') { window.switchLanguage(targetLang); } else { localStorage.setItem('app_lang', targetLang); localStorage.setItem('lang', targetLang); location.reload(); }"
+          class="px-2.5 py-1 dyn-card border rounded-xl text-xs font-bold dyn-text-muted active:scale-95 transition shadow-sm"
+          title="Toggle language / تغيير اللغة">
+          🌐 ${currentLang === 'ar' ? 'EN' : 'AR'}
+        </button>
+      </div>
     </div>
 
     <!-- ملخص العدادات الحية -->
@@ -110,10 +121,6 @@ export const HomeView = () => {
     </div>
 
     <!-- كارتات ذكية إضافية: MTTR + أكثر ماكينة عطلاً + أفضل فني -->
-    <!-- البيانات محسوبة بالفعل في statistics.js (لصفحة الإحصائيات)
-    وتم عمل export لها بدون تغيير منطقها، وworkflow.js هو اللي بيملأ
-    القيم دي بعد ما يجيب التذاكر (loadDashboardStats) - فمفيش أي
-    استعلام إضافي على قاعدة البيانات هنا -->
     <div class="grid grid-cols-3 gap-2">
       <div class="dyn-card border p-2.5 rounded-xl text-center shadow-md shadow-black/10">
         <div class="text-[9px] dyn-text-muted opacity-60 mb-1">⏱️ ${t.mttr}</div>
@@ -163,14 +170,7 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <!-- الوصول السريع لنظام الكايزن - إصلاح: قبل كده كان الوصول
-    الوحيد لصفحتَي "نظام كايزن" و"متابعة الكايزن" عبر شاشة قسم
-    الصيانة فقط (وهي مقفولة بصلاحية "maintenance")، فكان أي مستخدم
-    عنده صلاحية "كايزن" فقط (زي فني إنتاج مش تابع لقسم الصيانة)
-    مش لاقي أي طريقة يوصل بيها لمقترحاته أصلاً - حتى لو ضغط على
-    إشعار "يحتاج تعديل" - عشان محدش رابط ظاهر ليه. الزرارين دول
-    بيظهروا لأي حد عنده صلاحية "suggestions" بغض النظر عن صلاحية
-    الصيانة -->
+    <!-- الوصول السريع لنظام الكايزن -->
     ${hasPermission("suggestions") ? `
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-70 px-1">${t.kaizenTitle}</h3>
@@ -192,13 +192,6 @@ export const HomeView = () => {
         <button
           onclick="window.navigateTo('kaizenBoard')"
           class="relative dyn-card border hover:border-amber-500/40 p-3 rounded-xl flex items-center gap-3 text-start transition active:scale-95 shadow-md shadow-black/10">
-          <!-- عنصر جاهز (hook) لعدد مقترحات "يحتاج تعديل" - لسه مش
-          متصل ببيانات حية عمداً: تفعيله محتاج اشتراك real-time على
-          suggestionsApi (subscribeToSuggestionsBoardApi) زي كايزن
-          بورد بالظبط، وده بيحتاج تنظيف (cleanup) عند مغادرة
-          الرئيسية زي نمط cleanupKaizenBoard الموجود في renderCore.js
-          - مفضّلتش أنفّذها ناقصة عشان منجيبش تسريب Listener بيفضل
-          شغال في الخلفية -->
           <span id="kaizenNeedsEditBadge" class="hidden absolute -top-1.5 rtl:-right-1.5 ltr:-left-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-[9px] font-bold text-white flex items-center justify-center shadow-md"></span>
           <span class="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -236,7 +229,7 @@ export const HomeView = () => {
         <span>${t.contactDev}</span>
       </button>
 
-      <!-- زر تسجيل الخروج (نفس مفتاح "logout" العام المستخدم في باقي التطبيق) -->
+      <!-- زر تسجيل الخروج -->
       <button
         onclick="if(confirm('${t.logoutConfirm.replace(/'/g, "\\'")}')) { localStorage.clear(); window.location.reload(); }"
         class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 transition active:scale-95 shadow-md">
@@ -244,7 +237,7 @@ export const HomeView = () => {
         <span>${(translations[currentLang] || translations.en).logout}</span>
       </button>
 
-      <!-- حقوق الملكية (نفس مفتاح "footer" العام المستخدم في باقي التطبيق) -->
+      <!-- حقوق الملكية -->
       <p class="text-[10px] dyn-text-muted opacity-50 font-medium tracking-wide">
         ${(translations[currentLang] || translations.en).footer}
       </p>
