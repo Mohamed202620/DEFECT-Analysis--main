@@ -5,7 +5,7 @@ export const IssueView = () => {
   const t = translations[currentLang] || translations['ar'];
 
   return `
-  <div class="p-4 max-w-md mx-auto space-y-4 pb-24 text-white">
+  <div class="app-page p-4 max-w-md mx-auto space-y-4 pb-24 text-white">
 
     <!-- زر الرجوع -->
     <button
