@@ -80,7 +80,7 @@ export const SuggestionView = () => {
   };
 
   return `
-  <div class="p-4 max-w-lg mx-auto pb-10">
+  <div class="app-page p-4 max-w-lg mx-auto pb-10">
     <!-- زر الرجوع -->
     <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
