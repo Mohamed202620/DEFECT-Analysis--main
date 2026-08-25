@@ -102,6 +102,55 @@
     .dyn-text-muted {
       color: var(--app-text);
     }
+
+    /* ============================================================
+       Responsive Desktop Dashboard
+       - على الموبايل: زي ما هو تماماً (عمود واحد + BottomNav)
+       - من md وما فوق: Sidebar ثابتة جانبية + المحتوى يستغل العرض
+       ============================================================ */
+
+    #appShell {
+      min-height: 100vh;
+    }
+
+    @media (min-width: 768px) {
+      #appShell {
+        display: flex;
+        align-items: stretch;
+      }
+
+      #app {
+        flex: 1 1 0%;
+        min-width: 0;
+      }
+
+      /* أي صفحة معلّمة بـ app-page (الحاويات الرئيسية للصفحات) تستغل
+         عرض الشاشة كاملاً بدل ما تفضل محصورة بعرض الموبايل (max-w-md) */
+      .app-page {
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+        padding-top: 1.75rem !important;
+      }
+    }
+
+    @media (min-width: 1280px) {
+      .app-page {
+        max-width: 1600px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+    }
+
+    #sidebarContainer::-webkit-scrollbar {
+      width: 5px;
+    }
+    #sidebarContainer::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.25);
+      border-radius: 10px;
+    }
   </style>
 </head>
 <body>
@@ -121,7 +170,10 @@
   </div>
 
   <!-- Container -->
-  <div id="app"></div>
+  <div id="appShell">
+    <aside id="sidebarContainer" class="hidden"></aside>
+    <div id="app"></div>
+  </div>
 
   <!-- Error Handlers & SW -->
   <script>
