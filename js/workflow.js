@@ -341,7 +341,7 @@ export function initMainChart(customData = null) {
   }
 
   // اللغة الحالية (نفس نمط الاستخدام في BottomNav.js / homeView.js)
-  const lang = window.currentLang || 'en';
+  const lang = window.currentLang || 'ar';
   const t = (translations[lang] || translations.en).home;
 
   // ✅ 6. الهيكل جاهز لاستقبال بيانات (customData) مستوردة من Firestore
