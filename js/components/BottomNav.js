@@ -39,7 +39,7 @@ export const BottomNav = (activeTab) => {
   ];
 
   return `
-    <div class="fixed bottom-4 left-4 right-4 max-w-md mx-auto
+    <div class="md:hidden fixed bottom-4 left-4 right-4 max-w-md mx-auto
                 dyn-card backdrop-blur-xl border
                 rounded-3xl flex justify-between items-center p-2 px-3
                 shadow-2xl z-50 transition-all duration-300">
