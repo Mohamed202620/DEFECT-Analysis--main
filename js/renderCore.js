@@ -311,10 +311,6 @@ window.toggleLanguage = function () {
   document.documentElement.setAttribute('lang', currentLang);
   document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
 
-  if (typeof window.refreshLanguageToggleLabel === 'function') {
-    window.refreshLanguageToggleLabel();
-  }
-
   render();
 
 };
@@ -375,10 +371,6 @@ if (!isLoggedIn) {
 }  
 
 render();
-
-if (isLoggedIn && typeof window.initNotificationBell === "function") {
-  window.initNotificationBell();
-}
 
 }
 );
