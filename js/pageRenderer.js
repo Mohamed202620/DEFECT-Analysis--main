@@ -133,7 +133,7 @@ case 'tickets':
               🗓️ تقرير شهري (PDF)
             </button>
 
-            <div id="ticketsBoardContainer" class="mt-4">  
+            <div id="ticketsBoardContainer" class="mt-4 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-3 md:items-start">  
               <div class="text-center text-gray-500 text-xs py-8">  
                 جاري تحميل التذاكر...
               </div>  
@@ -174,7 +174,7 @@ case 'kaizenBoard':
               🗓️ تقرير شهري (PDF)
             </button>
 
-            <div id="kaizenBoardContainer" class="mt-4">  
+            <div id="kaizenBoardContainer" class="mt-4 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-3 md:items-start">  
               <div class="text-center text-gray-500 text-xs py-8">  
                 جاري تحميل المقترحات...
               </div>  
