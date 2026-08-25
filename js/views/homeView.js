@@ -215,9 +215,45 @@ export const HomeView = () => {
 
     <!-- الرسم البياني الرئيسي -->
     <div class="dyn-card border p-4 rounded-2xl space-y-3 shadow-lg shadow-black/10">
-      <div class="flex items-center justify-between border-b pb-2" style="border-color: var(--app-border);">
-        <span class="text-xs font-bold dyn-text-muted">${t.chartTitle}</span>
-        <span class="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">${t.chartWeekly}</span>
+      <div class="flex items-center justify-between border-b pb-2 gap-2" style="border-color: var(--app-border);">
+        <span class="text-xs font-bold dyn-text-muted shrink-0">${t.chartTitle}</span>
+
+        <!-- فلتر زمني متفاعل: يومي / أسبوعي / شهري -->
+        <div id="chartRangeControl" class="flex items-center gap-0.5 dyn-card border rounded-lg p-0.5 shrink-0">
+          <button
+            type="button"
+            data-range="daily"
+            onclick="window.setMainChartRange('daily')"
+            class="px-2 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+              (window.mainChartRange || 'weekly') === 'daily'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'dyn-text-muted opacity-60'
+            }">
+            ${t.chartDaily}
+          </button>
+          <button
+            type="button"
+            data-range="weekly"
+            onclick="window.setMainChartRange('weekly')"
+            class="px-2 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+              (window.mainChartRange || 'weekly') === 'weekly'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'dyn-text-muted opacity-60'
+            }">
+            ${t.chartWeekly}
+          </button>
+          <button
+            type="button"
+            data-range="monthly"
+            onclick="window.setMainChartRange('monthly')"
+            class="px-2 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+              (window.mainChartRange || 'weekly') === 'monthly'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'dyn-text-muted opacity-60'
+            }">
+            ${t.chartMonthly}
+          </button>
+        </div>
       </div>
       <div style="height: 180px;">
         <canvas id="mainChart"></canvas>
