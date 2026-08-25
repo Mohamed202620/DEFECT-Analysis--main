@@ -413,6 +413,10 @@ export const translations = {
 
       chartTitle: "تحليل الأداء والأعطال",
       chartWeekly: "تحديث أسبوعي",
+      chartDaily: "يومي",
+      chartMonthly: "شهري",
+      chartWeekShort: "أسبوع",
+      chartNoData: "لا توجد بيانات كافية لهذه الفترة",
 
       contactDev: "تواصل مع المطور",
       // إضافة: نص رسالة الواتساب الجاهزة لزرار "تواصل مع المطور"
@@ -633,7 +637,11 @@ export const translations = {
       kaizenTrackDesc: "Status & requested revisions",
 
       chartTitle: "Performance & Breakdown Analysis",
-      chartWeekly: "Weekly Update",
+      chartWeekly: "Weekly",
+      chartDaily: "Daily",
+      chartMonthly: "Monthly",
+      chartWeekShort: "Week",
+      chartNoData: "Not enough data for this period",
 
       contactDev: "Contact Developer",
       // Pre-filled WhatsApp message text for the "Contact Developer" button
