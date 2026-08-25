@@ -179,6 +179,11 @@
             window.initApp();
         }
 
+        // إطلاق دالة تهيئة الإشعارات عند وجود الجلسة لتعمل في الخلفية
+        if (isLoggedIn && typeof window.initNotificationBell === 'function') {
+            window.initNotificationBell();
+        }
+
         window.hideSplash();
     })
     .catch((err) => {
