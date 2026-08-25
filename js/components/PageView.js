@@ -2,7 +2,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     const isEn = currentLang === "en";
 
     return `
-    <div class="p-4 max-w-md mx-auto pb-12">
+    <div class="app-page p-4 max-w-md mx-auto pb-12">
         <!-- زر الرجوع -->
         <button
             onclick="window.navigateTo('home')"
