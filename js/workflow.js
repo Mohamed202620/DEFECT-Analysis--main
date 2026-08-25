@@ -4,6 +4,10 @@ import { saveDefectApi, fetchTicketsApi } from './services/api.js';
 // (MTTR / أكثر ماكينة / أفضل فني) في كارتات الرئيسية الجديدة من
 // غير ما نكرر الكود ومن غير أي استعلام إضافي على قاعدة البيانات
 import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from './statistics.js';
+// إضافة: مفاتيح الترجمة عشان الرسم البياني في الرئيسية (أيام
+// الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
+// نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
+import { translations } from './config.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -336,13 +340,19 @@ export function initMainChart(customData = null) {
     chartInstance.destroy();
   }
 
+  // اللغة الحالية (نفس نمط الاستخدام في BottomNav.js / homeView.js)
+  const lang = window.currentLang || 'en';
+  const t = (translations[lang] || translations.en).home;
+
   // ✅ 6. الهيكل جاهز لاستقبال بيانات (customData) مستوردة من Firestore
   const defaultData = {
-    labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
+    labels: t.weekdays,
     open: [4, 2, 5, 1, 3, 2, 0],
     closed: [3, 4, 4, 3, 5, 4, 1]
   };
 
+  // لو فيه customData بأيام مترجمة بالفعل من المستدعي، نستخدمها زي
+  // ما هي؛ غير كده نستخدم أيام الأسبوع المترجمة تلقائياً فوق
   const data = customData || defaultData;
 
   chartInstance = new Chart(canvas, {
@@ -351,7 +361,9 @@ export function initMainChart(customData = null) {
       labels: data.labels,
       datasets: [
         {
-          label: 'أعطال مفتوحة',
+          // نفس نص كارت "أعطال مفتوحة" (t.kpiOpen) بدل تكرار ترجمة
+          // مستقلة لنفس المعنى
+          label: t.kpiOpen,
           data: data.open,
           borderColor: '#F59E0B',
           backgroundColor: 'rgba(245, 158, 11, 0.15)',
@@ -361,7 +373,8 @@ export function initMainChart(customData = null) {
           fill: true
         },
         {
-          label: 'تم إصلاحها',
+          // نفس نص كارت "تم إصلاحها" (t.kpiClosed)
+          label: t.kpiClosed,
           data: data.closed,
           borderColor: '#10B981',
           backgroundColor: 'rgba(16, 185, 129, 0.15)',

@@ -368,7 +368,54 @@ export const translations = {
       "© 2026 جميع الحقوق محفوظة | Mohamed Hussein",
 
     chartLabel:
-      "أكثر الماكينات أعطالاً"
+      "أكثر الماكينات أعطالاً",
+
+    // ==========================================================
+    // إضافة: مفاتيح خاصة بكارتات الرئيسية (homeView.js) - أسماء
+    // مستقلة عن المفاتيح العامة فوق (زي openTickets) عشان معانيها
+    // مختلفة شوية (عطل/بلاغ) ومربوطة بكارت معيّن في التصميم
+    // ==========================================================
+    home: {
+      welcome: "مرحباً،",
+      // إضافة: نص احتياطي فقط لو localStorage("name"/"job") فاضية -
+      // مش نص واجهة ثابت، ده بديل لبيانات مستخدم حقيقية فاضية
+      defaultName: "المستخدم",
+      defaultJob: "فني صيانة",
+      kpiOpen: "أعطال مفتوحة",
+      kpiCritical: "يوجد بلاغ حرج",
+      kpiClosed: "تم إصلاحها",
+      kpiToday: "أعطال اليوم",
+      kpiTotal: "إجمالي البلاغات",
+
+      mttr: "متوسط زمن الإصلاح",
+      topMachine: "أكثر ماكينة عطلاً",
+      topTech: "أفضل فني",
+      noData: "لا توجد بيانات",
+
+      // إضافة: أسماء أيام الأسبوع لعناوين الرسم البياني في الرئيسية
+      // (كانت ثابتة بالعربي جوه workflow.js - initMainChart)
+      weekdays: ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"],
+
+      quickAccess: "الوصول السريع",
+      reportIssue: "إبلاغ عن عطل",
+      reportIssueDesc: "تسجيل بلاغ جديد",
+      aiScan: "فحص الذكاء الاصطناعي",
+      aiScanDesc: "تحليل عيوب الإنتاج",
+
+      kaizenTitle: "💡 الكايزن",
+      kaizenSubmit: "إرسال مقترح",
+      kaizenSubmitDesc: "مقترح كايزن جديد",
+      kaizenTrack: "متابعة مقترحاتي",
+      kaizenTrackDesc: "الحالة والتعديل المطلوب",
+
+      chartTitle: "تحليل الأداء والأعطال",
+      chartWeekly: "تحديث أسبوعي",
+
+      contactDev: "تواصل مع المطور",
+      // إضافة: نص رسالة الواتساب الجاهزة لزرار "تواصل مع المطور"
+      waMessage: "السلام عليكم، أود التواصل معك بخصوص تطبيق الصيانة.",
+      logoutConfirm: "هل أنت متأكد من رغبتك في تسجيل الخروج؟"
+    }
 
   },
 
@@ -543,7 +590,50 @@ export const translations = {
       "© 2026 All Rights Reserved | Mohamed Hussein",
 
     chartLabel:
-      "Top Faulty Machines"
+      "Top Faulty Machines",
+
+    // Home dashboard cards - see matching Arabic "home" block above
+    home: {
+      welcome: "Welcome,",
+      // Fallback only when localStorage("name"/"job") is empty - not
+      // static UI copy, this substitutes missing real user data
+      defaultName: "User",
+      defaultJob: "Maintenance Technician",
+      kpiOpen: "Open Breakdowns",
+      kpiCritical: "Critical breakdown open",
+      kpiClosed: "Resolved",
+      kpiToday: "Today's Breakdowns",
+      kpiTotal: "Total Tickets",
+
+      mttr: "Avg. Repair Time (MTTR)",
+      topMachine: "Top Faulty Machine",
+      topTech: "Top Technician",
+      noData: "No data",
+
+      // Weekday labels for the home dashboard chart (previously
+      // hardcoded in Arabic inside workflow.js - initMainChart)
+      weekdays: ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"],
+
+      quickAccess: "Quick Access",
+      reportIssue: "Report Breakdown",
+      reportIssueDesc: "Submit a new ticket",
+      aiScan: "AI Inspection",
+      aiScanDesc: "Production defect analysis",
+
+      kaizenTitle: "💡 Kaizen",
+      kaizenSubmit: "Submit Suggestion",
+      kaizenSubmitDesc: "New Kaizen suggestion",
+      kaizenTrack: "Track My Suggestions",
+      kaizenTrackDesc: "Status & requested revisions",
+
+      chartTitle: "Performance & Breakdown Analysis",
+      chartWeekly: "Weekly Update",
+
+      contactDev: "Contact Developer",
+      // Pre-filled WhatsApp message text for the "Contact Developer" button
+      waMessage: "Hello, I'd like to get in touch regarding the maintenance app.",
+      logoutConfirm: "Are you sure you want to log out?"
+    }
 
   }
 
