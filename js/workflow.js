@@ -329,31 +329,150 @@ window.confirmIssue = async function() {
 
 // ==========================================
 // رسم بياني للأعطال والأداء (Home Chart)
+// ديناميكي بالكامل مع فلاتر زمنية [يومي / أسبوعي / شهري] - بيتجمّع
+// من نفس تذاكر Firestore (حقل createdAt) اللي بيجيبها loadDashboardStats()
+// من غير أي طلب إضافي لقاعدة البيانات، وبيتحدّث بـ chart.update()
+// من غير ما يعيد تحميل الصفحة أو يهدم الرسم البياني
 // ==========================================
+
 let chartInstance = null;
 
-export function initMainChart(customData = null) {
+// الفلتر الزمني الحالي - بيفضل محفوظ حتى لو المستخدم بدّل صفحة ورجع
+export let currentChartRange = 'weekly';
+
+// نفس تصنيف "مغلق" المستخدم في loadDashboardStats بالظبط - اتنقل هنا
+// كثابت مشترك عشان الرسم البياني وكارتات الـ KPI يتفقوا في نفس المنطق
+const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
+
+// آخر نسخة من مصفوفة التذاكر (تم جلبها فعلياً من Firestore عبر
+// fetchTicketsApi داخل loadDashboardStats) - بتتخزن هنا عشان تبديل
+// الفلتر يعيد الحساب فوراً محلياً من غير أي Round-trip جديد للسيرفر
+let lastTicketsSnapshot = [];
+
+function isClosedStatus(status) {
+  return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
+}
+
+// ------------------------------------------------------------
+// تجميع بيانات الرسم البياني حسب الفلتر المطلوب من مصفوفة التذاكر
+// ------------------------------------------------------------
+function buildChartDataset(tickets, range, lang) {
+  const t = (translations[lang] || translations.en).home;
+  const now = new Date();
+
+  if (range === 'daily') {
+    // توزيع أعطال اليوم الحالي على مدار الساعة (00:00 → 23:00)
+    const labels = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0') + ':00');
+    const open = new Array(24).fill(0);
+    const closed = new Array(24).fill(0);
+    const todayStr = now.toDateString();
+
+    tickets.forEach(ticket => {
+      const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
+      if (!created || isNaN(created) || created.toDateString() !== todayStr) return;
+
+      const hour = created.getHours();
+      if (isClosedStatus(ticket.status)) closed[hour]++;
+      else open[hour]++;
+    });
+
+    return { labels, open, closed };
+  }
+
+  if (range === 'monthly') {
+    // توزيع أعطال الشهر الحالي على أسابيعه (حتى 5 أسابيع حسب طول الشهر)
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const weeksCount = Math.ceil(daysInMonth / 7);
+
+    const labels = Array.from({ length: weeksCount }, (_, i) => `${t.chartWeekShort} ${i + 1}`);
+    const open = new Array(weeksCount).fill(0);
+    const closed = new Array(weeksCount).fill(0);
+
+    tickets.forEach(ticket => {
+      const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
+      if (!created || isNaN(created)) return;
+      if (created.getFullYear() !== year || created.getMonth() !== month) return;
+
+      const weekIndex = Math.min(weeksCount - 1, Math.floor((created.getDate() - 1) / 7));
+      if (isClosedStatus(ticket.status)) closed[weekIndex]++;
+      else open[weekIndex]++;
+    });
+
+    return { labels, open, closed };
+  }
+
+  // الافتراضي: أسبوعي - من السبت إلى الجمعة (أسبوع العمل الحالي، مش
+  // بالضرورة آخر 7 أيام متدحرجة)، بنفس ترتيب t.weekdays (يبدأ بالسبت)
+  const labels = t.weekdays;
+  const open = new Array(7).fill(0);
+  const closed = new Array(7).fill(0);
+
+  const startOfWeek = new Date(now);
+  startOfWeek.setHours(0, 0, 0, 0);
+  // عدد الأيام منذ آخر سبت (JS: الأحد=0 ... السبت=6)
+  const daysSinceSaturday = (now.getDay() + 1) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - daysSinceSaturday);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+  tickets.forEach(ticket => {
+    const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
+    if (!created || isNaN(created)) return;
+    if (created < startOfWeek || created >= endOfWeek) return;
+
+    const dayIndex = (created.getDay() + 1) % 7; // 0=السبت ... 6=الجمعة
+    if (isClosedStatus(ticket.status)) closed[dayIndex]++;
+    else open[dayIndex]++;
+  });
+
+  return { labels, open, closed };
+}
+
+// إنشاء تدرّج لوني عمودي لطبقة التعبئة تحت كل خط (بديل أنيق للون
+// الفلات الثابت السابق - بيبهت تدريجياً لحد الشفافية عند قاعدة الرسم)
+function buildGradient(ctx, area, hexColor, alpha) {
+  if (!area) return `${hexColor}${alpha}`;
+  const gradient = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+  gradient.addColorStop(0, hexColor + '55');
+  gradient.addColorStop(1, hexColor + '02');
+  return gradient;
+}
+
+// ------------------------------------------------------------
+// إنشاء/تحديث الرسم البياني
+// - أول مرة (chartInstance غير موجود): بيتعمل new Chart()
+// - أي تحديث بعد كده (تبديل فلتر/لغة/داتا جديدة): بنعدّل labels
+//   والـ datasets في نفس الـ instance وننادي chart.update() بس،
+//   من غير ما نهدم/نعيد إنشاء الكانفاس بالكامل
+// ------------------------------------------------------------
+export function renderMainChart(range = currentChartRange, tickets = lastTicketsSnapshot) {
   const canvas = document.getElementById('mainChart');
   if (!canvas) return;
 
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
+  currentChartRange = range;
+  window.mainChartRange = currentChartRange;
+  lastTicketsSnapshot = Array.isArray(tickets) ? tickets : lastTicketsSnapshot;
 
-  // اللغة الحالية (نفس نمط الاستخدام في BottomNav.js / homeView.js)
   const lang = window.currentLang || 'ar';
   const t = (translations[lang] || translations.en).home;
+  const isRtl = lang === 'ar';
 
-  // ✅ 6. الهيكل جاهز لاستقبال بيانات (customData) مستوردة من Firestore
-  const defaultData = {
-    labels: t.weekdays,
-    open: [4, 2, 5, 1, 3, 2, 0],
-    closed: [3, 4, 4, 3, 5, 4, 1]
-  };
+  const data = buildChartDataset(lastTicketsSnapshot, currentChartRange, lang);
 
-  // لو فيه customData بأيام مترجمة بالفعل من المستدعي، نستخدمها زي
-  // ما هي؛ غير كده نستخدم أيام الأسبوع المترجمة تلقائياً فوق
-  const data = customData || defaultData;
+  if (chartInstance) {
+    chartInstance.data.labels = data.labels;
+    chartInstance.data.datasets[0].label = t.kpiOpen;
+    chartInstance.data.datasets[0].data = data.open;
+    chartInstance.data.datasets[1].label = t.kpiClosed;
+    chartInstance.data.datasets[1].data = data.closed;
+    chartInstance.options.rtl = isRtl;
+    chartInstance.update();
+    updateChartRangeButtons(currentChartRange);
+    return;
+  }
 
   chartInstance = new Chart(canvas, {
     type: 'line',
@@ -366,10 +485,13 @@ export function initMainChart(customData = null) {
           label: t.kpiOpen,
           data: data.open,
           borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+          backgroundColor: (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#F59E0B', ''),
           borderWidth: 2,
-          pointRadius: 4,
-          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#F59E0B',
+          tension: 0.4,
+          cubicInterpolationMode: 'monotone',
           fill: true
         },
         {
@@ -377,10 +499,13 @@ export function initMainChart(customData = null) {
           label: t.kpiClosed,
           data: data.closed,
           borderColor: '#10B981',
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          backgroundColor: (context) => buildGradient(context.chart.ctx, context.chart.chartArea, '#10B981', ''),
           borderWidth: 2,
-          pointRadius: 4,
-          tension: 0.35,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          pointBackgroundColor: '#10B981',
+          tension: 0.4,
+          cubicInterpolationMode: 'monotone',
           fill: true
         }
       ]
@@ -388,18 +513,73 @@ export function initMainChart(customData = null) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      rtl: isRtl,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#9CA3AF', font: { size: 10 } } }
+        legend: { labels: { color: '#9CA3AF', font: { size: 10 } }, rtl: isRtl },
+        tooltip: { rtl: isRtl, textDirection: isRtl ? 'rtl' : 'ltr' }
       },
       scales: {
         x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(51, 65, 85, 0.2)' } },
-        y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' } }
+        y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' }, beginAtZero: true }
       }
     }
   });
+
+  updateChartRangeButtons(currentChartRange);
+}
+
+// إبقاء initMainChart بنفس الاسم/التوقيع القديم (بينادي عليه
+// renderCore.js AUTO LOAD بتاع صفحة الرئيسية) - بيرسم بأحدث فلتر
+// محفوظ وبآخر تذاكر متوفرة (لسه هتتحدّث فعلياً لما loadDashboardStats
+// يجيب البيانات الحقيقية بعد كده بلحظات)
+export function initMainChart(customData = null) {
+  // customData: مسار توافق قديم فقط (لا يوجد أي استدعاء حالي في
+  // المشروع بيبعت بيانات جاهزة) - المسار الطبيعي الحالي هو رسم
+  // آخر فلتر محفوظ من آخر تذاكر متوفرة، وبعدها loadDashboardStats()
+  // بيجيب البيانات الحقيقية من Firestore ويحدّث الرسم فوراً
+  if (customData && Array.isArray(customData.labels)) {
+    lastTicketsSnapshot = [];
+    renderMainChart(currentChartRange, []);
+    chartInstance.data.labels = customData.labels;
+    chartInstance.data.datasets[0].data = customData.open;
+    chartInstance.data.datasets[1].data = customData.closed;
+    chartInstance.update();
+    return;
+  }
+
+  renderMainChart(currentChartRange, lastTicketsSnapshot);
 }
 
 window.initMainChart = initMainChart;
+
+// ------------------------------------------------------------
+// تبديل فلتر الرسم البياني (يُستدعى من أزرار Segmented Control في
+// homeView.js) - إعادة حساب فوري من التذاكر المخزّنة محلياً + تحديث
+// الرسم البياني (chart.update()) من غير أي إعادة تحميل للصفحة
+// ------------------------------------------------------------
+window.setMainChartRange = function (range) {
+  if (!['daily', 'weekly', 'monthly'].includes(range)) return;
+  renderMainChart(range, lastTicketsSnapshot);
+};
+
+// تحديث الشكل المرئي لأزرار الفلتر (النشط/غير النشط) بدون أي إعادة
+// رسم لباقي الصفحة
+function updateChartRangeButtons(activeRange) {
+  const container = document.getElementById('chartRangeControl');
+  if (!container) return;
+
+  container.querySelectorAll('[data-range]').forEach(btn => {
+    const isActive = btn.getAttribute('data-range') === activeRange;
+    btn.classList.toggle('bg-blue-600', isActive);
+    btn.classList.toggle('text-white', isActive);
+    btn.classList.toggle('shadow-sm', isActive);
+    btn.classList.toggle('dyn-text-muted', !isActive);
+    btn.classList.toggle('opacity-60', !isActive);
+  });
+}
+
+window.updateChartRangeButtons = updateChartRangeButtons;
 
 // ==========================================
 // بيانات لوحة المتابعة الحقيقية (Dashboard Stats)
@@ -423,12 +603,8 @@ export async function loadDashboardStats() {
   let closed = 0;
   let today = 0;
 
-  const closedStatuses = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
-
   tickets.forEach(ticket => {
-    const status = String(ticket.status || '').trim().toLowerCase();
-
-    if (closedStatuses.includes(status)) {
+    if (isClosedStatus(ticket.status)) {
       closed++;
     } else {
       open++;
@@ -451,6 +627,13 @@ export async function loadDashboardStats() {
 
   window.dashboardData = stats;
 
+  // ============================================================
+  // الرسم البياني: نفس مصفوفة التذاكر اللي جاية فعلياً من Firestore
+  // (fetchTicketsApi فوق) بتتخزّن وتتبعت للرسم البياني عشان يتحدّث
+  // بالفلتر الزمني الحالي (يومي/أسبوعي/شهري) من غير أي طلب إضافي
+  // ============================================================
+  renderMainChart(currentChartRange, tickets);
+
   const setText = (id, value) => {
     const node = document.getElementById(id);
     if (node) node.textContent = value;
@@ -469,8 +652,7 @@ export async function loadDashboardStats() {
 
   // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟
   const hasCritical = tickets.some(t => {
-    const status = String(t.status || '').trim().toLowerCase();
-    const isOpen = !closedStatuses.includes(status);
+    const isOpen = !isClosedStatus(t.status);
     return isOpen && String(t.priority || '').trim() === 'High';
   });
 
