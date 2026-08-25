@@ -1,7 +1,7 @@
 import { BottomNav } from "../components/BottomNav.js";
 
 export const MaintenanceView = () => `
-<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
+<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
   <!-- الهيدر الرئيسي -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
