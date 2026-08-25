@@ -418,6 +418,11 @@ export const translations = {
       chartWeekShort: "أسبوع",
       chartNoData: "لا توجد بيانات كافية لهذه الفترة",
 
+      // إضافة: تبديل شكل عرض الرسم البياني (خط / مساحة / أعمدة)
+      chartTypeLine: "خط",
+      chartTypeArea: "مساحة",
+      chartTypeBar: "أعمدة",
+
       contactDev: "تواصل مع المطور",
       // إضافة: نص رسالة الواتساب الجاهزة لزرار "تواصل مع المطور"
       waMessage: "السلام عليكم، أود التواصل معك بخصوص تطبيق الصيانة.",
@@ -642,6 +647,11 @@ export const translations = {
       chartMonthly: "Monthly",
       chartWeekShort: "Week",
       chartNoData: "Not enough data for this period",
+
+      // Chart display shape toggle (line / area / bar)
+      chartTypeLine: "Line",
+      chartTypeArea: "Area",
+      chartTypeBar: "Bar",
 
       contactDev: "Contact Developer",
       // Pre-filled WhatsApp message text for the "Contact Developer" button
