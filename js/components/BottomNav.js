@@ -5,11 +5,37 @@ export const BottomNav = (activeTab) => {
   const t = translations[currentLang] || translations['ar'] || {};
 
   const navItems = [
-    { id: "home", icon: "🏠", label: t.navHome || "الرئيسية" },
-    { id: "maintenance", icon: "🛠️", label: t.navMaintenance || "الصيانة" },
-    { id: "notifications", icon: "🔔", label: t.navNotifications || "الإشعارات" },
-    { id: "quality", icon: "📦", label: t.navQuality || "الجودة" },
-    { id: "system", icon: "⚙️", label: t.navSystem || "النظام" }
+    { 
+      id: "home", 
+      icon: "🏠", 
+      label: t.navHome || "الرئيسية", 
+      action: "window.navigateTo('home')" 
+    },
+    { 
+      id: "maintenance", 
+      icon: "🛠️", 
+      label: t.navMaintenance || "الصيانة", 
+      action: "window.navigateTo('maintenance')" 
+    },
+    { 
+      id: "notifications", 
+      icon: "🔔", 
+      label: t.navNotifications || "الإشعارات", 
+      // تشغيل نافذة الإشعارات الأصلية المقترنة بـ initNotificationBell
+      action: "if (typeof window.openNotificationsModal === 'function') { window.openNotificationsModal(); } else if (typeof window.toggleNotifications === 'function') { window.toggleNotifications(); } else if (typeof window.showNotificationsModal === 'function') { window.showNotificationsModal(); } else { window.navigateTo('notifications'); }" 
+    },
+    { 
+      id: "quality", 
+      icon: "📦", 
+      label: t.navQuality || "الجودة", 
+      action: "window.navigateTo('quality')" 
+    },
+    { 
+      id: "system", 
+      icon: "⚙️", 
+      label: t.navSystem || "النظام", 
+      action: "window.navigateTo('system')" 
+    }
   ];
 
   return `
@@ -23,7 +49,7 @@ export const BottomNav = (activeTab) => {
         return `
           <button
             type="button"
-            onclick="window.navigateTo('${item.id}')"
+            onclick="${item.action}"
             class="flex flex-col items-center justify-center flex-1 h-12 rounded-2xl cursor-pointer transition-all duration-200 active:scale-95 ${
               isActive
                 ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/30 scale-105'
