@@ -6,6 +6,7 @@
 // ============================================================
 
 import { renderPage } from './pageRenderer.js';
+import { Sidebar } from './components/Sidebar.js';
 import { initMainChart, loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
@@ -87,6 +88,32 @@ app.innerHTML =
   renderPage(currentPage);  
 
 app.style.opacity = "1";  
+
+// ========================================================
+// DESKTOP SIDEBAR
+// (قائمة جانبية ثابتة تظهر بدل BottomNav من مقاس md: وما فوق -
+// بتتحدّث مع كل render() عشان التبويب النشط واللغة يفضلوا
+// متزامنين مع باقي الصفحة. بتتخفي بالكامل في صفحات الدخول/التسجيل)
+// ========================================================
+
+const sidebarContainer = document.getElementById("sidebarContainer");
+
+if (sidebarContainer) {
+
+  if (currentPage === "login" || currentPage === "register") {
+
+    sidebarContainer.className = "hidden";
+    sidebarContainer.innerHTML = "";
+
+  } else {
+
+    sidebarContainer.className = "hidden md:block";
+    sidebarContainer.innerHTML = Sidebar(currentPage);
+
+  }
+
+}
+
 
 
 // ========================================================
