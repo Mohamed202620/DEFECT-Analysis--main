@@ -38,4 +38,10 @@ import './kaizenBoard.js';
 // التلقائية عند عودة الإنترنت (Offline-First)
 import './offlineBanner.js';
 
+// استيراد جانبي (Side-effect) لربط window.openNotificationsModal /
+// window.refreshNotificationsBadge - إصلاح زر "الإشعارات" في
+// الشريط السفلي (BottomNav.js) اللي كان بيدوّر على دالة مكانتش
+// معرّفة في أي مكان بالمشروع (راجع NotificationsModal.js)
+import './components/NotificationsModal.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';
