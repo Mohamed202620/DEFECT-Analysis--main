@@ -255,6 +255,44 @@ export const HomeView = () => {
           </button>
         </div>
       </div>
+
+      <!-- تبديل شكل عرض الرسم البياني: خط / مساحة / أعمدة -->
+      <div id="chartTypeControl" class="flex items-center justify-center gap-0.5 dyn-card border rounded-lg p-0.5 w-fit mx-auto">
+        <button
+          type="button"
+          data-chart-type="line"
+          onclick="window.setMainChartType('line')"
+          class="px-2.5 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+            (window.mainChartType || 'area') === 'line'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'dyn-text-muted opacity-60'
+          }">
+          📈 ${t.chartTypeLine}
+        </button>
+        <button
+          type="button"
+          data-chart-type="area"
+          onclick="window.setMainChartType('area')"
+          class="px-2.5 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+            (window.mainChartType || 'area') === 'area'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'dyn-text-muted opacity-60'
+          }">
+          🌄 ${t.chartTypeArea}
+        </button>
+        <button
+          type="button"
+          data-chart-type="bar"
+          onclick="window.setMainChartType('bar')"
+          class="px-2.5 py-1 rounded-md text-[10px] font-bold transition-all active:scale-95 ${
+            (window.mainChartType || 'area') === 'bar'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'dyn-text-muted opacity-60'
+          }">
+          📊 ${t.chartTypeBar}
+        </button>
+      </div>
+
       <div style="height: 180px;">
         <canvas id="mainChart"></canvas>
       </div>
