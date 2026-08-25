@@ -286,6 +286,9 @@ export const translations = {
     navQuality:
       "الجودة",
 
+    navNotifications:
+      "الإشعارات",
+
     navSystem:
       "النظام",
 
@@ -507,6 +510,9 @@ export const translations = {
 
     navQuality:
       "Quality",
+
+    navNotifications:
+      "Notifications",
 
     navSystem:
       "System",
