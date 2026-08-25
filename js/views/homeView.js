@@ -6,7 +6,7 @@ export const HomeView = () => {
   // نظام الترجمة الموجود بالفعل في config.js (translations) - نفس
   // النمط المستخدم في BottomNav.js / issueView.js بالظبط، من غير
   // إنشاء أي نظام ترجمة تاني أو تكرار
-  const currentLang = window.currentLang || "en";
+  const currentLang = window.currentLang || "ar";
   const t = (translations[currentLang] || translations.en).home;
 
   // اسم/وظيفة المستخدم بيانات حقيقية من التسجيل (مش نص واجهة) -
@@ -50,7 +50,7 @@ export const HomeView = () => {
         </button>
 
         <button
-          onclick="const targetLang = (window.currentLang || 'en') === 'ar' ? 'en' : 'ar'; if (typeof window.switchLanguage === 'function') { window.switchLanguage(targetLang); } else { localStorage.setItem('app_lang', targetLang); localStorage.setItem('lang', targetLang); location.reload(); }"
+          onclick="window.toggleLanguage()"
           class="px-2.5 py-1 dyn-card border rounded-xl text-xs font-bold dyn-text-muted active:scale-95 transition shadow-sm"
           title="Toggle language / تغيير اللغة">
           🌐 ${currentLang === 'ar' ? 'EN' : 'AR'}
