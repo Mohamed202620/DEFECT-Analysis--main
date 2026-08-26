@@ -170,10 +170,36 @@
   </div>
 
   <!-- Container -->
-  <div id="appShell">
-    <aside id="sidebarContainer" class="hidden"></aside>
-    <div id="app"></div>
+  <div id="appRoot">
+
+    <!-- ====================================================
+         الهيدر الرسمي للشركة - شعار MSCANCO + الاسم بالعربي
+         والإنجليزي، ثابت أعلى واجهة التطبيق بالكامل (فوق الشريط
+         الجانبي والمحتوى معاً). لو ملف الشعار (assets/mscanco-logo.png)
+         مش موجود لأي سبب، onerror بيخفي الصورة بس النص جنبها
+         (اسم الشركة) بيفضل ظاهر عادي
+         ==================================================== -->
+    <header id="companyHeaderBar"
+      style="background: var(--app-header-bg); border-bottom: 1px solid var(--app-border); backdrop-filter: blur(6px);"
+      class="w-full flex items-center justify-center gap-3 px-3 py-2 sticky top-0 z-40">
+      <img src="assets/mscanco-logo.png" alt="MSCANCO"
+           style="height:38px; width:auto; object-fit:contain;"
+           onerror="this.style.display='none'" />
+      <div class="text-center leading-tight">
+        <div class="text-[11px] sm:text-xs font-bold dyn-text-muted">شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة</div>
+        <div class="text-[8px] sm:text-[10px] font-semibold dyn-text-muted opacity-70 tracking-wide">
+          MAHMOOD SAEED BEVERAGE CANS &amp; ENDS INDUSTRY CO. LTD. (MSCANCO)
+        </div>
+      </div>
+    </header>
+
+    <div id="appShell">
+      <aside id="sidebarContainer" class="hidden"></aside>
+      <div id="app"></div>
+    </div>
+
   </div>
+
 
   <!-- Error Handlers & SW -->
   <script>
