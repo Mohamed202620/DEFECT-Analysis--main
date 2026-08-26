@@ -1,8 +1,7 @@
 // ============================================================
-// branding.js - الهوية الرسمية (معدل ومطابق لمسار مشروع GitHub)
+// branding.js - الهوية الرسمية (معدل ومُصدّر بشكل صحيح)
 // ============================================================
 
-// المسار المطابق تماماً لاسم الملف في الجذر بحروف صغيرة
 export const COMPANY_BANNER_PATH = "./a_wide_horizontal_logo_graphic_on_a_transparent_b.png";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
@@ -239,13 +238,11 @@ export function buildCsvHeaderLines(reportTitle) {
 }
 
 // ------------------------------------------------------------
-// 6. دالة تحديث الهيدر تلقائياً
+// 6. دالة تحديث الهيدر تلقائياً (تصدير مباشر آمن)
 // ------------------------------------------------------------
-window.refreshHeader = function () {
+export function refreshHeader() {
   document.getElementById("appHeader")?.remove();
+  document.body.insertAdjacentHTML("afterbegin", renderHeader());
+}
 
-  document.body.insertAdjacentHTML(
-    "afterbegin",
-    renderHeader()
-  );
-};
+window.refreshHeader = refreshHeader;
