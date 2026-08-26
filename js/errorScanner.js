@@ -21,6 +21,8 @@ import {
   fetchAllMachineErrorsApi
 } from './services/api.js';
 
+import { MACHINE_OPTIONS } from './machines.js';
+
 // ============================================================
 // حالة الموديول
 // ============================================================
@@ -81,28 +83,15 @@ function extractErrorCode(rawText) {
 
 // ============================================================
 // قوائم الخطوط والماكينات - مطابقة لنفس القوائم المستخدمة في
-// باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق
+// باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق.
+// قائمة الماكينات (MACHINE_OPTIONS) بقت مصدرها الموحّد machines.js
+// (بدل تكرارها هنا) ويتم إعادة تصديرها من هنا لأن ErrorScannerView.js
+// بيستوردها من هذا الملف بالتحديد - بدون أي تغيير في اسم الاستيراد
 // ============================================================
 
 export const LINE_OPTIONS = ['Line 1', 'Line 2'];
 
-export const MACHINE_OPTIONS = [
-  'Coil Handling',
-  'Baler',
-  'Cupper',
-  'Bodymaker',
-  'Trimmer',
-  'Washer',
-  'Decorator',
-  'Spray',
-  'IBO',
-  'Necker',
-  'Palletizer',
-  'Depalletizer',
-  'Front End Line Control',
-  'Mid Line Control',
-  'Back End Line Control'
-];
+export { MACHINE_OPTIONS };
 
 function buildOptions(list, selected) {
   return `<option value="" disabled ${selected ? '' : 'selected'}>اختر...</option>` +
