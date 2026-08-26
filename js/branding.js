@@ -2,7 +2,16 @@
 // branding.js - الهوية الرسمية (معدل ومُصدّر بشكل صحيح)
 // ============================================================
 
+import { translations } from "./config.js";
+
 export const COMPANY_BANNER_PATH = "./a_wide_horizontal_logo_graphic_on_a_transparent_b.png";
+
+// شعار مختصر (الرمز الدائري فقط بدون النص الطويل واختام الجودة)
+// بخلفية شفافة بالكامل - مُجهّز خصيصاً لشريط التطبيق العلوي
+// appHeader بدل اللوجو الأفقي الطويل (COMPANY_BANNER_PATH) اللي
+// مصمم أصلاً لترويسة تقارير PDF ومساحته الأفقية الواسعة مش مناسبة
+// لشريط علوي ضيق على الموبايل
+export const LOGO_ICON_PATH = "./mscanco-icon-mark.png";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
 export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY COMPANY LTD.";
@@ -128,29 +137,153 @@ export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_PATH) {
 // ------------------------------------------------------------
 // 2. هيدر واجهة التطبيق العلوي
 // ------------------------------------------------------------
-// ثابت وملتصق بحواف الشاشة (مش عائم) وبخلفية التطبيق نفسها اللي
-// بتتلوّن تلقائياً مع الوضع الليلي/النهاري (المتغيّر الجاهز
-// --app-header-bg من index.html)، بدل الشريط الأبيض القديم اللي
-// كان بيقطع الشكل عن باقي الواجهة في الوضع الليلي. اللوجو نفسه
-// لسه جوه "شريحة" بيضاء صغيرة عشان ألوانه (الأزرق الغامق
-// والبرتقالي) تفضل واضحة فوق أي خلفية غامقة، مع خط تمييز رفيع
-// بلون هوية الشركة تحته بدل الخط السفلي القديم الحادّ.
+// ثابت وملتصق بأعلى الشاشة، بثيم صناعي داكن وفاخر (slate-900) ثابت
+// دايماً بغض النظر عن وضع فاتح/داكن لباقي التطبيق (راجع تعليق
+// --app-header-bg في index.html) - اللوجو نفسه بقى الرمز الدائري
+// المختصر (LOGO_ICON_PATH) بخلفية شفافة بالكامل ومندمج مباشرة في
+// خلفية الهيدر من غير أي "شريحة" بيضاء حواليه زي قبل كده.
+//
+// الهيدر بقى صفّين:
+//   1) الشعار + كبسولة اللغة + زرار الثيم + جرس الإشعارات
+//   2) بيانات المستخدم المسجّل دخوله (افاتار + ترحيب + المسمى
+//      الوظيفي) - بيظهر بس لو فيه مستخدم مسجّل دخوله فعلاً (نفس
+//      شرط Sidebar.js) عشان يفضل مخفي في صفحات الدخول/التسجيل.
+//
+// البيانات (الاسم/الوظيفة/اللغة) مأخوذة بنفس الطريقة بالظبط
+// المستخدمة فعلاً في homeView.js/Sidebar.js (localStorage +
+// translations من config.js) عشان تفضل متطابقة مع باقي الواجهة من
+// غير أي نظام ترجمة أو تخزين موازٍ جديد.
 export function renderHeader() {
+
+  const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
+  const isEn = currentLang === "en";
+  const t = (translations[currentLang] || translations.ar || {}).home || {};
+
+  const isDark = document.documentElement.classList.contains("dark");
+  const isLoggedIn = !!(localStorage.getItem("phone") || localStorage.getItem("userId"));
+
+  const name = localStorage.getItem("name") || t.defaultName || (isEn ? "User" : "المستخدم");
+  const job = localStorage.getItem("job") || t.defaultJob || (isEn ? "Maintenance Technician" : "فني صيانة");
+  const initial = (name.trim().charAt(0) || "M").toUpperCase();
+  const welcomeWord = t.welcome || (isEn ? "Welcome," : "مرحباً،");
+
+  // نفس بالظبط سلسلة الاحتياطيات المستخدمة فعلاً في زرار 🔔
+  // بالشريط السفلي (BottomNav.js) عشان الجرس هنا يفتح نفس نافذة
+  // الإشعارات الحقيقية بالظبط
+  const notifAction =
+    "if (typeof window.openNotificationsModal === 'function') { window.openNotificationsModal(); } " +
+    "else if (typeof window.toggleNotifications === 'function') { window.toggleNotifications(); } " +
+    "else if (typeof window.showNotificationsModal === 'function') { window.showNotificationsModal(); } " +
+    "else { window.navigateTo('notifications'); }";
+
+  const glassChip =
+    "background: rgba(30,41,59,0.7); border: 1px solid rgba(148,163,184,0.18);";
+
+  const profileRow = isLoggedIn
+    ? `
+      <div class="flex items-center gap-2.5 px-3 pt-1.5 pb-2 border-t" style="border-color: rgba(148,163,184,0.12);">
+        <div
+          class="w-8 h-8 md:w-9 md:h-9 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[13px] text-white"
+          style="background: linear-gradient(135deg, #f5a623, #1d4ed8); box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 10px rgba(245,166,35,0.25);"
+        >${escapeBrandHtml(initial)}</div>
+        <div class="min-w-0 leading-tight">
+          <p class="text-[12px] md:text-[13px] font-bold truncate m-0" style="color:#f1f5f9;">
+            ${escapeBrandHtml(welcomeWord)} ${escapeBrandHtml(name)} <span aria-hidden="true">👋</span>
+          </p>
+          <p class="text-[10px] md:text-[11px] font-medium truncate m-0" style="color:#94a3b8;">
+            ${escapeBrandHtml(job)}
+          </p>
+        </div>
+      </div>
+    `
+    : "";
+
   return `
     <header
       id="appHeader"
-      class="w-full fixed top-0 left-0 z-50 backdrop-blur-xl border-b px-3 py-2 transition-all duration-300"
-      style="background: var(--app-header-bg); border-color: var(--app-border);"
+      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300"
+      style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1400px] mx-auto flex flex-col items-center justify-center">
-        <div class="bg-white rounded-2xl px-3 py-1.5 shadow-sm max-w-full overflow-hidden">
-          <img
-            src="${COMPANY_BANNER_PATH}"
-            alt="${COMPANY_SHORT}"
-            class="h-8 md:h-11 max-w-full object-contain block"
-          />
+      <div class="max-w-[1400px] mx-auto">
+
+        <!-- الصف الأول: الشعار + أدوات التحكم -->
+        <div class="flex items-center justify-between gap-2 px-3 py-2">
+
+          <!-- الشعار: مندمج مباشرة في خلفية الهيدر الداكنة، من غير
+               أي حواف أو صندوق أبيض حواليه (اللوجو نفسه شفاف الخلفية) -->
+          <div class="flex items-center gap-2 min-w-0">
+            <img
+              src="${LOGO_ICON_PATH}"
+              alt="${COMPANY_SHORT}"
+              class="h-8 w-8 md:h-9 md:w-9 object-contain shrink-0"
+              style="filter: drop-shadow(0 0 6px rgba(245,166,35,0.3));"
+              onerror="this.style.display='none'"
+            />
+            <div class="min-w-0 leading-tight">
+              <div class="text-[13px] md:text-[15px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
+                MSCANCO <span style="color:#f5a623;">EGYPT</span>
+              </div>
+              <div class="hidden sm:block text-[8px] md:text-[9px] font-semibold truncate" style="color:#64748b; letter-spacing:0.14em;">
+                MAINTENANCE &amp; DEFECT SYSTEM
+              </div>
+            </div>
+          </div>
+
+          <!-- أدوات التحكم: اللغة / الثيم / الإشعارات -->
+          <div class="flex items-center gap-1.5 shrink-0">
+
+            <!-- كبسولة تبديل اللغة (EN / AR) -->
+            <div class="flex items-center rounded-full p-0.5 gap-0.5" style="${glassChip}">
+              <button
+                type="button"
+                onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+                class="min-w-[30px] h-7 md:h-8 px-2.5 rounded-full text-[10px] md:text-[11px] font-bold transition-all duration-200 active:scale-90"
+                style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+              >AR</button>
+              <button
+                type="button"
+                onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+                class="min-w-[30px] h-7 md:h-8 px-2.5 rounded-full text-[10px] md:text-[11px] font-bold transition-all duration-200 active:scale-90"
+                style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+              >EN</button>
+            </div>
+
+            <!-- زر تبديل الثيم (شمس/قمر) -->
+            <button
+              type="button"
+              onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
+              aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              class="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >${isDark ? "🌙" : "☀️"}</button>
+
+            <!-- جرس الإشعارات + شارة العدد غير المقروء -->
+            <button
+              type="button"
+              onclick="${notifAction}"
+              aria-label="${isEn ? "Notifications" : "الإشعارات"}"
+              title="${isEn ? "Notifications" : "الإشعارات"}"
+              class="relative w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >
+              🔔
+              <span
+                id="headerNotifBadge"
+                class="hidden absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
+              >0</span>
+            </button>
+
+          </div>
         </div>
-        <span class="w-10 h-1 rounded-full bg-[#0B3D91] mt-1.5 opacity-80"></span>
+
+        ${profileRow}
+
       </div>
     </header>
   `;
@@ -321,6 +454,18 @@ export function buildCsvHeaderLines(reportTitle) {
 export function refreshHeader() {
   document.getElementById("appHeader")?.remove();
   document.body.insertAdjacentHTML("afterbegin", renderHeader());
+
+  // تحديث متغيّر CSS بالارتفاع الحقيقي للهيدر (بقى صفّين دلوقتي:
+  // شعار+أدوات، وصف بيانات مستخدم) عشان #appShell يحجز نفس المساحة
+  // بالظبط تلقائياً (راجع index.html) - بدل رقم ثابت ممكن يفضل مش
+  // مظبوط لو طول الاسم أو حجم اللوجو اختلف بين الموبايل والكمبيوتر
+  const headerEl = document.getElementById("appHeader");
+  if (headerEl) {
+    document.documentElement.style.setProperty(
+      "--app-header-h",
+      headerEl.offsetHeight + "px"
+    );
+  }
 }
 
 window.refreshHeader = refreshHeader;
