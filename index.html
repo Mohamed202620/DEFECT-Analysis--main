@@ -103,12 +103,6 @@
       color: var(--app-text);
     }
 
-    /* ============================================================
-       Responsive Desktop Dashboard
-       - على الموبايل: زي ما هو تماماً (عمود واحد + BottomNav)
-       - من md وما فوق: Sidebar ثابتة جانبية + المحتوى يستغل العرض
-       ============================================================ */
-
     #appShell {
       min-height: 100vh;
     }
@@ -124,8 +118,6 @@
         min-width: 0;
       }
 
-      /* أي صفحة معلّمة بـ app-page (الحاويات الرئيسية للصفحات) تستغل
-         عرض الشاشة كاملاً بدل ما تفضل محصورة بعرض الموبايل (max-w-md) */
       .app-page {
         max-width: 100% !important;
         margin-left: 0 !important;
@@ -172,26 +164,8 @@
   <!-- Container -->
   <div id="appRoot">
 
-    <!-- ====================================================
-         الهيدر الرسمي للشركة - شعار MSCANCO + الاسم بالعربي
-         والإنجليزي، ثابت أعلى واجهة التطبيق بالكامل (فوق الشريط
-         الجانبي والمحتوى معاً). لو ملف الشعار (assets/mscanco-logo.png)
-         مش موجود لأي سبب، onerror بيخفي الصورة بس النص جنبها
-         (اسم الشركة) بيفضل ظاهر عادي
-         ==================================================== -->
-    <header id="companyHeaderBar"
-      style="background: var(--app-header-bg); border-bottom: 1px solid var(--app-border); backdrop-filter: blur(6px);"
-      class="w-full flex items-center justify-center gap-3 px-3 py-2 sticky top-0 z-40">
-      <img src="assets/mscanco-logo.png" alt="MSCANCO"
-           style="height:38px; width:auto; object-fit:contain;"
-           onerror="this.style.display='none'" />
-      <div class="text-center leading-tight">
-        <div class="text-[11px] sm:text-xs font-bold dyn-text-muted">شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة</div>
-        <div class="text-[8px] sm:text-[10px] font-semibold dyn-text-muted opacity-70 tracking-wide">
-          MAHMOOD SAEED BEVERAGE CANS &amp; ENDS INDUSTRY CO. LTD. (MSCANCO)
-        </div>
-      </div>
-    </header>
+    <!-- الهيدر الديناميكي المربوط بملف branding.js -->
+    <header id="appHeader"></header>
 
     <div id="appShell">
       <aside id="sidebarContainer" class="hidden"></aside>
@@ -199,7 +173,6 @@
     </div>
 
   </div>
-
 
   <!-- Error Handlers & SW -->
   <script>
@@ -224,8 +197,17 @@
     setTimeout(() => { window.hideSplash(); }, 3000);
   </script>
 
-  <!-- Router Loader & Session Checker -->
+  <!-- Router Loader & Dynamic Branding Header -->
   <script type="module">
+    import { refreshHeader } from './js/branding.js';
+
+    // بناء الهيدر فور تحميل الصفحة
+    try {
+      refreshHeader();
+    } catch (e) {
+      console.warn("Could not render header automatically:", e);
+    }
+
     const routerPath = `./js/router.js`;
 
     import(routerPath)
