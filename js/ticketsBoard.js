@@ -11,7 +11,8 @@ import {
   buildPdfBrandHeaderHtml,
   buildPdfTitleBlockHtml,
   buildPdfStatsCardsHtml,
-  buildPdfSignatureBlockHtml
+  buildPdfSignatureBlockHtml,
+  getCompanyLogoDataUrl
 } from './branding.js';
 
 import {
@@ -703,6 +704,10 @@ window.generateMonthlyReport = async function () {
       ticketsWithImages.push({ ticket, images: dataUrls });
     }
 
+    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
+    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
+    const logoDataUrl = await getCompanyLogoDataUrl();
+
     // 3) بناء محتوى التقرير كـ HTML خارج الشاشة (بالخط والاتجاه
     // العربي الطبيعي للمتصفح) عشان يترسم بشكل صحيح عند تحويله لصورة
     offscreen = document.createElement("div");
@@ -724,7 +729,7 @@ window.generateMonthlyReport = async function () {
     const mttrLabel = mttr.avgHours != null ? `${mttr.avgHours.toFixed(1)} ساعة` : "-";
 
     offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfBrandHeaderHtml(logoDataUrl)}
       ${buildPdfTitleBlockHtml("تقرير الصيانة الدورية وتتبع البلاغات", [
         { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
         { label: "الفني/المشرف", value: myName || "-" },
