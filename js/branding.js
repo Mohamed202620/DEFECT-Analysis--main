@@ -34,26 +34,93 @@ function chunkPairs(arr, size) {
 }
 
 // ------------------------------------------------------------
+// 0. تحميل لوجو الشركة كـ Data URL وتخزينه مؤقتاً (Cache)
+// ------------------------------------------------------------
+// المشكلة الأصلية: كانت تقارير الـ PDF (html2canvas) تُلتقط كصورة
+// فور إضافة الـ HTML للـ DOM، أي قبل ما ملف اللوجو (خصوصاً أول مرة
+// وبدون Cache من المتصفح) يخلّص تحميله فعلياً -> فبيطلع فاضي أو
+// ناقص في التقرير المُصدَّر رغم إنه ظاهر تمام في هيدر التطبيق
+// نفسه. الحل: نحوّل اللوجو لـ Data URL مرة واحدة ونخزّنه، وأي
+// تقرير PDF بعد كده (أو حتى أول مرة) بينتظر الدالة دي قبل ما
+// يبني الـ HTML بتاعه، فيضمن ظهور اللوجو 100% في كل تقرير.
+let _cachedLogoDataUrl = null;
+let _cachedLogoPromise = null;
+
+export function getCompanyLogoDataUrl() {
+  if (_cachedLogoDataUrl) return Promise.resolve(_cachedLogoDataUrl);
+  if (_cachedLogoPromise) return _cachedLogoPromise;
+
+  _cachedLogoPromise = new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        canvas.getContext("2d").drawImage(img, 0, 0);
+        _cachedLogoDataUrl = canvas.toDataURL("image/png");
+      } catch (e) {
+        // مثلاً لو الصفحة اتفتحت من file:// وسياسة الأمان منعت
+        // قراءة الـ Canvas: نرجع لمسار الملف العادي بدل ما نفشل
+        console.warn("تعذر تحويل لوجو الشركة إلى Data URL، سيتم استخدام مسار الملف مباشرة:", e);
+        _cachedLogoDataUrl = COMPANY_BANNER_PATH;
+      }
+      resolve(_cachedLogoDataUrl);
+    };
+
+    img.onerror = () => {
+      console.warn("تعذر تحميل ملف لوجو الشركة نهائياً، سيتم عرض اسم الشركة نصياً بدلاً منه في التقارير.");
+      _cachedLogoPromise = null;
+      resolve(null);
+    };
+
+    img.src = COMPANY_BANNER_PATH;
+  });
+
+  return _cachedLogoPromise;
+}
+
+// تسخين الكاش فور تحميل الصفحة (بدون انتظار)، عشان يبقى جاهز في
+// الذاكرة قبل أول محاولة تصدير تقرير أصلاً
+if (typeof window !== "undefined") {
+  getCompanyLogoDataUrl();
+}
+
+// ------------------------------------------------------------
 // 1. هيدر HTML موحّد لتقارير الـ PDF
 // ------------------------------------------------------------
-export function buildPdfBrandHeaderHtml() {
-  return `
-    <div style="text-align:center; padding-bottom:8px; margin-bottom:16px; border-bottom:2px solid #0B3D91; page-break-inside:avoid;">
+// ملحوظة: لازم أي كود بيصدّر تقرير PDF (html2canvas) يستدعي
+// await getCompanyLogoDataUrl() ويمرر الناتج هنا (logoSrc) *قبل*
+// ما يعمل html2canvas على العنصر، بدل ما يسيب المتصفح يحمّل
+// الصورة "لحظة" الالتقاط. لو معدّاش logoSrc أو رجعت null هيظهر
+// اسم الشركة نصياً تلقائياً بدل اللوجو بدل ما يفضل فاضي.
+export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_PATH) {
+  const textFallback = `
+    <div style="text-align:center;">
+      <div style="font-size:13px; font-weight:bold; color:#0B3D91;" dir="rtl">
+        ${COMPANY_NAME_AR}
+      </div>
+      <div style="font-size:9px; font-weight:bold; color:#475569;" dir="ltr">
+        ${COMPANY_NAME_EN}
+      </div>
+    </div>
+  `;
+
+  const logoBlock = logoSrc
+    ? `
       <img
-        src="${COMPANY_BANNER_PATH}"
+        src="${logoSrc}"
         alt="${COMPANY_SHORT}"
         style="width:100%; max-height:85px; object-fit:contain; display:block; margin:0 auto;"
-        onerror="this.style.display='none'; const fb = this.nextElementSibling; if(fb) fb.style.display='block';"
       />
+    `
+    : textFallback;
 
-      <div style="display:none; text-align:center;">
-        <div style="font-size:13px; font-weight:bold; color:#0B3D91;" dir="rtl">
-          ${COMPANY_NAME_AR}
-        </div>
-        <div style="font-size:9px; font-weight:bold; color:#475569;" dir="ltr">
-          ${COMPANY_NAME_EN}
-        </div>
-      </div>
+  return `
+    <div style="text-align:center; padding-bottom:8px; margin-bottom:16px; border-bottom:2px solid #0B3D91; page-break-inside:avoid;">
+      ${logoBlock}
     </div>
   `;
 }
