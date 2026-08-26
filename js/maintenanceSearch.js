@@ -27,7 +27,8 @@ import {
   buildPdfBrandHeaderHtml,
   buildPdfTitleBlockHtml,
   buildPdfSignatureBlockHtml,
-  buildCsvHeaderLines
+  buildCsvHeaderLines,
+  getCompanyLogoDataUrl
 } from './branding.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
@@ -789,6 +790,10 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       recordsWithImages.push({ record, images: dataUrls, hasSkippedMedia });
     }
 
+    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
+    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
+    const logoDataUrl = await getCompanyLogoDataUrl();
+
     offscreen = document.createElement("div");
     offscreen.style.position = "fixed";
     offscreen.style.top = "-99999px";
@@ -804,7 +809,7 @@ window.exportMaintenanceSearchResultsPdf = async function () {
     const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج", engineer: "مهندس" }[role] || "فني";
 
     offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfBrandHeaderHtml(logoDataUrl)}
       ${buildPdfTitleBlockHtml("🔎 تقرير البحث والفلترة المتقدمة", [
         { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
         { label: "الصلاحية", value: roleLabel },
