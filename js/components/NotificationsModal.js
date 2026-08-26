@@ -68,20 +68,13 @@ function notificationItemHtml(n) {
 }
 
 /**
- * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
- * الشريط السفلي - آمنة تماماً لو الزرار مش ظاهر حالياً في DOM
- * (بترجع فوراً من غير أي تأثير جانبي)
+ * تحديث نص/ظهور شارة (Badge) واحدة بعدد الإشعارات غير المقروءة -
+ * مفصولة عن refreshNotificationsBadge تحت عشان تتنفّذ لأكتر من
+ * شارة (الشريط السفلي وجرس appHeader) من غير تكرار نفس الكود
  */
-export async function refreshNotificationsBadge() {
-
-  const badge = document.getElementById("bottomNavNotifBadge");
-  const myUid = localStorage.getItem("userId") || "";
-  if (!badge || !myUid) return;
-
-  const result = await fetchMyNotificationsApi(myUid);
-  if (result.status !== "success") return;
-
-  const unread = result.data.filter(n => !n.read).length;
+function applyUnreadCountToBadge(badgeId, unread) {
+  const badge = document.getElementById(badgeId);
+  if (!badge) return;
 
   if (unread > 0) {
     badge.textContent = unread > 9 ? "9+" : String(unread);
@@ -89,6 +82,28 @@ export async function refreshNotificationsBadge() {
   } else {
     badge.classList.add("hidden");
   }
+}
+
+/**
+ * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
+ * الشريط السفلي (BottomNav.js) وجرس appHeader الجديد
+ * (js/branding.js) معاً - آمنة تماماً لو أي زرار مش ظاهر حالياً في
+ * DOM (بتتجاهله وتكمل من غير أي تأثير جانبي)
+ */
+export async function refreshNotificationsBadge() {
+
+  const myUid = localStorage.getItem("userId") || "";
+  const bottomNavBadge = document.getElementById("bottomNavNotifBadge");
+  const headerBadge = document.getElementById("headerNotifBadge");
+  if ((!bottomNavBadge && !headerBadge) || !myUid) return;
+
+  const result = await fetchMyNotificationsApi(myUid);
+  if (result.status !== "success") return;
+
+  const unread = result.data.filter(n => !n.read).length;
+
+  applyUnreadCountToBadge("bottomNavNotifBadge", unread);
+  applyUnreadCountToBadge("headerNotifBadge", unread);
 
 }
 

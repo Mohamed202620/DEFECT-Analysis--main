@@ -56,9 +56,9 @@ export const Sidebar = (activeTab) => {
   ];
 
   return `
-    <div class="hidden md:flex md:flex-col md:sticky md:top-0 md:h-screen w-64 shrink-0
+    <div class="hidden md:flex md:flex-col md:sticky w-64 shrink-0
                 dyn-card border-e overflow-y-auto"
-         style="border-color: var(--app-border);">
+         style="border-color: var(--app-border); top: var(--app-header-h, 96px); height: calc(100vh - var(--app-header-h, 96px));">
 
       <!-- شعار/عنوان التطبيق -->
       <div class="flex items-center gap-2.5 px-5 h-16 shrink-0 border-b" style="border-color: var(--app-border);">
