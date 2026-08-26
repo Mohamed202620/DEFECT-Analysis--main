@@ -23,6 +23,12 @@ import {
   fetchSuggestionsForSearchApi,
   fetchSuggestionLogsApi
 } from './services/api.js';
+import {
+  buildPdfBrandHeaderHtml,
+  buildPdfTitleBlockHtml,
+  buildPdfSignatureBlockHtml,
+  buildCsvHeaderLines
+} from './branding.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 // ============================================================
@@ -624,7 +630,11 @@ window.exportMaintenanceSearchResults = function () {
     ];
   });
 
-  const csvContent = [headers, ...rows]
+  const csvContent = [
+    ...buildCsvHeaderLines("تقرير البحث والفلترة المتقدمة"),
+    headers,
+    ...rows
+  ]
     .map(row => row.map(csvEscape).join(','))
     .join('\n');
 
@@ -794,20 +804,19 @@ window.exportMaintenanceSearchResultsPdf = async function () {
     const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج", engineer: "مهندس" }[role] || "فني";
 
     offscreen.innerHTML = `
-      <div style="text-align:center; margin-bottom:18px; border-bottom:2px solid #1d4ed8; padding-bottom:12px;">
-        <div style="font-size:18px; font-weight:bold; color:#1d4ed8;">🔎 تقرير البحث والفلترة المتقدمة</div>
-        <div style="font-size:11px; color:#475569; margin-top:6px;">
-          تاريخ الإصدار: ${new Date().toLocaleDateString("ar-EG")} &nbsp;|&nbsp;
-          الصلاحية: ${escapeHtml(roleLabel)} &nbsp;|&nbsp; إجمالي النتائج: ${lastFilteredList.length}
-        </div>
-      </div>
+      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfTitleBlockHtml("🔎 تقرير البحث والفلترة المتقدمة", [
+        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
+        { label: "الصلاحية", value: roleLabel },
+        { label: "إجمالي النتائج", value: lastFilteredList.length }
+      ])}
       <div id="mPdfRecordsContainer"></div>
     `;
 
     offscreen.querySelector("#mPdfRecordsContainer").innerHTML =
       recordsWithImages.map(({ record, images, hasSkippedMedia }) =>
         buildPdfRecordBlockHtml(record, images, hasSkippedMedia)
-      ).join("");
+      ).join("") + buildPdfSignatureBlockHtml();
 
     document.body.appendChild(offscreen);
 

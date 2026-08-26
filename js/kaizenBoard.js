@@ -9,6 +9,12 @@
 
 import { getCurrentRole, getSuggestionActions } from './permissions.js';
 import { openActionModal } from './components/ActionModal.js';
+import {
+  buildPdfBrandHeaderHtml,
+  buildPdfTitleBlockHtml,
+  buildPdfStatsCardsHtml,
+  buildPdfSignatureBlockHtml
+} from './branding.js';
 
 import {
   subscribeToSuggestionsBoardApi,
@@ -810,6 +816,42 @@ function buildKaizenReportBlockHtml(suggestion, imageDataUrl) {
 
 }
 
+function buildKaizenReportSummaryTableHtml(suggestions) {
+  const rows = suggestions.map(suggestion => {
+    const status = suggestion.status || "new";
+    const isImplemented = status === "implemented";
+    const isRejected = status === "rejected";
+    const rowBg = isImplemented ? "#ecfdf5" : isRejected ? "#fef2f2" : "#fffbeb";
+    const statusColor = isImplemented ? "#047857" : isRejected ? "#b91c1c" : "#b45309";
+    const displayName = suggestion.anonymous ? "مجهول" : (suggestion.name || "-");
+
+    return `
+      <tr style="background:${rowBg};">
+        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold;">${escapeKaizenReportHtml(suggestion.title || "-")}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold; color:${statusColor};">${escapeKaizenReportHtml(KAIZEN_STATUS_LABELS[status] || status)}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeKaizenReportHtml(displayName)}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeKaizenReportHtml(suggestion.assignedTo || "-")}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${formatKaizenReportDate(suggestion.createdAt)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:18px;" dir="rtl">
+      <thead>
+        <tr style="background:#d97706; color:#ffffff;">
+          <th style="border:1px solid #d97706; padding:7px 8px;">عنوان المقترح</th>
+          <th style="border:1px solid #d97706; padding:7px 8px;">الحالة</th>
+          <th style="border:1px solid #d97706; padding:7px 8px;">مقدّم المقترح</th>
+          <th style="border:1px solid #d97706; padding:7px 8px;">الفني المسؤول</th>
+          <th style="border:1px solid #d97706; padding:7px 8px;">التاريخ</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 window.generateKaizenMonthlyReport = async function () {
 
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
@@ -872,15 +914,31 @@ window.generateKaizenMonthlyReport = async function () {
 
     const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج" }[role] || "فني/مهندس";
 
+    const implementedCount = suggestions.filter(s => (s.status || "new") === "implemented").length;
+    const rejectedCount = suggestions.filter(s => (s.status || "new") === "rejected").length;
+    const pendingCount = suggestions.length - implementedCount - rejectedCount;
+
     offscreen.innerHTML = `
-      <div style="text-align:center; margin-bottom:18px; border-bottom:2px solid #d97706; padding-bottom:12px;">
-        <div style="font-size:18px; font-weight:bold; color:#d97706;">💡 التقرير الشهري لمقترحات الكايزن</div>
-        <div style="font-size:11px; color:#475569; margin-top:6px;">
-          الفترة: آخر ${KAIZEN_REPORT_DAYS} يوم &nbsp;|&nbsp; تاريخ الإصدار: ${new Date().toLocaleDateString("ar-EG")} &nbsp;|&nbsp;
-          الصلاحية: ${escapeKaizenReportHtml(roleLabel)} &nbsp;|&nbsp; إجمالي المقترحات: ${suggestions.length}
-        </div>
-      </div>
+      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfTitleBlockHtml("💡 التقرير الشهري لمقترحات الكايزن", [
+        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
+        { label: "الفني/المشرف", value: myName || "-" },
+        { label: "الصلاحية", value: roleLabel },
+        { label: "الفترة", value: `آخر ${KAIZEN_REPORT_DAYS} يوم` }
+      ], "#d97706")}
+      ${buildPdfStatsCardsHtml([
+        { label: "إجمالي المقترحات", value: suggestions.length, color: "#7e22ce", bg: "#faf5ff" },
+        { label: "قيد المتابعة", value: pendingCount, color: "#b45309", bg: "#fffbeb" },
+        { label: "تم التنفيذ", value: implementedCount, color: "#047857", bg: "#ecfdf5" },
+        { label: "مرفوض", value: rejectedCount, color: "#b91c1c", bg: "#fef2f2" }
+      ])}
+      ${buildKaizenReportSummaryTableHtml(suggestions)}
       <div id="kaizenReportItemsContainer"></div>
+      ${buildPdfSignatureBlockHtml({
+        firstLabel: "توقيع مقدّم المقترح",
+        secondLabel: "توقيع مهندس الجودة",
+        thirdLabel: "توقيع مدير المصنع"
+      })}
     `;
 
     offscreen.querySelector("#kaizenReportItemsContainer").innerHTML =

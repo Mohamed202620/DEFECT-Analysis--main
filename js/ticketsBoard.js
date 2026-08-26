@@ -6,6 +6,13 @@
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
+import { computeMTTR } from './statistics.js';
+import {
+  buildPdfBrandHeaderHtml,
+  buildPdfTitleBlockHtml,
+  buildPdfStatsCardsHtml,
+  buildPdfSignatureBlockHtml
+} from './branding.js';
 
 import {
   subscribeToTicketsBoardApi,
@@ -600,6 +607,43 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
 
 }
 
+function buildReportSummaryTableHtml(tickets) {
+  const rows = tickets.map(ticket => {
+    const status = String(ticket.status || "").trim().toLowerCase();
+    const isClosed = status === "closed";
+    const rowBg = isClosed ? "#ecfdf5" : "#fffbeb";
+    const statusColor = isClosed ? "#047857" : "#b45309";
+    const machineName = ticket.machine || ticket.machineName || "-";
+
+    return `
+      <tr style="background:${rowBg};">
+        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold;">#${escapeReportHtml(ticket.issueId || ticket.id)}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(machineName)}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold; color:${statusColor};">${escapeReportHtml(STATUS_LABELS[status] || ticket.status || "-")}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(ticket.reportedBy || "-")}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(ticket.assignedTo || "-")}</td>
+        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${formatReportDate(ticket.createdAt)}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `
+    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:18px;" dir="rtl">
+      <thead>
+        <tr style="background:#1d4ed8; color:#ffffff;">
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">رقم البلاغ</th>
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">الماكينة</th>
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">الحالة</th>
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">بلّغ</th>
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">مُسندة إلى</th>
+          <th style="border:1px solid #1d4ed8; padding:7px 8px;">التاريخ</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 window.generateMonthlyReport = async function () {
 
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
@@ -674,15 +718,28 @@ window.generateMonthlyReport = async function () {
 
     const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج" }[role] || "فني/مهندس";
 
+    const openCount = tickets.filter(t => String(t.status || "").trim().toLowerCase() !== "closed").length;
+    const closedCount = tickets.length - openCount;
+    const mttr = computeMTTR(tickets);
+    const mttrLabel = mttr.avgHours != null ? `${mttr.avgHours.toFixed(1)} ساعة` : "-";
+
     offscreen.innerHTML = `
-      <div style="text-align:center; margin-bottom:18px; border-bottom:2px solid #1d4ed8; padding-bottom:12px;">
-        <div style="font-size:18px; font-weight:bold; color:#1d4ed8;">📋 التقرير الشهري لبلاغات الصيانة</div>
-        <div style="font-size:11px; color:#475569; margin-top:6px;">
-          الفترة: آخر ${REPORT_DAYS} يوم &nbsp;|&nbsp; تاريخ الإصدار: ${new Date().toLocaleDateString("ar-EG")} &nbsp;|&nbsp;
-          الصلاحية: ${escapeReportHtml(roleLabel)} &nbsp;|&nbsp; إجمالي البلاغات: ${tickets.length}
-        </div>
-      </div>
+      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfTitleBlockHtml("تقرير الصيانة الدورية وتتبع البلاغات", [
+        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
+        { label: "الفني/المشرف", value: myName || "-" },
+        { label: "الصلاحية", value: roleLabel },
+        { label: "الفترة", value: `آخر ${REPORT_DAYS} يوم` }
+      ])}
+      ${buildPdfStatsCardsHtml([
+        { label: "إجمالي البلاغات", value: tickets.length, color: "#7e22ce", bg: "#faf5ff" },
+        { label: "مفتوحة", value: openCount, color: "#b45309", bg: "#fffbeb" },
+        { label: "تم إصلاحها", value: closedCount, color: "#047857", bg: "#ecfdf5" },
+        { label: "متوسط زمن الإصلاح (MTTR)", value: mttrLabel, color: "#0e7490", bg: "#ecfeff" }
+      ])}
+      ${buildReportSummaryTableHtml(tickets)}
       <div id="reportTicketsContainer"></div>
+      ${buildPdfSignatureBlockHtml()}
     `;
 
     offscreen.querySelector("#reportTicketsContainer").innerHTML =
