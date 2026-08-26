@@ -128,35 +128,29 @@ export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_PATH) {
 // ------------------------------------------------------------
 // 2. هيدر واجهة التطبيق العلوي
 // ------------------------------------------------------------
-// بدل الشريط الأبيض العريض اللي كان بيقطع الشكل عن باقي الواجهة
-// (خصوصاً في الوضع الليلي)، بقى الهيدر "كارت" عائم بنفس لغة
-// تصميم شريط التنقل السفلي (BottomNav.js): زوايا دائرية، خلفية
-// شبه شفافة بتتلوّن تلقائياً مع الوضع الليلي/النهاري (dyn-card)،
-// وظل خفيف. اللوجو نفسه اتحط جوه "شريحة" بيضاء صغيرة مستقلة عشان
-// يفضل واضح وألوانه (الأزرق الغامق والبرتقالي) تبان بوضوح فوق أي
-// خلفية غامقة، مع خط تمييز رفيع بلون هوية الشركة تحته بدل الخط
-// السفلي القديم اللي كان حادّ وغير مندمج مع باقي الكروت.
+// ثابت وملتصق بحواف الشاشة (مش عائم) وبخلفية التطبيق نفسها اللي
+// بتتلوّن تلقائياً مع الوضع الليلي/النهاري (المتغيّر الجاهز
+// --app-header-bg من index.html)، بدل الشريط الأبيض القديم اللي
+// كان بيقطع الشكل عن باقي الواجهة في الوضع الليلي. اللوجو نفسه
+// لسه جوه "شريحة" بيضاء صغيرة عشان ألوانه (الأزرق الغامق
+// والبرتقالي) تفضل واضحة فوق أي خلفية غامقة، مع خط تمييز رفيع
+// بلون هوية الشركة تحته بدل الخط السفلي القديم الحادّ.
 export function renderHeader() {
   return `
     <header
       id="appHeader"
-      class="w-full fixed top-0 left-0 z-50 px-3 pt-3 pb-1"
+      class="w-full fixed top-0 left-0 z-50 backdrop-blur-xl border-b px-3 py-2 transition-all duration-300"
+      style="background: var(--app-header-bg); border-color: var(--app-border);"
     >
-      <div class="max-w-[1400px] mx-auto">
-        <div
-          class="dyn-card backdrop-blur-xl border rounded-3xl shadow-lg
-                 flex flex-col items-center justify-center py-2.5 px-4
-                 transition-all duration-300"
-        >
-          <div class="bg-white rounded-2xl px-3 py-1.5 shadow-sm max-w-full overflow-hidden">
-            <img
-              src="${COMPANY_BANNER_PATH}"
-              alt="${COMPANY_SHORT}"
-              class="h-8 md:h-11 max-w-full object-contain block"
-            />
-          </div>
-          <span class="w-10 h-1 rounded-full bg-[#0B3D91] mt-2 opacity-80"></span>
+      <div class="max-w-[1400px] mx-auto flex flex-col items-center justify-center">
+        <div class="bg-white rounded-2xl px-3 py-1.5 shadow-sm max-w-full overflow-hidden">
+          <img
+            src="${COMPANY_BANNER_PATH}"
+            alt="${COMPANY_SHORT}"
+            class="h-8 md:h-11 max-w-full object-contain block"
+          />
         </div>
+        <span class="w-10 h-1 rounded-full bg-[#0B3D91] mt-1.5 opacity-80"></span>
       </div>
     </header>
   `;
