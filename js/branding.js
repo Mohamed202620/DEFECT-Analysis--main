@@ -8,11 +8,10 @@
 // - ترويسة ملفات CSV المُصدَّرة (maintenanceSearch.js)
 // ============================================================
 
-// مسار شعار الشركة الرسمي (ضع ملف البنر المرفق باسم mscanco-logo.png داخل مجلد assets)
 export const COMPANY_LOGO_PATH = "assets/mscanco-logo.png";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
-export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY COMPANY LTD.";
+export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY CO. LTD. (MSCANCO)";
 export const COMPANY_SHORT = "MSCANCO";
 
 function escapeBrandHtml(str) {
@@ -31,32 +30,37 @@ function chunkPairs(arr, size) {
 }
 
 // ------------------------------------------------------------
-// هيدر HTML رسمي موحّد لأعلى كل صفحة PDF مُصدَّرة من التطبيق
-// معالجة البنر الرمادي للشعار وتأطيره تلقائياً لمنع أي تشوه بصري
+// هيدر HTML موحّد لأعلى الشاشة/التقارير مطاطق للصورة تماماً
 // ------------------------------------------------------------
 export function buildPdfBrandHeaderHtml() {
   return `
-    <div style="margin-bottom:16px; page-break-inside:avoid;">
-      <!-- إطار بنر الهوية الرسمية -->
-      <div style="background:#b0b2b7; border-radius:6px; padding:4px 8px; border:1px solid #94a3b8; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
-        <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}"
-             style="width:100%; max-height:75px; object-fit:contain; display:block; margin:0 auto;"
-             onerror="this.parentElement.style.display='none'; const fb = this.parentElement.nextElementSibling; if(fb) fb.style.display='block';" />
-      </div>
+    <div style="text-align:center; padding:10px 0 14px 0; margin-bottom:16px; border-bottom:2px solid #1d4ed8; page-break-inside:avoid;">
+      <!-- الشعار في حالة توفره كصورة -->
+      <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}"
+           style="max-height:60px; width:auto; object-fit:contain; margin:0 auto 8px auto; display:block;"
+           onerror="this.style.display='none';" />
 
-      <!-- هيدر احتياطي بنص عادي في حال تعذر تحميل الصورة -->
-      <div style="display:none; text-align:center; padding:8px 0; border-bottom:3px solid #1d4ed8;">
-        <div style="font-size:14px; font-weight:bold; color:#0f172a;">${COMPANY_NAME_AR}</div>
-        <div style="font-size:10px; font-weight:bold; color:#475569; letter-spacing:.3px;">${COMPANY_NAME_EN}</div>
-        <div style="font-size:9px; color:#1d4ed8; font-weight:bold; margin-top:2px;">${COMPANY_SHORT}</div>
-      </div>
+      <!-- النص الرسمي الموحد بالظبط مثل أعلى الواجهة -->
+      <div style="font-size:13px; font-weight:bold; color:#0f172a; line-height:1.4;">${COMPANY_NAME_AR}</div>
+      <div style="font-size:9.5px; font-weight:bold; color:#475569; letter-spacing:0.2px; margin-top:2px;">${COMPANY_NAME_EN}</div>
     </div>
   `;
 }
 
 // ------------------------------------------------------------
-// مربع عنوان التقرير + جدول معلومات (تاريخ التصدير/الفني/خط
-// الإنتاج/الفترة ...) - infoRows = [{ label, value }]
+// هيدر مخصص للشاشة العلوية للتطبيق (index.html)
+// ------------------------------------------------------------
+export function buildAppHeaderHtml() {
+  return `
+    <div class="text-center py-2 px-3">
+      <h1 class="text-xs sm:text-sm font-bold text-slate-100 tracking-wide">${COMPANY_NAME_AR}</h1>
+      <p class="text-[9px] sm:text-[10px] font-medium text-slate-400 tracking-wider mt-0.5">${COMPANY_NAME_EN}</p>
+    </div>
+  `;
+}
+
+// ------------------------------------------------------------
+// مربع عنوان التقرير + جدول معلومات (تاريخ التصدير/الفني/خط الإنتاج...)
 // ------------------------------------------------------------
 export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4ed8") {
   const rows = (infoRows || []).filter(r => r && r.value !== undefined && r.value !== null && r.value !== "");
@@ -103,8 +107,7 @@ export function buildPdfStatsCardsHtml(cards = []) {
 }
 
 // ------------------------------------------------------------
-// خانة التوقيعات الثلاثية في نهاية التقرير (فني - مهندس جودة -
-// مدير مصنع)
+// خانة التوقيعات الثلاثية في نهاية التقرير
 // ------------------------------------------------------------
 export function buildPdfSignatureBlockHtml({
   firstLabel = "توقيع الفني",
@@ -133,10 +136,10 @@ export function buildCsvHeaderLines(reportTitle) {
   const now = new Date();
   const exportedAt = now.toLocaleDateString("ar-EG") + " " + now.toLocaleTimeString("ar-EG");
   return [
-    [`"${COMPANY_NAME_AR} - ${COMPANY_SHORT}"`],
+    [`"${COMPANY_NAME_AR}"`],
     [`"${COMPANY_NAME_EN}"`],
     [`"${reportTitle}"`],
     [`"تاريخ ووقت التصدير: ${exportedAt}"`],
-    [] // سطر فاصل فاضي قبل رؤوس الأعمدة
+    []
   ];
 }
