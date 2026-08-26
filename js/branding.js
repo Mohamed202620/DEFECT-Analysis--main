@@ -1,14 +1,10 @@
 // ============================================================
 // branding.js
-// بيانات الهوية الرسمية للشركة (اسم الشركة بالعربي/الإنجليزي + شعار
-// MSCANCO) ودوال مشتركة لبناء هيدر/تذييل رسمي موحّد تستخدمه:
-// - شريط الهيدر العلوي للتطبيق (index.html)
-// - كل تقارير PDF المُصدَّرة (ticketsBoard.js / kaizenBoard.js /
-//   maintenanceSearch.js)
-// - ترويسة ملفات CSV المُصدَّرة (maintenanceSearch.js)
+// بيانات الهوية الرسمية للشركة (اسم الشركة بالعربي/الإنجليزي + شعار MSCANCO)
 // ============================================================
 
-export const COMPANY_LOGO_PATH = "assets/mscanco-logo.png";
+// شعار MSCANCO مدمج كـ SVG شفاف عالي الدقة (بدون خلفية رمادية وبدون ملفات خارجية)
+export const COMPANY_LOGO_PATH = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' width='200' height='200'><g transform='translate(10, 5)'><path d='M 80,25 A 45,45 0 1 0 80,115 M 80,15 A 55,55 0 1 0 80,125' fill='none' stroke='%23d97706' stroke-width='6' stroke-linecap='round'/><line x1='72' y1='15' x2='92' y2='15' stroke='%23d97706' stroke-width='6'/><line x1='72' y1='25' x2='92' y2='25' stroke='%23d97706' stroke-width='6'/><line x1='72' y1='115' x2='92' y2='115' stroke='%23d97706' stroke-width='6'/><line x1='72' y1='125' x2='92' y2='125' stroke='%23d97706' stroke-width='6'/><path d='M 70,38 A 32,32 0 1 0 70,102 M 70,30 A 40,40 0 1 0 70,110' fill='none' stroke='%231e3a8a' stroke-width='5'/><line x1='58' y1='48' x2='58' y2='92' stroke='%231e3a8a' stroke-width='8'/><line x1='50' y1='48' x2='66' y2='48' stroke='%231e3a8a' stroke-width='4'/><line x1='50' y1='92' x2='66' y2='92' stroke='%231e3a8a' stroke-width='4'/><text x='70' y='152' font-family='Arial, sans-serif' font-weight='900' font-size='22' fill='%231e3a8a' text-anchor='middle' letter-spacing='1'>MSCANCO</text></g></svg>";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
 export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY CO. LTD. (MSCANCO)";
@@ -30,17 +26,16 @@ function chunkPairs(arr, size) {
 }
 
 // ------------------------------------------------------------
-// هيدر HTML موحّد لأعلى الشاشة/التقارير مطاطق للصورة تماماً
+// هيدر HTML موحّد لتقارير الـ PDF
 // ------------------------------------------------------------
 export function buildPdfBrandHeaderHtml() {
   return `
-    <div style="text-align:center; padding:10px 0 14px 0; margin-bottom:16px; border-bottom:2px solid #1d4ed8; page-break-inside:avoid;">
-      <!-- الشعار في حالة توفره كصورة -->
+    <div style="text-align:center; padding:8px 0 12px 0; margin-bottom:16px; border-bottom:2px solid #1d4ed8; page-break-inside:avoid;">
+      <!-- الشعار المدمج الشفاف -->
       <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}"
-           style="max-height:60px; width:auto; object-fit:contain; margin:0 auto 8px auto; display:block;"
-           onerror="this.style.display='none';" />
+           style="height:55px; width:auto; object-fit:contain; margin:0 auto 6px auto; display:block;" />
 
-      <!-- النص الرسمي الموحد بالظبط مثل أعلى الواجهة -->
+      <!-- النصوص الرسمية -->
       <div style="font-size:13px; font-weight:bold; color:#0f172a; line-height:1.4;">${COMPANY_NAME_AR}</div>
       <div style="font-size:9.5px; font-weight:bold; color:#475569; letter-spacing:0.2px; margin-top:2px;">${COMPANY_NAME_EN}</div>
     </div>
@@ -53,6 +48,7 @@ export function buildPdfBrandHeaderHtml() {
 export function buildAppHeaderHtml() {
   return `
     <div class="text-center py-2 px-3">
+      <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}" class="h-10 mx-auto mb-1 object-contain" />
       <h1 class="text-xs sm:text-sm font-bold text-slate-100 tracking-wide">${COMPANY_NAME_AR}</h1>
       <p class="text-[9px] sm:text-[10px] font-medium text-slate-400 tracking-wider mt-0.5">${COMPANY_NAME_EN}</p>
     </div>
@@ -60,7 +56,7 @@ export function buildAppHeaderHtml() {
 }
 
 // ------------------------------------------------------------
-// مربع عنوان التقرير + جدول معلومات (تاريخ التصدير/الفني/خط الإنتاج...)
+// مربع عنوان التقرير + جدول معلومات
 // ------------------------------------------------------------
 export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4ed8") {
   const rows = (infoRows || []).filter(r => r && r.value !== undefined && r.value !== null && r.value !== "");
@@ -90,7 +86,7 @@ export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4
 }
 
 // ------------------------------------------------------------
-// كروت إحصائيات سريعة أعلى التقرير - cards = [{ label, value, color, bg }]
+// كروت إحصائيات سريعة أعلى التقرير
 // ------------------------------------------------------------
 export function buildPdfStatsCardsHtml(cards = []) {
   if (!cards.length) return "";
@@ -107,7 +103,7 @@ export function buildPdfStatsCardsHtml(cards = []) {
 }
 
 // ------------------------------------------------------------
-// خانة التوقيعات الثلاثية في نهاية التقرير
+// خانة التوقيعات الثلاثية
 // ------------------------------------------------------------
 export function buildPdfSignatureBlockHtml({
   firstLabel = "توقيع الفني",
