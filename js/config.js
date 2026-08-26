@@ -384,6 +384,12 @@ export const translations = {
       // مش نص واجهة ثابت، ده بديل لبيانات مستخدم حقيقية فاضية
       defaultName: "المستخدم",
       defaultJob: "فني صيانة",
+
+      // إضافة: عنوان قسم كروت الإحصاء العلوية - عشان يبقى ليها عنوان
+      // قسم واضح زي "الوصول السريع" بالظبط، فتتفصل بصريًا عن أزرار
+      // التنقل اللي تحتها بدل ما تتلخبط بيها
+      statsOverview: "📊 نظرة عامة",
+
       kpiOpen: "أعطال مفتوحة",
       kpiCritical: "يوجد بلاغ حرج",
       kpiClosed: "تم إصلاحها",
@@ -614,6 +620,12 @@ export const translations = {
       // static UI copy, this substitutes missing real user data
       defaultName: "User",
       defaultJob: "Maintenance Technician",
+
+      // Section heading for the top stats cards - gives them a clear
+      // section label like "Quick Access" below, so they read as a
+      // distinct info section rather than blending into the buttons
+      statsOverview: "📊 Overview",
+
       kpiOpen: "Open Breakdowns",
       kpiCritical: "Critical breakdown open",
       kpiClosed: "Resolved",
