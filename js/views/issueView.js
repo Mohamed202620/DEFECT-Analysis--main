@@ -1,4 +1,5 @@
 import { translations } from '../config.js';
+import { buildMachineOptionsHtml } from '../machines.js';
 
 export const IssueView = () => {
   const currentLang = window.currentLang || 'ar';
@@ -43,22 +44,7 @@ export const IssueView = () => {
         </label>
         <select id="issueMachine"
           class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
-          <option value="" disabled selected>${t.selectMachine || "اختر الماكينة"}</option>
-          <option value="Coil Handling">Coil Handling</option>
-          <option value="Baler">Baler</option>
-          <option value="Cupper">Cupper</option>
-          <option value="Bodymaker">Bodymaker</option>
-          <option value="Trimmer">Trimmer</option>
-          <option value="Washer">Washer</option>
-          <option value="Decorator">Decorator</option>
-          <option value="Spray">Spray</option>
-          <option value="IBO">IBO</option>
-          <option value="Necker">Necker</option>
-          <option value="Palletizer">Palletizer</option>
-          <option value="Depalletizer">Depalletizer</option>
-          <option value="Front End Line Control">Front End Line Control</option>
-          <option value="Mid Line Control">Mid Line Control</option>
-          <option value="Back End Line Control">Back End Line Control</option>
+          ${buildMachineOptionsHtml({ includePlaceholder: true, placeholderLabel: t.selectMachine || "اختر الماكينة" })}
         </select>
       </div>
 
