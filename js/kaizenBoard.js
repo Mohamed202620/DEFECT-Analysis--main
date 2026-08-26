@@ -13,7 +13,8 @@ import {
   buildPdfBrandHeaderHtml,
   buildPdfTitleBlockHtml,
   buildPdfStatsCardsHtml,
-  buildPdfSignatureBlockHtml
+  buildPdfSignatureBlockHtml,
+  getCompanyLogoDataUrl
 } from './branding.js';
 
 import {
@@ -901,6 +902,10 @@ window.generateKaizenMonthlyReport = async function () {
       itemsWithImages.push({ suggestion, dataUrl });
     }
 
+    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
+    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
+    const logoDataUrl = await getCompanyLogoDataUrl();
+
     offscreen = document.createElement("div");
     offscreen.style.position = "fixed";
     offscreen.style.top = "-99999px";
@@ -919,7 +924,7 @@ window.generateKaizenMonthlyReport = async function () {
     const pendingCount = suggestions.length - implementedCount - rejectedCount;
 
     offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml()}
+      ${buildPdfBrandHeaderHtml(logoDataUrl)}
       ${buildPdfTitleBlockHtml("💡 التقرير الشهري لمقترحات الكايزن", [
         { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
         { label: "الفني/المشرف", value: myName || "-" },
