@@ -6,15 +6,9 @@
 // - كل تقارير PDF المُصدَّرة (ticketsBoard.js / kaizenBoard.js /
 //   maintenanceSearch.js)
 // - ترويسة ملفات CSV المُصدَّرة (maintenanceSearch.js)
-// موجودة في مكان واحد بدل تكرار نفس البيانات/الأنماط في كل ملف
 // ============================================================
 
-// مسار شعار الشركة الرسمي (MSCANCO + شارات ISO/SGS) - ملف الصورة
-// نفسه لازم يتضاف يدوياً في: assets/mscanco-logo.png
-// (الشعار الرسمي للشركة مش موجود داخل مشروع الكود، فمينفعش نولّد
-// شعار أو شارات اعتماد (ISO/SGS) بديلة مكانه - كل الأماكن اللي
-// بتستخدم المسار ده معمول لها fallback آمن (onerror يخفي الصورة
-// بس النص جنبها فاضل يظهر) لحد ما يتم توفير ملف الشعار الحقيقي)
+// مسار شعار الشركة الرسمي (ضع ملف البنر المرفق باسم mscanco-logo.png داخل مجلد assets)
 export const COMPANY_LOGO_PATH = "assets/mscanco-logo.png";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
@@ -26,7 +20,8 @@ function escapeBrandHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function chunkPairs(arr, size) {
@@ -36,16 +31,21 @@ function chunkPairs(arr, size) {
 }
 
 // ------------------------------------------------------------
-// هيدر HTML رسمي موحّد لأعلى كل صفحة PDF مُصدَّرة من التطبيق - شعار
-// الشركة + الاسم بالعربي والإنجليزي + الاسم المختصر
+// هيدر HTML رسمي موحّد لأعلى كل صفحة PDF مُصدَّرة من التطبيق
+// معالجة البنر الرمادي للشعار وتأطيره تلقائياً لمنع أي تشوه بصري
 // ------------------------------------------------------------
 export function buildPdfBrandHeaderHtml() {
   return `
-    <div style="display:flex; align-items:center; gap:14px; border-bottom:3px solid #1d4ed8; padding-bottom:12px; margin-bottom:16px;">
-      <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}"
-           style="height:64px; width:auto; object-fit:contain; flex-shrink:0;"
-           onerror="this.style.display='none'" />
-      <div style="flex:1; text-align:center;">
+    <div style="margin-bottom:16px; page-break-inside:avoid;">
+      <!-- إطار بنر الهوية الرسمية -->
+      <div style="background:#b0b2b7; border-radius:6px; padding:4px 8px; border:1px solid #94a3b8; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <img src="${COMPANY_LOGO_PATH}" alt="${COMPANY_SHORT}"
+             style="width:100%; max-height:75px; object-fit:contain; display:block; margin:0 auto;"
+             onerror="this.parentElement.style.display='none'; const fb = this.parentElement.nextElementSibling; if(fb) fb.style.display='block';" />
+      </div>
+
+      <!-- هيدر احتياطي بنص عادي في حال تعذر تحميل الصورة -->
+      <div style="display:none; text-align:center; padding:8px 0; border-bottom:3px solid #1d4ed8;">
         <div style="font-size:14px; font-weight:bold; color:#0f172a;">${COMPANY_NAME_AR}</div>
         <div style="font-size:10px; font-weight:bold; color:#475569; letter-spacing:.3px;">${COMPANY_NAME_EN}</div>
         <div style="font-size:9px; color:#1d4ed8; font-weight:bold; margin-top:2px;">${COMPANY_SHORT}</div>
@@ -65,7 +65,7 @@ export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4
     <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:11px;" dir="rtl">
       <tbody>
         ${chunkPairs(rows, 2).map(pair => `
-          <tr>
+          <tr style="page-break-inside:avoid;">
             ${pair.map(r => `
               <td style="border:1px solid #e2e8f0; padding:6px 10px; background:#f8fafc; font-weight:bold; width:15%; white-space:nowrap;">${escapeBrandHtml(r.label)}</td>
               <td style="border:1px solid #e2e8f0; padding:6px 10px; width:35%;">${escapeBrandHtml(r.value)}</td>
@@ -78,7 +78,7 @@ export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4
   ` : "";
 
   return `
-    <div style="text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; margin-bottom:14px;">
+    <div style="text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px; margin-bottom:14px; page-break-inside:avoid;">
       <div style="font-size:16px; font-weight:bold; color:${accentColor};">${escapeBrandHtml(title)}</div>
     </div>
     ${infoTable}
@@ -91,7 +91,7 @@ export function buildPdfTitleBlockHtml(title, infoRows = [], accentColor = "#1d4
 export function buildPdfStatsCardsHtml(cards = []) {
   if (!cards.length) return "";
   return `
-    <div style="display:flex; gap:8px; margin-bottom:16px;">
+    <div style="display:flex; gap:8px; margin-bottom:16px; page-break-inside:avoid;">
       ${cards.map(c => `
         <div style="flex:1; text-align:center; border:1px solid #e2e8f0; border-radius:8px; padding:8px 4px; background:${c.bg || "#f8fafc"};">
           <div style="font-size:10px; color:#64748b; margin-bottom:2px;">${escapeBrandHtml(c.label)}</div>
@@ -104,8 +104,7 @@ export function buildPdfStatsCardsHtml(cards = []) {
 
 // ------------------------------------------------------------
 // خانة التوقيعات الثلاثية في نهاية التقرير (فني - مهندس جودة -
-// مدير مصنع) - أسماء الخانات قابلة للتخصيص لو التقرير مش عن
-// الصيانة (مثلاً تقرير الكايزن)
+// مدير مصنع)
 // ------------------------------------------------------------
 export function buildPdfSignatureBlockHtml({
   firstLabel = "توقيع الفني",
@@ -119,7 +118,7 @@ export function buildPdfSignatureBlockHtml({
     </div>
   `;
   return `
-    <div style="display:flex; gap:20px; margin-top:36px; padding-top:16px; border-top:1px dashed #cbd5e1;">
+    <div style="display:flex; gap:20px; margin-top:36px; padding-top:16px; border-top:1px dashed #cbd5e1; page-break-inside:avoid;">
       ${box(firstLabel)}
       ${box(secondLabel)}
       ${box(thirdLabel)}
@@ -128,19 +127,16 @@ export function buildPdfSignatureBlockHtml({
 }
 
 // ------------------------------------------------------------
-// أسطر الترويسة الرسمية اللي بتتضاف في أول أي ملف CSV مُصدَّر من
-// التطبيق - كل سطر عبارة عن مصفوفة صف واحد (نفس شكل باقي صفوف
-// البيانات) عشان تتحط زي ما هي في أول csvContent، وبعدها سطر فاصل
-// فاضي قبل رؤوس الأعمدة الفعلية
+// أسطر الترويسة الرسمية لملفات CSV المُصدَّرة
 // ------------------------------------------------------------
 export function buildCsvHeaderLines(reportTitle) {
   const now = new Date();
   const exportedAt = now.toLocaleDateString("ar-EG") + " " + now.toLocaleTimeString("ar-EG");
   return [
-    [`${COMPANY_NAME_AR} - ${COMPANY_SHORT}`],
-    [COMPANY_NAME_EN],
-    [reportTitle],
-    [`تاريخ ووقت التصدير: ${exportedAt}`],
+    [`"${COMPANY_NAME_AR} - ${COMPANY_SHORT}"`],
+    [`"${COMPANY_NAME_EN}"`],
+    [`"${reportTitle}"`],
+    [`"تاريخ ووقت التصدير: ${exportedAt}"`],
     [] // سطر فاصل فاضي قبل رؤوس الأعمدة
   ];
 }
