@@ -10,11 +10,20 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
 
+  <!-- أيقونة التبويب في المتصفح (Favicon) -->
+  <link rel="icon" type="image/png" href="1000230635.png">
+  <link rel="shortcut icon" type="image/png" href="1000230635.png">
+
   <!-- دعم أجهزة iOS (Apple PWA Tags) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MaintSystem">
   <link rel="apple-touch-icon" href="1000230635.png">
+
+  <!-- تحميل مسبق (Preload) للوجو الرسمي للشركة عشان يبقى جاهز
+       فوراً في هيدر التطبيق وفي أول تقرير PDF يتصدّر (راجع
+       js/branding.js -> getCompanyLogoDataUrl) -->
+  <link rel="preload" as="image" href="a_wide_horizontal_logo_graphic_on_a_transparent_b.png">
 
   <!-- Chart.js & Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
