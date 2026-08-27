@@ -3,6 +3,22 @@
 // نظام الصلاحيات الموحد
 // ============================================================
 
+import { translations } from './config.js';
+
+// إصلاح (ترجمة شاملة): تسميات أزرار دورة حياة البلاغ/المقترح كانت
+// ثابتة بالعربي - دلوقتي بتقرأ من translations.ticketActions /
+// translations.suggestionActions حسب window.currentLang وقت كل
+// استدعاء (البلاغات/المقترحات بتتعاد رسمها باستمرار Real-time)
+function ta() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).ticketActions;
+}
+
+function sa() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).suggestionActions;
+}
+
 let currentRole =
   (localStorage.getItem("role") || "")
     .toLowerCase();
@@ -107,15 +123,15 @@ export function getTicketActions(ticket) {
     case "pending":
       // تصنيف وإسناد البلاغ للمدير أو الأدمن
       if (role === "manager" || role === "admin") {
-        actions.push({ key: "assign", label: "🛠️ تصنيف وإسناد" });
+        actions.push({ key: "assign", label: ta().assign });
       }
       break;
 
     case "assigned":
       // الفني المُسند إليه يظهر له زر بدء التنفيذ، وزر تم الإصلاح مباشرة للتسهيل
       if (isAssignee) {
-        actions.push({ key: "start", label: "▶️ بدء التنفيذ" });
-        actions.push({ key: "resolve", label: "✅ تم الإصلاح" });
+        actions.push({ key: "start", label: ta().start });
+        actions.push({ key: "resolve", label: ta().resolve });
       }
       break;
 
@@ -123,15 +139,15 @@ export function getTicketActions(ticket) {
     case "reopened":
       // الفني المُسند إليه فقط يقدر ينهي المعالجة ويحوله لـ resolved
       if (isAssignee) {
-        actions.push({ key: "resolve", label: "✅ تم الإصلاح" });
+        actions.push({ key: "resolve", label: ta().resolve });
       }
       break;
 
     case "resolved":
       // المُبلّغ (أو الأدمن) يراجع العمل ويأكد الإغلاق أو يرفض مع السبب
       if (isReporter) {
-        actions.push({ key: "confirm", label: "✔️ تأكيد الإغلاق" });
-        actions.push({ key: "reject", label: "❌ رفض ورجوع للفني" });
+        actions.push({ key: "confirm", label: ta().confirm });
+        actions.push({ key: "reject", label: ta().reject });
       }
       break;
 
@@ -139,7 +155,7 @@ export function getTicketActions(ticket) {
   }
 
   // زر التفاصيل متاح دائماً لمعاينة السجل والصور
-  actions.push({ key: "details", label: "🔍 تفاصيل" });
+  actions.push({ key: "details", label: ta().details });
 
   return actions;
 
@@ -184,17 +200,17 @@ export function getSuggestionActions(suggestion) {
     case "new":
       // بدء المراجعة أو الرفض المباشر - أدمن فقط
       if (isAdmin) {
-        actions.push({ key: "review", label: "🔍 بدء المراجعة" });
-        actions.push({ key: "reject", label: "❌ رفض" });
+        actions.push({ key: "review", label: sa().review });
+        actions.push({ key: "reject", label: sa().reject });
       }
       break;
 
     case "under_review":
       // موافقة وإسناد لفني، أو طلب تعديل، أو رفض - أدمن فقط
       if (isAdmin) {
-        actions.push({ key: "approve_assign", label: "✅ موافقة وإسناد" });
-        actions.push({ key: "request_revision", label: "✏️ طلب تعديل" });
-        actions.push({ key: "reject", label: "❌ رفض" });
+        actions.push({ key: "approve_assign", label: sa().approveAssign });
+        actions.push({ key: "request_revision", label: sa().requestRevision });
+        actions.push({ key: "reject", label: sa().reject });
       }
       break;
 
@@ -203,17 +219,17 @@ export function getSuggestionActions(suggestion) {
       // تعديل محتوى)، أو صاحب المقترح نفسه (بعد تعديل المحتوى فعلياً
       // وإعادة الإرسال - "resubmit")
       if (isAdmin) {
-        actions.push({ key: "return_to_review", label: "↩️ إعادة للمراجعة" });
+        actions.push({ key: "return_to_review", label: sa().returnToReview });
       }
       if (isOwner) {
-        actions.push({ key: "resubmit", label: "✏️ تعديل وإعادة الإرسال" });
+        actions.push({ key: "resubmit", label: sa().resubmit });
       }
       break;
 
     case "in_progress":
       // تسجيل اكتمال التنفيذ - الفني المسؤول المُسند إليه، أو الأدمن
       if (isAdmin || isAssignedTechnician) {
-        actions.push({ key: "implement", label: "🏁 تم التنفيذ" });
+        actions.push({ key: "implement", label: sa().implement });
       }
       break;
 
@@ -221,7 +237,7 @@ export function getSuggestionActions(suggestion) {
   }
 
   // زر التفاصيل متاح دائماً
-  actions.push({ key: "details", label: "🔍 تفاصيل" });
+  actions.push({ key: "details", label: sa().details });
 
   return actions;
 

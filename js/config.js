@@ -496,7 +496,26 @@ export const translations = {
       day: "يومي",
       week: "أسبوعي",
       month: "شهري",
-      all: "الكل"
+      all: "الكل",
+      // مفاتيح إضافية لمنطق knowledgeBase.js (ملخص الفترة + القائمة)
+      periodDay: "اليوم",
+      periodWeek: "هذا الأسبوع",
+      periodMonth: "هذا الشهر",
+      periodAll: "كل قاعدة المعرفة",
+      loadingKb: "جاري تحميل قاعدة المعرفة...",
+      calculating: "جاري الحساب...",
+      loggedError: "عطل مسجل",
+      totalOccurrences: "إجمالي الظهور",
+      distinctCodes: "أكواد أعطال مختلفة",
+      pendingReview: "قيد المراجعة",
+      repeatedTimes: "تكرر {n} مرة",
+      machineLine: "الماكينة/الخط:",
+      probableCause: "السبب المحتمل:",
+      solution: "الحل:",
+      repairSteps: "خطوات الإصلاح:",
+      notSpecified: "غير محدد",
+      emptyAll: "لا توجد أعطال في قاعدة المعرفة بعد.",
+      emptyPeriod: "لا توجد أعطال مسجلة خلال هذه الفترة."
     },
 
     // مفاتيح خاصة بصفحة "الإحصائيات" (StatsView.js)
@@ -513,7 +532,28 @@ export const translations = {
       priorityDist: "توزيع الأولويات",
       lineDist: "توزيع البلاغات حسب الخط",
       mttr: "متوسط زمن الإصلاح",
-      techPerf: "أداء الفنيين (الأكثر إنجازاً)"
+      techPerf: "أداء الفنيين (الأكثر إنجازاً)",
+      // مفاتيح إضافية لمنطق statistics.js
+      periodDay: "اليوم",
+      periodWeek: "هذا الأسبوع",
+      periodMonth: "هذا الشهر",
+      periodAll: "كل الفترات",
+      totalTickets: "إجمالي البلاغات",
+      openTickets: "مفتوحة",
+      resolvedTickets: "تم إصلاحها",
+      completionRate: "معدل الإنجاز",
+      errorsCountLabel: "عدد الأعطال",
+      priorityHighLabel: "عالية",
+      priorityMediumLabel: "متوسطة",
+      priorityLowLabel: "منخفضة",
+      noLineData: "لا توجد بيانات كافية خلال هذه الفترة.",
+      mttrNoData: "لا توجد بلاغات مُنجزة كافية لحساب متوسط زمن الإصلاح خلال هذه الفترة.",
+      mttrMinute: "دقيقة",
+      mttrHour: "ساعة",
+      mttrDay: "يوم",
+      mttrBasedOn: "بناءً على {n} بلاغ مُنجز",
+      noTechData: "لا توجد بيانات كافية عن أداء الفنيين خلال هذه الفترة.",
+      ticketWord: "بلاغ"
     },
 
     // مفاتيح خاصة بصفحة "Machine Error Scanner" (ErrorScannerView.js)
@@ -656,6 +696,28 @@ export const translations = {
       loadingTickets: "جاري تحميل التذاكر...",
       kaizenBoardTitle: "💡 متابعة الكايزن",
       loadingSuggestions: "جاري تحميل المقترحات..."
+    },
+
+    // مفاتيح أزرار دورة حياة البلاغ (permissions.js: getTicketActions)
+    ticketActions: {
+      assign: "🛠️ تصنيف وإسناد",
+      start: "▶️ بدء التنفيذ",
+      resolve: "✅ تم الإصلاح",
+      confirm: "✔️ تأكيد الإغلاق",
+      reject: "❌ رفض ورجوع للفني",
+      details: "🔍 تفاصيل"
+    },
+
+    // مفاتيح أزرار دورة حياة مقترح الكايزن (permissions.js: getSuggestionActions)
+    suggestionActions: {
+      review: "🔍 بدء المراجعة",
+      reject: "❌ رفض",
+      approveAssign: "✅ موافقة وإسناد",
+      requestRevision: "✏️ طلب تعديل",
+      returnToReview: "↩️ إعادة للمراجعة",
+      resubmit: "✏️ تعديل وإعادة الإرسال",
+      implement: "🏁 تم التنفيذ",
+      details: "🔍 تفاصيل"
     }
 
   },
@@ -946,7 +1008,25 @@ export const translations = {
       day: "Daily",
       week: "Weekly",
       month: "Monthly",
-      all: "All"
+      all: "All",
+      periodDay: "Today",
+      periodWeek: "This Week",
+      periodMonth: "This Month",
+      periodAll: "Entire Knowledge Base",
+      loadingKb: "Loading knowledge base...",
+      calculating: "Calculating...",
+      loggedError: "logged error(s)",
+      totalOccurrences: "Total Occurrences",
+      distinctCodes: "Distinct Error Codes",
+      pendingReview: "Pending Review",
+      repeatedTimes: "Occurred {n} times",
+      machineLine: "Machine/Line:",
+      probableCause: "Probable Cause:",
+      solution: "Solution:",
+      repairSteps: "Repair Steps:",
+      notSpecified: "Not specified",
+      emptyAll: "No errors in the knowledge base yet.",
+      emptyPeriod: "No errors logged during this period."
     },
 
     stats: {
@@ -962,7 +1042,27 @@ export const translations = {
       priorityDist: "Priority Distribution",
       lineDist: "Tickets by Line",
       mttr: "Avg. Repair Time (MTTR)",
-      techPerf: "Technician Performance (Top Performers)"
+      techPerf: "Technician Performance (Top Performers)",
+      periodDay: "Today",
+      periodWeek: "This Week",
+      periodMonth: "This Month",
+      periodAll: "All Periods",
+      totalTickets: "Total Tickets",
+      openTickets: "Open",
+      resolvedTickets: "Resolved",
+      completionRate: "Completion Rate",
+      errorsCountLabel: "Error Count",
+      priorityHighLabel: "High",
+      priorityMediumLabel: "Medium",
+      priorityLowLabel: "Low",
+      noLineData: "Not enough data for this period.",
+      mttrNoData: "Not enough resolved tickets to calculate average repair time for this period.",
+      mttrMinute: "min",
+      mttrHour: "hr",
+      mttrDay: "day",
+      mttrBasedOn: "Based on {n} resolved ticket(s)",
+      noTechData: "Not enough data on technician performance for this period.",
+      ticketWord: "ticket(s)"
     },
 
     errorScanner: {
@@ -1094,6 +1194,26 @@ export const translations = {
       loadingTickets: "Loading tickets...",
       kaizenBoardTitle: "💡 Track Kaizen",
       loadingSuggestions: "Loading suggestions..."
+    },
+
+    ticketActions: {
+      assign: "🛠️ Classify & Assign",
+      start: "▶️ Start Work",
+      resolve: "✅ Resolved",
+      confirm: "✔️ Confirm Closure",
+      reject: "❌ Reject & Return to Technician",
+      details: "🔍 Details"
+    },
+
+    suggestionActions: {
+      review: "🔍 Start Review",
+      reject: "❌ Reject",
+      approveAssign: "✅ Approve & Assign",
+      requestRevision: "✏️ Request Revision",
+      returnToReview: "↩️ Return to Review",
+      resubmit: "✏️ Edit & Resubmit",
+      implement: "🏁 Implemented",
+      details: "🔍 Details"
     }
 
   }

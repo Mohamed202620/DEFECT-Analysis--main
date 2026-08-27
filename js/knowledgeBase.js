@@ -11,6 +11,15 @@ import {
   fetchAllMachineErrorsApi,
   fetchMachineErrorLogsSinceApi
 } from './services/api.js';
+import { translations } from './config.js';
+
+// إصلاح (ترجمة شاملة): كل النصوص هنا كانت ثابتة بالعربي - دلوقتي
+// بتتقرأ من translations.kb حسب window.currentLang في كل مرة
+// بيتعاد فيها الرسم (تبديل تبويب/بحث)
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).kb;
+}
 
 // ============================================================
 // حالة الموديول
@@ -21,33 +30,39 @@ let periodLogs = [];         // سجلات الظهور ضمن الفترة ال
 let currentPeriod = 'day';   // day | week | month | all
 let isLoaded = false;
 
-// إعدادات مظهر كل فترة (لتحقيق "شكله يتغير" فعلياً حسب التبويب)
-const PERIOD_META = {
-  day: {
-    label: 'اليوم',
-    icon: '🔴',
-    activeClass: 'bg-red-500/15 border-red-500/50 text-red-300',
-    summaryClass: 'border-red-500/30 text-red-300'
-  },
-  week: {
-    label: 'هذا الأسبوع',
-    icon: '🟠',
-    activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300',
-    summaryClass: 'border-amber-500/30 text-amber-300'
-  },
-  month: {
-    label: 'هذا الشهر',
-    icon: '🟡',
-    activeClass: 'bg-yellow-500/15 border-yellow-500/50 text-yellow-200',
-    summaryClass: 'border-yellow-500/30 text-yellow-200'
-  },
-  all: {
-    label: 'كل قاعدة المعرفة',
-    icon: '📚',
-    activeClass: 'bg-cyan-500/15 border-cyan-500/50 text-cyan-300',
-    summaryClass: 'border-cyan-500/30 text-cyan-300'
-  }
-};
+// إعدادات مظهر كل فترة (لتحقيق "شكله يتغير" فعلياً حسب التبويب) -
+// التسميات نفسها بتتقرأ ديناميكياً من t() وقت الاستخدام (دالة بدل
+// كائن ثابت) عشان تتحدث فوراً مع تبديل اللغة
+function periodMeta(period) {
+  const tr = t();
+  const META = {
+    day: {
+      label: tr.periodDay,
+      icon: '🔴',
+      activeClass: 'bg-red-500/15 border-red-500/50 text-red-300',
+      summaryClass: 'border-red-500/30 text-red-300'
+    },
+    week: {
+      label: tr.periodWeek,
+      icon: '🟠',
+      activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300',
+      summaryClass: 'border-amber-500/30 text-amber-300'
+    },
+    month: {
+      label: tr.periodMonth,
+      icon: '🟡',
+      activeClass: 'bg-yellow-500/15 border-yellow-500/50 text-yellow-200',
+      summaryClass: 'border-yellow-500/30 text-yellow-200'
+    },
+    all: {
+      label: tr.periodAll,
+      icon: '📚',
+      activeClass: 'bg-cyan-500/15 border-cyan-500/50 text-cyan-300',
+      summaryClass: 'border-cyan-500/30 text-cyan-300'
+    }
+  };
+  return META[period];
+}
 
 const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
 
@@ -81,7 +96,7 @@ export async function initKbView() {
 
   const summaryBox = el('kbSummaryBox');
   if (summaryBox) {
-    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري تحميل قاعدة المعرفة...</div>`;
+    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().loadingKb}</div>`;
   }
 
   const result = await fetchAllMachineErrorsApi();
@@ -106,7 +121,7 @@ window.switchKbPeriod = async function (period) {
     const isActive = btn.dataset.period === period;
     btn.className =
       'kb-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ' +
-      (isActive ? PERIOD_META[period].activeClass : INACTIVE_CLASS);
+      (isActive ? periodMeta(period).activeClass : INACTIVE_CLASS);
   });
 
   if (!isLoaded) return; // لم تُحمَّل البيانات بعد (initKbView سيستدعي هذه الدالة بعد التحميل)
@@ -120,7 +135,7 @@ window.switchKbPeriod = async function (period) {
 
   const summaryBox = el('kbSummaryBox');
   if (summaryBox) {
-    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-3">جاري الحساب...</div>`;
+    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-3">${t().calculating}</div>`;
   }
 
   const sinceIso = computeSinceIso(period);
@@ -156,13 +171,14 @@ function renderKbSummary() {
   const box = el('kbSummaryBox');
   if (!box) return;
 
-  const meta = PERIOD_META[currentPeriod];
+  const tr = t();
+  const meta = periodMeta(currentPeriod);
 
   if (currentPeriod === 'all') {
     box.innerHTML = `
       <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 flex items-center justify-between">
         <div class="text-xs font-bold">${meta.icon} ${meta.label}</div>
-        <div class="text-lg font-bold">${allErrors.length} <span class="text-[10px] font-normal">عطل مسجل</span></div>
+        <div class="text-lg font-bold">${allErrors.length} <span class="text-[10px] font-normal">${tr.loggedError}</span></div>
       </div>
     `;
     return;
@@ -175,11 +191,11 @@ function renderKbSummary() {
   box.innerHTML = `
     <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 grid grid-cols-2 gap-2">
       <div>
-        <div class="text-[10px] opacity-80">${meta.icon} إجمالي الظهور (${meta.label})</div>
+        <div class="text-[10px] opacity-80">${meta.icon} ${tr.totalOccurrences} (${meta.label})</div>
         <div class="text-lg font-bold">${totalOccurrences}</div>
       </div>
       <div>
-        <div class="text-[10px] opacity-80">أكواد أعطال مختلفة</div>
+        <div class="text-[10px] opacity-80">${tr.distinctCodes}</div>
         <div class="text-lg font-bold">${distinctCodes}</div>
       </div>
     </div>
@@ -194,6 +210,7 @@ function renderKbList() {
   const box = el('kbListBox');
   if (!box) return;
 
+  const tr = t();
   const searchTerm = (el('kbSearchInput')?.value || '').trim().toLowerCase();
 
   let list;
@@ -221,9 +238,7 @@ function renderKbList() {
   if (!list.length) {
     box.innerHTML = `
       <div class="text-center text-gray-500 text-[11px] py-8">
-        ${currentPeriod === 'all'
-          ? 'لا توجد أعطال في قاعدة المعرفة بعد.'
-          : 'لا توجد أعطال مسجلة خلال هذه الفترة.'}
+        ${currentPeriod === 'all' ? tr.emptyAll : tr.emptyPeriod}
       </div>
     `;
     return;
@@ -238,16 +253,16 @@ function renderKbList() {
         <summary class="cursor-pointer flex items-center justify-between font-bold text-gray-100">
           <span class="flex items-center gap-2">
             <span class="text-blue-400">${e.errorCode || '-'}</span>
-            ${isPending ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">قيد المراجعة</span>` : ''}
+            ${isPending ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">${tr.pendingReview}</span>` : ''}
           </span>
-          ${count ? `<span class="text-[10px] text-gray-400">تكرر ${count} مرة</span>` : ''}
+          ${count ? `<span class="text-[10px] text-gray-400">${tr.repeatedTimes.replace('{n}', count)}</span>` : ''}
         </summary>
 
         <div class="mt-2 pt-2 border-t border-gray-800 space-y-1.5 text-gray-300">
-          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-gray-500">الماكينة/الخط:</span> ${e.machine || '-'} ${e.line ? '· ' + e.line : ''}</div>` : ''}
-          <div class="text-[11px]"><span class="text-gray-500">السبب المحتمل:</span> ${e.cause || 'غير محدد'}</div>
-          <div class="text-[11px]"><span class="text-gray-500">الحل:</span> ${e.solution || 'غير محدد'}</div>
-          <div class="text-[11px] whitespace-pre-line"><span class="text-gray-500">خطوات الإصلاح:</span> ${e.steps || 'غير محدد'}</div>
+          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-gray-500">${tr.machineLine}</span> ${e.machine || '-'} ${e.line ? '· ' + e.line : ''}</div>` : ''}
+          <div class="text-[11px]"><span class="text-gray-500">${tr.probableCause}</span> ${e.cause || tr.notSpecified}</div>
+          <div class="text-[11px]"><span class="text-gray-500">${tr.solution}</span> ${e.solution || tr.notSpecified}</div>
+          <div class="text-[11px] whitespace-pre-line"><span class="text-gray-500">${tr.repairSteps}</span> ${e.steps || tr.notSpecified}</div>
         </div>
       </details>
     `;

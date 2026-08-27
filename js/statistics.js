@@ -9,6 +9,16 @@
 // ============================================================
 
 import { fetchTicketsApi } from './services/api.js';
+import { translations } from './config.js';
+
+// إصلاح (ترجمة شاملة): كل نصوص هذه الصفحة (بطاقات الملخص، تسميات
+// الرسوم البيانية، رسائل عدم وجود بيانات) كانت ثابتة بالعربي -
+// دلوقتي بتتقرأ من translations.stats حسب window.currentLang في
+// كل مرة بيتعاد فيها الرسم (تبديل تبويب/تحميل أولي)
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).stats;
+}
 
 // ============================================================
 // حالة الموديول
@@ -21,28 +31,32 @@ let isLoaded = false;
 let machineChartInstance = null;
 let priorityChartInstance = null;
 
-const PERIOD_META = {
-  day: {
-    label: 'اليوم',
-    icon: '🔴',
-    activeClass: 'bg-red-500/15 border-red-500/50 text-red-300'
-  },
-  week: {
-    label: 'هذا الأسبوع',
-    icon: '🟠',
-    activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300'
-  },
-  month: {
-    label: 'هذا الشهر',
-    icon: '🟡',
-    activeClass: 'bg-yellow-500/15 border-yellow-500/50 text-yellow-200'
-  },
-  all: {
-    label: 'كل الفترات',
-    icon: '📚',
-    activeClass: 'bg-cyan-500/15 border-cyan-500/50 text-cyan-300'
-  }
-};
+function periodMeta(period) {
+  const tr = t();
+  const META = {
+    day: {
+      label: tr.periodDay,
+      icon: '🔴',
+      activeClass: 'bg-red-500/15 border-red-500/50 text-red-300'
+    },
+    week: {
+      label: tr.periodWeek,
+      icon: '🟠',
+      activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+    },
+    month: {
+      label: tr.periodMonth,
+      icon: '🟡',
+      activeClass: 'bg-yellow-500/15 border-yellow-500/50 text-yellow-200'
+    },
+    all: {
+      label: tr.periodAll,
+      icon: '📚',
+      activeClass: 'bg-cyan-500/15 border-cyan-500/50 text-cyan-300'
+    }
+  };
+  return META[period];
+}
 
 const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
 
@@ -79,7 +93,7 @@ export async function initStatsView() {
 
   const summaryBox = el('statsSummaryBox');
   if (summaryBox) {
-    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4 col-span-2">جاري تحميل الإحصائيات...</div>`;
+    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4 col-span-2">${t().loadingStats}</div>`;
   }
 
   const result = await fetchTicketsApi();
@@ -103,7 +117,7 @@ window.switchStatsPeriod = function (period) {
     const isActive = btn.dataset.period === period;
     btn.className =
       'stats-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ' +
-      (isActive ? PERIOD_META[period].activeClass : INACTIVE_CLASS);
+      (isActive ? periodMeta(period).activeClass : INACTIVE_CLASS);
   });
 
   if (!isLoaded) return; // لم تُحمَّل البيانات بعد (initStatsView سيستدعي هذه الدالة بعد التحميل)
@@ -258,22 +272,23 @@ function renderSummary(tickets) {
   if (!box) return;
 
   const s = computeSummary(tickets);
+  const tr = t();
 
   box.innerHTML = `
     <div class="bg-[#1E293B] border border-gray-800 p-3 rounded-xl text-center">
-      <div class="text-[10px] text-gray-400 mb-1">إجمالي البلاغات</div>
+      <div class="text-[10px] text-gray-400 mb-1">${tr.totalTickets}</div>
       <div class="text-lg font-bold text-purple-400">${s.total}</div>
     </div>
     <div class="bg-[#1E293B] border border-gray-800 p-3 rounded-xl text-center">
-      <div class="text-[10px] text-gray-400 mb-1">مفتوحة</div>
+      <div class="text-[10px] text-gray-400 mb-1">${tr.openTickets}</div>
       <div class="text-lg font-bold text-amber-400">${s.open}</div>
     </div>
     <div class="bg-[#1E293B] border border-gray-800 p-3 rounded-xl text-center">
-      <div class="text-[10px] text-gray-400 mb-1">تم إصلاحها</div>
+      <div class="text-[10px] text-gray-400 mb-1">${tr.resolvedTickets}</div>
       <div class="text-lg font-bold text-emerald-400">${s.closed}</div>
     </div>
     <div class="bg-[#1E293B] border border-gray-800 p-3 rounded-xl text-center">
-      <div class="text-[10px] text-gray-400 mb-1">معدل الإنجاز</div>
+      <div class="text-[10px] text-gray-400 mb-1">${tr.completionRate}</div>
       <div class="text-lg font-bold text-blue-400">${s.resolutionRate}%</div>
     </div>
   `;
@@ -309,7 +324,7 @@ function renderMachineChart(tickets) {
     data: {
       labels: top.map(([machine]) => machine),
       datasets: [{
-        label: 'عدد الأعطال',
+        label: t().errorsCountLabel,
         data: top.map(([, count]) => count),
         backgroundColor: 'rgba(59, 130, 246, 0.6)',
         borderColor: '#3B82F6',
@@ -356,10 +371,12 @@ function renderPriorityChart(tickets) {
   canvas.classList.remove('hidden');
   if (emptyBox) emptyBox.classList.add('hidden');
 
+  const tr = t();
+
   priorityChartInstance = new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: ['عالية', 'متوسطة', 'منخفضة'],
+      labels: [tr.priorityHighLabel, tr.priorityMediumLabel, tr.priorityLowLabel],
       datasets: [{
         data: [breakdown.High, breakdown.Medium, breakdown.Low],
         backgroundColor: ['#EF4444', '#F59E0B', '#10B981'],
@@ -388,7 +405,7 @@ function renderLineBreakdown(tickets) {
   const lines = computeLineBreakdown(tickets);
 
   if (!lines.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد بيانات كافية خلال هذه الفترة.</div>`;
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().noLineData}</div>`;
     return;
   }
 
@@ -419,24 +436,25 @@ function renderMttr(tickets) {
   if (!box) return;
 
   const { avgHours, sampleSize } = computeMTTR(tickets);
+  const tr = t();
 
   if (!sampleSize) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد بلاغات مُنجزة كافية لحساب متوسط زمن الإصلاح خلال هذه الفترة.</div>`;
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${tr.mttrNoData}</div>`;
     return;
   }
 
   const displayValue = avgHours < 1
-    ? `${Math.round(avgHours * 60)} دقيقة`
+    ? `${Math.round(avgHours * 60)} ${tr.mttrMinute}`
     : avgHours < 24
-      ? `${avgHours.toFixed(1)} ساعة`
-      : `${(avgHours / 24).toFixed(1)} يوم`;
+      ? `${avgHours.toFixed(1)} ${tr.mttrHour}`
+      : `${(avgHours / 24).toFixed(1)} ${tr.mttrDay}`;
 
   box.innerHTML = `
     <div class="flex items-center justify-between">
       <div class="text-2xl font-bold text-cyan-400">${displayValue}</div>
       <div class="text-[10px] text-gray-500 text-left">
-        متوسط زمن الإصلاح<br>
-        بناءً على ${sampleSize} بلاغ مُنجز
+        ${tr.mttr}<br>
+        ${tr.mttrBasedOn.replace('{n}', sampleSize)}
       </div>
     </div>
   `;
@@ -451,9 +469,10 @@ function renderTechnicianPerformance(tickets) {
   if (!box) return;
 
   const top = computeTechnicianPerformance(tickets);
+  const tr = t();
 
   if (!top.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد بيانات كافية عن أداء الفنيين خلال هذه الفترة.</div>`;
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${tr.noTechData}</div>`;
     return;
   }
 
@@ -465,7 +484,7 @@ function renderTechnicianPerformance(tickets) {
       <div>
         <div class="flex items-center justify-between text-[11px] mb-1">
           <span class="text-gray-300 font-bold">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '•'} ${tech}</span>
-          <span class="text-gray-400">${count} بلاغ</span>
+          <span class="text-gray-400">${count} ${tr.ticketWord}</span>
         </div>
         <div class="w-full h-2 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">
           <div class="h-full bg-emerald-500 rounded-full" style="width: ${pct}%"></div>
