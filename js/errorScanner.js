@@ -21,7 +21,7 @@ import {
   fetchAllMachineErrorsApi
 } from './services/api.js';
 
-import { MACHINE_OPTIONS, buildMachineOptionsHtml } from './machines.js';
+import { MACHINE_OPTIONS, buildMachineDropdownHtml } from './machines.js';
 
 // ============================================================
 // حالة الموديول
@@ -421,9 +421,12 @@ function renderNotFound(code) {
 
       <div>
         <label class="block mb-1 text-[11px] font-bold text-gray-300">الماكينة</label>
-        <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
-          ${buildMachineOptionsHtml({ includePlaceholder: true, placeholderLabel: "اختر..." })}
-        </select>
+        ${buildMachineDropdownHtml("errNewMachine", {
+          includePlaceholder: true,
+          placeholderLabel: "اختر...",
+          typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none",
+          unitSelectClass: "w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none mt-2"
+        })}
       </div>
 
       <div>
