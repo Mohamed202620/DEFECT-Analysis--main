@@ -11,7 +11,7 @@
 // الملفات (Stale-While-Revalidate) وميشوفش أي تغيير في الواجهة حتى
 // لو الكود اتغيّر فعلاً على السيرفر - رفع الرقم هنا يجبر المتصفح
 // يمسح الكاش القديم بالكامل)
-const CACHE_NAME = 'maint-system-v2.5'; 
+const CACHE_NAME = 'maint-system-v3.0'; 
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -54,32 +54,40 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
 
   // نكيّش طلبات GET بس (ملفات الواجهة: HTML/JS/CSS/الصور).
-  // طلبات الكتابة (POST/PUT..) بتاعة Firestore/ImgBB مالهاش لازمة
-  // في الكاش أصلاً، وCache API مش بيدعمها أساساً (كانت بتطلع
-  // خطأ "Request method 'POST' is unsupported" في الكونسول).
   if (req.method !== 'GET') {
     return; // سيب الطلب يمشي للشبكة عادي من غير أي تدخل من الـ SW
   }
 
-  e.respondWith(
-    caches.match(req).then((cachedRes) => {
-      // استراتيجية (Stale-While-Revalidate)
-      // جلب النسخة الأحدث من الشبكة لتحديث الكاش في الخلفية
-      const fetchPromise = fetch(req).then((networkRes) => {
-        // التأكد من أن الاستجابة صالحة قبل تخزينها
-        // type 'basic' للملفات المحلية، و 'opaque' للملفات الخارجية (CDN)
+  const url = new URL(req.url);
+
+  // لملفات الجافاسكريبت والـ HTML نستخدم Network-First لضمان أحدث كود دائماً
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.includes('/js/')) {
+    e.respondWith(
+      fetch(req).then((networkRes) => {
         if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
           const clone = networkRes.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
         }
         return networkRes;
       }).catch(() => {
-        // ماذا يحدث لو انقطع الإنترنت والملف غير موجود في الكاش؟
+        return caches.match(req);
+      })
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(req).then((cachedRes) => {
+      const fetchPromise = fetch(req).then((networkRes) => {
+        if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return networkRes;
+      }).catch(() => {
         console.warn("[SW] Offline, and resource not in cache:", req.url);
       });
 
-      // إذا كان الملف في الكاش، اعرضه للمستخدم فوراً (سرعة عالية).
-      // وإذا لم يكن، انتظر جلب الشبكة.
       return cachedRes || fetchPromise;
     })
   );
