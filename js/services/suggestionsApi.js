@@ -31,7 +31,7 @@
 // ============================================================
 
 import { db } from "../config.js";
-import { uploadBase64Image } from "./imageUpload.js";
+import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
 
 import {
@@ -60,17 +60,18 @@ export async function saveSuggestionApi(payload) {
 
   try {
 
-    // نفس نمط saveIssueApi (ticketsApi.js): استخراج الصورة (Base64)
-    // من الـ payload، رفعها على ImgBB، وتخزين الرابط فقط (imageUrl)
-    // بدل الـ Base64 الكامل داخل مستند Firestore
-    const { image, ...restPayload } = payload;
-    const imageUrl = await uploadBase64Image(image, "suggestion_" + Date.now());
+    // دعم صورة واحدة (الاسم القديم "image" - للتوافق) أو أكثر من
+    // صورة دفعة واحدة عبر "images" (الاسم الجديد)، ورفعها كلها على
+    // ImgBB وتخزين الروابط فقط (imageUrls) بدل الـ Base64 الكامل
+    const { image, images, ...restPayload } = payload;
+    const imageList = Array.isArray(images) ? images : (image ? [image] : []);
+    const imageUrls = await uploadBase64Images(imageList, "suggestion_" + Date.now());
 
     const docRef = await addDoc(
       collection(db, "suggestions"),
       {
         ...restPayload,
-        ...(imageUrl && { imageUrl }),
+        ...(imageUrls.length && { imageUrls }),
 
         // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
         // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"

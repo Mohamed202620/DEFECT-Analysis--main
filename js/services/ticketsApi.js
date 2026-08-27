@@ -7,7 +7,7 @@
 // ============================================================
 
 import { db } from "../config.js";
-import { uploadBase64Image } from "./imageUpload.js";
+import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
 import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket } from "./offlineQueue.js";
 
@@ -45,14 +45,18 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
   }
 
   try {
-    const { image, ...restPayload } = payload;
+    // دعم صورة واحدة (الاسم القديم "image" - للتوافق مع أي بيانات
+    // قديمة مُخزَّنة محلياً في طابور offlineQueue من قبل هذا التحديث)
+    // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
+    const { image, images, ...restPayload } = payload;
     const issueId = payload.issueId || ("IS-" + Date.now());
-    const imageUrl = await uploadBase64Image(image, issueId);
+    const imageList = Array.isArray(images) ? images : (image ? [image] : []);
+    const imageUrls = await uploadBase64Images(imageList, issueId);
 
     const docRef = await addDoc(collection(db, "tickets"), {
       ...restPayload,
       issueId,
-      ...(imageUrl && { imageUrl }),
+      ...(imageUrls.length && { imageUrls }),
       status: payload?.status || "pending",
       createdAt: payload?.createdAt || new Date().toISOString()
     });
