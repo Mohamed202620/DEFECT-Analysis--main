@@ -78,12 +78,12 @@ function notificationItemHtml(n) {
 
 /**
  * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
- * الشريط السفلي - آمنة تماماً لو الزرار مش ظاهر حالياً في DOM
+ * الهيدر - آمنة تماماً لو الهيدر غير ظاهر حالياً في DOM
  * (بترجع فوراً من غير أي تأثير جانبي)
  */
 export async function refreshNotificationsBadge() {
 
-  const badge = document.getElementById("bottomNavNotifBadge");
+  const badge = document.getElementById("headerNotifBadge");
   const myUid = localStorage.getItem("userId") || "";
   if (!badge || !myUid) return;
 

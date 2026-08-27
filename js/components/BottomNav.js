@@ -17,14 +17,7 @@ export const BottomNav = (activeTab) => {
       label: t.navMaintenance || "الصيانة", 
       action: "window.navigateTo('maintenance')" 
     },
-    { 
-      id: "notifications", 
-      icon: "🔔", 
-      label: t.navNotifications || "الإشعارات", 
-      // تشغيل نافذة الإشعارات الأصلية المقترنة بـ initNotificationBell
-      action: "if (typeof window.openNotificationsModal === 'function') { window.openNotificationsModal(); } else if (typeof window.toggleNotifications === 'function') { window.toggleNotifications(); } else if (typeof window.showNotificationsModal === 'function') { window.showNotificationsModal(); } else { window.navigateTo('notifications'); }" 
-    },
-    { 
+    {
       id: "quality", 
       icon: "📦", 
       label: t.navQuality || "الجودة", 
@@ -46,18 +39,6 @@ export const BottomNav = (activeTab) => {
 
       ${navItems.map(item => {
         const isActive = activeTab === item.id;
-        // شارة عدد الإشعارات غير المقروءة - بتتحدّث فعلياً من
-        // NotificationsModal.js (window.refreshNotificationsBadge)،
-        // مخفية افتراضياً لحد ما يتوفر عدد فعلي
-        const iconHtml = item.id === "notifications"
-          ? `
-            <span class="relative inline-block text-lg leading-none">
-              ${item.icon}
-              <span id="bottomNavNotifBadge"
-                class="hidden absolute -top-1.5 -left-2 bg-red-500 text-white text-[8px] font-bold rounded-full min-w-[14px] h-[14px] px-0.5 flex items-center justify-center leading-none">0</span>
-            </span>
-          `
-          : `<span class="text-lg leading-none">${item.icon}</span>`;
         return `
           <button
             type="button"
@@ -67,7 +48,7 @@ export const BottomNav = (activeTab) => {
                 ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/30 scale-105'
                 : 'dyn-text-muted hover:opacity-100 opacity-70'
             }">
-            ${iconHtml}
+            <span class="text-lg leading-none">${item.icon}</span>
             <span class="text-[9px] mt-1 font-medium truncate max-w-[50px]">${item.label}</span>
           </button>
         `;
