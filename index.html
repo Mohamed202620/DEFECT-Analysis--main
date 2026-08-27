@@ -210,6 +210,12 @@
     });
 
     if ('serviceWorker' in navigator) {
+      // عند تفعيل نسخة Service Worker جديدة، أعد تحميل الصفحة مرة واحدة
+      // حتى لا تظل الواجهة الحالية مبنية من ملفات قديمة محفوظة بالكاش.
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      });
+
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
           .then(reg => console.log('SW Registered:', reg.scope))
