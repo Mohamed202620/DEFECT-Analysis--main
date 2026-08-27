@@ -451,21 +451,64 @@ export function buildCsvHeaderLines(reportTitle) {
 // ------------------------------------------------------------
 // 6. دالة تحديث الهيدر تلقائياً (تصدير مباشر آمن)
 // ------------------------------------------------------------
+// إصلاح: كان في تراكب بين appHeader وأول محتوى الصفحة في أي صفحة
+// "أول ما تتفتح" بعد تسجيل الدخول (غير الرئيسية) - السبب الحقيقي:
+// Tailwind (عبر CDN) بيحقن CSS أي Class جديد بشكل غير متزامن (عن
+// طريق MutationObserver داخلي بتاعه)، فلما كنا بنقيس
+// headerEl.offsetHeight فوراً في نفس اللحظة المتزامنة بعد إدخال
+// الهيدر في الـ DOM - كان القياس بيطلع الارتفاع "قبل" ما Tailwind
+// يلحق يحقن تنسيقه (يعني أصغر من الحقيقي بكتير)، والمتغيّر
+// --app-header-h كان بيتجمّد على الرقم الغلط ده لحد أي render()
+// تاني - فأي صفحة أول ما تتفتح (قبل ما Tailwind يخلّص) كانت بتاخد
+// مساحة padding-top أصغر من ارتفاع الهيدر الفعلي = تراكب. الصفحة
+// الرئيسية كانت بتظهر سليمة بالصدفة بس لأنها غالبًا مش أول render()
+// بيحصل فعليًا، فبحلول وقتها Tailwind يكون خلّص فعلاً.
+//
+// الحل الجذري: ResizeObserver حقيقي بيراقب حجم الهيدر المرسوم على
+// الشاشة فعليًا ويحدّث --app-header-h تلقائيًا أي وقت الحجم يتغيّر
+// (تحميل Tailwind متأخر / تغيير حجم الشاشة / لف اسم طويل سطرين) -
+// مش قياس لحظي واحد بس وقت الإدخال زي قبل كده.
+let _headerResizeObserver = null;
+
+function syncHeaderHeightVar(headerEl) {
+  if (!headerEl) return;
+  document.documentElement.style.setProperty(
+    "--app-header-h",
+    headerEl.offsetHeight + "px"
+  );
+}
+
+function observeHeaderHeight(headerEl) {
+  if (!headerEl) return;
+
+  if (!_headerResizeObserver && typeof ResizeObserver !== "undefined") {
+    _headerResizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        syncHeaderHeightVar(entry.target);
+      }
+    });
+  }
+
+  // refreshHeader() بيشيل عنصر الهيدر القديم ويحط واحد جديد مكانه
+  // في كل مرة (مش نفس العنصر) - فلازم نراقب العنصر الجديد في كل
+  // مرة، عشان كده بنعمل disconnect() من القديم قبل ما نراقب الجديد
+  if (_headerResizeObserver) {
+    _headerResizeObserver.disconnect();
+    _headerResizeObserver.observe(headerEl);
+  }
+}
+
 export function refreshHeader() {
   document.getElementById("appHeader")?.remove();
   document.body.insertAdjacentHTML("afterbegin", renderHeader());
 
-  // تحديث متغيّر CSS بالارتفاع الحقيقي للهيدر (بقى صفّين دلوقتي:
-  // شعار+أدوات، وصف بيانات مستخدم) عشان #appShell يحجز نفس المساحة
-  // بالظبط تلقائياً (راجع index.html) - بدل رقم ثابت ممكن يفضل مش
-  // مظبوط لو طول الاسم أو حجم اللوجو اختلف بين الموبايل والكمبيوتر
   const headerEl = document.getElementById("appHeader");
-  if (headerEl) {
-    document.documentElement.style.setProperty(
-      "--app-header-h",
-      headerEl.offsetHeight + "px"
-    );
-  }
+
+  // قياس فوري (Best-effort) عشان الفرق يبقى أقل حاجة ممكنة من أول
+  // لحظة - والـ ResizeObserver فوق هو اللي هيصحّح الرقم تلقائيًا أي
+  // وقت الحجم الحقيقي يتغيّر بعد كده (زي تحميل Tailwind المتأخر)
+  syncHeaderHeightVar(headerEl);
+  observeHeaderHeight(headerEl);
 }
 
 window.refreshHeader = refreshHeader;
