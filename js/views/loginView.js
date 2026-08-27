@@ -1,5 +1,12 @@
-export const LoginView = () => `
-  <div id="loginScreen" class="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-white" dir="rtl">
+import { translations } from "../config.js";
+
+export const LoginView = () => {
+  const currentLang = window.currentLang || "ar";
+  const t = (translations[currentLang] || translations.ar).login;
+  const dir = currentLang === "ar" ? "rtl" : "ltr";
+
+  return `
+  <div id="loginScreen" class="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-white" dir="${dir}">
     <form 
       onsubmit="event.preventDefault(); window.doLogin();" 
       class="w-full max-w-sm bg-[#1E293B] border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-4"
@@ -13,16 +20,16 @@ export const LoginView = () => `
       </div>
       
       <!-- العنوان -->
-      <h2 class="text-xl font-bold text-center text-blue-400">تسجيل دخول النظام</h2>
+      <h2 class="text-xl font-bold text-center text-blue-400">${t.title}</h2>
       
       <!-- رقم الموبايل -->
       <div>
-        <label for="loginPhone" class="block text-xs font-bold mb-1 text-gray-300">رقم الموبايل</label>
+        <label for="loginPhone" class="block text-xs font-bold mb-1 text-gray-300">${t.phone}</label>
         <input 
           id="loginPhone" 
           type="tel" 
           autocomplete="tel"
-          placeholder="رقم الموبايل" 
+          placeholder="${t.phone}" 
           required
           class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
         />
@@ -30,13 +37,13 @@ export const LoginView = () => `
       
       <!-- كلمة السر -->
       <div>
-        <label for="loginPass" class="block text-xs font-bold mb-1 text-gray-300">كلمة السر</label>
+        <label for="loginPass" class="block text-xs font-bold mb-1 text-gray-300">${t.password}</label>
         <div class="relative">
           <input 
             id="loginPass" 
             type="password" 
             autocomplete="current-password"
-            placeholder="كلمة السر" 
+            placeholder="${t.password}" 
             required
             class="w-full p-3 pl-12 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
           />
@@ -49,7 +56,7 @@ export const LoginView = () => `
               this.innerHTML = isPass ? '🙈' : '👁';
             "
             class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-gray-400"
-            aria-label="إظهار أو إخفاء كلمة المرور"
+            aria-label="${t.showHidePass}"
           >
             👁
           </button>
@@ -62,7 +69,7 @@ export const LoginView = () => `
         type="submit" 
         class="w-full py-3 bg-blue-600 hover:bg-blue-500 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg"
       >
-        دخول
+        ${t.loginBtn}
       </button>
 
       <!-- زر إنشاء حساب جديد -->
@@ -71,9 +78,10 @@ export const LoginView = () => `
         onclick="window.navigateTo('register')"
         class="w-full py-3 mt-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 rounded-xl font-bold text-sm text-white transition shadow-lg"
       >
-        ➕ إنشاء حساب جديد
+        ${t.registerBtn}
       </button>
 
     </form>
   </div>
 `;
+};

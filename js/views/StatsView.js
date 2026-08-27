@@ -1,7 +1,13 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { translations } from "../config.js";
 
-export const StatsView = () => `
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
+export const StatsView = () => {
+  const currentLang = window.currentLang || "ar";
+  const t = (translations[currentLang] || translations.ar).stats;
+  const common = (translations[currentLang] || translations.ar).common;
+
+  return `
+<div class="p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
 
   <!-- زر الرجوع والعنوان -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -13,9 +19,9 @@ export const StatsView = () => `
       </button>
       <div>
         <h2 class="text-base font-bold text-blue-400 flex items-center gap-2">
-          <span>📈</span> الإحصائيات
+          <span>📈</span> ${t.title}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5">تحليل بلاغات الأعطال حسب الفترة</p>
+        <p class="text-[11px] text-gray-400 mt-0.5">${t.subtitle}</p>
       </div>
     </div>
   </div>
@@ -24,36 +30,36 @@ export const StatsView = () => `
   <div class="grid grid-cols-4 gap-2">
     <button data-period="day" onclick="window.switchStatsPeriod('day')"
       class="stats-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400">
-      🔴 اليوم
+      🔴 ${t.day}
     </button>
     <button data-period="week" onclick="window.switchStatsPeriod('week')"
       class="stats-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 bg-amber-500/15 border-amber-500/50 text-amber-300">
-      🟠 الأسبوع
+      🟠 ${t.week}
     </button>
     <button data-period="month" onclick="window.switchStatsPeriod('month')"
       class="stats-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400">
-      🟡 الشهر
+      🟡 ${t.month}
     </button>
     <button data-period="all" onclick="window.switchStatsPeriod('all')"
       class="stats-period-btn py-2 rounded-lg text-[11px] font-bold border transition-all active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400">
-      📚 الكل
+      📚 ${t.all}
     </button>
   </div>
 
   <!-- بطاقات الملخص -->
   <div id="statsSummaryBox" class="grid grid-cols-4 gap-2">
-    <div class="text-center text-gray-500 text-[11px] py-4 col-span-4">جاري تحميل الإحصائيات...</div>
+    <div class="text-center text-gray-500 text-[11px] py-4 col-span-4">${t.loadingStats}</div>
   </div>
 
   <!-- أكثر الماكينات عطلاً -->
   <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
     <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-bold text-gray-200">🏭 أكثر الماكينات عطلاً</span>
+      <span class="text-xs font-bold text-gray-200">🏭 ${t.topMachines}</span>
     </div>
     <div style="height: 200px;" class="relative">
       <canvas id="statsMachineChart" class="hidden"></canvas>
       <div id="statsMachineEmpty" class="hidden text-center text-gray-500 text-[11px] py-8">
-        لا توجد بلاغات كافية لعرض الرسم البياني خلال هذه الفترة.
+        ${t.noChartData}
       </div>
     </div>
   </div>
@@ -61,12 +67,12 @@ export const StatsView = () => `
   <!-- توزيع الأولويات -->
   <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
     <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-bold text-gray-200">🎯 توزيع الأولويات</span>
+      <span class="text-xs font-bold text-gray-200">🎯 ${t.priorityDist}</span>
     </div>
     <div style="height: 180px;" class="relative">
       <canvas id="statsPriorityChart" class="hidden"></canvas>
       <div id="statsPriorityEmpty" class="hidden text-center text-gray-500 text-[11px] py-8">
-        لا توجد بلاغات كافية لعرض الرسم البياني خلال هذه الفترة.
+        ${t.noChartData}
       </div>
     </div>
   </div>
@@ -74,30 +80,30 @@ export const StatsView = () => `
   <!-- توزيع الخطوط -->
   <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
     <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-bold text-gray-200">🏗️ توزيع البلاغات حسب الخط</span>
+      <span class="text-xs font-bold text-gray-200">🏗️ ${t.lineDist}</span>
     </div>
     <div id="statsLineBreakdown" class="space-y-2.5">
-      <div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>
+      <div class="text-center text-gray-500 text-[11px] py-4">${common.loading}</div>
     </div>
   </div>
 
   <!-- متوسط زمن الإصلاح (MTTR) -->
   <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
     <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-bold text-gray-200">⏱️ متوسط زمن الإصلاح</span>
+      <span class="text-xs font-bold text-gray-200">⏱️ ${t.mttr}</span>
     </div>
     <div id="statsMttrBox">
-      <div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>
+      <div class="text-center text-gray-500 text-[11px] py-4">${common.loading}</div>
     </div>
   </div>
 
   <!-- أداء الفنيين -->
   <div class="bg-[#1E293B] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
     <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-bold text-gray-200">🧑‍🔧 أداء الفنيين (الأكثر إنجازاً)</span>
+      <span class="text-xs font-bold text-gray-200">🧑‍🔧 ${t.techPerf}</span>
     </div>
     <div id="statsTechBox" class="space-y-2.5">
-      <div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>
+      <div class="text-center text-gray-500 text-[11px] py-4">${common.loading}</div>
     </div>
   </div>
 
@@ -105,3 +111,4 @@ export const StatsView = () => `
 
 ${BottomNav("quality")}
 `;
+};

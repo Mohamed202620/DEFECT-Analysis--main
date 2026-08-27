@@ -1,18 +1,23 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { translations } from "../config.js";
 
-export const MaintenanceView = () => `
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
+export const MaintenanceView = () => {
+  const currentLang = window.currentLang || "ar";
+  const t = (translations[currentLang] || translations.ar).maintenance;
+
+  return `
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
   <!-- الهيدر الرئيسي -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
     <div>
       <h2 class="text-base font-bold text-blue-400 flex items-center gap-2">
-        <span>🛠️</span> قسم الصيانة
+        <span>🛠️</span> ${t.title}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-0.5">إدارة بلاغات الأعطال وصيانة المعدات</p>
+      <p class="text-[11px] text-gray-400 mt-0.5">${t.subtitle}</p>
     </div>
     <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2.5 py-1 rounded-full font-bold">
-      الورشة
+      ${t.badge}
     </span>
   </div>
 
@@ -26,8 +31,8 @@ export const MaintenanceView = () => `
       <div class="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         🚨
       </div>
-      <span class="font-bold text-xs text-gray-100">تسجيل عطل</span>
-      <span class="text-[10px] text-gray-400 mt-1">إبلاغ سريع عن توقف</span>
+      <span class="font-bold text-xs text-gray-100">${t.issueTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.issueDesc}</span>
     </div>
 
     <!-- متابعة البلاغات (دورة حياة التذكرة) -->
@@ -37,8 +42,8 @@ export const MaintenanceView = () => `
       <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         📋
       </div>
-      <span class="font-bold text-xs text-gray-100">متابعة البلاغات</span>
-      <span class="text-[10px] text-gray-400 mt-1">تصنيف، إسناد، فحص وإغلاق</span>
+      <span class="font-bold text-xs text-gray-100">${t.ticketsTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.ticketsDesc}</span>
     </div>
 
     <!-- نظام كايزن -->
@@ -48,8 +53,8 @@ export const MaintenanceView = () => `
       <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         💡
       </div>
-      <span class="font-bold text-xs text-gray-100">نظام كايزن</span>
-      <span class="text-[10px] text-gray-400 mt-1">مقترحات التحسين المستمر</span>
+      <span class="font-bold text-xs text-gray-100">${t.kaizenTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.kaizenDesc}</span>
     </div>
 
     <!-- متابعة الكايزن (مراجعة واعتماد المقترحات) -->
@@ -59,8 +64,8 @@ export const MaintenanceView = () => `
       <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         💡
       </div>
-      <span class="font-bold text-xs text-gray-100">متابعة الكايزن</span>
-      <span class="text-[10px] text-gray-400 mt-1">مراجعة واعتماد المقترحات</span>
+      <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.kaizenBoardDesc}</span>
     </div>
 
     <!-- البحث والفلترة المتقدمة (زر عريض بارز) -->
@@ -72,12 +77,12 @@ export const MaintenanceView = () => `
           🔎
         </div>
         <div class="text-right">
-          <span class="font-bold text-xs text-gray-100 block">البحث والفلترة المتقدمة</span>
-          <span class="text-[10px] text-gray-400">فلترة البلاغات وسجلات الصيانة الوقائية معاً</span>
+          <span class="font-bold text-xs text-gray-100 block">${t.searchTitle}</span>
+          <span class="text-[10px] text-gray-400">${t.searchDesc}</span>
         </div>
       </div>
       <span class="text-xs text-blue-400 font-bold bg-blue-500/10 px-3 py-1 rounded-lg border border-blue-500/20 shadow-sm">
-        فتح ↩
+        ${t.searchOpen}
       </span>
     </div>
 
@@ -90,12 +95,12 @@ export const MaintenanceView = () => `
           🔎
         </div>
         <div class="text-right">
-          <span class="font-bold text-xs text-gray-100 block">Machine Error Scanner</span>
-          <span class="text-[10px] text-gray-400">تصوير شاشة العطل والبحث عنه تلقائياً</span>
+          <span class="font-bold text-xs text-gray-100 block">${t.scannerTitle}</span>
+          <span class="text-[10px] text-gray-400">${t.scannerDesc}</span>
         </div>
       </div>
       <span class="text-xs text-indigo-400 font-bold bg-indigo-500/10 px-3 py-1 rounded-lg border border-indigo-500/20 shadow-sm">
-        مسح 📷
+        ${t.scannerBtn}
       </span>
     </div>
 
@@ -108,12 +113,12 @@ export const MaintenanceView = () => `
           📱
         </div>
         <div class="text-right">
-          <span class="font-bold text-xs text-gray-100 block">مسح QR الماكينات</span>
-          <span class="text-[10px] text-gray-400">وصول سريع لبيانات المعدة بالكاميرا</span>
+          <span class="font-bold text-xs text-gray-100 block">${t.qrTitle}</span>
+          <span class="text-[10px] text-gray-400">${t.qrDesc}</span>
         </div>
       </div>
       <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 shadow-sm">
-        مسح 📷
+        ${t.qrBtn}
       </span>
     </div>
 
@@ -123,3 +128,4 @@ export const MaintenanceView = () => `
 
 ${BottomNav("maintenance")}
 `;
+};

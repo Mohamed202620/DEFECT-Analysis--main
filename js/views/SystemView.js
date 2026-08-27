@@ -1,4 +1,5 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { translations } from "../config.js";
 
 export const SystemView = () => {
 
@@ -33,13 +34,16 @@ const currentRole =
 .trim()
 .toUpperCase();
 
+const currentLang = window.currentLang || "ar";
+const t = (translations[currentLang] || translations.ar).system;
+
 // ============================================================
 // الواجهة
 // ============================================================
 
 return `
 
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
   <!-- ========================================================
        الهيدر الرئيسي
        ======================================================== -->  
@@ -54,7 +58,7 @@ return `
         gap-2
       ">
         <span>👨‍💼</span>
-        إدارة النظام والتحكم
+        ${t.title}
       </h2>
 
       <p class="
@@ -62,7 +66,7 @@ return `
         text-gray-400
         mt-0.5
       ">
-        إدارة المستخدمين والصلاحيات وإعدادات التطبيق
+        ${t.subtitle}
       </p>
     </div>
 
@@ -84,7 +88,7 @@ return `
   <!-- ========================================================
        شبكة خيارات النظام
        ======================================================== -->  
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+  <div class="grid grid-cols-2 gap-3.5">
     
     <!-- ======================================================
          المستخدمون
@@ -132,7 +136,7 @@ return `
         text-xs
         text-gray-100
       ">
-        المستخدمون
+        ${t.usersTitle}
       </span>
 
       <span class="
@@ -140,7 +144,7 @@ return `
         text-gray-400
         mt-1
       ">
-        إدارة الحسابات والصلاحيات
+        ${t.usersDesc}
       </span>
     </div>
     ` : ""}
@@ -192,7 +196,7 @@ return `
         text-xs
         text-gray-100
       ">
-        طلبات الانضمام
+        ${t.requestsTitle}
       </span>
 
       <span class="
@@ -200,7 +204,7 @@ return `
         text-gray-400
         mt-1
       ">
-        مراجعة المستخدمين الجدد
+        ${t.requestsDesc}
       </span>
     </div>
     ` : ""}
@@ -252,7 +256,7 @@ return `
         text-xs
         text-gray-100
       ">
-        الماكينات
+        ${t.machinesTitle}
       </span>
 
       <span class="
@@ -260,7 +264,7 @@ return `
         text-gray-400
         mt-1
       ">
-        إدارة المعدات و QR
+        ${t.machinesDesc}
       </span>
     </div>
     ` : ""}
@@ -312,7 +316,7 @@ return `
         text-xs
         text-gray-100
       ">
-        الإعدادات
+        ${t.settingsTitle}
       </span>
 
       <span class="
@@ -320,7 +324,7 @@ return `
         text-gray-400
         mt-1
       ">
-        إعدادات النظام
+        ${t.settingsDesc}
       </span>
     </div>
     ` : ""}
@@ -350,7 +354,7 @@ return `
     <div class="text-3xl mb-2">
       🔒
     </div>
-    ليس لديك صلاحيات لإدارة النظام.
+    ${t.noAccess}
   </div>
   `
   : ""

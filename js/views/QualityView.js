@@ -1,23 +1,28 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { translations } from "../config.js";
 
-export const QualityView = () => `
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
+export const QualityView = () => {
+  const currentLang = window.currentLang || "ar";
+  const t = (translations[currentLang] || translations.ar).quality;
+
+  return `
+<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
   <!-- الهيدر الرئيسي -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
     <div>
       <h2 class="text-base font-bold text-blue-400 flex items-center gap-2">
-        <span>📦</span> قسم الجودة وتحليل العيوب
+        <span>📦</span> ${t.title}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-0.5">توثيق وفحص عيوب المنتجات وقاعدة المعرفة</p>
+      <p class="text-[11px] text-gray-400 mt-0.5">${t.subtitle}</p>
     </div>
     <span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] px-2.5 py-1 rounded-full font-bold">
-      الجودة QC
+      ${t.badge}
     </span>
   </div>
 
   <!-- شبكة الإجراءات السريعة -->
-  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+  <div class="grid grid-cols-2 gap-3.5">
 
     <!-- تصوير عيب -->
     <div 
@@ -26,8 +31,8 @@ export const QualityView = () => `
       <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         📷
       </div>
-      <span class="font-bold text-xs text-gray-100">تصوير عيب</span>
-      <span class="text-[10px] text-gray-400 mt-1">تسجيل وتوثيق visual defect</span>
+      <span class="font-bold text-xs text-gray-100">${t.defectTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.defectDesc}</span>
     </div>
 
     <!-- اكتشاف العيب بـ AI (شارة مميزة) -->
@@ -40,8 +45,8 @@ export const QualityView = () => `
       <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         🤖
       </div>
-      <span class="font-bold text-xs text-gray-100">فحص بـ AI</span>
-      <span class="text-[10px] text-gray-400 mt-1">كشف العيوب تلقائياً</span>
+      <span class="font-bold text-xs text-gray-100">${t.aiTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.aiDesc}</span>
     </div>
 
     <!-- قاعدة المعرفة -->
@@ -51,8 +56,8 @@ export const QualityView = () => `
       <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         📚
       </div>
-      <span class="font-bold text-xs text-gray-100">قاعدة المعرفة</span>
-      <span class="text-[10px] text-gray-400 mt-1">دليل الإصلاح والحلول</span>
+      <span class="font-bold text-xs text-gray-100">${t.kbTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.kbDesc}</span>
     </div>
 
     <!-- الإحصائيات -->
@@ -62,8 +67,8 @@ export const QualityView = () => `
       <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl mb-2 group-hover:scale-110 transition-transform">
         📈
       </div>
-      <span class="font-bold text-xs text-gray-100">الإحصائيات</span>
-      <span class="text-[10px] text-gray-400 mt-1">معدل العيوب والتكرار</span>
+      <span class="font-bold text-xs text-gray-100">${t.statsTitle}</span>
+      <span class="text-[10px] text-gray-400 mt-1">${t.statsDesc}</span>
     </div>
 
   </div>
@@ -72,3 +77,4 @@ export const QualityView = () => `
 
 ${BottomNav("quality")}
 `;
+};
