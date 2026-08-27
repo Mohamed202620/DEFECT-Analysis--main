@@ -7,8 +7,17 @@
 // ============================================================
 
 import { syncOfflineTicketsApi } from './services/api.js';
+import { translations } from './config.js';
 
 const BANNER_ID = "offlineBanner";
+
+// إصلاح (ترجمة شاملة): نصوص البانر كانت ثابتة بالعربي بغض النظر عن
+// اللغة المختارة - دلوقتي بتقرأ من translations.offline حسب
+// window.currentLang الحالي وقت كل ظهور للبانر
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).offline;
+}
 
 function ensureBannerEl() {
 
@@ -42,12 +51,12 @@ function hideBanner() {
 }
 
 window.addEventListener("offline", () => {
-  setBanner(true, "⚠️ لا يوجد اتصال بالإنترنت - سيتم حفظ البلاغات محلياً", "bg-red-600 text-white");
+  setBanner(true, t().offlineMsg, "bg-red-600 text-white");
 });
 
 window.addEventListener("online", async () => {
 
-  setBanner(true, "🔄 تم استعادة الاتصال - جاري المزامنة...", "bg-green-600 text-white");
+  setBanner(true, t().syncing, "bg-green-600 text-white");
 
   try {
 
@@ -56,13 +65,13 @@ window.addEventListener("online", async () => {
 
     setBanner(
       true,
-      synced > 0 ? `✅ تم رفع ${synced} بلاغ محفوظ بنجاح` : "✅ تم استعادة الاتصال",
+      synced > 0 ? t().syncedWithCount.replace("{n}", synced) : t().restored,
       "bg-green-600 text-white"
     );
 
   } catch (error) {
     console.error("[OfflineSync] فشلت المزامنة التلقائية:", error);
-    setBanner(true, "✅ تم استعادة الاتصال", "bg-green-600 text-white");
+    setBanner(true, t().restored, "bg-green-600 text-white");
   }
 
   setTimeout(hideBanner, 3000);
@@ -71,5 +80,5 @@ window.addEventListener("online", async () => {
 
 // لو التطبيق اتفتح والنت مقطوع من الأساس، يظهر البانر فوراً
 if (typeof navigator !== "undefined" && !navigator.onLine) {
-  setBanner(true, "⚠️ لا يوجد اتصال بالإنترنت - سيتم حفظ البلاغات محلياً", "bg-red-600 text-white");
+  setBanner(true, t().offlineMsg, "bg-red-600 text-white");
 }

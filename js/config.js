@@ -384,12 +384,6 @@ export const translations = {
       // مش نص واجهة ثابت، ده بديل لبيانات مستخدم حقيقية فاضية
       defaultName: "المستخدم",
       defaultJob: "فني صيانة",
-
-      // إضافة: عنوان قسم كروت الإحصاء العلوية - عشان يبقى ليها عنوان
-      // قسم واضح زي "الوصول السريع" بالظبط، فتتفصل بصريًا عن أزرار
-      // التنقل اللي تحتها بدل ما تتلخبط بيها
-      statsOverview: "📊 نظرة عامة",
-
       kpiOpen: "أعطال مفتوحة",
       kpiCritical: "يوجد بلاغ حرج",
       kpiClosed: "تم إصلاحها",
@@ -419,20 +413,249 @@ export const translations = {
 
       chartTitle: "تحليل الأداء والأعطال",
       chartWeekly: "تحديث أسبوعي",
-      chartDaily: "يومي",
-      chartMonthly: "شهري",
-      chartWeekShort: "أسبوع",
-      chartNoData: "لا توجد بيانات كافية لهذه الفترة",
-
-      // إضافة: تبديل شكل عرض الرسم البياني (خط / مساحة / أعمدة)
-      chartTypeLine: "خط",
-      chartTypeArea: "مساحة",
-      chartTypeBar: "أعمدة",
 
       contactDev: "تواصل مع المطور",
       // إضافة: نص رسالة الواتساب الجاهزة لزرار "تواصل مع المطور"
       waMessage: "السلام عليكم، أود التواصل معك بخصوص تطبيق الصيانة.",
       logoutConfirm: "هل أنت متأكد من رغبتك في تسجيل الخروج؟"
+    },
+
+    // ==========================================================
+    // إضافة: ترجمة شاملة (Global i18n) - مفاتيح عناصر مشتركة بين
+    // أكتر من صفحة (زرار رجوع، تحميل، إلخ) - بدل تكرارها في كل
+    // namespace خاص بصفحة
+    // ==========================================================
+    common: {
+      back: "⬅ رجوع",
+      loading: "جاري التحميل...",
+      cancel: "إلغاء",
+      confirm: "تأكيد",
+      required: "مطلوب",
+      noData: "لا توجد بيانات"
+    },
+
+    // مفاتيح خاصة بصفحة "قسم الجودة" (QualityView.js)
+    quality: {
+      title: "قسم الجودة وتحليل العيوب",
+      subtitle: "توثيق وفحص عيوب المنتجات وقاعدة المعرفة",
+      badge: "الجودة QC",
+      defectTitle: "تصوير عيب",
+      defectDesc: "تسجيل وتوثيق visual defect",
+      aiTitle: "فحص بـ AI",
+      aiDesc: "كشف العيوب تلقائياً",
+      kbTitle: "قاعدة المعرفة",
+      kbDesc: "دليل الإصلاح والحلول",
+      statsTitle: "الإحصائيات",
+      statsDesc: "معدل العيوب والتكرار"
+    },
+
+    // مفاتيح خاصة بصفحة "قسم الصيانة" (MaintenanceView.js)
+    maintenance: {
+      title: "قسم الصيانة",
+      subtitle: "إدارة بلاغات الأعطال وصيانة المعدات",
+      badge: "الورشة",
+      issueTitle: "تسجيل عطل",
+      issueDesc: "إبلاغ سريع عن توقف",
+      ticketsTitle: "متابعة البلاغات",
+      ticketsDesc: "تصنيف، إسناد، فحص وإغلاق",
+      kaizenTitle: "نظام كايزن",
+      kaizenDesc: "مقترحات التحسين المستمر",
+      kaizenBoardTitle: "متابعة الكايزن",
+      kaizenBoardDesc: "مراجعة واعتماد المقترحات",
+      searchTitle: "البحث والفلترة المتقدمة",
+      searchDesc: "فلترة البلاغات وسجلات الصيانة الوقائية معاً",
+      searchOpen: "فتح ↩",
+      scannerTitle: "Machine Error Scanner",
+      scannerDesc: "تصوير شاشة العطل والبحث عنه تلقائياً",
+      scannerBtn: "مسح 📷",
+      qrTitle: "مسح QR الماكينات",
+      qrDesc: "وصول سريع لبيانات المعدة بالكاميرا",
+      qrBtn: "مسح 📷"
+    },
+
+    // مفاتيح خاصة بصفحة "إدارة النظام" (SystemView.js)
+    system: {
+      title: "إدارة النظام والتحكم",
+      subtitle: "إدارة المستخدمين والصلاحيات وإعدادات التطبيق",
+      usersTitle: "المستخدمون",
+      usersDesc: "إدارة الحسابات والصلاحيات",
+      requestsTitle: "طلبات الانضمام",
+      requestsDesc: "مراجعة المستخدمين الجدد",
+      machinesTitle: "الماكينات",
+      machinesDesc: "إدارة المعدات و QR",
+      settingsTitle: "الإعدادات",
+      settingsDesc: "إعدادات النظام",
+      noAccess: "ليس لديك صلاحيات لإدارة النظام."
+    },
+
+    // مفاتيح خاصة بصفحة "قاعدة المعرفة" (KnowledgeBaseView.js)
+    kb: {
+      title: "قاعدة المعرفة",
+      subtitle: "دليل الإصلاح والحلول لأعطال الماكينات المسجلة، مع إمكانية تصفح الأكثر تكراراً حسب الفترة.",
+      searchPlaceholder: "🔍 ابحث بكود العطل، الماكينة، أو كلمة...",
+      day: "يومي",
+      week: "أسبوعي",
+      month: "شهري",
+      all: "الكل"
+    },
+
+    // مفاتيح خاصة بصفحة "الإحصائيات" (StatsView.js)
+    stats: {
+      title: "الإحصائيات",
+      subtitle: "تحليل بلاغات الأعطال حسب الفترة",
+      day: "اليوم",
+      week: "الأسبوع",
+      month: "الشهر",
+      all: "الكل",
+      loadingStats: "جاري تحميل الإحصائيات...",
+      topMachines: "أكثر الماكينات عطلاً",
+      noChartData: "لا توجد بلاغات كافية لعرض الرسم البياني خلال هذه الفترة.",
+      priorityDist: "توزيع الأولويات",
+      lineDist: "توزيع البلاغات حسب الخط",
+      mttr: "متوسط زمن الإصلاح",
+      techPerf: "أداء الفنيين (الأكثر إنجازاً)"
+    },
+
+    // مفاتيح خاصة بصفحة "Machine Error Scanner" (ErrorScannerView.js)
+    errorScanner: {
+      title: "Machine Error Scanner",
+      subtitle: "صوّر الخطأ الظاهر على شاشة الماكينة، وسيتم قراءته والبحث عنه تلقائياً في قاعدة المعرفة.",
+      machineType: "نوع الماكينة",
+      selectMachine: "اختر نوع الماكينة",
+      captureBtn: "تصوير الشاشة",
+      galleryBtn: "من المعرض",
+      readyStatus: "جاهز لالتقاط صورة شاشة العطل.",
+      errorCode: "Error Code",
+      errorCodePlaceholder: "سيتم تعبئته تلقائياً بعد قراءة الصورة، ويمكن تعديله",
+      errorMessage: "Error Message (النص المستخرج من الصورة)",
+      errorMessagePlaceholder: "سيظهر هنا النص المستخرج من الصورة تلقائياً",
+      manualSearch: "أو ابحث يدوياً",
+      manualPlaceholder: "اكتب رقم العطل او النص",
+      searchBtn: "بحث في قاعدة المعرفة"
+    },
+
+    // مفاتيح خاصة بصفحة "البحث والفلترة المتقدمة" (MaintenanceSearchView.js)
+    maintenanceSearch: {
+      title: "البحث والفلترة المتقدمة",
+      subtitle: "بحث موحّد في بلاغات الأعطال وسجلات الصيانة الوقائية ومقترحات الكايزن، مع فلترة حسب الحالة والماكينة والأولوية والتاريخ.",
+      searchPlaceholder: "🔍 ابحث بالماكينة، الوصف، اسم الفني...",
+      typeAll: "الكل",
+      typeTicket: "🚨 بلاغات",
+      typePm: "📝 صيانة",
+      typeSuggestion: "💡 كايزن",
+      dateAll: "كل الفترات",
+      dateToday: "📅 اليوم",
+      dateLast7: "🗓️ آخر 7 أيام",
+      dateMonth: "📆 هذا الشهر",
+      dateYear: "🗓️ هذا العام",
+      dateCustom: "🎯 نطاق مخصص",
+      statusAll: "كل الحالات",
+      statusPending: "جديد",
+      statusAssigned: "تم الإسناد",
+      statusInProgress: "قيد التنفيذ",
+      statusResolved: "بانتظار تأكيد المُبلغ",
+      statusClosed: "مغلقة",
+      priorityAll: "كل الأولويات",
+      priorityHigh: "🔴 عالية",
+      priorityMedium: "🟡 متوسطة",
+      priorityLow: "🟢 منخفضة",
+      machineAll: "كل الماكينات",
+      sortNewest: "🕓 الأحدث أولاً",
+      sortOldest: "🕘 الأقدم أولاً",
+      exportCsv: "📤 CSV",
+      exportPdf: "🖨️ PDF"
+    },
+
+    // مفاتيح خاصة بصفحة "تسجيل الدخول" (loginView.js)
+    login: {
+      title: "تسجيل دخول النظام",
+      phone: "رقم الموبايل",
+      password: "كلمة السر",
+      loginBtn: "دخول",
+      registerBtn: "➕ إنشاء حساب جديد",
+      showHidePass: "إظهار أو إخفاء كلمة المرور"
+    },
+
+    // مفاتيح خاصة بصفحة "إنشاء حساب" (registerView.js)
+    register: {
+      title: "إنشاء حساب جديد",
+      fullName: "الاسم بالكامل",
+      phone: "رقم الموبايل",
+      shift: "الشيفت (Shift)",
+      selectShift: "اختر الشيفت",
+      password: "كلمة السر",
+      confirmPassword: "تأكيد كلمة السر",
+      job: "الوظيفة",
+      selectJob: "اختر الوظيفة",
+      department: "القسم",
+      selectDepartment: "اختر القسم",
+      deptProduction: "الإنتاج",
+      deptMechanical: "الميكانيكا",
+      deptElectrical: "الكهرباء",
+      code: "رقم الكود",
+      submitBtn: "إنشاء الحساب",
+      backBtn: "رجوع"
+    },
+
+    // مفاتيح بانر حالة الاتصال (offlineBanner.js)
+    offline: {
+      offlineMsg: "⚠️ لا يوجد اتصال بالإنترنت - سيتم حفظ البلاغات محلياً",
+      syncing: "🔄 تم استعادة الاتصال - جاري المزامنة...",
+      // {n} بيتستبدل بعدد البلاغات المُزامنة فعلياً (راجع offlineBanner.js)
+      syncedWithCount: "✅ تم رفع {n} بلاغ محفوظ بنجاح",
+      restored: "✅ تم استعادة الاتصال"
+    },
+
+    // مفاتيح النافذة العامة لجمع البيانات (ActionModal.js)
+    actionModal: {
+      cancel: "إلغاء",
+      confirm: "تأكيد",
+      processing: "جاري المعالجة...",
+      imagesLabelSuffix: "(١-٣ صور)",
+      imagesRequired: "لازم صورة واحدة على الأقل",
+      imagesError: "حدث خطأ أثناء معالجة الصور، حاول تاني",
+      fieldRequired: "مطلوب"
+    },
+
+    // مفاتيح نافذة الإشعارات العامة (NotificationsModal.js)
+    notifications: {
+      title: "🔔 الإشعارات",
+      markAll: "تحديد الكل كمقروء",
+      loading: "جاري التحميل...",
+      noUser: "تعذر تحديد المستخدم الحالي.",
+      loadError: "تعذر تحميل الإشعارات، حاول مرة أخرى.",
+      empty: "لا توجد إشعارات."
+    },
+
+    // مفاتيح نافذة تفاصيل التذكرة (TicketDetailsModal.js)
+    ticketDetailsModal: {
+      title: "🔍 تفاصيل البلاغ",
+      loading: "جاري التحميل...",
+      loadError: "تعذر تحميل بيانات التذكرة.",
+      machine: "الماكينة",
+      status: "الحالة",
+      reportedBy: "المُبلّغ",
+      assignedTo: "مُسندة إلى",
+      repairImages: "📷 صور بعد الإصلاح",
+      statusLog: "🕒 سجل الحالات",
+      noLog: "لا يوجد سجل بعد."
+    },
+
+    // مفاتيح صفحات عامة (pageRenderer.js: قيد التطوير / غير مصرح /
+    // شاشات users - tickets - kaizenBoard المُضمَّنة مباشرة هناك)
+    pageRenderer: {
+      comingSoonTitle: "🚧 قيد التطوير",
+      comingSoonMsg: "لم تُفعّل بعد وسيتم إضافتها قريباً.",
+      unauthorizedTitle: "⚠️ غير مصرح",
+      unauthorizedMsg: "ليس لديك صلاحية للوصول إلى:",
+      usersTitle: "👥 إدارة المستخدمين",
+      refreshList: "🔄 تحديث القائمة",
+      loadingData: "جاري تحميل البيانات...",
+      ticketsTitle: "📋 متابعة البلاغات",
+      monthlyReportBtn: "🗓️ تقرير شهري (PDF)",
+      loadingTickets: "جاري تحميل التذاكر...",
+      kaizenBoardTitle: "💡 متابعة الكايزن",
+      loadingSuggestions: "جاري تحميل المقترحات..."
     }
 
   },
@@ -620,12 +843,6 @@ export const translations = {
       // static UI copy, this substitutes missing real user data
       defaultName: "User",
       defaultJob: "Maintenance Technician",
-
-      // Section heading for the top stats cards - gives them a clear
-      // section label like "Quick Access" below, so they read as a
-      // distinct info section rather than blending into the buttons
-      statsOverview: "📊 Overview",
-
       kpiOpen: "Open Breakdowns",
       kpiCritical: "Critical breakdown open",
       kpiClosed: "Resolved",
@@ -654,21 +871,229 @@ export const translations = {
       kaizenTrackDesc: "Status & requested revisions",
 
       chartTitle: "Performance & Breakdown Analysis",
-      chartWeekly: "Weekly",
-      chartDaily: "Daily",
-      chartMonthly: "Monthly",
-      chartWeekShort: "Week",
-      chartNoData: "Not enough data for this period",
-
-      // Chart display shape toggle (line / area / bar)
-      chartTypeLine: "Line",
-      chartTypeArea: "Area",
-      chartTypeBar: "Bar",
+      chartWeekly: "Weekly Update",
 
       contactDev: "Contact Developer",
       // Pre-filled WhatsApp message text for the "Contact Developer" button
       waMessage: "Hello, I'd like to get in touch regarding the maintenance app.",
       logoutConfirm: "Are you sure you want to log out?"
+    },
+
+    common: {
+      back: "⬅ Back",
+      loading: "Loading...",
+      cancel: "Cancel",
+      confirm: "Confirm",
+      required: "Required",
+      noData: "No data"
+    },
+
+    quality: {
+      title: "Quality & Defect Analysis",
+      subtitle: "Document and inspect product defects, plus the knowledge base",
+      badge: "QC",
+      defectTitle: "Photograph Defect",
+      defectDesc: "Log and document a visual defect",
+      aiTitle: "AI Inspection",
+      aiDesc: "Automatic defect detection",
+      kbTitle: "Knowledge Base",
+      kbDesc: "Repair guide and solutions",
+      statsTitle: "Statistics",
+      statsDesc: "Defect rate and recurrence"
+    },
+
+    maintenance: {
+      title: "Maintenance",
+      subtitle: "Manage breakdown tickets and equipment maintenance",
+      badge: "Workshop",
+      issueTitle: "Report Breakdown",
+      issueDesc: "Quick report of a stoppage",
+      ticketsTitle: "Track Tickets",
+      ticketsDesc: "Classify, assign, inspect and close",
+      kaizenTitle: "Kaizen System",
+      kaizenDesc: "Continuous improvement suggestions",
+      kaizenBoardTitle: "Track Kaizen",
+      kaizenBoardDesc: "Review and approve suggestions",
+      searchTitle: "Advanced Search & Filter",
+      searchDesc: "Filter tickets and PM records together",
+      searchOpen: "Open ↩",
+      scannerTitle: "Machine Error Scanner",
+      scannerDesc: "Photograph the error screen and search automatically",
+      scannerBtn: "Scan 📷",
+      qrTitle: "Scan Machine QR",
+      qrDesc: "Quick equipment access via camera",
+      qrBtn: "Scan 📷"
+    },
+
+    system: {
+      title: "System Administration",
+      subtitle: "Manage users, permissions and app settings",
+      usersTitle: "Users",
+      usersDesc: "Manage accounts and permissions",
+      requestsTitle: "Join Requests",
+      requestsDesc: "Review new users",
+      machinesTitle: "Machines",
+      machinesDesc: "Manage equipment and QR codes",
+      settingsTitle: "Settings",
+      settingsDesc: "App settings",
+      noAccess: "You don't have permission to manage the system."
+    },
+
+    kb: {
+      title: "Knowledge Base",
+      subtitle: "Repair guide and solutions for logged machine errors, browsable by most frequent per period.",
+      searchPlaceholder: "🔍 Search by error code, machine, or keyword...",
+      day: "Daily",
+      week: "Weekly",
+      month: "Monthly",
+      all: "All"
+    },
+
+    stats: {
+      title: "Statistics",
+      subtitle: "Breakdown ticket analysis by period",
+      day: "Today",
+      week: "Week",
+      month: "Month",
+      all: "All",
+      loadingStats: "Loading statistics...",
+      topMachines: "Top Faulty Machines",
+      noChartData: "Not enough tickets to show a chart for this period.",
+      priorityDist: "Priority Distribution",
+      lineDist: "Tickets by Line",
+      mttr: "Avg. Repair Time (MTTR)",
+      techPerf: "Technician Performance (Top Performers)"
+    },
+
+    errorScanner: {
+      title: "Machine Error Scanner",
+      subtitle: "Photograph the error shown on the machine screen - it will be read and searched for automatically in the knowledge base.",
+      machineType: "Machine Type",
+      selectMachine: "Select machine type",
+      captureBtn: "Capture Screen",
+      galleryBtn: "From Gallery",
+      readyStatus: "Ready to capture the error screen.",
+      errorCode: "Error Code",
+      errorCodePlaceholder: "Auto-filled after reading the image, editable",
+      errorMessage: "Error Message (text extracted from image)",
+      errorMessagePlaceholder: "The text extracted from the image will appear here automatically",
+      manualSearch: "Or search manually",
+      manualPlaceholder: "Type the error code or text",
+      searchBtn: "Search Knowledge Base"
+    },
+
+    maintenanceSearch: {
+      title: "Advanced Search & Filter",
+      subtitle: "Unified search across breakdown tickets, PM records and Kaizen suggestions, filterable by status, machine, priority and date.",
+      searchPlaceholder: "🔍 Search by machine, description, technician...",
+      typeAll: "All",
+      typeTicket: "🚨 Tickets",
+      typePm: "📝 PM",
+      typeSuggestion: "💡 Kaizen",
+      dateAll: "All periods",
+      dateToday: "📅 Today",
+      dateLast7: "🗓️ Last 7 days",
+      dateMonth: "📆 This month",
+      dateYear: "🗓️ This year",
+      dateCustom: "🎯 Custom range",
+      statusAll: "All statuses",
+      statusPending: "New",
+      statusAssigned: "Assigned",
+      statusInProgress: "In Progress",
+      statusResolved: "Awaiting Reporter Confirmation",
+      statusClosed: "Closed",
+      priorityAll: "All priorities",
+      priorityHigh: "🔴 High",
+      priorityMedium: "🟡 Medium",
+      priorityLow: "🟢 Low",
+      machineAll: "All machines",
+      sortNewest: "🕓 Newest first",
+      sortOldest: "🕘 Oldest first",
+      exportCsv: "📤 CSV",
+      exportPdf: "🖨️ PDF"
+    },
+
+    login: {
+      title: "System Login",
+      phone: "Mobile Number",
+      password: "Password",
+      loginBtn: "Login",
+      registerBtn: "➕ Create New Account",
+      showHidePass: "Show or hide password"
+    },
+
+    register: {
+      title: "Create New Account",
+      fullName: "Full Name",
+      phone: "Mobile Number",
+      shift: "Shift",
+      selectShift: "Select shift",
+      password: "Password",
+      confirmPassword: "Confirm Password",
+      job: "Job Title",
+      selectJob: "Select job title",
+      department: "Department",
+      selectDepartment: "Select department",
+      deptProduction: "Production",
+      deptMechanical: "Mechanical",
+      deptElectrical: "Electrical",
+      code: "Employee Code",
+      submitBtn: "Create Account",
+      backBtn: "Back"
+    },
+
+    offline: {
+      offlineMsg: "⚠️ No internet connection - tickets will be saved locally",
+      syncing: "🔄 Connection restored - syncing...",
+      syncedWithCount: "✅ {n} saved ticket(s) uploaded successfully",
+      restored: "✅ Connection restored"
+    },
+
+    actionModal: {
+      cancel: "Cancel",
+      confirm: "Confirm",
+      processing: "Processing...",
+      imagesLabelSuffix: "(1-3 photos)",
+      imagesRequired: "At least one photo is required",
+      imagesError: "An error occurred while processing the images, try again",
+      fieldRequired: "Required"
+    },
+
+    notifications: {
+      title: "🔔 Notifications",
+      markAll: "Mark all as read",
+      loading: "Loading...",
+      noUser: "Could not identify the current user.",
+      loadError: "Could not load notifications, try again.",
+      empty: "No notifications."
+    },
+
+    ticketDetailsModal: {
+      title: "🔍 Ticket Details",
+      loading: "Loading...",
+      loadError: "Could not load ticket data.",
+      machine: "Machine",
+      status: "Status",
+      reportedBy: "Reported By",
+      assignedTo: "Assigned To",
+      repairImages: "📷 After-Repair Photos",
+      statusLog: "🕒 Status Log",
+      noLog: "No log yet."
+    },
+
+    pageRenderer: {
+      comingSoonTitle: "🚧 Coming Soon",
+      comingSoonMsg: "Not activated yet, will be added soon.",
+      unauthorizedTitle: "⚠️ Unauthorized",
+      unauthorizedMsg: "You don't have permission to access:",
+      usersTitle: "👥 User Management",
+      refreshList: "🔄 Refresh List",
+      loadingData: "Loading data...",
+      ticketsTitle: "📋 Track Tickets",
+      monthlyReportBtn: "🗓️ Monthly Report (PDF)",
+      loadingTickets: "Loading tickets...",
+      kaizenBoardTitle: "💡 Track Kaizen",
+      loadingSuggestions: "Loading suggestions..."
     }
 
   }

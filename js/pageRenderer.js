@@ -8,6 +8,15 @@
 
 import { PageView } from './components/PageView.js';
 import { hasPermission } from './permissions.js';
+import { translations } from './config.js';
+
+// إصلاح (ترجمة شاملة): نصوص "قيد التطوير"/"غير مصرح" وشاشات
+// users/tickets/kaizenBoard المُضمَّنة هنا مباشرة كانت ثابتة بالعربي
+// - دلوقتي بتقرأ من translations.pageRenderer حسب window.currentLang
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).pageRenderer;
+}
 
 import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
@@ -110,7 +119,7 @@ case 'tickets':
   // فتح الصفحة (نفس نمط AUTO LOAD بتاع users/kb/stats).
   return hasPermission("maintenance")  
     ? PageView(  
-        "📋 متابعة البلاغات",  
+        t().ticketsTitle,  
         `  
           <div class="space-y-3">  
 
@@ -130,12 +139,12 @@ case 'tickets':
               id="monthlyReportBtn"
               onclick="window.generateMonthlyReport()"
               class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg py-2.5 font-bold text-white text-xs transition-all">
-              🗓️ تقرير شهري (PDF)
+              ${t().monthlyReportBtn}
             </button>
 
-            <div id="ticketsBoardContainer" class="mt-4 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-3 md:items-start">  
+            <div id="ticketsBoardContainer" class="mt-4">  
               <div class="text-center text-gray-500 text-xs py-8">  
-                جاري تحميل التذاكر...
+                ${t().loadingTickets}
               </div>  
             </div>  
 
@@ -161,7 +170,7 @@ case 'kaizenBoard':
   // بيوجّه هنا مباشرة). التحقق أصبح الآن من "suggestions" فعلاً.
   return hasPermission("suggestions")  
     ? PageView(  
-        "💡 متابعة الكايزن",  
+        t().kaizenBoardTitle,  
         `  
           <div class="space-y-3">  
 
@@ -171,12 +180,12 @@ case 'kaizenBoard':
               id="kaizenReportBtn"
               onclick="window.generateKaizenMonthlyReport()"
               class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg py-2.5 font-bold text-white text-xs transition-all">
-              🗓️ تقرير شهري (PDF)
+              ${t().monthlyReportBtn}
             </button>
 
-            <div id="kaizenBoardContainer" class="mt-4 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-3 md:items-start">  
+            <div id="kaizenBoardContainer" class="mt-4">  
               <div class="text-center text-gray-500 text-xs py-8">  
-                جاري تحميل المقترحات...
+                ${t().loadingSuggestions}
               </div>  
             </div>  
 
@@ -234,7 +243,7 @@ case 'users':
   return hasPermission("users")  
 
     ? PageView(  
-        "👥 إدارة المستخدمين",  
+        t().usersTitle,  
         `  
           <div class="space-y-3">  
 
@@ -251,7 +260,7 @@ case 'users':
                 text-xs  
               "  
             >  
-              🔄 تحديث القائمة  
+              ${t().refreshList}  
             </button>  
 
             <div  
@@ -266,7 +275,7 @@ case 'users':
                   text-xs  
                 "  
               >  
-                جاري تحميل البيانات...  
+                ${t().loadingData}  
               </div>  
 
             </div>  
@@ -319,7 +328,7 @@ function comingSoonPage(page) {
 
 return PageView(
 
-"🚧 قيد التطوير",  
+t().comingSoonTitle,  
 
 `  
   <div  
@@ -336,7 +345,7 @@ return PageView(
     "  
   >  
 
-    هذه الميزة (${page || ""}) لم تُفعّل بعد وسيتم إضافتها قريباً.  
+    ${page ? `(${page}) ` : ""}${t().comingSoonMsg}  
 
   </div>  
 `
@@ -353,7 +362,7 @@ function unauthorizedPage(permission) {
 
 return PageView(
 
-"⚠️ غير مصرح",  
+t().unauthorizedTitle,  
 
 `  
   <div  
@@ -370,7 +379,7 @@ return PageView(
     "  
   >  
 
-    ليس لديك صلاحية للوصول إلى:  
+    ${t().unauthorizedMsg}  
     ${permission}  
 
   </div>  
