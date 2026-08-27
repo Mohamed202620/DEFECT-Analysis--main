@@ -180,7 +180,7 @@ export function renderHeader() {
 
   const profileMeta = isLoggedIn
     ? `
-      <div class="flex items-center gap-1.5 min-w-0 ms-1 ps-2 border-s" style="border-color: rgba(148,163,184,0.16);">
+      <div class="app-header-profile flex items-center gap-1.5 min-w-0 ms-1 ps-2 border-s" style="border-color: rgba(148,163,184,0.16);">
         <div
           class="w-6 h-6 md:w-7 md:h-7 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[10px] text-white"
           style="background: linear-gradient(135deg, #f5a623, #1d4ed8); box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 10px rgba(245,166,35,0.25);"
@@ -206,20 +206,20 @@ export function renderHeader() {
       <div class="max-w-[1400px] mx-auto">
 
         <!-- الصف الأول: الشعار + أدوات التحكم -->
-        <div class="flex items-center justify-between gap-2 px-3 py-1.5">
+      <div class="app-header-inner flex items-center justify-between gap-2 px-3 py-1.5">
 
           <!-- الشعار: مندمج مباشرة في خلفية الهيدر الداكنة، من غير
                أي حواف أو صندوق أبيض حواليه (اللوجو نفسه شفاف الخلفية) -->
-          <div class="flex items-center gap-2 min-w-0">
+          <div class="app-header-brand flex items-center gap-2 min-w-0">
             <img
               src="${LOGO_ICON_PATH}"
               alt="${COMPANY_SHORT}"
-              class="h-7 w-7 md:h-8 md:w-8 object-contain shrink-0"
+              class="app-header-logo h-7 w-7 md:h-8 md:w-8 object-contain shrink-0"
               style="filter: drop-shadow(0 0 6px rgba(245,166,35,0.3));"
               onerror="this.style.display='none'"
             />
-            <div class="min-w-0 leading-tight">
-              <div class="text-[12px] md:text-[14px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
+            <div class="app-header-brand-copy min-w-0 leading-tight">
+              <div class="app-header-brand-name text-[12px] md:text-[14px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
                 MSCANCO <span style="color:#f5a623;">EGYPT</span>
               </div>
               <div class="hidden sm:block text-[7px] md:text-[8px] font-semibold truncate" style="color:#64748b; letter-spacing:0.14em;">
@@ -230,10 +230,10 @@ export function renderHeader() {
           </div>
 
           <!-- أدوات التحكم: اللغة / الثيم / الإشعارات -->
-          <div class="flex items-center gap-1.5 shrink-0">
+      <div class="app-header-controls flex items-center gap-1.5 shrink-0">
 
             <!-- كبسولة تبديل اللغة (EN / AR) -->
-            <div class="flex items-center rounded-full p-0.5 gap-0.5" style="${glassChip}">
+            <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5" style="${glassChip}">
               <button
                 type="button"
                 onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
@@ -254,7 +254,7 @@ export function renderHeader() {
               onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
               aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
               title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -266,7 +266,7 @@ export function renderHeader() {
               onclick="${notifAction}"
               aria-label="${isEn ? "Notifications" : "الإشعارات"}"
               title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="relative w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button relative w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
               onmouseout="this.style.boxShadow='none'"
