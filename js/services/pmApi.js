@@ -13,7 +13,7 @@ import {
   orderBy,
   query,
   where
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 
 // ============================================================

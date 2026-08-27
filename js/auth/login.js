@@ -3,12 +3,8 @@ import { db, auth, DEBUG, phoneToAuthEmail } from '../config.js';
 
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import {
+  createUserWithEmailAndPassword,
+  signOut,
   collection,
   query,
   where,
@@ -16,7 +12,7 @@ import {
   doc,
   getDoc,
   setDoc
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 import { verifyPassword } from '../services/crypto.js';
 

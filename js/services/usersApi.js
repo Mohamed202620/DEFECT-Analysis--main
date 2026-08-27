@@ -15,10 +15,7 @@ import {
 import {
   createUserWithEmailAndPassword,
   signOut,
-  deleteUser
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import {
+  deleteUser,
   collection,
   getDocs,
   addDoc,
@@ -28,7 +25,7 @@ import {
   deleteDoc,
   query,
   where
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 
 // ============================================================

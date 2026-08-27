@@ -180,70 +180,69 @@ export function renderHeader() {
 
   const profileMeta = isLoggedIn
     ? `
-      <div class="app-header-profile flex items-center gap-1.5 min-w-0 ms-1 ps-2 border-s" style="border-color: rgba(148,163,184,0.16);">
+      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800">
         <div
-          class="w-6 h-6 md:w-7 md:h-7 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[10px] text-white"
-          style="background: linear-gradient(135deg, #f5a623, #1d4ed8); box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 10px rgba(245,166,35,0.25);"
+          class="w-7 h-7 sm:w-8 sm:h-8 rounded-full shrink-0 flex items-center justify-center font-black text-[11px] sm:text-xs text-white shadow"
+          style="background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
         >${escapeBrandHtml(initial)}</div>
-        <div class="app-header-profile-copy block min-w-0 max-w-[86px] sm:max-w-[150px] lg:max-w-[220px] leading-tight">
-          <p class="text-[10px] md:text-[11px] font-bold truncate m-0" style="color:#f1f5f9;">
-            ${escapeBrandHtml(welcomeWord)} ${escapeBrandHtml(name)} <span aria-hidden="true">👋</span>
-          </p>
-          <p class="hidden sm:block text-[9px] md:text-[10px] font-medium truncate m-0" style="color:#94a3b8;">
-            ${escapeBrandHtml(job)}
-          </p>
+        <div class="app-header-profile-copy min-w-0 leading-tight">
+          <div class="flex items-center gap-1">
+            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate max-w-[120px] sm:max-w-[200px] md:max-w-[260px]">
+              ${escapeBrandHtml(welcomeWord)} <span class="text-amber-400 font-extrabold">${escapeBrandHtml(name)}</span>
+            </span>
+            <span class="text-xs shrink-0" aria-hidden="true">👋</span>
+          </div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate max-w-[110px] sm:max-w-[180px]">
+              ${escapeBrandHtml(job)}
+            </span>
+          </div>
         </div>
       </div>
     `
-    : "";
+    : `
+      <div class="text-[10px] sm:text-[11px] font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50">
+        ${isEn ? "Maintenance Portal" : "بوابة نظام الصيانة"}
+      </div>
+    `;
 
   return `
     <header
       id="appHeader"
-      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300"
+      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md"
       style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
       <div class="max-w-[1400px] mx-auto">
 
-        <!-- الصف الأول: الشعار + أدوات التحكم -->
-      <div class="app-header-inner flex items-center justify-between gap-2 px-3 py-1.5">
-
-          <!-- الشعار: مندمج مباشرة في خلفية الهيدر الداكنة، من غير
-               أي حواف أو صندوق أبيض حواليه (اللوجو نفسه شفاف الخلفية) -->
-          <div class="app-header-brand flex items-center gap-2 min-w-0">
-            <img
-              src="${LOGO_ICON_PATH}"
-              alt="${COMPANY_SHORT}"
-              class="app-header-logo h-7 w-7 md:h-8 md:w-8 object-contain shrink-0"
-              style="filter: drop-shadow(0 0 6px rgba(245,166,35,0.3));"
-              onerror="this.style.display='none'"
-            />
-            <div class="app-header-brand-copy min-w-0 leading-tight">
-              <div class="app-header-brand-name text-[12px] md:text-[14px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
-                MSCANCO <span style="color:#f5a623;">EGYPT</span>
-              </div>
-              <div class="hidden sm:block text-[7px] md:text-[8px] font-semibold truncate" style="color:#64748b; letter-spacing:0.14em;">
-                MAINTENANCE &amp; DEFECT SYSTEM
-              </div>
-            </div>
-            ${profileMeta}
+        <!-- الشريط العلوي المصغر: زر اللغة + الثيم + الإشعارات + مؤشر النظام -->
+        <div class="app-header-top-bar flex items-center justify-between px-3 sm:px-4 py-1 border-b" style="border-color: rgba(148,163,184,0.08); background: rgba(15,23,42,0.4);">
+          
+          <!-- مؤشر حالة النظام واسم المنظومة -->
+          <div class="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium tracking-wide">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span class="font-bold text-slate-300">${isEn ? "System Operational" : "منظومة الصيانة والجودة"}</span>
+            <span class="hidden sm:inline text-slate-600">|</span>
+            <span class="hidden sm:inline text-slate-400">${isEn ? "MSCANCO EGYPT" : "مصنع علب الكرتون والمرطبات"}</span>
           </div>
 
           <!-- أدوات التحكم: اللغة / الثيم / الإشعارات -->
-      <div class="app-header-controls flex items-center gap-1.5 shrink-0">
-
-            <!-- كبسولة تبديل اللغة (EN / AR) -->
+          <div class="app-header-controls flex items-center gap-1.5 shrink-0">
+            <!-- كبسولة تبديل اللغة (AR / EN) -->
             <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5" style="${glassChip}">
               <button
                 type="button"
                 onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-                class="min-w-[30px] h-7 md:h-8 px-2.5 rounded-full text-[10px] md:text-[11px] font-bold transition-all duration-200 active:scale-90"
+                class="min-w-[28px] h-6 sm:h-6.5 px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
                 style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
               >AR</button>
               <button
                 type="button"
                 onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-                class="min-w-[30px] h-7 md:h-8 px-2.5 rounded-full text-[10px] md:text-[11px] font-bold transition-all duration-200 active:scale-90"
+                class="min-w-[28px] h-6 sm:h-6.5 px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
                 style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
               >EN</button>
             </div>
@@ -254,7 +253,7 @@ export function renderHeader() {
               onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
               aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
               title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="app-header-button w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -266,7 +265,7 @@ export function renderHeader() {
               onclick="${notifAction}"
               aria-label="${isEn ? "Notifications" : "الإشعارات"}"
               title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="app-header-button relative w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button relative w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -274,12 +273,41 @@ export function renderHeader() {
               🔔
               <span
                 id="headerNotifBadge"
-                class="hidden absolute -top-0.5 -end-0.5 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-bold flex items-center justify-center"
+                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center"
                 style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
               >0</span>
             </button>
-
           </div>
+
+        </div>
+
+        <!-- الشريط الرئيسي: إظهار شعار الشركة كاملاً + المستخدم كاملاً -->
+        <div class="app-header-main-bar flex items-center justify-between gap-3 px-3 sm:px-4 py-2">
+
+          <!-- شعار الشركة الكامل -->
+          <div class="app-header-brand flex items-center gap-2.5 min-w-0">
+            <img
+              src="${LOGO_ICON_PATH}"
+              alt="${COMPANY_SHORT}"
+              class="app-header-logo h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 object-contain shrink-0 transition-transform duration-200 hover:scale-105"
+              style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
+              onerror="this.style.display='none'"
+            />
+            <div class="app-header-brand-copy min-w-0 leading-tight">
+              <div class="app-header-brand-name text-[13px] sm:text-[15px] md:text-[16px] font-black tracking-wide truncate" style="color:#f8fafc;">
+                MSCANCO <span style="color:#f5a623;">EGYPT</span>
+              </div>
+              <div class="text-[9px] sm:text-[10px] md:text-[11px] font-medium text-slate-400 truncate">
+                ${isEn ? COMPANY_NAME_EN : COMPANY_NAME_AR}
+              </div>
+            </div>
+          </div>
+
+          <!-- المستخدم كاملاً -->
+          <div class="shrink-0">
+            ${profileMeta}
+          </div>
+
         </div>
 
       </div>

@@ -5,23 +5,14 @@
 import {
   initializeApp,
   getApps,
-  getApp
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-
-import {
+  getApp,
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
-
-import {
-  getStorage
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-storage.js";
-
-import {
+  persistentMultipleTabManager,
+  getStorage,
   getAuth
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+} from "./firebase.js";
 
 
 // ============================================================

@@ -9,7 +9,7 @@ import { db } from "../config.js";
 import {
   collection,
   getDocs
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 
 // ============================================================

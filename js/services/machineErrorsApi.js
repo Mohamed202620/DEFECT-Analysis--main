@@ -18,7 +18,7 @@ import {
   where,
   orderBy,
   limit
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 // ============================================================
 // MACHINE ERROR SCANNER (Machine Error Scanner)

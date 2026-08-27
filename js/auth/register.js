@@ -6,7 +6,7 @@
 // استخدام خدمة API المركزية بدلاً من الاتصال بـ Firestore مباشرة
 import {
   registerUserApi
-} from "../../services/api.js";
+} from "../services/api.js";
 
 
 /**

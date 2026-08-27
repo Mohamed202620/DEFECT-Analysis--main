@@ -3,7 +3,6 @@ import { apiRequest } from "./services/api.js";
 export async function doLogin() {
 
 }
-import { apiRequest } from "./services/api.js";
 
 export async function login(phone, password) {
 
