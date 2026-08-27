@@ -6,14 +6,6 @@
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
-import { computeMTTR } from './statistics.js';
-import {
-  buildPdfBrandHeaderHtml,
-  buildPdfTitleBlockHtml,
-  buildPdfStatsCardsHtml,
-  buildPdfSignatureBlockHtml,
-  getCompanyLogoDataUrl
-} from './branding.js';
 
 import {
   subscribeToTicketsBoardApi,
@@ -27,15 +19,25 @@ import {
   markNotificationReadApi,
   fetchTicketsForReportApi
 } from './services/api.js';
+import { translations } from './config.js';
 
-const STATUS_LABELS = {
-  pending: "جديد",
-  assigned: "تم الإسناد",
-  in_progress: "قيد التنفيذ",
-  resolved: "بانتظار تأكيد المُبلغ",
-  closed: "مغلقة",
-  reopened: "قيد التنفيذ"
-};
+// إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
+// الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
+// دلوقتي بتتقرأ من translations.ticketsBoard حسب window.currentLang
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).ticketsBoard;
+}
+
+function common() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).common;
+}
+
+function notifT() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).notifications;
+}
 
 const STATUS_CLASSES = {
   pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
@@ -49,6 +51,7 @@ const STATUS_CLASSES = {
 function ticketCardHtml(ticket) {
 
   const actions = getTicketActions(ticket);
+  const tr = t();
 
   const actionsHtml = actions.map(a => `
     <button
@@ -66,27 +69,27 @@ function ticketCardHtml(ticket) {
       <div class="flex justify-between items-center">
         <span class="font-bold text-sm text-gray-100">${machineName}</span>
         <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
-          ${STATUS_LABELS[status] || status}
+          ${tr.status[status] || status}
         </span>
       </div>
 
       <p class="text-xs text-gray-400">${ticket.description || ""}</p>
 
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        ${ticket.reportedBy ? `<span>👤 بلّغ: ${ticket.reportedBy}</span>` : ""}
-        ${ticket.assignedTo ? `<span>🛠️ مُسندة إلى: ${ticket.assignedTo}</span>` : ""}
+        ${ticket.reportedBy ? `<span>👤 ${tr.reportedByLabel} ${ticket.reportedBy}</span>` : ""}
+        ${ticket.assignedTo ? `<span>🛠️ ${tr.assignedToLabel} ${ticket.assignedTo}</span>` : ""}
         ${ticket.type ? `<span>🏷️ ${ticket.type}</span>` : ""}
       </div>
 
       ${ticket.mechanicNotes ? `
         <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
-          🔧 ملاحظات الفني: ${ticket.mechanicNotes}
+          🔧 ${tr.mechanicNotesLabel} ${ticket.mechanicNotes}
         </div>
       ` : ""}
 
       ${ticket.operatorFeedback ? `
         <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
-          ⚠️ ملاحظات المُبلّغ: ${ticket.operatorFeedback}
+          ⚠️ ${tr.operatorFeedbackLabel} ${ticket.operatorFeedback}
         </div>
       ` : ""}
 
@@ -129,6 +132,8 @@ function renderBoardPage(containerId, emptyMessage) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
+  const tr = t();
+
   const totalPages = Math.min(
     BOARD_MAX_PAGES,
     Math.max(1, Math.ceil(boardCappedTickets.length / BOARD_PAGE_SIZE))
@@ -141,7 +146,7 @@ function renderBoardPage(containerId, emptyMessage) {
 
   const bannerHtml = `
     <div class="text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 mb-3">
-      ℹ️ يتم عرض آخر ${MAX_BOARD_TICKETS} بلاغ فقط.
+      ${tr.showingLastBanner.replace('{n}', MAX_BOARD_TICKETS)}
     </div>
   `;
 
@@ -156,7 +161,7 @@ function renderBoardPage(containerId, emptyMessage) {
         ${boardCurrentPage <= 1 ? "disabled" : ""}
         class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
           boardCurrentPage <= 1 ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
-        }">السابق</button>
+        }">${tr.prevPage}</button>
       ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p => `
         <button
           onclick="window.setTicketsPage(${p})"
@@ -169,7 +174,7 @@ function renderBoardPage(containerId, emptyMessage) {
         ${boardCurrentPage >= totalPages ? "disabled" : ""}
         class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
           boardCurrentPage >= totalPages ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
-        }">التالي</button>
+        }">${tr.nextPage}</button>
     </div>
   ` : "";
 
@@ -191,7 +196,7 @@ window.setTicketsPage = function (page) {
   if (page < 1 || page > totalPages || page === boardCurrentPage) return;
 
   boardCurrentPage = page;
-  renderBoardPage("ticketsBoardContainer", "لا توجد تذاكر حالياً في قائمتك.");
+  renderBoardPage("ticketsBoardContainer", t().empty);
 
 };
 
@@ -200,20 +205,22 @@ window.setTicketsPage = function (page) {
 // ============================================================
 
 function getTabsForRole(role) {
+  const tr = t();
+
   if (role === 'technician' || role === 'operator' || role === 'engineer') {
     return [
-      { key: "assigned_to_me", label: "🛠️ المُسندة إليّ" },
-      { key: "my_tickets", label: "📌 بلاغاتي" },
-      { key: "awaiting_confirm", label: "🔍 بانتظار تأكيدي" }
+      { key: "assigned_to_me", label: tr.tabAssignedToMe },
+      { key: "my_tickets", label: tr.tabMyTickets },
+      { key: "awaiting_confirm", label: tr.tabAwaitingConfirm }
     ];
   }
   // للأدمن والمدير
   return [
-    { key: "all", label: "الكل" },
-    { key: "pending", label: "📥 جديدة" },
-    { key: "in_progress", label: "⚙️ قيد التنفيذ" },
-    { key: "resolved", label: "🔍 قيد المراجعة" },
-    { key: "closed", label: "✔️ مغلقة" }
+    { key: "all", label: tr.tabAll },
+    { key: "pending", label: tr.tabPending },
+    { key: "in_progress", label: tr.tabInProgress },
+    { key: "resolved", label: tr.tabResolved },
+    { key: "closed", label: tr.tabClosed }
   ];
 }
 
@@ -228,7 +235,7 @@ function renderStatusTabs(role) {
   const tabs = getTabsForRole(role);
 
   // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير موجود في التبويبات المتاحة
-  if (!currentStatusFilter || !tabs.some(t => t.key === currentStatusFilter)) {
+  if (!currentStatusFilter || !tabs.some(tab => tab.key === currentStatusFilter)) {
     currentStatusFilter = tabs[0].key;
   }
 
@@ -269,12 +276,12 @@ window.loadTicketsBoard = function () {
   loadNotificationsBadge();
 
   if (!role) {
-    renderTicketsList("ticketsBoardContainer", [], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
+    renderTicketsList("ticketsBoardContainer", [], t().noPermission);
     return;
   }
 
   container.innerHTML = `
-    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>
+    <div class="text-center text-gray-400 text-xs py-8">${t().loadingTickets}</div>
   `;
 
   unsubscribeTicketsListener = subscribeToTicketsBoardApi(
@@ -285,7 +292,7 @@ window.loadTicketsBoard = function () {
         console.error("Ticket subscription error:", result?.message);
         container.innerHTML = `
           <div class="text-red-400 text-center text-xs py-6">
-            تعذر تحميل التذاكر حالياً. حاول مرة أخرى، ولو استمرت المشكلة تواصل مع الأدمن.
+            ${t().loadError}
           </div>
         `;
         return;
@@ -296,7 +303,7 @@ window.loadTicketsBoard = function () {
       // (الأحدث أولاً) وبعدين نقسمها Pagination محلي 20/صفحة × 3 صفحات
       const tickets = Array.isArray(result.data) ? result.data : [];
       boardCappedTickets = tickets.slice(0, MAX_BOARD_TICKETS);
-      renderBoardPage("ticketsBoardContainer", "لا توجد تذاكر حالياً في قائمتك.");
+      renderBoardPage("ticketsBoardContainer", t().empty);
 
     }
   );
@@ -334,6 +341,7 @@ window.cleanupTicketsBoard = function () {
 window.handleTicketAction = async function (ticketId, action) {
 
   let result;
+  const tr = t();
 
   if (action === "details") {
     openTicketDetailsModal(ticketId);
@@ -346,29 +354,29 @@ window.handleTicketAction = async function (ticketId, action) {
     const technicians = techResult.status === "success" ? techResult.data : [];
 
     if (!technicians.length) {
-      alert("⚠️ لا يوجد فنيون/مهندسون نشطون حالياً لإسناد التذكرة لهم.");
+      alert(tr.noTechnicians);
       return;
     }
 
     const values = await openActionModal({
-      title: "🛠️ تصنيف وإسناد التذكرة",
-      submitLabel: "إسناد",
+      title: tr.assignTitle,
+      submitLabel: tr.assignSubmit,
       fields: [
         {
           id: "type",
-          label: "نوع البلاغ",
+          label: tr.typeLabel,
           type: "select",
           options: [
-            { value: "Breakdown", label: "عطل مفاجئ (Breakdown)" },
-            { value: "PM", label: "صيانة وقائية (PM)" },
-            { value: "Other", label: "أخرى" }
+            { value: "Breakdown", label: tr.typeBreakdown },
+            { value: "PM", label: tr.typePM },
+            { value: "Other", label: tr.typeOther }
           ]
         },
         {
           id: "assignedTo",
-          label: "إسناد إلى",
+          label: tr.assignToLabel,
           type: "select",
-          options: technicians.map(t => ({ value: `${t.id}::${t.name}`, label: `${t.name} (${t.role})` }))
+          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
         }
       ]
     });
@@ -387,11 +395,11 @@ window.handleTicketAction = async function (ticketId, action) {
   } else if (action === "resolve") {
 
     const values = await openActionModal({
-      title: "✅ تسجيل إتمام الإصلاح",
-      submitLabel: "تم الإصلاح",
+      title: tr.resolveTitle,
+      submitLabel: tr.resolveSubmit,
       fields: [
-        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم...", required: true },
-        { id: "afterImages", label: "صور بعد الإصلاح", type: "images", required: true }
+        { id: "mechanicNotes", label: tr.mechanicNotesField, type: "textarea", placeholder: tr.mechanicNotesPlaceholder, required: true },
+        { id: "afterImages", label: tr.afterImagesField, type: "images", required: true }
       ]
     });
 
@@ -406,10 +414,10 @@ window.handleTicketAction = async function (ticketId, action) {
   } else if (action === "reject") {
 
     const values = await openActionModal({
-      title: "❌ رفض الإصلاح",
-      submitLabel: "رفض وإعادة فتح",
+      title: tr.rejectTitle,
+      submitLabel: tr.rejectSubmit,
       fields: [
-        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب...", required: true }
+        { id: "operatorFeedback", label: tr.operatorFeedbackField, type: "textarea", placeholder: tr.operatorFeedbackPlaceholder, required: true }
       ]
     });
 
@@ -429,7 +437,7 @@ window.handleTicketAction = async function (ticketId, action) {
       console.error("Ticket action error:", msg);
     }
 
-    alert("❌ " + (isArabicMessage ? msg : "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى أو تواصل مع الأدمن."));
+    alert("❌ " + (isArabicMessage ? msg : tr.genericActionError));
   }
 
 };
@@ -478,13 +486,13 @@ window.toggleNotificationsPanel = async function () {
   }
 
   panel.classList.remove("hidden");
-  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
+  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${common().loading}</div>`;
 
   const myUid = localStorage.getItem("userId") || "";
   const result = await fetchMyNotificationsApi(myUid);
 
   if (result.status !== "success" || !result.data.length) {
-    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${notifT().empty}</div>`;
     return;
   }
 
@@ -519,8 +527,9 @@ const REPORT_DAYS = 30;
 const REPORT_PAGE_WIDTH_PX = 794; // عرض صفحة A4 تقريباً بدقة 96dpi
 
 function formatReportDate(iso) {
+  const currentLang = window.currentLang || "ar";
   try {
-    return new Date(iso).toLocaleDateString("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Date(iso).toLocaleDateString(currentLang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch (error) {
     return iso || "-";
   }
@@ -576,6 +585,7 @@ async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
 
 function buildReportTicketBlockHtml(ticket, imageDataUrls) {
 
+  const tr = t();
   const status = String(ticket.status || "").trim().toLowerCase();
   const machineName = ticket.machine || ticket.machineName || "-";
 
@@ -592,63 +602,28 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — #${escapeReportHtml(ticket.issueId || ticket.id)}</span>
         <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
-          ${escapeReportHtml(STATUS_LABELS[status] || ticket.status || "-")}
+          ${escapeReportHtml(tr.status[status] || ticket.status || "-")}
         </span>
       </div>
       <div style="font-size:11px; color:#475569; margin-bottom:6px;">
         📅 ${formatReportDate(ticket.createdAt)} &nbsp;|&nbsp;
-        👤 بلّغ: ${escapeReportHtml(ticket.reportedBy || "-")} &nbsp;|&nbsp;
-        🛠️ مُسندة إلى: ${escapeReportHtml(ticket.assignedTo || "-")}
+        👤 ${tr.reportedByLabel} ${escapeReportHtml(ticket.reportedBy || "-")} &nbsp;|&nbsp;
+        🛠️ ${tr.assignedToLabel} ${escapeReportHtml(ticket.assignedTo || "-")}
       </div>
-      ${ticket.description ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;"><b>وصف البلاغ:</b> ${escapeReportHtml(ticket.description)}</div>` : ""}
-      ${ticket.mechanicNotes ? `<div style="font-size:11px; color:#065f46; margin-bottom:6px;"><b>ملاحظات الفني:</b> ${escapeReportHtml(ticket.mechanicNotes)}</div>` : ""}
+      ${ticket.description ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;"><b>${tr.reportDescLabel}</b> ${escapeReportHtml(ticket.description)}</div>` : ""}
+      ${ticket.mechanicNotes ? `<div style="font-size:11px; color:#065f46; margin-bottom:6px;"><b>${tr.reportMechanicNotesLabel}</b> ${escapeReportHtml(ticket.mechanicNotes)}</div>` : ""}
       ${imagesHtml}
     </div>
   `;
 
 }
 
-function buildReportSummaryTableHtml(tickets) {
-  const rows = tickets.map(ticket => {
-    const status = String(ticket.status || "").trim().toLowerCase();
-    const isClosed = status === "closed";
-    const rowBg = isClosed ? "#ecfdf5" : "#fffbeb";
-    const statusColor = isClosed ? "#047857" : "#b45309";
-    const machineName = ticket.machine || ticket.machineName || "-";
-
-    return `
-      <tr style="background:${rowBg};">
-        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold;">#${escapeReportHtml(ticket.issueId || ticket.id)}</td>
-        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(machineName)}</td>
-        <td style="border:1px solid #e2e8f0; padding:6px 8px; font-weight:bold; color:${statusColor};">${escapeReportHtml(STATUS_LABELS[status] || ticket.status || "-")}</td>
-        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(ticket.reportedBy || "-")}</td>
-        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${escapeReportHtml(ticket.assignedTo || "-")}</td>
-        <td style="border:1px solid #e2e8f0; padding:6px 8px;">${formatReportDate(ticket.createdAt)}</td>
-      </tr>
-    `;
-  }).join("");
-
-  return `
-    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:18px;" dir="rtl">
-      <thead>
-        <tr style="background:#1d4ed8; color:#ffffff;">
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">رقم البلاغ</th>
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">الماكينة</th>
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">الحالة</th>
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">بلّغ</th>
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">مُسندة إلى</th>
-          <th style="border:1px solid #1d4ed8; padding:7px 8px;">التاريخ</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
-}
-
 window.generateMonthlyReport = async function () {
 
+  const tr = t();
+
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
-    alert("❌ مكتبات إنشاء التقرير غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
+    alert(tr.libsNotLoaded);
     return;
   }
 
@@ -656,7 +631,7 @@ window.generateMonthlyReport = async function () {
   const originalLabel = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = "⏳ جاري تجهيز التقرير...";
+    btn.innerHTML = tr.preparingReport;
   }
 
   let offscreen = null;
@@ -678,24 +653,21 @@ window.generateMonthlyReport = async function () {
     });
 
     if (result.status !== "success") {
-      alert("❌ تعذر تجهيز بيانات التقرير، حاول مرة أخرى.");
+      alert(tr.reportDataError);
       return;
     }
 
     const tickets = result.data;
 
     if (!tickets.length) {
-      alert("ℹ️ لا توجد بلاغات خلال آخر 30 يوم لعرضها في التقرير.");
+      alert(tr.noTicketsForReport);
       return;
     }
 
     // 2) تحميل وضغط صور كل تذكرة (صورة البلاغ + صور ما بعد الإصلاح)
     const ticketsWithImages = [];
     for (const ticket of tickets) {
-      const urls = [
-        ...(Array.isArray(ticket.imageUrls) ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : [])),
-        ...(Array.isArray(ticket.afterImages) ? ticket.afterImages : [])
-      ]
+      const urls = [ticket.imageUrl, ...(Array.isArray(ticket.afterImages) ? ticket.afterImages : [])]
         .filter(Boolean)
         .slice(0, 4);
 
@@ -707,12 +679,10 @@ window.generateMonthlyReport = async function () {
       ticketsWithImages.push({ ticket, images: dataUrls });
     }
 
-    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
-    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
-    const logoDataUrl = await getCompanyLogoDataUrl();
-
     // 3) بناء محتوى التقرير كـ HTML خارج الشاشة (بالخط والاتجاه
     // العربي الطبيعي للمتصفح) عشان يترسم بشكل صحيح عند تحويله لصورة
+    const currentLang = window.currentLang || "ar";
+
     offscreen = document.createElement("div");
     offscreen.style.position = "fixed";
     offscreen.style.top = "-99999px";
@@ -722,32 +692,19 @@ window.generateMonthlyReport = async function () {
     offscreen.style.background = "#ffffff";
     offscreen.style.color = "#0f172a";
     offscreen.style.fontFamily = "Tahoma, Arial, sans-serif";
-    offscreen.dir = "rtl";
+    offscreen.dir = currentLang === "ar" ? "rtl" : "ltr";
 
-    const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج" }[role] || "فني/مهندس";
-
-    const openCount = tickets.filter(t => String(t.status || "").trim().toLowerCase() !== "closed").length;
-    const closedCount = tickets.length - openCount;
-    const mttr = computeMTTR(tickets);
-    const mttrLabel = mttr.avgHours != null ? `${mttr.avgHours.toFixed(1)} ساعة` : "-";
+    const roleLabel = { admin: tr.roleAdmin, manager: tr.roleManager }[role] || tr.roleOther;
 
     offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml(logoDataUrl)}
-      ${buildPdfTitleBlockHtml("تقرير الصيانة الدورية وتتبع البلاغات", [
-        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
-        { label: "الفني/المشرف", value: myName || "-" },
-        { label: "الصلاحية", value: roleLabel },
-        { label: "الفترة", value: `آخر ${REPORT_DAYS} يوم` }
-      ])}
-      ${buildPdfStatsCardsHtml([
-        { label: "إجمالي البلاغات", value: tickets.length, color: "#7e22ce", bg: "#faf5ff" },
-        { label: "مفتوحة", value: openCount, color: "#b45309", bg: "#fffbeb" },
-        { label: "تم إصلاحها", value: closedCount, color: "#047857", bg: "#ecfdf5" },
-        { label: "متوسط زمن الإصلاح (MTTR)", value: mttrLabel, color: "#0e7490", bg: "#ecfeff" }
-      ])}
-      ${buildReportSummaryTableHtml(tickets)}
+      <div style="text-align:center; margin-bottom:18px; border-bottom:2px solid #1d4ed8; padding-bottom:12px;">
+        <div style="font-size:18px; font-weight:bold; color:#1d4ed8;">${tr.reportTitle}</div>
+        <div style="font-size:11px; color:#475569; margin-top:6px;">
+          ${tr.reportPeriodLabel.replace('{n}', REPORT_DAYS)} &nbsp;|&nbsp; ${tr.reportDateLabel} ${formatReportDate(new Date().toISOString())} &nbsp;|&nbsp;
+          ${tr.reportRoleLabel} ${escapeReportHtml(roleLabel)} &nbsp;|&nbsp; ${tr.reportTotalLabel} ${tickets.length}
+        </div>
+      </div>
       <div id="reportTicketsContainer"></div>
-      ${buildPdfSignatureBlockHtml()}
     `;
 
     offscreen.querySelector("#reportTicketsContainer").innerHTML =
@@ -783,11 +740,11 @@ window.generateMonthlyReport = async function () {
       heightLeft -= pdfHeight;
     }
 
-    pdf.save(`تقرير-شهري-${new Date().toISOString().slice(0, 10)}.pdf`);
+    pdf.save(`${tr.reportFileName}-${new Date().toISOString().slice(0, 10)}.pdf`);
 
   } catch (error) {
     console.error("Error generating monthly report:", error);
-    alert("❌ حدث خطأ أثناء إنشاء التقرير، حاول مرة أخرى.");
+    alert(tr.reportGenerateError);
   } finally {
     if (offscreen && offscreen.parentNode) offscreen.parentNode.removeChild(offscreen);
     if (btn) {
