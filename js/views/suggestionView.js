@@ -1,7 +1,17 @@
 import { buildMachineDropdownHtml } from '../machines.js';
+import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles } from '../components/attachmentPicker.js';
 
 export const SuggestionView = () => {
   const isEn = window.currentLang === 'en';
+
+  // تفعيل مكوّن المرفقات المتعددة بعد إدراج الـ HTML فعلياً في
+  // الصفحة (يُستدعى من renderCore.js AUTO LOAD الخاص بصفحة الكايزن)
+  window.initSuggestionAttachments = function () {
+    initAttachmentPicker("suggestionImages", {
+      maxFileSizeMB: 10,
+      emptyText: isEn ? "No photos attached" : "لا توجد صور مرفقة"
+    });
+  };
 
   // معالجة عملية الإرسال - حفظ فعلي في Firestore (مجموعة suggestions)
   window.handleKaizenSubmit = async (event) => {
@@ -37,20 +47,10 @@ export const SuggestionView = () => {
       return;
     }
 
-    // الصورة المرفقة (إن وُجدت) - كانت تُقرأ من DOM ولا تُرسل إطلاقاً
-    const fileInput = document.getElementById("suggestionFile");
-    const file = fileInput?.files?.[0];
-
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        alert(isEn ? '⚠️ Only image files are supported.' : '⚠️ الملف المختار ليس صورة، الصور فقط مدعومة حالياً.');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        alert(isEn ? '❌ Image is too large (max 10MB)' : '❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)');
-        return;
-      }
-    }
+    // الصور المرفقة (إن وُجدت) - مجموعة كاملة (واحدة أو أكثر) بدل
+    // صورة واحدة فقط زي السابق؛ الملفات نفسها اتضغطت وتحققنا من
+    // نوعها وحجمها بالفعل داخل attachmentPicker.js وقت اختيارها
+    const attachedImages = getAttachmentFiles("suggestionImages");
 
     const submitBtn = event.target?.querySelector('button[type="submit"]');
     const originalText = submitBtn ? submitBtn.innerHTML : '';
@@ -61,9 +61,8 @@ export const SuggestionView = () => {
     }
 
     try {
-      if (file) {
-        const { compressImage } = await import('../workflow.js');
-        data.image = await compressImage(file, 900, 0.75);
+      if (attachedImages.length) {
+        data.images = attachedImages;
       }
 
       const { saveSuggestionApi } = await import('../services/api.js');
@@ -79,6 +78,7 @@ export const SuggestionView = () => {
         return;
       }
 
+      resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
       alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
       window.navigateTo('home'); // أو يمكن توجيهه إلى maintenance
     } catch (err) {
@@ -186,9 +186,13 @@ export const SuggestionView = () => {
       <!-- مرفقات وصور -->
       <div>
         <label class="block text-xs font-bold text-gray-300 mb-1">
-          ${isEn ? 'Attach Photo (Optional)' : 'إرفاق صورة (قبل / بعد)'}
+          ${isEn ? 'Attach Photos (Optional)' : 'إرفاق صور (قبل / بعد)'}
         </label>
-        <input type="file" id="suggestionFile" accept="image/*" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-amber-400 hover:file:bg-gray-700 cursor-pointer transition-colors">
+        ${buildAttachmentPickerHtml("suggestionImages", {
+          cameraLabel: isEn ? "📷 Take Photo" : "📷 التقاط صورة",
+          galleryLabel: isEn ? "🖼️ From Gallery" : "🖼️ من المعرض",
+          emptyText: isEn ? "No photos attached" : "لا توجد صور مرفقة"
+        })}
       </div>
 
       <!-- إرسال مجهول -->

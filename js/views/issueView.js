@@ -1,5 +1,6 @@
 import { translations } from '../config.js';
 import { buildMachineDropdownHtml } from '../machines.js';
+import { buildAttachmentPickerHtml } from '../components/attachmentPicker.js';
 
 export const IssueView = () => {
   const currentLang = window.currentLang || 'ar';
@@ -122,33 +123,12 @@ export const IssueView = () => {
           class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm resize-none shadow-sm"></textarea>
       </div>
 
-      <!-- الصورة -->
+      <!-- الصور -->
       <div>
         <label class="block mb-2 text-xs font-bold text-gray-300">
-          ${t.attachPhoto || "صورة توضيحية (اختياري)"}
+          ${t.attachPhoto || "صور توضيحية (اختياري)"}
         </label>
-
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <input id="cameraImage" type="file" accept="image/*" capture="environment" class="hidden">
-          <button type="button"
-            onclick="document.getElementById('cameraImage').click()"
-            class="bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-xl p-3 text-blue-400 font-bold transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2">
-            <span>📷</span> التقاط صورة
-          </button>
-
-          <input id="galleryImage" type="file" accept="image/*" class="hidden">
-          <button type="button"
-            onclick="document.getElementById('galleryImage').click()"
-            class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-300 font-bold transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2">
-            <span>🖼️</span> من المعرض
-          </button>
-        </div>
-
-        <div id="imageName" class="text-center text-[11px] text-gray-500 py-2">
-          لا توجد صورة مرفقة
-        </div>
-
-        <img id="previewImage" class="hidden rounded-xl border border-gray-700 w-full mt-3 max-h-48 object-contain bg-[#0F172A] p-1 shadow-sm"/>
+        ${buildAttachmentPickerHtml("issueImages", { emptyText: "لا توجد صور مرفقة" })}
       </div>
 
       <!-- حفظ -->
