@@ -5,16 +5,7 @@
 // في باقي مكوّنات الواجهة (Tailwind + خلفية #1E293B).
 // ============================================================
 
-import { compressImage } from "../workflow.js";
-import { translations } from "../config.js";
-
-// إصلاح (ترجمة شاملة): نصوص النافذة (إلغاء/تأكيد/رسائل الخطأ) كانت
-// ثابتة بالعربي - دلوقتي بتقرأ من translations.actionModal حسب
-// window.currentLang وقت فتح كل نافذة
-function t() {
-  const currentLang = window.currentLang || "ar";
-  return (translations[currentLang] || translations.ar).actionModal;
-}
+import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles } from "./attachmentPicker.js";
 
 /**
  * يفتح نافذة صغيرة فوق الصفحة الحالية.
@@ -39,14 +30,9 @@ function escapeModalAttr(str) {
     .replace(/>/g, "&gt;");
 }
 
-export function openActionModal({ title, fields = [], submitLabel }) {
+export function openActionModal({ title, fields = [], submitLabel = "تأكيد" }) {
 
   return new Promise(resolve => {
-
-    // القيمة الافتراضية بتتحدد وقت الاستدعاء (مش في الـ default
-    // parameter) عشان تعكس اللغة الحالية فعلياً بدل ما تتجمّد على
-    // العربي وقت تحميل الموديول
-    submitLabel = submitLabel || t().confirm;
 
     const overlay = document.createElement("div");
     overlay.className =
@@ -82,12 +68,24 @@ export function openActionModal({ title, fields = [], submitLabel }) {
       }
 
       if (field.type === "images") {
+        // معرّف مجموعة فريد لكل فتحة نافذة (حتى لو نفس field.id
+        // اتكرر في نافذة تانية لاحقاً) - يمنع أي تداخل في الحالة
+        // بين نافذتين، ويضمن بداية نظيفة (بدون صور قديمة) كل مرة
+        const groupId = `actionModal_${field.id}_${Date.now()}`;
+        field._attachmentGroupId = groupId;
+
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label} ${t().imagesLabelSuffix}</label>
-            <input id="modal_${field.id}" type="file" accept="image/*" multiple capture="environment"
-              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2 text-[11px] text-gray-300 file:mr-2 file:bg-blue-600 file:text-white file:border-0 file:rounded-md file:px-2 file:py-1 file:text-[11px]" />
-            <div id="modal_${field.id}_preview" class="flex gap-2 mt-2"></div>
+            <label class="block text-[11px] text-gray-400 mb-1">${field.label} (حتى 3 صور)</label>
+            ${buildAttachmentPickerHtml(groupId, {
+              cameraLabel: "📷 التقاط",
+              galleryLabel: "🖼️ المعرض",
+              emptyText: "لا توجد صور مرفقة",
+              buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-2",
+              cameraButtonClass: "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2 text-blue-400 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
+              galleryButtonClass: "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2 text-gray-300 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
+              gridClass: "grid grid-cols-4 gap-1.5 mb-1"
+            })}
           </div>
         `;
       }
@@ -111,7 +109,7 @@ export function openActionModal({ title, fields = [], submitLabel }) {
         <div class="flex gap-2 mt-2">
           <button id="modal_cancel_btn"
             class="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2.5 rounded-lg">
-            ${t().cancel}
+            إلغاء
           </button>
           <button id="modal_submit_btn"
             class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg">
@@ -127,15 +125,15 @@ export function openActionModal({ title, fields = [], submitLabel }) {
       overlay.remove();
     };
 
-    // معاينة مصغّرة للصور المختارة (بحد أقصى 3، الباقي بيتجاهل)
+    // تفعيل مكوّن اختيار الصور المتعددة لكل حقل "images" - اختيار
+    // أكثر من صورة دفعة واحدة، إضافة صور لاحقًا بدون فقدان القديمة،
+    // ومعاينة + حذف مستقل لكل صورة (بدل معاينة نصية بأسماء الملفات
+    // فقط بدون إمكانية حذف كانت موجودة سابقاً)
     fields.filter(f => f.type === "images").forEach(field => {
-      const input = overlay.querySelector(`#modal_${field.id}`);
-      const preview = overlay.querySelector(`#modal_${field.id}_preview`);
-      input.addEventListener("change", () => {
-        const files = Array.from(input.files || []).slice(0, 3);
-        preview.innerHTML = files
-          .map(f => `<span class="text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-1">📷 ${f.name}</span>`)
-          .join("");
+      initAttachmentPicker(field._attachmentGroupId, {
+        maxFiles: 3,
+        maxFileSizeMB: 10,
+        emptyText: "لا توجد صور مرفقة"
       });
     });
 
@@ -154,7 +152,7 @@ export function openActionModal({ title, fields = [], submitLabel }) {
 
       const submitBtn = overlay.querySelector("#modal_submit_btn");
       submitBtn.disabled = true;
-      submitBtn.textContent = t().processing;
+      submitBtn.textContent = "جاري المعالجة...";
 
       const values = {};
 
@@ -164,32 +162,23 @@ export function openActionModal({ title, fields = [], submitLabel }) {
 
         if (field.type === "images") {
 
-          const files = Array.from(el?.files || []).slice(0, 3);
+          const dataUrls = getAttachmentFiles(field._attachmentGroupId);
 
-          if (field.required && !files.length) {
-            showError(`${field.label}: ${t().imagesRequired}`);
+          if (field.required && !dataUrls.length) {
+            showError(`${field.label}: لازم صورة واحدة على الأقل`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
           }
 
-          try {
-            values[field.id] = await Promise.all(
-              files.map(f => compressImage(f, 900, 0.75))
-            );
-          } catch (e) {
-            showError(t().imagesError);
-            submitBtn.disabled = false;
-            submitBtn.textContent = submitLabel;
-            return;
-          }
+          values[field.id] = dataUrls;
 
         } else {
 
           const value = el ? el.value.trim() : "";
 
           if (field.required && !value) {
-            showError(`${field.label}: ${t().fieldRequired}`);
+            showError(`${field.label}: مطلوب`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
