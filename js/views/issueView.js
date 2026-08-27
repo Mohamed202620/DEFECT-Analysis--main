@@ -1,5 +1,5 @@
 import { translations } from '../config.js';
-import { buildMachineOptionsHtml } from '../machines.js';
+import { buildMachineDropdownHtml } from '../machines.js';
 
 export const IssueView = () => {
   const currentLang = window.currentLang || 'ar';
@@ -39,13 +39,10 @@ export const IssueView = () => {
 
       <!-- الماكينة -->
       <div>
-        <label for="issueMachine" class="block mb-2 text-xs font-bold text-gray-300">
+        <label for="issueMachineType" class="block mb-2 text-xs font-bold text-gray-300">
           ${t.machine || "الماكينة"}
         </label>
-        <select id="issueMachine"
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm">
-          ${buildMachineOptionsHtml({ includePlaceholder: true, placeholderLabel: t.selectMachine || "اختر الماكينة" })}
-        </select>
+        ${buildMachineDropdownHtml("issueMachine", { placeholderLabel: t.selectMachine || "اختر الماكينة" })}
       </div>
 
       <!-- درجة الأولوية -->

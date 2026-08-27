@@ -7,7 +7,7 @@
 // js/maintenanceSearch.js - نفس أسلوب knowledgeBase.js / KnowledgeBaseView.js
 // ============================================================
 
-import { buildMachineOptionsHtml } from '../machines.js';
+import { buildMachineDropdownHtml } from '../machines.js';
 
 export const MaintenanceSearchView = () => `
 <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
@@ -95,12 +95,15 @@ export const MaintenanceSearchView = () => `
         <option value="Low">🟢 منخفضة</option>
       </select>
 
-      <select id="mMachineFilter" onchange="window.applyMaintenanceSearchFilters()"
-        class="col-span-2 w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition">
-        ${buildMachineOptionsHtml({ includeAll: true, allLabel: "كل الماكينات" })}
-        <option value="machine2">Machine 2</option>
-        <option value="line1">Coating Line 1</option>
-      </select>
+      ${buildMachineDropdownHtml("mMachineFilter", {
+        includeAll: true,
+        allLabel: "كل الماكينات",
+        includePlaceholder: false,
+        extraTypeOptionsHtml: `<option value="machine2">Machine 2</option><option value="line1">Coating Line 1</option>`,
+        hiddenOnChange: "window.applyMaintenanceSearchFilters()",
+        typeSelectClass: "col-span-2 w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition",
+        unitSelectClass: "col-span-2 w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition mt-2"
+      })}
 
       <select id="mSortFilter" onchange="window.applyMaintenanceSearchFilters()"
         class="col-span-2 w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition">

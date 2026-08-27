@@ -1,15 +1,17 @@
-import { MACHINE_OPTIONS } from '../errorScanner.js';
+import { buildMachineDropdownHtml } from '../machines.js';
 
 export const ErrorScannerView = () => {
   const selectedMachineType = localStorage.getItem('selectedMachineType') || '';
   window.selectedMachineType = selectedMachineType;
 
-  const machineOptionsHtml = [
-    `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>اختر نوع الماكينة</option>`,
-    ...MACHINE_OPTIONS.map((machine) =>
-      `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
-    )
-  ].join('');
+  const machineDropdownHtml = buildMachineDropdownHtml("machineTypeSelect", {
+    selectedValue: selectedMachineType,
+    includePlaceholder: true,
+    placeholderLabel: 'اختر نوع الماكينة',
+    typeSelectClass: "w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm appearance-none",
+    unitSelectClass: "w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm appearance-none mt-2",
+    hiddenOnChange: "localStorage.setItem('selectedMachineType', this.value); window.selectedMachineType = this.value;"
+  });
 
   return `
 <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
@@ -35,15 +37,11 @@ export const ErrorScannerView = () => {
 
     <!-- اختيار نوع الماكينة: يتم حفظه محلياً للاستخدام لاحقاً -->
     <div>
-      <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
+      <label for="machineTypeSelectType" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
         <span class="text-[10px] text-gray-400">🔒</span>
         <span>نوع الماكينة</span>
       </label>
-      <select id="machineTypeSelect"
-        onchange="const value = this.value; localStorage.setItem('selectedMachineType', value); window.selectedMachineType = value;"
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-sm appearance-none">
-        ${machineOptionsHtml}
-      </select>
+      ${machineDropdownHtml}
     </div>
 
     <!-- التقاط الصورة -->

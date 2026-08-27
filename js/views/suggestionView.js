@@ -1,4 +1,4 @@
-import { buildMachineOptionsHtml } from '../machines.js';
+import { buildMachineDropdownHtml } from '../machines.js';
 
 export const SuggestionView = () => {
   const isEn = window.currentLang === 'en';
@@ -27,6 +27,15 @@ export const SuggestionView = () => {
       anonymous: document.getElementById("anonymousSuggestion").checked,
       date: new Date().toISOString()
     };
+
+    // تأكيد إضافي إن قيمة الماكينة اكتملت فعلاً (نوع + رقم الوحدة لو
+    // كانت الماكينة المختارة من النوع اللي له وحدات مرقّمة زي
+    // Bodymaker/Decorator/Spray/STRAP) - الاعتماد على required في
+    // الـ HTML وحده مش موثوق 100% مع الحقل المخفي في كل المتصفحات
+    if (!data.machine) {
+      alert(isEn ? '⚠️ Please select the machine (and unit number if applicable).' : '⚠️ يرجى اختيار الماكينة (ورقم الوحدة إن وُجد).');
+      return;
+    }
 
     // الصورة المرفقة (إن وُجدت) - كانت تُقرأ من DOM ولا تُرسل إطلاقاً
     const fileInput = document.getElementById("suggestionFile");
@@ -126,9 +135,12 @@ export const SuggestionView = () => {
           <label class="block text-xs font-bold text-gray-300 mb-1">
             ${isEn ? 'Machine' : 'الماكينة'} <span class="text-red-500">*</span>
           </label>
-          <select id="suggestionMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
-            ${buildMachineOptionsHtml({ includePlaceholder: true, placeholderLabel: isEn ? 'Select...' : 'اختر...' })}
-          </select>
+          ${buildMachineDropdownHtml("suggestionMachine", {
+            placeholderLabel: isEn ? 'Select...' : 'اختر...',
+            unitPlaceholderLabel: isEn ? 'Select unit...' : 'اختر الرقم...',
+            typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors",
+            unitSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors mt-2"
+          })}
         </div>
       </div>
 
