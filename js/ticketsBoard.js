@@ -692,7 +692,10 @@ window.generateMonthlyReport = async function () {
     // 2) تحميل وضغط صور كل تذكرة (صورة البلاغ + صور ما بعد الإصلاح)
     const ticketsWithImages = [];
     for (const ticket of tickets) {
-      const urls = [ticket.imageUrl, ...(Array.isArray(ticket.afterImages) ? ticket.afterImages : [])]
+      const urls = [
+        ...(Array.isArray(ticket.imageUrls) ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : [])),
+        ...(Array.isArray(ticket.afterImages) ? ticket.afterImages : [])
+      ]
         .filter(Boolean)
         .slice(0, 4);
 

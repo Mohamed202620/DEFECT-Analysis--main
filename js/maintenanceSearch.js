@@ -340,6 +340,9 @@ async function openSuggestionDetailsModal(suggestion) {
   const logs = logsResult.status === "success" ? logsResult.data : [];
   const status = String(suggestion.status || "new").toLowerCase();
   const implementationImages = Array.isArray(suggestion.implementationImages) ? suggestion.implementationImages : [];
+  const suggestionImages = Array.isArray(suggestion.imageUrls) && suggestion.imageUrls.length
+    ? suggestion.imageUrls
+    : (suggestion.imageUrl ? [suggestion.imageUrl] : []);
 
   const body = overlay.querySelector("#mSuggDetails_body");
 
@@ -376,13 +379,17 @@ async function openSuggestionDetailsModal(suggestion) {
         ${suggestion.revisionNotes && status === "revision_requested" ? `<div class="text-xs text-orange-400 pt-1 border-t border-gray-800 mt-1"><b>ملاحظات التعديل:</b> ${escapeHtml(suggestion.revisionNotes)}</div>` : ""}
       </div>
 
-      <!-- صورة المقترح -->
-      ${suggestion.imageUrl ? `
+      <!-- صور المقترح -->
+      ${suggestionImages.length ? `
         <div>
-          <div class="text-[11px] font-bold text-gray-300 mb-2">📷 صورة المقترح</div>
-          <a href="${suggestion.imageUrl}" target="_blank" rel="noopener">
-            <img src="${suggestion.imageUrl}" class="w-full max-h-40 object-cover rounded-lg border border-gray-800" />
-          </a>
+          <div class="text-[11px] font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
+          <div class="grid grid-cols-3 gap-2">
+            ${suggestionImages.map(url => `
+              <a href="${url}" target="_blank" rel="noopener">
+                <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+              </a>
+            `).join("")}
+          </div>
         </div>
       ` : ""}
 
@@ -538,10 +545,12 @@ window.retryMaintenanceSearchLoad = function () {
 function collectRecordMediaUrls(record) {
   const urls = [];
   if (record._kind === 'ticket') {
-    if (record.imageUrl) urls.push(record.imageUrl);
+    if (Array.isArray(record.imageUrls)) urls.push(...record.imageUrls);
+    else if (record.imageUrl) urls.push(record.imageUrl);
     if (Array.isArray(record.afterImages)) urls.push(...record.afterImages);
   } else if (record._kind === 'suggestion') {
-    if (record.imageUrl) urls.push(record.imageUrl);
+    if (Array.isArray(record.imageUrls)) urls.push(...record.imageUrls);
+    else if (record.imageUrl) urls.push(record.imageUrl);
     if (Array.isArray(record.implementationImages)) urls.push(...record.implementationImages);
   }
   return urls.filter(Boolean);

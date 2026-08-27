@@ -54,6 +54,14 @@ const KAIZEN_STATUS_CLASSES = {
   implemented: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
 };
 
+// دعم الاسم الجديد (imageUrls - عدة صور) مع التوافق مع الاسم القديم
+// (imageUrl - صورة مفردة) للمقترحات المُنشأة قبل دعم الصور المتعددة
+function getSuggestionImages(suggestion) {
+  return Array.isArray(suggestion.imageUrls) && suggestion.imageUrls.length
+    ? suggestion.imageUrls
+    : (suggestion.imageUrl ? [suggestion.imageUrl] : []);
+}
+
 const KAIZEN_TABS = [
   { key: "all", label: "الكل" },
   { key: "new", label: "🆕 جديد" },
@@ -110,8 +118,13 @@ function suggestionCardHtml(suggestion) {
     ` : ""}
   `;
 
-  const imageHtml = suggestion.imageUrl ? `
-    <img src="${suggestion.imageUrl}" class="w-full max-h-40 object-cover rounded-lg border border-gray-800 mt-2" />
+  const suggestionImages = getSuggestionImages(suggestion);
+  const imageHtml = suggestionImages.length ? `
+    <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"} mt-2">
+      ${suggestionImages.map(url => `
+        <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
+      `).join("")}
+    </div>
   ` : "";
 
   // زر "التفاصيل" - يفتح Modal للعرض فقط (بدون أي تعديل على الحالة
@@ -530,12 +543,19 @@ function buildKaizenDetailsModalHtml(suggestion) {
   const status = suggestion.status || "new";
   const displayName = suggestion.anonymous ? "🕶️ مقترح مجهول" : (suggestion.name || "-");
 
-  const imageHtml = suggestion.imageUrl ? `
+  const suggestionImages = getSuggestionImages(suggestion);
+  const imageHtml = suggestionImages.length ? `
     <div class="pt-1">
       <div class="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5">
-        <span>🖼️</span> الصورة المرفقة
+        <span>🖼️</span> ${suggestionImages.length > 1 ? "الصور المرفقة" : "الصورة المرفقة"}
       </div>
-      <img src="${suggestion.imageUrl}" class="w-full max-h-64 object-cover rounded-xl border border-gray-800" />
+      <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"}">
+        ${suggestionImages.map(url => `
+          <a href="${url}" target="_blank" rel="noopener">
+            <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
+          </a>
+        `).join("")}
+      </div>
     </div>
   ` : "";
 
@@ -893,11 +913,14 @@ window.generateKaizenMonthlyReport = async function () {
       return;
     }
 
-    // تحميل وضغط صورة كل مقترح (إن وُجدت)
+    // تحميل وضغط صورة كل مقترح (إن وُجدت) - أول صورة فقط للتقرير
+    // المختصر (نفس التصميم القديم)، سواء كانت من الحقل الجديد
+    // (imageUrls) أو القديم (imageUrl)
     const itemsWithImages = [];
     for (const suggestion of suggestions) {
-      const dataUrl = suggestion.imageUrl
-        ? await loadKaizenImageAsCompressedDataUrl(suggestion.imageUrl)
+      const firstImage = getSuggestionImages(suggestion)[0] || null;
+      const dataUrl = firstImage
+        ? await loadKaizenImageAsCompressedDataUrl(firstImage)
         : null;
       itemsWithImages.push({ suggestion, dataUrl });
     }
