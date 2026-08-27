@@ -79,3 +79,25 @@ export async function uploadBase64Image(base64, name = "image") {
 
 }
 
+
+/**
+ * رفع مجموعة صور Base64 (Data URLs) دفعة واحدة إلى ImgBB، وإرجاع
+ * مصفوفة الروابط النهائية (أي صورة فشلت أو لم تكن صالحة أصلاً بيتم
+ * تجاهلها تلقائياً من المصفوفة النهائية) - نفس منطق uploadBase64Image
+ * لكن لمجموعة صور دفعة واحدة، لدعم إرفاق أكثر من صورة/ملف في نفس
+ * العملية بدل صورة واحدة فقط.
+ *
+ * @param {string[]} base64List مصفوفة صور بصيغة data:image/...
+ * @param {string} namePrefix اسم وصفي مشترك (بيتلحق برقم تسلسلي لكل صورة)
+ * @returns {Promise<string[]>} مصفوفة روابط الصور المرفوعة بنجاح فقط
+ */
+export async function uploadBase64Images(base64List, namePrefix = "image") {
+  const list = Array.isArray(base64List) ? base64List : [];
+  if (!list.length) return [];
+
+  const urls = await Promise.all(
+    list.map((base64, index) => uploadBase64Image(base64, `${namePrefix}_${index + 1}`))
+  );
+
+  return urls.filter(Boolean);
+}
