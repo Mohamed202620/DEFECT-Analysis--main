@@ -185,11 +185,11 @@ export function renderHeader() {
           class="w-6 h-6 md:w-7 md:h-7 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[10px] text-white"
           style="background: linear-gradient(135deg, #f5a623, #1d4ed8); box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 10px rgba(245,166,35,0.25);"
         >${escapeBrandHtml(initial)}</div>
-        <div class="hidden sm:block min-w-0 max-w-[150px] lg:max-w-[220px] leading-tight">
+        <div class="app-header-profile-copy block min-w-0 max-w-[86px] sm:max-w-[150px] lg:max-w-[220px] leading-tight">
           <p class="text-[10px] md:text-[11px] font-bold truncate m-0" style="color:#f1f5f9;">
             ${escapeBrandHtml(welcomeWord)} ${escapeBrandHtml(name)} <span aria-hidden="true">👋</span>
           </p>
-          <p class="text-[9px] md:text-[10px] font-medium truncate m-0" style="color:#94a3b8;">
+          <p class="hidden sm:block text-[9px] md:text-[10px] font-medium truncate m-0" style="color:#94a3b8;">
             ${escapeBrandHtml(job)}
           </p>
         </div>
