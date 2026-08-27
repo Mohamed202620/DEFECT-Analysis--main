@@ -34,6 +34,15 @@ import {
   markNotificationReadApi,
   markAllNotificationsAsRead
 } from '../services/api.js';
+import { translations } from '../config.js';
+
+// إصلاح (ترجمة شاملة): نصوص النافذة كانت ثابتة بالعربي - دلوقتي
+// بتقرأ من translations.notifications حسب window.currentLang وقت
+// كل فتح للنافذة
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).notifications;
+}
 
 const NOTIFICATION_ICONS = {
   assigned: "🛠️",
@@ -68,13 +77,20 @@ function notificationItemHtml(n) {
 }
 
 /**
- * تحديث نص/ظهور شارة (Badge) واحدة بعدد الإشعارات غير المقروءة -
- * مفصولة عن refreshNotificationsBadge تحت عشان تتنفّذ لأكتر من
- * شارة (الشريط السفلي وجرس appHeader) من غير تكرار نفس الكود
+ * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
+ * الشريط السفلي - آمنة تماماً لو الزرار مش ظاهر حالياً في DOM
+ * (بترجع فوراً من غير أي تأثير جانبي)
  */
-function applyUnreadCountToBadge(badgeId, unread) {
-  const badge = document.getElementById(badgeId);
-  if (!badge) return;
+export async function refreshNotificationsBadge() {
+
+  const badge = document.getElementById("bottomNavNotifBadge");
+  const myUid = localStorage.getItem("userId") || "";
+  if (!badge || !myUid) return;
+
+  const result = await fetchMyNotificationsApi(myUid);
+  if (result.status !== "success") return;
+
+  const unread = result.data.filter(n => !n.read).length;
 
   if (unread > 0) {
     badge.textContent = unread > 9 ? "9+" : String(unread);
@@ -82,28 +98,6 @@ function applyUnreadCountToBadge(badgeId, unread) {
   } else {
     badge.classList.add("hidden");
   }
-}
-
-/**
- * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
- * الشريط السفلي (BottomNav.js) وجرس appHeader الجديد
- * (js/branding.js) معاً - آمنة تماماً لو أي زرار مش ظاهر حالياً في
- * DOM (بتتجاهله وتكمل من غير أي تأثير جانبي)
- */
-export async function refreshNotificationsBadge() {
-
-  const myUid = localStorage.getItem("userId") || "";
-  const bottomNavBadge = document.getElementById("bottomNavNotifBadge");
-  const headerBadge = document.getElementById("headerNotifBadge");
-  if ((!bottomNavBadge && !headerBadge) || !myUid) return;
-
-  const result = await fetchMyNotificationsApi(myUid);
-  if (result.status !== "success") return;
-
-  const unread = result.data.filter(n => !n.read).length;
-
-  applyUnreadCountToBadge("bottomNavNotifBadge", unread);
-  applyUnreadCountToBadge("headerNotifBadge", unread);
 
 }
 
@@ -122,17 +116,19 @@ export function openNotificationsModal() {
   overlay.className =
     "fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4";
 
+  const tr = t();
+
   overlay.innerHTML = `
     <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md p-4 shadow-2xl max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between mb-3 shrink-0">
-        <h3 class="text-sm font-bold text-blue-400">🔔 الإشعارات</h3>
+        <h3 class="text-sm font-bold text-blue-400">${tr.title}</h3>
         <div class="flex items-center gap-3">
-          <button id="globalNotif_markAll" class="text-[10px] text-gray-400 hover:text-blue-300 font-bold">تحديد الكل كمقروء</button>
+          <button id="globalNotif_markAll" class="text-[10px] text-gray-400 hover:text-blue-300 font-bold">${tr.markAll}</button>
           <button id="globalNotif_close" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>
         </div>
       </div>
       <div id="globalNotif_body" class="text-center text-gray-500 text-xs py-8 overflow-y-auto">
-        جاري التحميل...
+        ${tr.loading}
       </div>
     </div>
   `;
@@ -155,19 +151,19 @@ export function openNotificationsModal() {
     const myUid = localStorage.getItem("userId") || "";
 
     if (!myUid) {
-      body.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">تعذر تحديد المستخدم الحالي.</div>`;
+      body.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().noUser}</div>`;
       return;
     }
 
     const result = await fetchMyNotificationsApi(myUid);
 
     if (result.status !== "success") {
-      body.innerHTML = `<div class="text-red-400 text-center text-[11px] py-4">تعذر تحميل الإشعارات، حاول مرة أخرى.</div>`;
+      body.innerHTML = `<div class="text-red-400 text-center text-[11px] py-4">${t().loadError}</div>`;
       return;
     }
 
     if (!result.data.length) {
-      body.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+      body.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().empty}</div>`;
       return;
     }
 

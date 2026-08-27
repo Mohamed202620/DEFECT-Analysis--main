@@ -6,6 +6,15 @@
 // ============================================================
 
 import { compressImage } from "../workflow.js";
+import { translations } from "../config.js";
+
+// إصلاح (ترجمة شاملة): نصوص النافذة (إلغاء/تأكيد/رسائل الخطأ) كانت
+// ثابتة بالعربي - دلوقتي بتقرأ من translations.actionModal حسب
+// window.currentLang وقت فتح كل نافذة
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).actionModal;
+}
 
 /**
  * يفتح نافذة صغيرة فوق الصفحة الحالية.
@@ -30,9 +39,14 @@ function escapeModalAttr(str) {
     .replace(/>/g, "&gt;");
 }
 
-export function openActionModal({ title, fields = [], submitLabel = "تأكيد" }) {
+export function openActionModal({ title, fields = [], submitLabel }) {
 
   return new Promise(resolve => {
+
+    // القيمة الافتراضية بتتحدد وقت الاستدعاء (مش في الـ default
+    // parameter) عشان تعكس اللغة الحالية فعلياً بدل ما تتجمّد على
+    // العربي وقت تحميل الموديول
+    submitLabel = submitLabel || t().confirm;
 
     const overlay = document.createElement("div");
     overlay.className =
@@ -70,7 +84,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
       if (field.type === "images") {
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label} (١-٣ صور)</label>
+            <label class="block text-[11px] text-gray-400 mb-1">${field.label} ${t().imagesLabelSuffix}</label>
             <input id="modal_${field.id}" type="file" accept="image/*" multiple capture="environment"
               class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2 text-[11px] text-gray-300 file:mr-2 file:bg-blue-600 file:text-white file:border-0 file:rounded-md file:px-2 file:py-1 file:text-[11px]" />
             <div id="modal_${field.id}_preview" class="flex gap-2 mt-2"></div>
@@ -97,7 +111,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
         <div class="flex gap-2 mt-2">
           <button id="modal_cancel_btn"
             class="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2.5 rounded-lg">
-            إلغاء
+            ${t().cancel}
           </button>
           <button id="modal_submit_btn"
             class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg">
@@ -140,7 +154,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
 
       const submitBtn = overlay.querySelector("#modal_submit_btn");
       submitBtn.disabled = true;
-      submitBtn.textContent = "جاري المعالجة...";
+      submitBtn.textContent = t().processing;
 
       const values = {};
 
@@ -153,7 +167,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
           const files = Array.from(el?.files || []).slice(0, 3);
 
           if (field.required && !files.length) {
-            showError(`${field.label}: لازم صورة واحدة على الأقل`);
+            showError(`${field.label}: ${t().imagesRequired}`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
@@ -164,7 +178,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
               files.map(f => compressImage(f, 900, 0.75))
             );
           } catch (e) {
-            showError("حدث خطأ أثناء معالجة الصور، حاول تاني");
+            showError(t().imagesError);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
@@ -175,7 +189,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
           const value = el ? el.value.trim() : "";
 
           if (field.required && !value) {
-            showError(`${field.label}: مطلوب`);
+            showError(`${field.label}: ${t().fieldRequired}`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
