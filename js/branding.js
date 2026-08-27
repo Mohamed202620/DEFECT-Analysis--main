@@ -180,21 +180,21 @@ export function renderHeader() {
 
   const profileMeta = isLoggedIn
     ? `
-      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2.5 py-1 sm:px-3 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800">
+      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800 min-w-0 max-w-full overflow-hidden">
         <div
-          class="w-7 h-7 sm:w-8 sm:h-8 rounded-full shrink-0 flex items-center justify-center font-black text-[11px] sm:text-xs text-white shadow"
+          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] sm:text-xs text-white shadow"
           style="background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
         >${escapeBrandHtml(initial)}</div>
-        <div class="app-header-profile-copy min-w-0 leading-tight">
-          <div class="flex items-center gap-1">
-            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate max-w-[140px] sm:max-w-[220px] md:max-w-[300px]">
+        <div class="app-header-profile-copy min-w-0 flex-1 leading-tight overflow-hidden">
+          <div class="flex items-center gap-1 min-w-0">
+            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate">
               ${escapeBrandHtml(welcomeWord)} <span class="text-amber-400 font-extrabold">${escapeBrandHtml(name)}</span>
             </span>
             <span class="text-xs shrink-0" aria-hidden="true">👋</span>
           </div>
-          <div class="flex items-center gap-1.5 mt-0.5">
+          <div class="flex items-center gap-1.5 mt-0.5 min-w-0">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate max-w-[130px] sm:max-w-[200px]">
+            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate">
               ${escapeBrandHtml(job)}
             </span>
           </div>
@@ -202,7 +202,7 @@ export function renderHeader() {
       </div>
     `
     : `
-      <div class="text-[10px] sm:text-[11px] font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50">
+      <div class="text-[10px] sm:text-[11px] font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50 truncate">
         ${isEn ? "Maintenance Portal" : "بوابة نظام الصيانة"}
       </div>
     `;
@@ -210,28 +210,28 @@ export function renderHeader() {
   return `
     <header
       id="appHeader"
-      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md"
+      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md overflow-hidden"
       style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-1.5 flex flex-col gap-1.5">
+      <div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-1.5 flex flex-col gap-1.5 overflow-hidden w-full">
 
         <!-- السطر الأول: شعار الشركة واضح وكامل (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
-        <div class="app-header-row-top flex items-center justify-between gap-3 pb-1 border-b" style="border-color: rgba(148,163,184,0.1);">
+        <div class="app-header-row-top flex items-center justify-between gap-2.5 pb-1 border-b min-w-0 w-full" style="border-color: rgba(148,163,184,0.1);">
 
           <!-- شعار الشركة واضح وكامل -->
-          <div class="app-header-brand flex items-center gap-2.5 min-w-0">
+          <div class="app-header-brand flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
             <img
               src="${LOGO_ICON_PATH}"
               alt="${COMPANY_SHORT}"
-              class="app-header-logo h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10 object-contain shrink-0 transition-transform duration-200 hover:scale-105"
+              class="app-header-logo h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 object-contain shrink-0 transition-transform duration-200 hover:scale-105"
               style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
               onerror="this.style.display='none'"
             />
-            <div class="app-header-brand-copy min-w-0 leading-tight">
-              <div class="app-header-brand-name text-[13px] sm:text-[15px] md:text-[16px] font-black tracking-wide truncate" style="color:#f8fafc;">
+            <div class="app-header-brand-copy min-w-0 flex-1 leading-tight overflow-hidden">
+              <div class="app-header-brand-name text-[12px] sm:text-[14px] md:text-[15px] font-black tracking-wide truncate" style="color:#f8fafc;">
                 MSCANCO <span style="color:#f5a623;">EGYPT</span>
               </div>
-              <div class="text-[9px] sm:text-[10px] md:text-[11px] font-medium text-slate-400 truncate">
+              <div class="text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-medium text-slate-400 truncate">
                 ${isEn ? COMPANY_NAME_EN : COMPANY_NAME_AR}
               </div>
             </div>
@@ -274,10 +274,10 @@ export function renderHeader() {
         </div>
 
         <!-- السطر الثاني: المستخدم واضح في جهة (يمين/بداية) | زر اللغة في الجهة المقابلة (يسار/نهاية) -->
-        <div class="app-header-row-bottom flex items-center justify-between gap-3 min-w-0">
+        <div class="app-header-row-bottom flex items-center justify-between gap-2.5 min-w-0 w-full">
 
           <!-- المستخدم واضح وكامل -->
-          <div class="min-w-0 flex-1">
+          <div class="min-w-0 flex-1 overflow-hidden">
             ${profileMeta}
           </div>
 
@@ -286,13 +286,13 @@ export function renderHeader() {
             <button
               type="button"
               onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[32px] h-6 sm:h-7 px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
               style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >AR</button>
             <button
               type="button"
               onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[32px] h-6 sm:h-7 px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
               style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >EN</button>
           </div>
@@ -514,7 +514,7 @@ function observeHeaderHeight(headerEl) {
 }
 
 export function refreshHeader() {
-  document.getElementById("appHeader")?.remove();
+  document.querySelectorAll("#appHeader").forEach(el => el.remove());
   document.body.insertAdjacentHTML("afterbegin", renderHeader());
 
   const headerEl = document.getElementById("appHeader");

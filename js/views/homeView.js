@@ -22,10 +22,6 @@ export const HomeView = () => {
   <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5">
 
     <!-- ملخص العدادات الحية -->
-    <!-- ملاحظة: كروت الإحصاء دي للعرض فقط (مش قابلة للضغط) - ليها
-         عنوان قسم واضح ("statsOverview") وشكل أهدأ (بدون ظل بارز/حواف
-         لامعة زي الأزرار) عشان متتلخبطش بصريًا مع أزرار "الوصول
-         السريع" اللي تحتها واللي هي أزرار فعلية قابلة للضغط -->
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-70 px-1">${t.statsOverview}</h3>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -109,15 +105,10 @@ export const HomeView = () => {
       </div>
     </div>
 
-    <!-- الوصول السريع + الوصول السريع لنظام الكايزن: عمودان جنباً
-         إلى جنب في الشاشات الكبيرة بدل عمود واحد -->
+    <!-- الوصول السريع + الوصول السريع لنظام الكايزن -->
     <div class="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4 lg:items-start">
 
     <!-- الوصول السريع -->
-    <!-- ملاحظة: أزرار فعلية قابلة للضغط، فبناخد شكل مختلف عن كروت
-         الإحصاء فوق: خلفية ملوّنة خفيفة ثابتة (مش بس عند hover) + سهم
-         اتجاه في الآخر يوضح إنها بتنقل لصفحة تانية - نفس لغة التصميم
-         المستخدمة في باقي التطبيق (dyn-card + ألوان الأيقونات) -->
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-70 px-1">${t.quickAccess}</h3>
       <div class="grid grid-cols-2 gap-3">
@@ -210,7 +201,7 @@ export const HomeView = () => {
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'dyn-text-muted opacity-60'
             }">
-            ${t.chartDaily}
+            ${t.chartDaily || (currentLang === 'en' ? 'Daily' : 'يومي')}
           </button>
           <button
             type="button"
@@ -221,7 +212,7 @@ export const HomeView = () => {
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'dyn-text-muted opacity-60'
             }">
-            ${t.chartWeekly}
+            ${t.chartWeekly || (currentLang === 'en' ? 'Weekly' : 'أسبوعي')}
           </button>
           <button
             type="button"
@@ -232,7 +223,7 @@ export const HomeView = () => {
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'dyn-text-muted opacity-60'
             }">
-            ${t.chartMonthly}
+            ${t.chartMonthly || (currentLang === 'en' ? 'Monthly' : 'شهري')}
           </button>
         </div>
       </div>
@@ -248,7 +239,7 @@ export const HomeView = () => {
               ? 'bg-blue-600 text-white shadow-sm'
               : 'dyn-text-muted opacity-60'
           }">
-          📈 ${t.chartTypeLine}
+          📈 ${t.chartTypeLine || (currentLang === 'en' ? 'Line' : 'خطي')}
         </button>
         <button
           type="button"
@@ -259,7 +250,7 @@ export const HomeView = () => {
               ? 'bg-blue-600 text-white shadow-sm'
               : 'dyn-text-muted opacity-60'
           }">
-          🌄 ${t.chartTypeArea}
+          🌄 ${t.chartTypeArea || (currentLang === 'en' ? 'Area' : 'مساحة')}
         </button>
         <button
           type="button"
@@ -270,7 +261,7 @@ export const HomeView = () => {
               ? 'bg-blue-600 text-white shadow-sm'
               : 'dyn-text-muted opacity-60'
           }">
-          📊 ${t.chartTypeBar}
+          📊 ${t.chartTypeBar || (currentLang === 'en' ? 'Bar' : 'أعمدة')}
         </button>
       </div>
 
@@ -280,7 +271,7 @@ export const HomeView = () => {
     </div>
 
     <!-- حقوق الملكية والتواصل عبر واتساب والوصول السريع -->
-    <div class="pt-4 border-t text-center space-y-3" style="border-color: var(--app-border);">
+    <div class="pt-4 border-t text-center space-y-3 w-full" style="border-color: var(--app-border);">
 
       <!-- زر التواصل مع المطور -->
       <button
