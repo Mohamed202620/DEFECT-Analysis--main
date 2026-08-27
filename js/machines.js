@@ -9,10 +9,15 @@
 // "Bodymaker 01")، وهو نفسه الاسم الكامل اللي بيتحفظ في قاعدة
 // البيانات كقيمة حقل "machine" - بنفس آلية الحفظ الحالية بالظبط
 // (لا تغيير على منطق الحفظ، فقط على القيم المعروضة في الـ Dropdown).
+//
+// القائمة الطويلة (40 خيار) بقت مُقسّمة بعناوين فرعية (<optgroup>)
+// للماكينات اللي ليها وحدات مرقّمة (Bodymaker/Decorator/Spray/STRAP)
+// عشان تسهيل التصفح على الموبايل - بدون أي تغيير في القيمة المحفوظة.
 // ============================================================
 
 // ماكينات ليها وحدات مرقّمة: name + عدد الوحدات (من 01 وحتى العدد)
-const NUMBERED_MACHINES = [
+// - كل واحدة هتتحول لعنوان فرعي (Optgroup) في الـ Dropdown
+const NUMBERED_MACHINE_GROUPS = [
   { name: "Bodymaker", count: 11 },
   { name: "Decorator", count: 2 },
   { name: "Spray", count: 11 }
@@ -27,40 +32,51 @@ function numberedMachineNames({ name, count }) {
   return names;
 }
 
-// ماكينات STRAP - تسميات فرعية ثابتة (مش ترقيم متسلسل)
+// ماكينات STRAP - تسميات فرعية ثابتة (مش ترقيم متسلسل) - وبرضه
+// بتتحول لعنوان فرعي (Optgroup) واحد باسم "STRAP"
+const STRAP_GROUP_LABEL = "STRAP";
 const STRAP_MACHINE_NAMES = ["STRAP A1", "STRAP A2", "STRAP B1", "STRAP B2"];
 
-const bodymakerNames = numberedMachineNames(NUMBERED_MACHINES[0]);
-const decoratorNames = numberedMachineNames(NUMBERED_MACHINES[1]);
-const sprayNames = numberedMachineNames(NUMBERED_MACHINES[2]);
-
-// القائمة الكاملة - بنفس ترتيب القائمة الأصلية، مع استبدال
-// Bodymaker/Decorator/Spray بوحداتها المرقّمة، وإضافة STRAP في
-// النهاية، وباقي الماكينات كما هي بدون أي تغيير
-export const MACHINE_OPTIONS = [
-  "Coil Handling",
-  "Baler",
-  "Cupper",
-  ...bodymakerNames,
-  "Trimmer",
-  "Washer",
-  ...decoratorNames,
-  ...sprayNames,
-  "IBO",
-  "Necker",
-  "Palletizer",
-  "Depalletizer",
-  "Front End Line Control",
-  "Mid Line Control",
-  "Back End Line Control",
-  ...STRAP_MACHINE_NAMES
+// ------------------------------------------------------------
+// بنية القائمة الكاملة كمتتالية من "عناصر" - كل عنصر إما:
+//   { type: "option", name }                      ماكينة مفردة عادية
+//   { type: "group", label, options: [names...] } مجموعة تحت عنوان فرعي
+// بنفس ترتيب القائمة الأصلية بالظبط، مع استبدال Bodymaker/Decorator/
+// Spray بمجموعاتها المرقّمة، وإضافة مجموعة STRAP في النهاية، وباقي
+// الماكينات كما هي بدون أي تغيير
+// ------------------------------------------------------------
+const MACHINE_ENTRIES = [
+  { type: "option", name: "Coil Handling" },
+  { type: "option", name: "Baler" },
+  { type: "option", name: "Cupper" },
+  { type: "group", label: NUMBERED_MACHINE_GROUPS[0].name, options: numberedMachineNames(NUMBERED_MACHINE_GROUPS[0]) },
+  { type: "option", name: "Trimmer" },
+  { type: "option", name: "Washer" },
+  { type: "group", label: NUMBERED_MACHINE_GROUPS[1].name, options: numberedMachineNames(NUMBERED_MACHINE_GROUPS[1]) },
+  { type: "group", label: NUMBERED_MACHINE_GROUPS[2].name, options: numberedMachineNames(NUMBERED_MACHINE_GROUPS[2]) },
+  { type: "option", name: "IBO" },
+  { type: "option", name: "Necker" },
+  { type: "option", name: "Palletizer" },
+  { type: "option", name: "Depalletizer" },
+  { type: "option", name: "Front End Line Control" },
+  { type: "option", name: "Mid Line Control" },
+  { type: "option", name: "Back End Line Control" },
+  { type: "group", label: STRAP_GROUP_LABEL, options: STRAP_MACHINE_NAMES }
 ];
 
+// نسخة مسطّحة (بدون تقسيم) لأي كود قديم/تاني محتاج مجرد مصفوفة أسماء
+// (نفس الاستخدام القديم بالظبط - القيم المحفوظة في قاعدة البيانات
+// متطابقة 100% مع القائمة المُقسّمة، الفرق بس في شكل العرض)
+export const MACHINE_OPTIONS = MACHINE_ENTRIES.flatMap(entry =>
+  entry.type === "group" ? entry.options : [entry.name]
+);
+
 /**
- * توليد HTML لخيارات <option> لأي Dropdown ماكينة بالتطبيق.
- * القيمة المحفوظة (value) هي نفسها الاسم الكامل المعروض بالضبط،
- * فتُحفظ في قاعدة البيانات كما هي بدون أي تعديل إضافي على آلية
- * الحفظ الحالية (نفس الأسلوب المُستخدم فعلياً في كل الشاشات).
+ * توليد HTML لخيارات <option>/<optgroup> لأي Dropdown ماكينة بالتطبيق.
+ * القيمة المحفوظة (value) هي نفسها الاسم الكامل المعروض بالضبط
+ * (مثال: "Bodymaker 01")، فتُحفظ في قاعدة البيانات كما هي بدون أي
+ * تعديل إضافي على آلية الحفظ الحالية - التقسيم بعناوين فرعية
+ * (Optgroup) شكلي فقط لتسهيل التصفح على الموبايل.
  *
  * @param {Object} [opts]
  * @param {string} [opts.selectedValue] - القيمة المختارة حالياً (لتحديد selected)
@@ -69,7 +85,7 @@ export const MACHINE_OPTIONS = [
  * @param {boolean} [opts.includeAll] - إضافة خيار "كل الماكينات" (لفلاتر البحث)
  * @param {string} [opts.allLabel] - نص خيار "الكل"
  * @param {string} [opts.allValue] - قيمة خيار "الكل"
- * @returns {string} HTML لعناصر <option>
+ * @returns {string} HTML لعناصر <option> و<optgroup>
  */
 export function buildMachineOptionsHtml({
   selectedValue = "",
@@ -88,9 +104,15 @@ export function buildMachineOptionsHtml({
     ? `<option value="${allValue}" ${selectedValue === allValue ? "selected" : ""}>${allLabel}</option>`
     : "";
 
-  const optionsHtml = MACHINE_OPTIONS.map(name =>
-    `<option value="${name}" ${name === selectedValue ? "selected" : ""}>${name}</option>`
-  ).join("");
+  const optionHtml = name =>
+    `<option value="${name}" ${name === selectedValue ? "selected" : ""}>${name}</option>`;
 
-  return placeholderHtml + allHtml + optionsHtml;
+  const entriesHtml = MACHINE_ENTRIES.map(entry => {
+    if (entry.type === "group") {
+      return `<optgroup label="${entry.label}">${entry.options.map(optionHtml).join("")}</optgroup>`;
+    }
+    return optionHtml(entry.name);
+  }).join("");
+
+  return placeholderHtml + allHtml + entriesHtml;
 }
