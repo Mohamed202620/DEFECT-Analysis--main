@@ -143,11 +143,10 @@ export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_PATH) {
 // المختصر (LOGO_ICON_PATH) بخلفية شفافة بالكامل ومندمج مباشرة في
 // خلفية الهيدر من غير أي "شريحة" بيضاء حواليه زي قبل كده.
 //
-// الهيدر بقى صفّين:
-//   1) الشعار + كبسولة اللغة + زرار الثيم + جرس الإشعارات
-//   2) بيانات المستخدم المسجّل دخوله (افاتار + ترحيب + المسمى
-//      الوظيفي) - بيظهر بس لو فيه مستخدم مسجّل دخوله فعلاً (نفس
-//      شرط Sidebar.js) عشان يفضل مخفي في صفحات الدخول/التسجيل.
+// الهيدر بقى صفاً واحداً compact:
+//   الشعار + بيانات المستخدم المختصرة + أدوات التحكم
+// بيانات المستخدم تظهر inline بعد تسجيل الدخول حتى لا يتكرر شريط
+// الترحيب داخل الصفحة الرئيسية.
 //
 // البيانات (الاسم/الوظيفة/اللغة) مأخوذة بنفس الطريقة بالظبط
 // المستخدمة فعلاً في homeView.js/Sidebar.js (localStorage +
@@ -179,18 +178,18 @@ export function renderHeader() {
   const glassChip =
     "background: rgba(30,41,59,0.7); border: 1px solid rgba(148,163,184,0.18);";
 
-  const profileRow = isLoggedIn
+  const profileMeta = isLoggedIn
     ? `
-      <div class="flex items-center gap-2.5 px-3 pt-1.5 pb-2 border-t" style="border-color: rgba(148,163,184,0.12);">
+      <div class="flex items-center gap-1.5 min-w-0 ms-1 ps-2 border-s" style="border-color: rgba(148,163,184,0.16);">
         <div
-          class="w-8 h-8 md:w-9 md:h-9 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[13px] text-white"
+          class="w-6 h-6 md:w-7 md:h-7 rounded-full shrink-0 flex items-center justify-center font-extrabold text-[10px] text-white"
           style="background: linear-gradient(135deg, #f5a623, #1d4ed8); box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 10px rgba(245,166,35,0.25);"
         >${escapeBrandHtml(initial)}</div>
-        <div class="min-w-0 leading-tight">
-          <p class="text-[12px] md:text-[13px] font-bold truncate m-0" style="color:#f1f5f9;">
+        <div class="hidden sm:block min-w-0 max-w-[150px] lg:max-w-[220px] leading-tight">
+          <p class="text-[10px] md:text-[11px] font-bold truncate m-0" style="color:#f1f5f9;">
             ${escapeBrandHtml(welcomeWord)} ${escapeBrandHtml(name)} <span aria-hidden="true">👋</span>
           </p>
-          <p class="text-[10px] md:text-[11px] font-medium truncate m-0" style="color:#94a3b8;">
+          <p class="text-[9px] md:text-[10px] font-medium truncate m-0" style="color:#94a3b8;">
             ${escapeBrandHtml(job)}
           </p>
         </div>
@@ -207,7 +206,7 @@ export function renderHeader() {
       <div class="max-w-[1400px] mx-auto">
 
         <!-- الصف الأول: الشعار + أدوات التحكم -->
-        <div class="flex items-center justify-between gap-2 px-3 py-2">
+        <div class="flex items-center justify-between gap-2 px-3 py-1.5">
 
           <!-- الشعار: مندمج مباشرة في خلفية الهيدر الداكنة، من غير
                أي حواف أو صندوق أبيض حواليه (اللوجو نفسه شفاف الخلفية) -->
@@ -215,18 +214,19 @@ export function renderHeader() {
             <img
               src="${LOGO_ICON_PATH}"
               alt="${COMPANY_SHORT}"
-              class="h-8 w-8 md:h-9 md:w-9 object-contain shrink-0"
+              class="h-7 w-7 md:h-8 md:w-8 object-contain shrink-0"
               style="filter: drop-shadow(0 0 6px rgba(245,166,35,0.3));"
               onerror="this.style.display='none'"
             />
             <div class="min-w-0 leading-tight">
-              <div class="text-[13px] md:text-[15px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
+              <div class="text-[12px] md:text-[14px] font-extrabold tracking-wide truncate" style="color:#f8fafc;">
                 MSCANCO <span style="color:#f5a623;">EGYPT</span>
               </div>
-              <div class="hidden sm:block text-[8px] md:text-[9px] font-semibold truncate" style="color:#64748b; letter-spacing:0.14em;">
+              <div class="hidden sm:block text-[7px] md:text-[8px] font-semibold truncate" style="color:#64748b; letter-spacing:0.14em;">
                 MAINTENANCE &amp; DEFECT SYSTEM
               </div>
             </div>
+            ${profileMeta}
           </div>
 
           <!-- أدوات التحكم: اللغة / الثيم / الإشعارات -->
@@ -254,7 +254,7 @@ export function renderHeader() {
               onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
               aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
               title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -266,7 +266,7 @@ export function renderHeader() {
               onclick="${notifAction}"
               aria-label="${isEn ? "Notifications" : "الإشعارات"}"
               title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="relative w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
+              class="relative w-8 h-8 md:w-9 md:h-9 rounded-full flex items-center justify-center text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -281,8 +281,6 @@ export function renderHeader() {
 
           </div>
         </div>
-
-        ${profileRow}
 
       </div>
     </header>

@@ -9,11 +9,6 @@ export const HomeView = () => {
   const currentLang = window.currentLang || "ar";
   const t = (translations[currentLang] || translations.en).home;
 
-  // اسم/وظيفة المستخدم بيانات حقيقية من التسجيل (مش نص واجهة) -
-  // النص الاحتياطي بس (لو الحقل فاضي) بيتاخد من الترجمة عشان ميظهرش
-  // عربي وسط واجهة إنجليزية أو العكس
-  const name = localStorage.getItem("name") || t.defaultName;
-  const job = localStorage.getItem("job") || t.defaultJob;
   const stats = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
 
   // إعداد رقم الواتساب الخاص بك والرسالة الجاهزة (مترجمة حسب اللغة الحالية)
@@ -25,38 +20,6 @@ export const HomeView = () => {
 
   return `
   <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5">
-
-    <!-- الهيدر والترحيب -->
-    <div class="flex items-center justify-between border-b pb-3" style="border-color: var(--app-border);">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-base shadow-inner">
-          ${name.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <h2 class="text-sm font-bold dyn-text-muted flex items-center gap-1">
-            ${t.welcome} ${name} 👋
-          </h2>
-          <p class="text-[11px] dyn-text-muted opacity-60">${job}</p>
-        </div>
-      </div>
-
-      <!-- أدوات التحكم: تبديل الثيم وتبديل اللغة -->
-      <div class="flex flex-col items-center gap-1.5">
-        <button
-          onclick="window.toggleDarkMode()"
-          class="px-2.5 py-1 dyn-card border rounded-xl text-xs dyn-text-muted active:scale-95 transition shadow-sm"
-          title="Toggle theme / تبديل الوضع">
-          🌙 / ☀️
-        </button>
-
-        <button
-          onclick="window.toggleLanguage()"
-          class="px-2.5 py-1 dyn-card border rounded-xl text-xs font-bold dyn-text-muted active:scale-95 transition shadow-sm"
-          title="Toggle language / تغيير اللغة">
-          🌐 ${currentLang === 'ar' ? 'EN' : 'AR'}
-        </button>
-      </div>
-    </div>
 
     <!-- ملخص العدادات الحية -->
     <!-- ملاحظة: كروت الإحصاء دي للعرض فقط (مش قابلة للضغط) - ليها
