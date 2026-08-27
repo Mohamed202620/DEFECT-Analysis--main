@@ -117,28 +117,11 @@ if (sidebarContainer) {
 
 
 // ========================================================
-// APP HEADER AUTO REFRESH
-// (appHeader بقى فيه بيانات ديناميكية - اللغة الحالية جوّه كبسولة
-// AR/EN، وترحيب/مسمى المستخدم - فلازم يتحدّث بعد كل render() بنفس
-// فكرة تحديث Sidebar.js فوق بالظبط، عشان مثلاً toggleLanguage()
-// يحدّث الهيدر فوراً هو كمان مش بس محتوى الصفحة. لازم يتنفّذ قبل
-// تحديث شارة الإشعارات عشان عنصر #headerNotifBadge يبقى موجود
-// في الـ DOM أول ما refreshNotificationsBadge() تدوّر عليه)
-// ========================================================
-
-if (typeof window.refreshHeader === "function") {
-
-  window.refreshHeader();
-
-}
-
-// ========================================================
 // NOTIFICATIONS BADGE AUTO REFRESH
-// (شارة عدد الإشعارات غير المقروءة فوق جرس appHeader - موجودة في
-// كل الصفحات تقريباً، فبنحدّث
-// الشارة بعد كل render() بنفس أسلوب باقي "AUTO LOAD" تحت. الدالة
-// نفسها آمنة لو أي زرار مش موجود في الصفحة الحالية أصلاً - راجع
-// NotificationsModal.js)
+// (شارة عدد الإشعارات غير المقروءة فوق زر 🔔 بالشريط السفلي -
+// BottomNav.js موجود في كل الصفحات تقريباً، فبنحدّث الشارة بعد كل
+// render() بنفس أسلوب باقي "AUTO LOAD" تحت. الدالة نفسها آمنة لو
+// الزرار مش موجود في الصفحة الحالية أصلاً - راجع NotificationsModal.js)
 // ========================================================
 
 if (typeof window.refreshNotificationsBadge === "function") {
@@ -167,6 +150,48 @@ if (currentPage === "home") {
     if (typeof loadDashboardStats === "function") {  
 
       loadDashboardStats();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// ISSUE FORM (تسجيل عطل) AUTO LOAD
+// (تفعيل مكوّن اختيار الصور المتعددة بعد إدراج HTML الفورم فعلياً
+// في الصفحة - راجع workflow.js: initIssueAttachments)
+// ========================================================  
+
+if (currentPage === "issue") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.initIssueAttachments === "function") {  
+
+      window.initIssueAttachments();  
+
+    }  
+
+  }, 100);  
+
+}  
+
+
+// ========================================================  
+// KAIZEN SUGGESTION FORM (مقترح كايزن) AUTO LOAD
+// (تفعيل مكوّن اختيار الصور المتعددة بعد إدراج HTML الفورم فعلياً
+// في الصفحة - راجع views/suggestionView.js: initSuggestionAttachments)
+// ========================================================  
+
+if (currentPage === "suggestions") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.initSuggestionAttachments === "function") {  
+
+      window.initSuggestionAttachments();  
 
     }  
 

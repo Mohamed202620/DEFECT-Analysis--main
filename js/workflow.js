@@ -8,6 +8,10 @@ import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '.
 // الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
 // نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
 import { translations } from './config.js';
+// مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
+// واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
+// مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
+import { initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles } from './components/attachmentPicker.js';
 
 // مصفوفة حفظ الصور محلية داخل وحدة العمليات
 export let defectImages = [null, null, null];
@@ -189,46 +193,16 @@ window.resetDefectForm = resetDefectForm;
 // منطق معالجة وحفظ بلاغات الأعطال (Issue Logic)
 // ==========================================
 
-let selectedIssueImage = null;
-
-// الاستماع لاختيار الصور من الكاميرا أو المعرض في واجهة البلاغات
-document.addEventListener('change', async (e) => {
-  if (e.target && (e.target.id === 'cameraImage' || e.target.id === 'galleryImage')) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // ✅ 2. التأكد أن الملف صورة
-    if (!file.type.startsWith("image/")) {
-      alert("⚠️ الملف المختار ليس صورة.");
-      return;
-    }
-
-    // ✅ 1. منع تهنيج التطبيق للصور الضخمة
-    if (file.size > 10 * 1024 * 1024) {
-      alert("❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)");
-      return;
-    }
-
-    try {
-      // ✅ 5. تحسين الضغط (900، 0.75)
-      selectedIssueImage = await compressImage(file, 900, 0.75);
-      const preview = document.getElementById('previewImage');
-      const nameTxt = document.getElementById('imageName');
-
-      if (preview) {
-        preview.src = selectedIssueImage;
-        preview.classList.remove('hidden');
-      }
-      if (nameTxt) {
-        nameTxt.textContent = `📷 تم إرفاق الصورة: ${file.name || 'مباشرة'}`;
-        nameTxt.classList.remove('text-gray-400');
-        nameTxt.classList.add('text-emerald-400');
-      }
-    } catch (err) {
-      alert("❌ خطأ أثناء معالجة الصورة: " + err.message);
-    }
-  }
-});
+// تفعيل مكوّن اختيار الصور المتعددة (اختيار أكثر من صورة دفعة واحدة
+// + إضافة صور لاحقًا + حذف مستقل لكل صورة) لفورم تسجيل عطل - يُستدعى
+// من renderCore.js AUTO LOAD بعد إدراج HTML الفورم فعلياً في الصفحة
+export function initIssueAttachments() {
+  initAttachmentPicker("issueImages", {
+    maxFileSizeMB: 10,
+    emptyText: "لا توجد صور مرفقة"
+  });
+}
+window.initIssueAttachments = initIssueAttachments;
 
 // دالة حفظ وإرسال البلاغ المربوطة بزر الحفظ
 window.confirmIssue = async function() {
@@ -268,7 +242,9 @@ window.confirmIssue = async function() {
     description,
     location,
     suggestion,
-    image: selectedIssueImage, // مستقبلاً سيتم رفعها كـ imageUrl
+    // الصور المرفقة (صفر أو أكثر) - مُجمَّعة من مكوّن الاختيار
+    // المتعدد (attachmentPicker.js)، بدل صورة واحدة فقط كالسابق
+    images: getAttachmentFiles("issueImages"),
 
     // اسم/معرّف المُبلّغ بشكل مسطّح (يُستخدم في دورة حياة التذكرة:
     // قواعد الأمان وواجهة "Review & Closure" - راجع ticketsBoard.js)
@@ -300,16 +276,10 @@ window.confirmIssue = async function() {
       );
       
       // ✅ 3. إعادة ضبط حقول البلاغ بعد الحفظ قبل العودة للرئيسية
-      selectedIssueImage = null;
+      resetAttachmentFiles("issueImages");
       if (document.getElementById("issueDescription")) document.getElementById("issueDescription").value = "";
       if (document.getElementById("issueSuggestion")) document.getElementById("issueSuggestion").value = "";
       if (document.getElementById("issueLocation")) document.getElementById("issueLocation").value = "";
-      
-      const preview = document.getElementById("previewImage");
-      if(preview){
-          preview.src = "";
-          preview.classList.add("hidden");
-      }
 
       if (typeof window.navigateTo === 'function') {
         window.navigateTo('home');
