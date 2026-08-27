@@ -187,14 +187,14 @@ export function renderHeader() {
         >${escapeBrandHtml(initial)}</div>
         <div class="app-header-profile-copy min-w-0 leading-tight">
           <div class="flex items-center gap-1">
-            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate max-w-[120px] sm:max-w-[200px] md:max-w-[260px]">
+            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate max-w-[140px] sm:max-w-[220px] md:max-w-[300px]">
               ${escapeBrandHtml(welcomeWord)} <span class="text-amber-400 font-extrabold">${escapeBrandHtml(name)}</span>
             </span>
             <span class="text-xs shrink-0" aria-hidden="true">👋</span>
           </div>
           <div class="flex items-center gap-1.5 mt-0.5">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate max-w-[110px] sm:max-w-[180px]">
+            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate max-w-[130px] sm:max-w-[200px]">
               ${escapeBrandHtml(job)}
             </span>
           </div>
@@ -213,78 +213,12 @@ export function renderHeader() {
       class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md"
       style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1400px] mx-auto">
+      <div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-1.5 flex flex-col gap-1.5">
 
-        <!-- الشريط العلوي المصغر: زر اللغة + الثيم + الإشعارات + مؤشر النظام -->
-        <div class="app-header-top-bar flex items-center justify-between px-3 sm:px-4 py-1 border-b" style="border-color: rgba(148,163,184,0.08); background: rgba(15,23,42,0.4);">
-          
-          <!-- مؤشر حالة النظام واسم المنظومة -->
-          <div class="flex items-center gap-1.5 text-[10px] text-slate-400 font-medium tracking-wide">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span class="font-bold text-slate-300">${isEn ? "System Operational" : "منظومة الصيانة والجودة"}</span>
-            <span class="hidden sm:inline text-slate-600">|</span>
-            <span class="hidden sm:inline text-slate-400">${isEn ? "MSCANCO EGYPT" : "مصنع علب الكرتون والمرطبات"}</span>
-          </div>
+        <!-- السطر الأول: شعار الشركة واضح وكامل (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
+        <div class="app-header-row-top flex items-center justify-between gap-3 pb-1 border-b" style="border-color: rgba(148,163,184,0.1);">
 
-          <!-- أدوات التحكم: اللغة / الثيم / الإشعارات -->
-          <div class="app-header-controls flex items-center gap-1.5 shrink-0">
-            <!-- كبسولة تبديل اللغة (AR / EN) -->
-            <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5" style="${glassChip}">
-              <button
-                type="button"
-                onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-                class="min-w-[28px] h-6 sm:h-6.5 px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
-                style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
-              >AR</button>
-              <button
-                type="button"
-                onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-                class="min-w-[28px] h-6 sm:h-6.5 px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
-                style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
-              >EN</button>
-            </div>
-
-            <!-- زر تبديل الثيم (شمس/قمر) -->
-            <button
-              type="button"
-              onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
-              aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="app-header-button w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs transition-all duration-200 active:scale-90"
-              style="${glassChip}"
-              onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
-              onmouseout="this.style.boxShadow='none'"
-            >${isDark ? "🌙" : "☀️"}</button>
-
-            <!-- جرس الإشعارات + شارة العدد غير المقروء -->
-            <button
-              type="button"
-              onclick="${notifAction}"
-              aria-label="${isEn ? "Notifications" : "الإشعارات"}"
-              title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="app-header-button relative w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-xs transition-all duration-200 active:scale-90"
-              style="${glassChip}"
-              onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
-              onmouseout="this.style.boxShadow='none'"
-            >
-              🔔
-              <span
-                id="headerNotifBadge"
-                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center"
-                style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
-              >0</span>
-            </button>
-          </div>
-
-        </div>
-
-        <!-- الشريط الرئيسي: إظهار شعار الشركة كاملاً + المستخدم كاملاً -->
-        <div class="app-header-main-bar flex items-center justify-between gap-3 px-3 sm:px-4 py-2">
-
-          <!-- شعار الشركة الكامل -->
+          <!-- شعار الشركة واضح وكامل -->
           <div class="app-header-brand flex items-center gap-2.5 min-w-0">
             <img
               src="${LOGO_ICON_PATH}"
@@ -303,9 +237,64 @@ export function renderHeader() {
             </div>
           </div>
 
-          <!-- المستخدم كاملاً -->
-          <div class="shrink-0">
+          <!-- الجهة المقابلة بالسطر الأول: جرس الإشعارات + الثيم -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <!-- جرس الإشعارات + شارة العدد غير المقروء -->
+            <button
+              type="button"
+              onclick="${notifAction}"
+              aria-label="${isEn ? "Notifications" : "الإشعارات"}"
+              title="${isEn ? "Notifications" : "الإشعارات"}"
+              class="app-header-button relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >
+              🔔
+              <span
+                id="headerNotifBadge"
+                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center"
+                style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
+              >0</span>
+            </button>
+
+            <!-- زر تبديل الثيم (شمس/قمر) -->
+            <button
+              type="button"
+              onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
+              aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              class="app-header-button w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >${isDark ? "🌙" : "☀️"}</button>
+          </div>
+
+        </div>
+
+        <!-- السطر الثاني: المستخدم واضح في جهة (يمين/بداية) | زر اللغة في الجهة المقابلة (يسار/نهاية) -->
+        <div class="app-header-row-bottom flex items-center justify-between gap-3 min-w-0">
+
+          <!-- المستخدم واضح وكامل -->
+          <div class="min-w-0 flex-1">
             ${profileMeta}
+          </div>
+
+          <!-- الجهة المقابلة بالسطر الثاني: كبسولة زر اللغة (AR / EN) -->
+          <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5 shrink-0" style="${glassChip}">
+            <button
+              type="button"
+              onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+              class="min-w-[32px] h-6 sm:h-7 px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+            >AR</button>
+            <button
+              type="button"
+              onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+              class="min-w-[32px] h-6 sm:h-7 px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+            >EN</button>
           </div>
 
         </div>
