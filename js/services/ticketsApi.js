@@ -92,15 +92,45 @@ export async function syncOfflineTicketsApi() {
 // TICKETS
 // ============================================================
 
-export async function fetchTicketsApi() {
+// إصلاح M1: كانت الدالة بتجيب كل التذاكر دايماً بدون أي فلترة صلاحيات
+// (مصدر بيانات كارتات لوحة المتابعة في الرئيسية عبر loadDashboardStats)
+// بقت تاخد { role, myUid, myName } وتطبّق نفس منطق الصلاحيات المستخدم
+// في subscribeToTicketsBoardApi / fetchTicketsForReportApi بالظبط:
+// admin/manager = كل التذاكر، وباقي الأدوار (فني/مشغل/مهندس) = بلاغاتي
+// (reportedBy) + المُسندة إليّ (assignedTo) فقط. تم إبقاء الاستدعاء
+// بدون آرجيومنتس شغال (role/myUid/myName هيبقوا undefined) عشان أي
+// استخدام قديم للدالة ميتكسرش، لكنه هيرجع النتيجة الفارغة/المقيّدة
+// المناسبة لغير الأدمن/المدير بدل كل التذاكر.
+export async function fetchTicketsApi({ role, myUid, myName } = {}) {
   try {
     const ticketsRef = collection(db, "tickets");
-    const q = query(ticketsRef, orderBy("createdAt", "desc"));
-    const querySnapshot = await getDocs(q);
-    const tickets = [];
-    querySnapshot.forEach(docSnap => {
-      tickets.push({ id: docSnap.id, ...docSnap.data() });
-    });
+
+    if (role === "admin" || role === "manager") {
+      const q = query(ticketsRef, orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(q);
+      const tickets = [];
+      querySnapshot.forEach(docSnap => {
+        tickets.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      return { status: "success", data: tickets };
+    }
+
+    // باقي الأدوار (فني / مشغل / مهندس): بلاغاتي + المُسندة إليّ فقط
+    // (استعلامين بالاسم بدل orderBy لتفادي أي Composite Index، والترتيب
+    // بيتم محلياً زي باقي دوال فلترة الصلاحيات في نفس الملف)
+    const [reportedSnap, assignedSnap] = await Promise.all([
+      getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
+      getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
+    ]);
+
+    const merged = new Map();
+    reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+    assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+
+    const tickets = Array.from(merged.values()).sort(
+      (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
+    );
+
     return { status: "success", data: tickets };
   } catch (error) {
     console.error("Error fetching tickets:", error);
