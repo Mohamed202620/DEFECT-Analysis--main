@@ -69,7 +69,7 @@ export const HomeView = () => {
       <!-- أعطال اليوم -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('all')"
+        onclick="window.openTicketsWithFilter('today')"
         class="relative text-start dyn-card border border-blue-500/30 hover:border-blue-400/60 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-blue-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-blue-400/80 group-hover:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
