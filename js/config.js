@@ -437,7 +437,7 @@ export const translations = {
       subtitle: "توثيق وفحص عيوب المنتجات وقاعدة المعرفة",
       badge: "الجودة QC",
       defectTitle: "تصوير عيب",
-      defectDesc: "تسجيل وتوثيق visual defect",
+      defectDesc: "تسجيل وتوثيق العيوب البصرية (Visual Defects)",
       aiTitle: "فحص بـ AI",
       aiDesc: "كشف العيوب تلقائياً",
       kbTitle: "قاعدة المعرفة",
@@ -567,7 +567,7 @@ export const translations = {
       errorMessage: "Error Message (النص المستخرج من الصورة)",
       errorMessagePlaceholder: "سيظهر هنا النص المستخرج من الصورة تلقائياً",
       manualSearch: "أو ابحث يدوياً",
-      manualPlaceholder: "اكتب رقم العطل او النص",
+      manualPlaceholder: "اكتب رقم العطل أو النص",
       searchBtn: "بحث في قاعدة المعرفة",
       // مفاتيح إضافية لمنطق errorScanner.js
       selectPlaceholder: "اختر...",
@@ -689,7 +689,7 @@ export const translations = {
       processing: "جاري المعالجة...",
       imagesLabelSuffix: "(١-٣ صور)",
       imagesRequired: "لازم صورة واحدة على الأقل",
-      imagesError: "حدث خطأ أثناء معالجة الصور، حاول تاني",
+      imagesError: "حدث خطأ أثناء معالجة الصور، حاول مرة أخرى",
       fieldRequired: "مطلوب"
     },
 
@@ -827,7 +827,7 @@ export const translations = {
       operatorFeedbackField: "ما المشكلة المتبقية؟",
       operatorFeedbackPlaceholder: "مثال: لا يزال يوجد تسريب...",
       genericActionError: "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى أو تواصل مع الأدمن.",
-      libsNotLoaded: "❌ مكتبات إنشاء التقرير غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.",
+      libsNotLoaded: "❌ مكتبات إنشاء التقرير غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول مرة أخرى.",
       preparingReport: "⏳ جاري تجهيز التقرير...",
       reportDataError: "❌ تعذر تجهيز بيانات التقرير، حاول مرة أخرى.",
       noTicketsForReport: "ℹ️ لا توجد بلاغات خلال آخر 30 يوم لعرضها في التقرير.",

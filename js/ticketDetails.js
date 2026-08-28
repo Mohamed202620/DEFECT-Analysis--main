@@ -5,7 +5,7 @@
 // ============================================================
 
 import { fetchTicketByIdApi, fetchTicketLogsApi } from './services/api.js';
-import { STATUS_LABELS } from './ticketsBoard.js';
+import { translations } from './config.js';
 
 const LOG_ICONS = {
   created: "📝",
@@ -27,7 +27,25 @@ window.openTicketDetails = function (ticketId) {
   window.navigateTo("ticketDetails");
 };
 
-function timelineItemHtml(log) {
+function getTicketDetailsTexts() {
+  const isEn = (window.currentLang || localStorage.getItem('lang') || 'ar') === 'en';
+  return {
+    isEn,
+    noTicketSelected: isEn ? "No ticket specified to display." : "لم يتم تحديد تذكرة لعرضها.",
+    loading: isEn ? "Loading details..." : "جاري تحميل التفاصيل...",
+    loadError: isEn ? "Could not load ticket data (you may not have permission to view it)." : "تعذّر تحميل بيانات التذكرة (قد لا يكون لديك صلاحية لعرضها).",
+    reportedBy: isEn ? "Reported by:" : "بلّغ:",
+    technician: isEn ? "Technician:" : "الفني:",
+    mechanicNotes: isEn ? "Technician Notes:" : "ملاحظات الفني:",
+    operatorFeedback: isEn ? "Reporter Feedback:" : "ملاحظات المُبلّغ:",
+    repairImages: isEn ? "📷 After-Repair Photos" : "📷 صور الإصلاح",
+    timelineTitle: isEn ? "📜 Activity Timeline" : "📜 سجل العمليات (Timeline)",
+    noLogsYet: isEn ? "No activity logs recorded yet." : "لا يوجد سجل عمليات بعد.",
+    locale: isEn ? "en-US" : "ar-EG"
+  };
+}
+
+function timelineItemHtml(log, txt) {
 
   const icon = LOG_ICONS[log.action] || "•";
 
@@ -54,7 +72,7 @@ function timelineItemHtml(log) {
         <p class="text-xs text-gray-200 font-bold">${log.message || ""}</p>
         <div class="flex justify-between items-center mt-1 text-[10px] text-gray-500">
           <span>👤 ${log.by || "-"}</span>
-          <span>${log.createdAt ? new Date(log.createdAt).toLocaleString("ar-EG") : ""}</span>
+          <span>${log.createdAt ? new Date(log.createdAt).toLocaleString(txt.locale) : ""}</span>
         </div>
         ${imagesHtml}
       </div>
@@ -67,15 +85,16 @@ window.loadTicketDetails = async function () {
 
   const container = document.getElementById("ticketDetailsContainer");
   const ticketId = window.__currentTicketId;
+  const txt = getTicketDetailsTexts();
 
   if (!container) return;
 
   if (!ticketId) {
-    container.innerHTML = `<div class="text-center text-gray-500 text-xs py-8">لم يتم تحديد تذكرة لعرضها.</div>`;
+    container.innerHTML = `<div class="text-center text-gray-500 text-xs py-8">${txt.noTicketSelected}</div>`;
     return;
   }
 
-  container.innerHTML = `<div class="text-center text-gray-400 text-xs py-8">جاري تحميل التفاصيل...</div>`;
+  container.innerHTML = `<div class="text-center text-gray-400 text-xs py-8">${txt.loading}</div>`;
 
   const [ticketResult, logsResult] = await Promise.all([
     fetchTicketByIdApi(ticketId),
@@ -85,7 +104,7 @@ window.loadTicketDetails = async function () {
   if (!ticketResult || ticketResult.status !== "success") {
     container.innerHTML = `
       <div class="text-red-400 text-center text-xs py-6">
-        ${ticketResult?.message || "تعذّر تحميل بيانات التذكرة (قد لا يكون لديك صلاحية لعرضها)."}
+        ${ticketResult?.message || txt.loadError}
       </div>
     `;
     return;
@@ -94,32 +113,34 @@ window.loadTicketDetails = async function () {
   const ticket = ticketResult.data;
   const logs = logsResult.status === "success" ? logsResult.data : [];
   const status = String(ticket.status || "").trim().toLowerCase();
+  const currentLang = window.currentLang || localStorage.getItem('lang') || 'ar';
+  const statusLabel = translations[currentLang]?.ticketsBoard?.status?.[status] || STATUS_LABELS[status] || status;
 
   container.innerHTML = `
     <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 mb-5 space-y-2">
       <div class="flex justify-between items-center">
         <span class="font-bold text-sm text-gray-100">${ticket.machine || ticket.machineName || "-"}</span>
         <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-          ${STATUS_LABELS[status] || status}
+          ${statusLabel}
         </span>
       </div>
       <p class="text-xs text-gray-400">${ticket.description || ""}</p>
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 pt-1">
-        ${ticket.reportedBy ? `<span>👤 بلّغ: ${ticket.reportedBy}</span>` : ""}
-        ${ticket.assignedTo ? `<span>🛠️ الفني: ${ticket.assignedTo}</span>` : ""}
+        ${ticket.reportedBy ? `<span>👤 ${txt.reportedBy} ${ticket.reportedBy}</span>` : ""}
+        ${ticket.assignedTo ? `<span>🛠️ ${txt.technician} ${ticket.assignedTo}</span>` : ""}
         ${ticket.type ? `<span>🏷️ ${ticket.type}</span>` : ""}
       </div>
       ${ticket.mechanicNotes ? `
         <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300 mt-2">
-          🔧 ملاحظات الفني: ${ticket.mechanicNotes}
+          🔧 ${txt.mechanicNotes} ${ticket.mechanicNotes}
         </div>` : ""}
       ${ticket.operatorFeedback ? `
         <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300 mt-2">
-          ⚠️ ملاحظات المُبلّغ: ${ticket.operatorFeedback}
+          ⚠️ ${txt.operatorFeedback} ${ticket.operatorFeedback}
         </div>` : ""}
       ${Array.isArray(ticket.repairImages) && ticket.repairImages.length ? `
         <div class="pt-2">
-          <span class="text-[10px] text-gray-500 block mb-1">📷 صور الإصلاح</span>
+          <span class="text-[10px] text-gray-500 block mb-1">${txt.repairImages}</span>
           <div class="flex gap-2 flex-wrap">
             ${ticket.repairImages.map(url => `
               <img src="${url}" loading="lazy"
@@ -130,9 +151,9 @@ window.loadTicketDetails = async function () {
         </div>` : ""}
     </div>
 
-    <h3 class="text-xs font-bold text-blue-400 mb-3">📜 سجل العمليات (Timeline)</h3>
+    <h3 class="text-xs font-bold text-blue-400 mb-3">${txt.timelineTitle}</h3>
     <div>
-      ${logs.length ? logs.map(timelineItemHtml).join("") : `<div class="text-center text-gray-500 text-xs py-6">لا يوجد سجل عمليات بعد.</div>`}
+      ${logs.length ? logs.map(l => timelineItemHtml(l, txt)).join("") : `<div class="text-center text-gray-500 text-xs py-6">${txt.noLogsYet}</div>`}
     </div>
   `;
 
