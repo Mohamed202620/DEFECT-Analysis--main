@@ -12,6 +12,7 @@ import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView } from './maintenanceSearch.js';
+import { refreshAttendanceCard } from './attendanceCard.js';
 
 export let currentPage = 'login';
 
@@ -159,6 +160,12 @@ if (currentPage === "home") {
     if (typeof loadDashboardStats === "function") {  
 
       loadDashboardStats();  
+
+    }  
+
+    if (typeof refreshAttendanceCard === "function") {
+
+      refreshAttendanceCard();
 
     }  
 

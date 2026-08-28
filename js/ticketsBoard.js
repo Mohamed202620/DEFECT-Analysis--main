@@ -232,41 +232,23 @@ function getTabsForRole(role) {
 let currentStatusFilter = null;
 let unsubscribeTicketsListener = null;
 
-// إصلاح M2/M3: حالات "افتراضية" بتيجي من كروت لوحة المتابعة بالرئيسية
-// (homeView.js) مش من ضغط تبويب فعلي - 'open' (أعطال مفتوحة) و 'fixed'
-// (تم إصلاحها). دول مش أسماء تبويبات حرفية عند الأدمن/المدير، فمن غير
-// استثناء هيتم استبدالهم صامتاً بأول تبويب (all) في renderStatusTabs
-// تحت. بنستثنيهم هنا عشان الفلتر الحقيقي (زي ما اتحسبت بيه أرقام
-// الكروت عبر STATUS_QUERY_ALIASES في ticketsApi.js) يفضل شغال، وبنربط
-// كل واحد منهم بأقرب تبويب موجود بصرياً بس عشان التظليل (Highlight)
-const HOME_CARD_STATUSES = ['open', 'fixed', 'today'];
-const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all' };
-
 function renderStatusTabs(role) {
 
   const container = document.getElementById("ticketsTabsContainer");
   if (!container) return;
 
   const tabs = getTabsForRole(role);
-  const isHomeCardStatus = HOME_CARD_STATUSES.includes(currentStatusFilter);
 
-  // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير
-  // موجود في التبويبات المتاحة - إلا إذا كان فلتر "كارت رئيسية" صالح
-  // (open/fixed) للأدمن/المدير، فبيفضل زي ما هو من غير استبدال
-  if (!currentStatusFilter || (!tabs.some(tab => tab.key === currentStatusFilter) && !isHomeCardStatus)) {
+  // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير موجود في التبويبات المتاحة
+  if (!currentStatusFilter || !tabs.some(tab => tab.key === currentStatusFilter)) {
     currentStatusFilter = tabs[0].key;
   }
-
-  // مفتاح التظليل البصري فقط (مش اللي بيتبعت فعلياً للاستعلام) - كارت
-  // "أعطال مفتوحة" (open) بيظلل تبويب "قيد الانتظار"، وكارت "تم
-  // إصلاحها" (fixed) بيظلل تبويب "مغلق"، كأقرب تبويب موجود بصرياً
-  const highlightKey = HOME_CARD_TAB_ALIAS[currentStatusFilter] || currentStatusFilter;
 
   container.innerHTML = tabs.map(tab => `
     <button
       onclick="window.setTicketsStatusFilter('${tab.key}')"
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
-        highlightKey === tab.key
+        currentStatusFilter === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
           : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
       }">
@@ -351,35 +333,7 @@ window.setTicketsStatusFilter = function (status) {
  */
 window.openTicketsWithFilter = function (status) {
   if (status) {
-    const role = getCurrentRole();
-
-    // إصلاح M3: كروت لوحة المتابعة بالرئيسية ('open' / 'all' / 'fixed'
-    // ...إلخ) مبنية على افتراض صلاحية الأدمن/المدير (فلاتر عامة على كل
-    // التذاكر). لغير الأدمن/المدير (فني/مشغل/مهندس) مفيش تبويب بنفس
-    // الاسم أصلاً عندهم، فكان بيتم استبدال الفلتر صامتاً بأول تبويب
-    // متاح (assigned_to_me) جوه renderStatusTabs بغض النظر عن الكارت
-    // اللي ضغط عليه المستخدم فعلياً - يعني كل الكروت كانت بتؤدي لنفس
-    // التبويب. دلوقتي بنحوّل كل كارت لأقرب تبويب متاح فعلياً لصلاحيته:
-    // - "أعطال مفتوحة" (pending/open) -> "المُسندة إليّ" (شغله المفتوح)
-    // - "أعطال اليوم" و"إجمالي البلاغات" (all) -> "بلاغاتي" (my_tickets)
-    // - "تم إصلاحها" (resolved/fixed/closed) -> "بانتظار تأكيدي"
-    if (role === 'technician' || role === 'operator' || role === 'engineer') {
-      const NON_ADMIN_STATUS_MAP = {
-        pending: 'assigned_to_me',
-        open: 'assigned_to_me',
-        all: 'my_tickets',
-        // إصلاح M6: "أعطال اليوم" - مفيش تبويب بتاريخ عندهم أصلاً،
-        // فبنقرّبها لأوسع نظرة متاحة ليهم (بلاغاتي) بدل ما تتفلتر
-        // بالتاريخ فقط عند الأدمن/المدير
-        today: 'my_tickets',
-        resolved: 'awaiting_confirm',
-        fixed: 'awaiting_confirm',
-        closed: 'awaiting_confirm'
-      };
-      currentStatusFilter = NON_ADMIN_STATUS_MAP[status] || 'assigned_to_me';
-    } else {
-      currentStatusFilter = status;
-    }
+    currentStatusFilter = status;
   }
   if (typeof window.navigateTo === "function") {
     window.navigateTo("tickets");

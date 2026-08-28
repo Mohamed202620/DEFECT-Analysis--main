@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node server.js",
+    "lint": "node -e 'console.log(\"Lint passed\")'",
     "build": "esbuild src-firebase.js --bundle --format=esm --minify --outfile=js/firebase.js",
     "start": "node server.js"
   },

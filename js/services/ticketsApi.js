@@ -210,31 +210,14 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
   try {
     const ticketsRef = collection(db, "tickets");
 
-    // إصلاح M6: فلتر زمني "أعطال اليوم" - بنفس منطق حساب كارت "أعطال
-    // اليوم" في loadDashboardStats (workflow.js) بالظبط (مقارنة
-    // toDateString() مع تاريخ اليوم)، بغض النظر عن حالة التذكرة
-    const isCreatedToday = (ticket) => {
-      if (!ticket.createdAt) return false;
-      const created = new Date(ticket.createdAt);
-      if (isNaN(created.getTime())) return false;
-      return created.toDateString() === new Date().toDateString();
-    };
-
     const handleSnapshotWithoutOrder = (q, context) => {
       return onSnapshot(
         q,
         (querySnapshot) => {
-          let tickets = [];
+          const tickets = [];
           querySnapshot.forEach(docSnap => {
             tickets.push({ id: docSnap.id, ...docSnap.data() });
           });
-          // إصلاح M6: فلترة محلية بتاريخ اليوم (فوق أي فلتر حالة) لما
-          // يكون الفلتر المطلوب "today" - نفس أسلوب فلترة التاريخ
-          // المحلية المستخدم بالفعل في fetchTicketsForReportApi بدل أي
-          // استعلام Firestore إضافي على createdAt (تفادياً لأي Composite Index)
-          if (status === "today") {
-            tickets = tickets.filter(isCreatedToday);
-          }
           // ترتيب محلياً حسب التاريخ من الأحدث للأقدم
           tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
           callback({ status: "success", data: tickets });
@@ -278,27 +261,13 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     }
 
     // 4. الفلاتر العامة (الأدمن والمدير)
-    // إصلاح M2: نفس قائمة الحالات "المغلقة" المستخدمة في isClosedStatus /
-    // CLOSED_STATUSES بالظبط (js/workflow.js) - عشان كارت "تم إصلاحها"
-    // في الرئيسية يفتح بالضبط نفس الحالات اللي اتحسب عليها رقم الكارت
-    const CLOSED_STATUSES_FOR_HOME_CARDS = ["closed", "resolved", "done", "مغلق", "تم الإصلاح"];
-
     const STATUS_QUERY_ALIASES = {
       pending: ["pending", "open"],
-      in_progress: ["in_progress", "reopened", "assigned"],
-      fixed: CLOSED_STATUSES_FOR_HOME_CARDS
+      in_progress: ["in_progress", "reopened", "assigned"]
     };
 
     const statusClauses = () => {
-      if (!status || status === "all" || status === "today") return [];
-      if (status === "open") {
-        // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
-        // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
-        // محددة سلفاً - فبدل تخمين قائمة "مفتوحة" ممكن تفوّت حالة جديدة
-        // غير متوقعة، بنستخدم عكس بالظبط نفس قائمة الحالات المغلقة
-        // (CLOSED_STATUSES_FOR_HOME_CARDS) عشان الفلتر يطابق الرقم تماماً
-        return [where("status", "not-in", CLOSED_STATUSES_FOR_HOME_CARDS)];
-      }
+      if (!status || status === "all") return [];
       const values = STATUS_QUERY_ALIASES[status];
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
@@ -318,14 +287,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       if (!reportedReady || !assignedReady) return;
       const merged = new Map();
       [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
-      let tickets = Array.from(merged.values());
-      // إصلاح M6: نفس فلترة "أعطال اليوم" المحلية كمان في مسار
-      // الفنيين/المهندسين (بلاغاتي + المُسندة إليّ) عشان تفضل شغالة
-      // حتى لو currentStatusFilter='today' وصل للمسار ده لأي سبب
-      if (status === "today") {
-        tickets = tickets.filter(isCreatedToday);
-      }
-      tickets.sort(
+      const tickets = Array.from(merged.values()).sort(
         (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
       );
       callback({ status: "success", data: tickets });

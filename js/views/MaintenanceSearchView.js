@@ -8,7 +8,6 @@
 // ============================================================
 
 import { translations } from '../config.js';
-import { buildMachineDropdownHtml } from '../machines.js';
 
 export const MaintenanceSearchView = () => {
   const currentLang = window.currentLang || "ar";
@@ -107,22 +106,27 @@ export const MaintenanceSearchView = () => {
         <option value="Low">${t.priorityLow || (currentLang === 'en' ? 'Low' : 'منخفضة')}</option>
       </select>
 
-      <!-- إصلاح M4: نفس Dropdown الماكينات الموحّد (نوع + وحدة فرعية،
-           زي Bodymaker 01...11) المستخدم في تسجيل بلاغ عطل ومقترح
-           كايزن (machines.js) - بدل قائمة ثابتة يدوية بقيم مش مطابقة
-           لأسماء الماكينات الفعلية المحفوظة (زي "Bodymaker" بمفرده،
-           أو قيم قديمة زي "machine2"/"line1" مبقتش موجودة في البيانات
-           الحالية أصلاً) - مع خيار "الكل" وربط التغيير بـ
-           applyMaintenanceSearchFilters() زي باقي فلاتر الصفحة -->
-      ${buildMachineDropdownHtml("mMachineFilter", {
-        includePlaceholder: false,
-        includeAll: true,
-        allLabel: t.machineAll || (currentLang === 'en' ? 'All Machines' : 'جميع الماكينات'),
-        allValue: 'all',
-        typeSelectClass: "col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer",
-        unitSelectClass: "col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer mt-2",
-        hiddenOnChange: "window.applyMaintenanceSearchFilters()"
-      })}
+      <select id="mMachineFilter" onchange="window.applyMaintenanceSearchFilters()"
+        class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        <option value="all">${t.machineAll || (currentLang === 'en' ? 'All Machines' : 'جميع الماكينات')}</option>
+        <option value="Coil Handling">Coil Handling</option>
+        <option value="Baler">Baler</option>
+        <option value="Cupper">Cupper</option>
+        <option value="Bodymaker">Bodymaker</option>
+        <option value="Trimmer">Trimmer</option>
+        <option value="Washer">Washer</option>
+        <option value="Decorator">Decorator</option>
+        <option value="Spray">Spray</option>
+        <option value="IBO">IBO</option>
+        <option value="Necker">Necker</option>
+        <option value="Palletizer">Palletizer</option>
+        <option value="Depalletizer">Depalletizer</option>
+        <option value="Front End Line Control">Front End Line Control</option>
+        <option value="Mid Line Control">Mid Line Control</option>
+        <option value="Back End Line Control">Back End Line Control</option>
+        <option value="machine2">Machine 2</option>
+        <option value="line1">Coating Line 1</option>
+      </select>
 
       <select id="mSortFilter" onchange="window.applyMaintenanceSearchFilters()"
         class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">

@@ -1,6 +1,7 @@
 import { BottomNav } from "../components/BottomNav.js";
 import { hasPermission } from "../permissions.js";
 import { translations } from "../config.js";
+import { renderAttendanceCard } from "../attendanceCard.js";
 
 export const HomeView = () => {
   // نظام الترجمة الموجود بالفعل في config.js (translations) - نفس
@@ -21,6 +22,11 @@ export const HomeView = () => {
   return `
   <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5">
 
+    <!-- كارت حضور الوردية الذكي للفنيين (MSCANCO EGYPT) -->
+    <div id="attendanceCardContainer">
+      ${renderAttendanceCard()}
+    </div>
+
     <!-- ملخص العدادات الحية -->
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-80 px-1">${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</h3>
@@ -29,7 +35,7 @@ export const HomeView = () => {
       <!-- أعطال مفتوحة -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('open')"
+        onclick="window.openTicketsWithFilter('pending')"
         class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-red-500 to-amber-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -51,7 +57,7 @@ export const HomeView = () => {
       <!-- تم إصلاحها -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('fixed')"
+        onclick="window.openTicketsWithFilter('resolved')"
         class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -69,7 +75,7 @@ export const HomeView = () => {
       <!-- أعطال اليوم -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('today')"
+        onclick="window.openTicketsWithFilter('all')"
         class="relative text-start dyn-card border border-blue-500/30 hover:border-blue-400/60 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-blue-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-blue-400/80 group-hover:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
