@@ -11,19 +11,19 @@
   <meta name="theme-color" content="#0E1117">
 
   <!-- أيقونة التبويب في المتصفح (Favicon) -->
-  <link rel="icon" type="image/png" href="1000230635.png">
-  <link rel="shortcut icon" type="image/png" href="1000230635.png">
+  <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
+  <link rel="shortcut icon" type="image/png" href="assets/icons/app-icon.png">
 
   <!-- دعم أجهزة iOS (Apple PWA Tags) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MaintSystem">
-  <link rel="apple-touch-icon" href="1000230635.png">
+  <link rel="apple-touch-icon" href="assets/icons/app-icon.png">
 
   <!-- تحميل مسبق (Preload) للوجو الرسمي للشركة عشان يبقى جاهز
        فوراً في هيدر التطبيق وفي أول تقرير PDF يتصدّر (راجع
        js/branding.js -> getCompanyLogoDataUrl) -->
-  <link rel="preload" as="image" href="a_wide_horizontal_logo_graphic_on_a_transparent_b.png">
+  <link rel="preload" as="image" href="assets/branding/company-banner.png">
 
   <!-- Chart.js & Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -210,7 +210,7 @@
   <!-- Splash Screen -->
   <div id="splash" class="fixed inset-0 w-full h-full bg-[#0E1117] flex flex-col items-center justify-center z-50 transition-opacity duration-700">
     <div class="flex-1 flex items-center justify-center p-4 w-full max-w-sm">
-      <img src="1000230635.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
+      <img src="assets/icons/app-icon.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
     </div>
 
     <div class="pb-10 flex flex-col items-center gap-5">

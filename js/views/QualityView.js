@@ -6,7 +6,7 @@ export const QualityView = () => {
   const t = (translations[currentLang] || translations.ar).quality;
 
   return `
-<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
+<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
 
   <!-- الهيدر الرئيسي -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -22,7 +22,7 @@ export const QualityView = () => {
   </div>
 
   <!-- شبكة الإجراءات السريعة -->
-  <div class="grid grid-cols-2 gap-3.5">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5">
 
     <!-- تصوير عيب -->
     <div 

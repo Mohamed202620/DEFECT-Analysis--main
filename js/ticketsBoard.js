@@ -42,13 +42,39 @@ function notifT() {
 }
 
 const STATUS_CLASSES = {
-  pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+  pending: "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black",
+  assigned: "bg-blue-500/20 text-blue-300 border border-blue-500/40 font-black",
+  in_progress: "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-black",
+  resolved: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black",
+  closed: "bg-slate-700/60 text-slate-300 border border-slate-600 font-bold",
+  reopened: "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-black"
 };
+
+const STATUS_BAR_ACCENTS = {
+  pending: "bg-amber-500 shadow-amber-500/40",
+  assigned: "bg-blue-500 shadow-blue-500/40",
+  in_progress: "bg-indigo-500 shadow-indigo-500/40",
+  resolved: "bg-emerald-500 shadow-emerald-500/40",
+  closed: "bg-slate-500 shadow-slate-500/40",
+  reopened: "bg-purple-500 shadow-purple-500/40"
+};
+
+function getActionButtonStyle(actionKey) {
+  switch (actionKey) {
+    case 'resolve':
+      return 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500';
+    case 'start':
+      return 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 border border-blue-500';
+    case 'assign':
+      return 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 border border-indigo-500';
+    case 'close':
+      return 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600';
+    case 'reopen':
+      return 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 border border-amber-500';
+    default:
+      return 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30';
+  }
+}
 
 function ticketCardHtml(ticket) {
 
@@ -58,44 +84,60 @@ function ticketCardHtml(ticket) {
   const actionsHtml = actions.map(a => `
     <button
       onclick="window.handleTicketAction('${ticket.id}', '${a.key}')"
-      class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
+      class="min-h-[40px] text-xs font-black px-4 py-2 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 ${getActionButtonStyle(a.key)}">
       ${a.label}
     </button>
   `).join("");
 
   const status = String(ticket.status || "").trim().toLowerCase();
   const machineName = ticket.machine || ticket.machineName || "-";
+  const accentClass = STATUS_BAR_ACCENTS[status] || "bg-slate-600";
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3">
-      <div class="flex justify-between items-center">
-        <span class="font-bold text-sm text-gray-100">${machineName}</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
-          ${tr.status[status] || status}
-        </span>
-      </div>
+    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 mb-3 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all">
+      <!-- شريط الحالة الجانبي عالي التباين لتحديد نوع العطل فورا بالعين -->
+      <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 w-2 ${accentClass} shadow-sm"></div>
 
-      <p class="text-xs text-gray-400">${ticket.description || ""}</p>
-
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        ${ticket.reportedBy ? `<span>👤 ${tr.reportedByLabel} ${ticket.reportedBy}</span>` : ""}
-        ${ticket.assignedTo ? `<span>🛠️ ${tr.assignedToLabel} ${ticket.assignedTo}</span>` : ""}
-        ${ticket.type ? `<span>🏷️ ${ticket.type}</span>` : ""}
-      </div>
-
-      ${ticket.mechanicNotes ? `
-        <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
-          🔧 ${tr.mechanicNotesLabel} ${ticket.mechanicNotes}
+      <div class="rtl:pr-2.5 ltr:pl-2.5 space-y-2.5">
+        <div class="flex justify-between items-center gap-2">
+          <div class="flex items-center gap-2">
+            <span class="font-black text-sm text-slate-100">${machineName}</span>
+            ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
+          </div>
+          <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-slate-700 text-slate-300"}">
+            ${tr.status[status] || status}
+          </span>
         </div>
-      ` : ""}
 
-      ${ticket.operatorFeedback ? `
-        <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
-          ⚠️ ${tr.operatorFeedbackLabel} ${ticket.operatorFeedback}
+        <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+          ${ticket.description || ""}
+        </p>
+
+        <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
+          ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
+          ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
+          ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
+          ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
+            ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+            ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+            'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+          }">⚡ ${ticket.priority}</span>` : ""}
         </div>
-      ` : ""}
 
-      ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-1">${actionsHtml}</div>` : ""}
+        ${ticket.mechanicNotes ? `
+          <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
+            🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${ticket.mechanicNotes}
+          </div>
+        ` : ""}
+
+        ${ticket.operatorFeedback ? `
+          <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
+            ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${ticket.operatorFeedback}
+          </div>
+        ` : ""}
+
+        ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">${actionsHtml}</div>` : ""}
+      </div>
     </div>
   `;
 
@@ -118,88 +160,49 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 }
 
 // ============================================================
-// حد أقصى 60 بلاغ (بعد فلترة الصلاحيات) + Pagination محلي
-// 20 بلاغ/صفحة × 3 صفحات كحد أقصى = 60
+// تحميل متدرج (Infinite Scroll) بلا حدود للصفحات
 // ============================================================
-
-const MAX_BOARD_TICKETS = 60;
-const BOARD_PAGE_SIZE = 20;
-const BOARD_MAX_PAGES = 3;
-
-let boardCurrentPage = 1;
-let boardCappedTickets = [];
+const BOARD_CHUNK_SIZE = 20;
+let boardVisibleCount = BOARD_CHUNK_SIZE;
+let boardAllTickets = [];
 
 function renderBoardPage(containerId, emptyMessage) {
-
   const container = document.getElementById(containerId);
   if (!container) return;
-
   const tr = t();
 
-  const totalPages = Math.min(
-    BOARD_MAX_PAGES,
-    Math.max(1, Math.ceil(boardCappedTickets.length / BOARD_PAGE_SIZE))
-  );
-  if (boardCurrentPage > totalPages) boardCurrentPage = totalPages;
-  if (boardCurrentPage < 1) boardCurrentPage = 1;
-
-  const pageStart = (boardCurrentPage - 1) * BOARD_PAGE_SIZE;
-  const pageItems = boardCappedTickets.slice(pageStart, pageStart + BOARD_PAGE_SIZE);
-
-  const bannerHtml = `
-    <div class="text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 mb-3">
-      ${tr.showingLastBanner.replace('{n}', MAX_BOARD_TICKETS)}
-    </div>
-  `;
-
-  const listHtml = pageItems.length
-    ? pageItems.map(ticketCardHtml).join("")
+  const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
+  const listHtml = visibleItems.length
+    ? visibleItems.map(ticketCardHtml).join("")
     : `<div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>`;
 
-  const paginationHtml = totalPages > 1 ? `
-    <div class="flex items-center justify-center gap-1.5 pt-3">
-      <button
-        onclick="window.setTicketsPage(${boardCurrentPage - 1})"
-        ${boardCurrentPage <= 1 ? "disabled" : ""}
-        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
-          boardCurrentPage <= 1 ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
-        }">${tr.prevPage}</button>
-      ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p => `
-        <button
-          onclick="window.setTicketsPage(${p})"
-          class="w-7 h-7 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
-            p === boardCurrentPage ? "bg-blue-600 border-blue-600 text-white" : "border-gray-800 text-gray-400 hover:border-gray-700"
-          }">${p}</button>
-      `).join("")}
-      <button
-        onclick="window.setTicketsPage(${boardCurrentPage + 1})"
-        ${boardCurrentPage >= totalPages ? "disabled" : ""}
-        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
-          boardCurrentPage >= totalPages ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
-        }">${tr.nextPage}</button>
-    </div>
-  ` : "";
+  const loaderHtml = boardVisibleCount < boardAllTickets.length 
+    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-gray-500 text-[11px] animate-pulse">
+         جاري تحميل المزيد... ( ${boardVisibleCount} من ${boardAllTickets.length} )
+       </div>` 
+    : ``;
 
-  container.innerHTML = bannerHtml + listHtml + paginationHtml;
+  container.innerHTML = listHtml + loaderHtml;
 
+  if (boardVisibleCount < boardAllTickets.length) {
+    setTimeout(() => {
+      const target = document.getElementById('infiniteScrollTarget');
+      if (target) {
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            observer.disconnect();
+            window.loadMoreTickets(containerId, emptyMessage);
+          }
+        }, { rootMargin: "150px" });
+        observer.observe(target);
+      }
+    }, 150);
+  }
 }
 
-/**
- * التنقل بين صفحات لوحة التذاكر (Pagination محلي - بدون أي طلب
- * إضافي لـ Firestore، البيانات الـ 60 محفوظة بالفعل في boardCappedTickets)
- */
-window.setTicketsPage = function (page) {
-
-  const totalPages = Math.min(
-    BOARD_MAX_PAGES,
-    Math.max(1, Math.ceil(boardCappedTickets.length / BOARD_PAGE_SIZE))
-  );
-
-  if (page < 1 || page > totalPages || page === boardCurrentPage) return;
-
-  boardCurrentPage = page;
-  renderBoardPage("ticketsBoardContainer", t().empty);
-
+window.loadMoreTickets = function (containerId, emptyMessage) {
+  boardVisibleCount += BOARD_CHUNK_SIZE;
+  renderBoardPage(containerId, emptyMessage);
 };
 
 // ============================================================
@@ -262,7 +265,7 @@ window.loadTicketsBoard = function () {
 
   const role = getCurrentRole();
   renderStatusTabs(role);
-  boardCurrentPage = 1;
+  boardVisibleCount = BOARD_CHUNK_SIZE;
 
   const container = document.getElementById("ticketsBoardContainer");
   if (!container) return;
@@ -302,9 +305,9 @@ window.loadTicketsBoard = function () {
 
       // فلترة الصلاحيات اتطبقت بالفعل جوه subscribeToTicketsBoardApi (حسب
       // role/myUid/myName) - هنا بس بناخد آخر 60 من النتيجة المفلترة والمرتبة
-      // (الأحدث أولاً) وبعدين نقسمها Pagination محلي 20/صفحة × 3 صفحات
+      // وبعدين نعرضها بشكل متدرج (Infinite Scroll) باستخدام IntersectionObserver
       const tickets = Array.isArray(result.data) ? result.data : [];
-      boardCappedTickets = tickets.slice(0, MAX_BOARD_TICKETS);
+      boardAllTickets = tickets;
       renderBoardPage("ticketsBoardContainer", t().empty);
 
     }
@@ -320,7 +323,7 @@ window.setTicketsStatusFilter = function (status) {
   if (status === currentStatusFilter) return;
 
   currentStatusFilter = status;
-  boardCurrentPage = 1;
+  boardVisibleCount = BOARD_CHUNK_SIZE;
   window.loadTicketsBoard();
 
 };

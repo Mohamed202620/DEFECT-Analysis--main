@@ -17,7 +17,7 @@ export const BottomNav = (activeTab) => {
       label: t.navMaintenance || "الصيانة", 
       action: "window.navigateTo('maintenance')" 
     },
-    {
+    { 
       id: "quality", 
       icon: "📦", 
       label: t.navQuality || "الجودة", 
@@ -32,9 +32,9 @@ export const BottomNav = (activeTab) => {
   ];
 
   return `
-    <div class="md:hidden fixed bottom-4 left-4 right-4 max-w-md mx-auto
-                dyn-card backdrop-blur-xl border
-                rounded-3xl flex justify-between items-center p-2 px-3
+    <div class="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto
+                bg-[#0F172A]/95 backdrop-blur-2xl border border-slate-800
+                rounded-2xl flex justify-between items-center p-1.5 px-2
                 shadow-2xl z-50 transition-all duration-300">
 
       ${navItems.map(item => {
@@ -43,13 +43,13 @@ export const BottomNav = (activeTab) => {
           <button
             type="button"
             onclick="${item.action}"
-            class="flex flex-col items-center justify-center flex-1 h-12 rounded-2xl cursor-pointer transition-all duration-200 active:scale-95 ${
+            class="flex flex-col items-center justify-center flex-1 h-13 py-1 rounded-xl cursor-pointer transition-all duration-200 active:scale-90 ${
               isActive
-                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/30 scale-105'
-                : 'dyn-text-muted hover:opacity-100 opacity-70'
+                ? 'bg-blue-600 text-white font-black shadow-lg shadow-blue-600/40'
+                : 'text-slate-400 hover:text-slate-200 opacity-85'
             }">
             <span class="text-lg leading-none">${item.icon}</span>
-            <span class="text-[9px] mt-1 font-medium truncate max-w-[50px]">${item.label}</span>
+            <span class="text-[10px] mt-1 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
           </button>
         `;
       }).join("")}

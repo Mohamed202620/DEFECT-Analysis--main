@@ -7,7 +7,7 @@ export const StatsView = () => {
   const common = (translations[currentLang] || translations.ar).common;
 
   return `
-<div class="p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
 
   <!-- زر الرجوع والعنوان -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
