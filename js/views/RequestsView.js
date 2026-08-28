@@ -74,29 +74,39 @@ export const RequestsView = () => `
 
 <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
 
-    <!-- Header -->
-
-    <div>
-
-        <h2 class="text-xl font-bold text-blue-400">
-            👥 إدارة المستخدمين
-        </h2>
-
-        <p class="text-xs text-gray-400 mt-1">
-            إدارة الحسابات والأدوار والصلاحيات
-        </p>
-
+    <!-- Header & Back Button -->
+    <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div class="flex items-center gap-3">
+            <button
+                type="button"
+                onclick="window.navigateTo('system')"
+                class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <span class="text-base rtl:rotate-180">‹</span>
+                <span class="text-xs text-slate-200">رجوع</span>
+            </button>
+            <div>
+                <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+                    <span>👥</span> إدارة المستخدمين والصلاحيات
+                </h2>
+                <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+                    إدارة الحسابات وتعيين الأدوار والصلاحيات
+                </p>
+            </div>
+        </div>
     </div>
 
 
     <!-- Search -->
 
-    <input
-        id="userSearch"
-        oninput="window.searchUsers()"
-        placeholder="🔍 بحث بالاسم أو رقم الهاتف"
-        class="w-full p-3 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-sm"
-    >
+    <div class="relative">
+        <input
+            id="userSearch"
+            oninput="window.searchUsers()"
+            placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
+            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner"
+        >
+        <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
+    </div>
 
 
     <!-- Filters -->
@@ -106,22 +116,22 @@ export const RequestsView = () => `
         <select
             id="statusFilter"
             onchange="window.filterUsers()"
-            class="bg-[#1E293B] border border-gray-700 rounded-xl p-3 text-sm">
+            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="">
                 كل الحالات
             </option>
 
             <option value="active">
-                🟢 Active
+                🟢 Active (مفعل)
             </option>
 
             <option value="pending">
-                🟡 Pending
+                🟡 Pending (قيد الانتظار)
             </option>
 
             <option value="rejected">
-                🔴 Rejected
+                🔴 Rejected (مرفوض)
             </option>
 
         </select>
@@ -130,7 +140,7 @@ export const RequestsView = () => `
         <select
             id="roleFilter"
             onchange="window.filterUsers()"
-            class="bg-[#1E293B] border border-gray-700 rounded-xl p-3 text-sm">
+            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="">
                 كل الأدوار

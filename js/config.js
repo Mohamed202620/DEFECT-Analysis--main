@@ -375,6 +375,7 @@ export const translations = {
       // مش نص واجهة ثابت، ده بديل لبيانات مستخدم حقيقية فاضية
       defaultName: "المستخدم",
       defaultJob: "فني صيانة",
+      statsOverview: "ملخص المؤشرات الحية",
       kpiOpen: "أعطال مفتوحة",
       kpiCritical: "يوجد بلاغ حرج",
       kpiClosed: "تم إصلاحها",
@@ -403,7 +404,12 @@ export const translations = {
       kaizenTrackDesc: "الحالة والتعديل المطلوب",
 
       chartTitle: "تحليل الأداء والأعطال",
-      chartWeekly: "تحديث أسبوعي",
+      chartDaily: "يومي",
+      chartWeekly: "أسبوعي",
+      chartMonthly: "شهري",
+      chartTypeLine: "خطي",
+      chartTypeArea: "مساحة",
+      chartTypeBar: "أعمدة",
 
       contactDev: "تواصل مع المطور",
       // إضافة: نص رسالة الواتساب الجاهزة لزرار "تواصل مع المطور"
@@ -1024,6 +1030,7 @@ export const translations = {
       // static UI copy, this substitutes missing real user data
       defaultName: "User",
       defaultJob: "Maintenance Technician",
+      statsOverview: "Live Metrics Overview",
       kpiOpen: "Open Breakdowns",
       kpiCritical: "Critical breakdown open",
       kpiClosed: "Resolved",
@@ -1052,7 +1059,12 @@ export const translations = {
       kaizenTrackDesc: "Status & requested revisions",
 
       chartTitle: "Performance & Breakdown Analysis",
-      chartWeekly: "Weekly Update",
+      chartDaily: "Daily",
+      chartWeekly: "Weekly",
+      chartMonthly: "Monthly",
+      chartTypeLine: "Line",
+      chartTypeArea: "Area",
+      chartTypeBar: "Bar",
 
       contactDev: "Contact Developer",
       // Pre-filled WhatsApp message text for the "Contact Developer" button

@@ -329,6 +329,18 @@ window.setTicketsStatusFilter = function (status) {
 };
 
 /**
+ * فتح لوحة التذاكر مع تعيين الفلتر المطلوب مباشرة
+ */
+window.openTicketsWithFilter = function (status) {
+  if (status) {
+    currentStatusFilter = status;
+  }
+  if (typeof window.navigateTo === "function") {
+    window.navigateTo("tickets");
+  }
+};
+
+/**
  * إيقاف المستمع عند المغادرة
  */
 window.cleanupTicketsBoard = function () {
