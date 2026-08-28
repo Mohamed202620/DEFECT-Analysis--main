@@ -210,14 +210,31 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
   try {
     const ticketsRef = collection(db, "tickets");
 
+    // إصلاح M6: فلتر زمني "أعطال اليوم" - بنفس منطق حساب كارت "أعطال
+    // اليوم" في loadDashboardStats (workflow.js) بالظبط (مقارنة
+    // toDateString() مع تاريخ اليوم)، بغض النظر عن حالة التذكرة
+    const isCreatedToday = (ticket) => {
+      if (!ticket.createdAt) return false;
+      const created = new Date(ticket.createdAt);
+      if (isNaN(created.getTime())) return false;
+      return created.toDateString() === new Date().toDateString();
+    };
+
     const handleSnapshotWithoutOrder = (q, context) => {
       return onSnapshot(
         q,
         (querySnapshot) => {
-          const tickets = [];
+          let tickets = [];
           querySnapshot.forEach(docSnap => {
             tickets.push({ id: docSnap.id, ...docSnap.data() });
           });
+          // إصلاح M6: فلترة محلية بتاريخ اليوم (فوق أي فلتر حالة) لما
+          // يكون الفلتر المطلوب "today" - نفس أسلوب فلترة التاريخ
+          // المحلية المستخدم بالفعل في fetchTicketsForReportApi بدل أي
+          // استعلام Firestore إضافي على createdAt (تفادياً لأي Composite Index)
+          if (status === "today") {
+            tickets = tickets.filter(isCreatedToday);
+          }
           // ترتيب محلياً حسب التاريخ من الأحدث للأقدم
           tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
           callback({ status: "success", data: tickets });
@@ -273,7 +290,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     };
 
     const statusClauses = () => {
-      if (!status || status === "all") return [];
+      if (!status || status === "all" || status === "today") return [];
       if (status === "open") {
         // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
         // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
@@ -301,7 +318,14 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       if (!reportedReady || !assignedReady) return;
       const merged = new Map();
       [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
-      const tickets = Array.from(merged.values()).sort(
+      let tickets = Array.from(merged.values());
+      // إصلاح M6: نفس فلترة "أعطال اليوم" المحلية كمان في مسار
+      // الفنيين/المهندسين (بلاغاتي + المُسندة إليّ) عشان تفضل شغالة
+      // حتى لو currentStatusFilter='today' وصل للمسار ده لأي سبب
+      if (status === "today") {
+        tickets = tickets.filter(isCreatedToday);
+      }
+      tickets.sort(
         (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
       );
       callback({ status: "success", data: tickets });
