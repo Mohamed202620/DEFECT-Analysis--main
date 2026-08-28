@@ -1,3 +1,5 @@
+import { exportToPdf, PAGE_BREAK_CLASS } from './services/exportUtility.js';
+import { buildPdfStatsCardsHtml } from './branding.js';
 // ============================================================
 // ticketsBoard.js
 // لوحة متابعة دورة حياة التذكرة - تُعرض ديناميكياً حسب دور المستخدم
@@ -619,138 +621,89 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
 }
 
 window.generateMonthlyReport = async function () {
-
-  const tr = t();
-
-  if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
-    alert(tr.libsNotLoaded);
-    return;
-  }
-
   const btn = document.getElementById("monthlyReportBtn");
   const originalLabel = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = tr.preparingReport;
+    btn.innerHTML = "⏳ جاري تجهيز التقرير...";
   }
 
-  let offscreen = null;
-
   try {
-
     const role = getCurrentRole();
-    const myUid = localStorage.getItem("userId") || "";
     const myName = localStorage.getItem("name") || "";
-
+    const myUid = localStorage.getItem("userId") || "";
     const since = new Date();
-    since.setDate(since.getDate() - REPORT_DAYS);
-
-    // 1) جلب التذاكر - نفس منطق فلترة الصلاحيات المُستخدم في لوحة
-    // التذاكر (Admin/PM يشوفوا الكل، الفني يشوف بلاغاته + المُسندة
-    // إليه فقط) ومحصورة بآخر 30 يوم
+    since.setDate(since.getDate() - 30);
+    
     const result = await fetchTicketsForReportApi({
-      role, myUid, myName, sinceISO: since.toISOString()
+      role, myName, myUid, sinceISO: since.toISOString()
     });
-
+    
     if (result.status !== "success") {
-      alert(tr.reportDataError);
+      alert(tr.reportGenerateError);
       return;
     }
-
+    
     const tickets = result.data;
-
     if (!tickets.length) {
-      alert(tr.noTicketsForReport);
+      alert(tr.reportNoData);
       return;
     }
-
-    // 2) تحميل وضغط صور كل تذكرة (صورة البلاغ + صور ما بعد الإصلاح)
+    
     const ticketsWithImages = [];
     for (const ticket of tickets) {
-      const urls = [ticket.imageUrl, ...(Array.isArray(ticket.afterImages) ? ticket.afterImages : [])]
-        .filter(Boolean)
-        .slice(0, 4);
-
+      const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0) 
+                        ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : []);
       const dataUrls = [];
-      for (const url of urls) {
+      for (const url of mediaUrls.slice(0, 4)) {
         const dataUrl = await loadImageAsCompressedDataUrl(url);
         if (dataUrl) dataUrls.push(dataUrl);
       }
-      ticketsWithImages.push({ ticket, images: dataUrls });
+      ticketsWithImages.push({ ticket, dataUrls });
     }
+    
+    const isAr = (window.currentLang || "ar") === "ar";
+    
+    let blocksHtml = ticketsWithImages.map(({ ticket, dataUrls }) => {
+      let html = buildReportTicketBlockHtml(ticket, dataUrls);
+      return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
+    }).join("");
+    
+    const closedCount = tickets.filter(t => t.status === "closed").length;
+    const resolvedCount = tickets.filter(t => t.status === "resolved").length;
+    const inProgressCount = tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length;
+    const pendingCount = tickets.length - closedCount - resolvedCount - inProgressCount;
 
-    // 3) بناء محتوى التقرير كـ HTML خارج الشاشة (بالخط والاتجاه
-    // العربي الطبيعي للمتصفح) عشان يترسم بشكل صحيح عند تحويله لصورة
-    const currentLang = window.currentLang || "ar";
+    const cardsHtml = buildPdfStatsCardsHtml([
+      { label: isAr ? "إجمالي البلاغات" : "Total", value: tickets.length, color: "#2563eb", bg: "#eff6ff" },
+      { label: isAr ? "معلقة / قيد الانتظار" : "Pending", value: pendingCount, color: "#dc2626", bg: "#fef2f2" },
+      { label: isAr ? "جاري العمل" : "In Progress", value: inProgressCount, color: "#d97706", bg: "#fffbeb" },
+      { label: isAr ? "مغلقة / تم الحل" : "Closed", value: closedCount + resolvedCount, color: "#059669", bg: "#ecfdf5" }
+    ]);
 
-    offscreen = document.createElement("div");
-    offscreen.style.position = "fixed";
-    offscreen.style.top = "-99999px";
-    offscreen.style.left = "0";
-    offscreen.style.width = `${REPORT_PAGE_WIDTH_PX}px`;
-    offscreen.style.padding = "24px";
-    offscreen.style.background = "#ffffff";
-    offscreen.style.color = "#0f172a";
-    offscreen.style.fontFamily = "Tahoma, Arial, sans-serif";
-    offscreen.dir = currentLang === "ar" ? "rtl" : "ltr";
-
-    const roleLabel = { admin: tr.roleAdmin, manager: tr.roleManager }[role] || tr.roleOther;
-
-    offscreen.innerHTML = `
-      <div style="text-align:center; margin-bottom:18px; border-bottom:2px solid #1d4ed8; padding-bottom:12px;">
-        <div style="font-size:18px; font-weight:bold; color:#1d4ed8;">${tr.reportTitle}</div>
-        <div style="font-size:11px; color:#475569; margin-top:6px;">
-          ${tr.reportPeriodLabel.replace('{n}', REPORT_DAYS)} &nbsp;|&nbsp; ${tr.reportDateLabel} ${formatReportDate(new Date().toISOString())} &nbsp;|&nbsp;
-          ${tr.reportRoleLabel} ${escapeReportHtml(roleLabel)} &nbsp;|&nbsp; ${tr.reportTotalLabel} ${tickets.length}
-        </div>
+    const htmlContent = `
+      ${cardsHtml}
+      <div id="mPdfRecordsContainer">
+        ${blocksHtml}
       </div>
-      <div id="reportTicketsContainer"></div>
     `;
 
-    offscreen.querySelector("#reportTicketsContainer").innerHTML =
-      ticketsWithImages.map(({ ticket, images }) => buildReportTicketBlockHtml(ticket, images)).join("");
+    const title = isAr ? "🗓️ التقرير الشهري لأعطال الصيانة" : "🗓️ Maintenance Monthly Report";
+    const filename = `${t().reportFileName}-${new Date().toISOString().slice(0, 10)}.pdf`;
 
-    document.body.appendChild(offscreen);
+    const infoRows = [
+      { label: isAr ? "الفترة" : "Period", value: isAr ? "آخر 30 يوم" : "Last 30 days" }
+    ];
 
-    // 4) تحويل المحتوى لصورة (Canvas) ثم تقسيمها على صفحات PDF
-    const canvas = await window.html2canvas(offscreen, {
-      scale: 1.5,
-      useCORS: true,
-      backgroundColor: "#ffffff"
-    });
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "pt", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/jpeg", 0.72); // ضغط إضافي لصورة الصفحة الكاملة
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    while (heightLeft > 0) {
-      position -= pdfHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    pdf.save(`${tr.reportFileName}-${new Date().toISOString().slice(0, 10)}.pdf`);
+    await exportToPdf(title, infoRows, htmlContent, filename);
 
   } catch (error) {
     console.error("Error generating monthly report:", error);
-    alert(tr.reportGenerateError);
+    alert(t().reportGenerateError);
   } finally {
-    if (offscreen && offscreen.parentNode) offscreen.parentNode.removeChild(offscreen);
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = originalLabel;
     }
   }
-
 };

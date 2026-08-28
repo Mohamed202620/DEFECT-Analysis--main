@@ -136,7 +136,7 @@ export const MaintenanceSearchView = () => {
       <div class="flex items-center gap-1.5">
         <button type="button" onclick="window.exportMaintenanceSearchResults()"
           class="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95 transition-all">
-          ${t.exportCsv}
+          ${t.exportExcel}
         </button>
         <button type="button" id="mExportPdfBtn" onclick="window.exportMaintenanceSearchResultsPdf()"
           class="shrink-0 text-[10px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">

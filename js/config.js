@@ -632,7 +632,7 @@ export const translations = {
       machineAll: "كل الماكينات",
       sortNewest: "🕓 الأحدث أولاً",
       sortOldest: "🕘 الأقدم أولاً",
-      exportCsv: "📤 CSV",
+      exportExcel: "📤 Excel",
       exportPdf: "🖨️ PDF"
     },
 
@@ -1266,7 +1266,7 @@ export const translations = {
       machineAll: "All machines",
       sortNewest: "🕓 Newest first",
       sortOldest: "🕘 Oldest first",
-      exportCsv: "📤 CSV",
+      exportExcel: "📤 Excel",
       exportPdf: "🖨️ PDF"
     },
 

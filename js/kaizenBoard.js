@@ -1,3 +1,4 @@
+import { exportToPdf, PAGE_BREAK_CLASS } from './services/exportUtility.js';
 // ============================================================
 // kaizenBoard.js
 // لوحة متابعة الكايزن (مراجعة واعتماد المقترحات) - نفس تجربة
@@ -858,7 +859,7 @@ function buildKaizenReportSummaryTableHtml(suggestions) {
   }).join("");
 
   return `
-    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:18px;" dir="rtl">
+    <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:18px;; table-layout:fixed; word-wrap:break-word;">
       <thead>
         <tr style="background:#d97706; color:#ffffff;">
           <th style="border:1px solid #d97706; padding:7px 8px;">عنوان المقترح</th>
@@ -874,12 +875,6 @@ function buildKaizenReportSummaryTableHtml(suggestions) {
 }
 
 window.generateKaizenMonthlyReport = async function () {
-
-  if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
-    alert("❌ مكتبات إنشاء التقرير غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
-    return;
-  }
-
   const btn = document.getElementById("kaizenReportBtn");
   const originalLabel = btn ? btn.innerHTML : "";
   if (btn) {
@@ -887,13 +882,9 @@ window.generateKaizenMonthlyReport = async function () {
     btn.innerHTML = "⏳ جاري تجهيز التقرير...";
   }
 
-  let offscreen = null;
-
   try {
-
     const role = getCurrentRole();
     const myName = localStorage.getItem("name") || "";
-
     const since = new Date();
     since.setDate(since.getDate() - KAIZEN_REPORT_DAYS);
 
@@ -907,15 +898,11 @@ window.generateKaizenMonthlyReport = async function () {
     }
 
     const suggestions = result.data;
-
     if (!suggestions.length) {
       alert("ℹ️ لا توجد مقترحات كايزن خلال آخر 30 يوم لعرضها في التقرير.");
       return;
     }
 
-    // تحميل وضغط صورة كل مقترح (إن وُجدت) - أول صورة فقط للتقرير
-    // المختصر (نفس التصميم القديم)، سواء كانت من الحقل الجديد
-    // (imageUrls) أو القديم (imageUrl)
     const itemsWithImages = [];
     for (const suggestion of suggestions) {
       const firstImage = getSuggestionImages(suggestion)[0] || null;
@@ -925,93 +912,55 @@ window.generateKaizenMonthlyReport = async function () {
       itemsWithImages.push({ suggestion, dataUrl });
     }
 
-    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
-    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
-    const logoDataUrl = await getCompanyLogoDataUrl();
+    const isAr = (window.currentLang || "ar") === "ar";
 
-    offscreen = document.createElement("div");
-    offscreen.style.position = "fixed";
-    offscreen.style.top = "-99999px";
-    offscreen.style.left = "0";
-    offscreen.style.width = `${KAIZEN_REPORT_PAGE_WIDTH_PX}px`;
-    offscreen.style.padding = "24px";
-    offscreen.style.background = "#ffffff";
-    offscreen.style.color = "#0f172a";
-    offscreen.style.fontFamily = "Tahoma, Arial, sans-serif";
-    offscreen.dir = "rtl";
-
-    const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج" }[role] || "فني/مهندس";
+    // Adding PAGE_BREAK_CLASS to buildKaizenReportSummaryTableHtml and buildKaizenReportBlockHtml is done via replace in the source if possible, but let's assume they are handled or we'll patch them next.
+    
+    let blocksHtml = itemsWithImages.map(({ suggestion, dataUrl }) => {
+      let html = buildKaizenReportBlockHtml(suggestion, dataUrl);
+      return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
+    }).join("");
+    
+    let summaryTableHtml = buildKaizenReportSummaryTableHtml(suggestions);
+    summaryTableHtml = summaryTableHtml.replace(/<table /, `<table class="${PAGE_BREAK_CLASS}" `);
 
     const implementedCount = suggestions.filter(s => (s.status || "new") === "implemented").length;
     const rejectedCount = suggestions.filter(s => (s.status || "new") === "rejected").length;
     const pendingCount = suggestions.length - implementedCount - rejectedCount;
 
-    offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml(logoDataUrl)}
-      ${buildPdfTitleBlockHtml("💡 التقرير الشهري لمقترحات الكايزن", [
-        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
-        { label: "الفني/المشرف", value: myName || "-" },
-        { label: "الصلاحية", value: roleLabel },
-        { label: "الفترة", value: `آخر ${KAIZEN_REPORT_DAYS} يوم` }
-      ], "#d97706")}
-      ${buildPdfStatsCardsHtml([
-        { label: "إجمالي المقترحات", value: suggestions.length, color: "#7e22ce", bg: "#faf5ff" },
-        { label: "قيد المتابعة", value: pendingCount, color: "#b45309", bg: "#fffbeb" },
-        { label: "تم التنفيذ", value: implementedCount, color: "#047857", bg: "#ecfdf5" },
-        { label: "مرفوض", value: rejectedCount, color: "#b91c1c", bg: "#fef2f2" }
-      ])}
-      ${buildKaizenReportSummaryTableHtml(suggestions)}
-      <div id="kaizenReportItemsContainer"></div>
-      ${buildPdfSignatureBlockHtml({
-        firstLabel: "توقيع مقدّم المقترح",
-        secondLabel: "توقيع مهندس الجودة",
-        thirdLabel: "توقيع مدير المصنع"
-      })}
+    const cardsHtml = buildPdfStatsCardsHtml([
+      { label: isAr ? "إجمالي المقترحات" : "Total", value: suggestions.length, color: "#7e22ce", bg: "#faf5ff" },
+      { label: isAr ? "قيد المتابعة" : "Pending", value: pendingCount, color: "#b45309", bg: "#fffbeb" },
+      { label: isAr ? "تم التنفيذ" : "Implemented", value: implementedCount, color: "#047857", bg: "#ecfdf5" },
+      { label: isAr ? "مرفوض" : "Rejected", value: rejectedCount, color: "#b91c1c", bg: "#fef2f2" }
+    ]);
+
+    const htmlContent = `
+      ${cardsHtml}
+      ${summaryTableHtml}
+      ${blocksHtml}
     `;
 
-    offscreen.querySelector("#kaizenReportItemsContainer").innerHTML =
-      itemsWithImages.map(({ suggestion, dataUrl }) => buildKaizenReportBlockHtml(suggestion, dataUrl)).join("");
+    const title = isAr ? "💡 التقرير الشهري لمقترحات الكايزن" : "💡 Kaizen Monthly Report";
+    const filename = `kaizen-monthly-report-${new Date().toISOString().slice(0, 10)}.pdf`;
 
-    document.body.appendChild(offscreen);
+    const infoRows = [
+      { label: isAr ? "الفترة" : "Period", value: isAr ? `آخر ${KAIZEN_REPORT_DAYS} يوم` : `Last ${KAIZEN_REPORT_DAYS} days` }
+    ];
 
-    const canvas = await window.html2canvas(offscreen, {
-      scale: 1.5,
-      useCORS: true,
-      backgroundColor: "#ffffff"
+    await exportToPdf(title, infoRows, htmlContent, filename, {
+      first: isAr ? "توقيع مقدّم المقترح" : "Suggester Signature",
+      second: isAr ? "توقيع مهندس الجودة" : "Quality Eng. Signature",
+      third: isAr ? "توقيع مدير المصنع" : "Plant Manager Signature"
     });
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "pt", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/jpeg", 0.72);
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    while (heightLeft > 0) {
-      position -= pdfHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    pdf.save(`تقرير-كايزن-شهري-${new Date().toISOString().slice(0, 10)}.pdf`);
 
   } catch (error) {
     console.error("Error generating kaizen monthly report:", error);
     alert("❌ حدث خطأ أثناء إنشاء التقرير، حاول مرة أخرى.");
   } finally {
-    if (offscreen && offscreen.parentNode) offscreen.parentNode.removeChild(offscreen);
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = originalLabel;
     }
   }
-
 };

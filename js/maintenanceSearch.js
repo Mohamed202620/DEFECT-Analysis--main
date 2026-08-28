@@ -1,3 +1,4 @@
+import { exportToPdf, exportToExcel, PAGE_BREAK_CLASS } from './services/exportUtility.js';
 // ============================================================
 // maintenanceSearch.js
 // منطق صفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
@@ -11,7 +12,7 @@
 //   fetchPmRecordsForSearchApi/fetchSuggestionsForSearchApi في
 //   services/api.js)، فمفيش أي بيانات زيادة عن اللازم بتترجع أصلاً
 // - بحث نصي + فلاتر (نوع السجل/الحالة/الأولوية/الماكينة/التاريخ) +
-//   ترتيب + تصدير CSV و PDF (يحترمان نفس نتيجة البحث/الفلاتر
+//   ترتيب + تصدير Excel و PDF (يحترمان نفس نتيجة البحث/الفلاتر
 //   المعروضة بالظبط، وبالتالي نفس نطاق الصلاحيات)
 // نفس أسلوب knowledgeBase.js تماماً (حالة موديول + دوال window.*)
 // ============================================================
@@ -568,96 +569,55 @@ function csvEscape(value) {
   return str;
 }
 
-window.exportMaintenanceSearchResults = function () {
+window.exportMaintenanceSearchResults = async function () {
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
   }
 
-  // دالة مساعدة لتنسيق التاريخ ليصبح مقروءاً (YYYY-MM-DD HH:mm)
-  const formatDateForExport = (isoStr) => {
-    if (!isoStr) return '';
-    const d = new Date(isoStr);
-    if (isNaN(d.getTime())) return isoStr;
-    return d.toLocaleString('en-GB', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit'
-    }).replace(',', '');
-  };
+  const isAr = (window.currentLang || "ar") === "ar";
+  
+  const headers = isAr 
+    ? ['النوع', 'رقم السجل', 'الماكينة / العنوان', 'الحالة', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'روابط المرفقات (فيديو/صور)']
+    : ['Type', 'ID', 'Machine / Title', 'Status', 'Date', 'By', 'Assigned To', 'Description', 'Notes', 'Attachments'];
 
-  const headers = [
-    'النوع', 'الماكينة', 'الحالة', 'الأولوية', 'الوصف/الملاحظات',
-    'بلّغ/الفني/مقدّم المقترح', 'مُسندة إلى', 'تاريخ الإنشاء', 'روابط الوسائط'
-  ];
+  const rows = lastFilteredList.map(record => {
+    const kind = record._kind;
+    let kindStr = kind;
+    if (isAr) kindStr = kind === 'ticket' ? 'عطل' : kind === 'suggestion' ? 'مقترح' : 'صيانة وقائية';
+    else kindStr = kind === 'ticket' ? 'Ticket' : kind === 'suggestion' ? 'Suggestion' : 'PM';
 
-  const rows = lastFilteredList.map(r => {
+    const titleText = kind === 'suggestion' ? (record.title || record.machine || '') : (record.machine || record.machineName || '');
+    let statusText = String(record.status || '').toLowerCase();
+    if (kind === 'ticket') statusText = (isAr ? STATUS_LABELS[statusText] : statusText) || statusText;
+    if (kind === 'suggestion') statusText = (isAr ? SUGGESTION_STATUS_LABELS[statusText] : statusText) || statusText;
 
-    const mediaLinks = collectRecordMediaUrls(r).join('\n');
-    const formattedDate = formatDateForExport(r.createdAt);
+    const byText = kind === 'suggestion' ? (record.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : record.name) : (record.reportedBy || record.reporter?.name || '');
+    const assignedText = record.assignedTo || '';
+    const descText = record.description || record.problem || record.notes || '';
+    const resolutionText = record.resolutionDetails || record.implementationNotes || '';
+    
+    const mediaUrls = collectRecordMediaUrls(record);
+    const attachments = mediaUrls.join(' | ');
 
-    if (r._kind === 'ticket') {
-      const status = String(r.status || '').toLowerCase();
-      return [
-        'بلاغ عطل',
-        r.machine || '',
-        STATUS_LABELS[status] || r.status || '',
-        r.priority ? (PRIORITY_LABELS[r.priority] || r.priority) : '',
-        r.description || '',
-        r.reportedBy || '',
-        r.assignedTo || '',
-        formattedDate,
-        mediaLinks
-      ];
-    }
-
-    if (r._kind === 'suggestion') {
-      const status = String(r.status || 'new').toLowerCase();
-      return [
-        'مقترح كايزن',
-        r.machine || '',
-        SUGGESTION_STATUS_LABELS[status] || r.status || '',
-        '',
-        [r.title, r.problem].filter(Boolean).join(' - '),
-        r.anonymous ? 'مجهول' : (r.name || ''),
-        r.assignedTo || '',
-        formattedDate,
-        mediaLinks
-      ];
-    }
-
-    const checklist = r.checklist || {};
-    const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
     return [
-      'صيانة وقائية',
-      r.machine || '',
-      `${doneCount}/3 بنود`,
-      '',
-      r.notes || '',
-      r.reporter?.name || '',
-      '',
-      formattedDate,
-      mediaLinks
+      kindStr,
+      record.id || '',
+      titleText,
+      statusText,
+      formatPdfDate(record.createdAt),
+      byText,
+      assignedText,
+      descText,
+      resolutionText,
+      attachments
     ];
   });
 
-  const csvContent = [
-    ...buildCsvHeaderLines("تقرير البحث والفلترة المتقدمة"),
-    headers,
-    ...rows
-  ]
-    .map(row => row.map(csvEscape).join(','))
-    .join('\n');
-
-  // BOM (\uFEFF) عشان Excel يفتح العربي صح من غير ترميز غريب
-  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `maintenance-search-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
+  const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.csv`;
+  
+  await exportToExcel(title, headers, rows, filename);
 };
 
 // ============================================================
@@ -708,70 +668,7 @@ async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
   }
 }
 
-function buildPdfRecordBlockHtml(record, imageDataUrls, hasSkippedMedia) {
-  const kind = record._kind;
-  const kindLabel = kind === 'ticket' ? '🚨 بلاغ عطل' : kind === 'suggestion' ? '💡 مقترح كايزن' : '📝 صيانة وقائية';
-  const titleText = kind === 'suggestion' ? (record.title || record.machine || '-') : (record.machine || record.machineName || '-');
-
-  let statusLabel = '-';
-  if (kind === 'ticket') {
-    const status = String(record.status || '').toLowerCase();
-    statusLabel = STATUS_LABELS[status] || record.status || '-';
-  } else if (kind === 'suggestion') {
-    const status = String(record.status || 'new').toLowerCase();
-    statusLabel = SUGGESTION_STATUS_LABELS[status] || record.status || '-';
-  } else {
-    const checklist = record.checklist || {};
-    const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
-    statusLabel = `${doneCount}/3 بنود`;
-  }
-
-  const descriptionText = record.description || record.problem || record.notes || '';
-
-  const peopleLine = kind === 'ticket'
-    ? `👤 بلّغ: ${escapeHtml(record.reportedBy || '-')} &nbsp;|&nbsp; 🛠️ مُسندة إلى: ${escapeHtml(record.assignedTo || '-')}`
-    : kind === 'suggestion'
-      ? `👤 مقدّم المقترح: ${escapeHtml(record.anonymous ? 'مجهول' : (record.name || '-'))} &nbsp;|&nbsp; 🔧 الفني: ${escapeHtml(record.assignedTo || '-')}`
-      : `👤 الفني: ${escapeHtml(record.reporter?.name || '-')}`;
-
-  const imagesHtml = imageDataUrls.length ? `
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-      ${imageDataUrls.map(src => `
-        <img src="${src}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
-      `).join("")}
-    </div>
-  ` : "";
-
-  const skippedNoteHtml = hasSkippedMedia ? `
-    <div style="font-size:10px; color:#b45309; margin-top:6px;">
-      🎥 يوجد وسائط إضافية (فيديو/ملف) مرتبطة بهذا السجل - راجع تصدير CSV لروابطها الكاملة.
-    </div>
-  ` : "";
-
-  return `
-    <div style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${kindLabel} — ${escapeHtml(titleText)}</span>
-        <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
-          ${escapeHtml(statusLabel)}
-        </span>
-      </div>
-      <div style="font-size:11px; color:#475569; margin-bottom:6px;">
-        📅 ${formatPdfDate(record.createdAt)} &nbsp;|&nbsp; ${peopleLine}
-      </div>
-      ${descriptionText ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;">${escapeHtml(descriptionText)}</div>` : ""}
-      ${imagesHtml}
-      ${skippedNoteHtml}
-    </div>
-  `;
-}
-
 window.exportMaintenanceSearchResultsPdf = async function () {
-  if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
-    alert("❌ مكتبات إنشاء PDF غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
-    return;
-  }
-
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
@@ -784,9 +681,8 @@ window.exportMaintenanceSearchResultsPdf = async function () {
     btn.innerHTML = "⏳ جاري التجهيز...";
   }
 
-  let offscreen = null;
-
   try {
+    const isAr = (window.currentLang || "ar") === "ar";
     const recordsWithImages = [];
     for (const record of lastFilteredList) {
       const mediaUrls = collectRecordMediaUrls(record).slice(0, 4);
@@ -799,75 +695,83 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       recordsWithImages.push({ record, images: dataUrls, hasSkippedMedia });
     }
 
-    // تحميل لوجو الشركة (Data URL مُخزَّن مسبقاً) والانتظار عليه
-    // *قبل* التقاط الصورة، عشان يضمن ظهوره في التقرير من أول مرة
-    const logoDataUrl = await getCompanyLogoDataUrl();
+    const htmlContent = recordsWithImages.map(({ record, images, hasSkippedMedia }) => {
+      const kind = record._kind;
+      const kindLabel = kind === 'ticket' ? (isAr ? '🚨 بلاغ عطل' : '🚨 Ticket') 
+                      : kind === 'suggestion' ? (isAr ? '💡 مقترح كايزن' : '💡 Suggestion') 
+                      : (isAr ? '📝 صيانة وقائية' : '📝 PM');
+      
+      const titleText = kind === 'suggestion' ? (record.title || record.machine || '-') : (record.machine || record.machineName || '-');
+      let statusLabel = '-';
+      if (kind === 'ticket') {
+        const status = String(record.status || '').toLowerCase();
+        statusLabel = (isAr ? STATUS_LABELS[status] : status) || record.status || '-';
+      } else if (kind === 'suggestion') {
+        const status = String(record.status || 'new').toLowerCase();
+        statusLabel = (isAr ? SUGGESTION_STATUS_LABELS[status] : status) || record.status || '-';
+      } else {
+        const checklist = record.checklist || {};
+        const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
+        statusLabel = isAr ? `${doneCount}/3 بنود` : `${doneCount}/3 items`;
+      }
+      const descriptionText = record.description || record.problem || record.notes || '';
+      
+      const reportedLabel = isAr ? "👤 بلّغ:" : "👤 Reporter:";
+      const assignedLabel = isAr ? "🛠️ مُسندة إلى:" : "🛠️ Assigned To:";
+      const anonymousLabel = isAr ? "مجهول" : "Anonymous";
+      const suggesterLabel = isAr ? "👤 مقدّم المقترح:" : "👤 Suggester:";
+      const techLabel = isAr ? "🔧 الفني:" : "🔧 Technician:";
+      
+      const peopleLine = kind === 'ticket'
+        ? `${reportedLabel} ${escapeHtml(record.reportedBy || '-')} &nbsp;|&nbsp; ${assignedLabel} ${escapeHtml(record.assignedTo || '-')}`
+        : kind === 'suggestion'
+          ? `${suggesterLabel} ${escapeHtml(record.anonymous ? anonymousLabel : (record.name || '-'))} &nbsp;|&nbsp; ${techLabel} ${escapeHtml(record.assignedTo || '-')}`
+          : `${techLabel} ${escapeHtml(record.reporter?.name || '-')}`;
 
-    offscreen = document.createElement("div");
-    offscreen.style.position = "fixed";
-    offscreen.style.top = "-99999px";
-    offscreen.style.left = "0";
-    offscreen.style.width = `${PDF_PAGE_WIDTH_PX}px`;
-    offscreen.style.padding = "24px";
-    offscreen.style.background = "#ffffff";
-    offscreen.style.color = "#0f172a";
-    offscreen.style.fontFamily = "Tahoma, Arial, sans-serif";
-    offscreen.dir = "rtl";
+      const imagesHtml = images.length ? `
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          ${images.map(src => `
+            <img src="${src}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
+          `).join("")}
+        </div>
+      ` : "";
+      
+      const skippedNoteHtml = hasSkippedMedia ? `
+        <div style="font-size:10px; color:#b45309; margin-top:6px;">
+          ${isAr ? "🎥 يوجد وسائط إضافية (فيديو/ملف) مرتبطة بهذا السجل - راجع تصدير Excel لروابطها الكاملة." : "🎥 Additional media (video/file) exists - see Excel export for full links."}
+        </div>
+      ` : "";
+      return `
+        <div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px; background: #f8fafc;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-weight:bold; font-size:13px; color:#0f172a;">${kindLabel} — ${escapeHtml(titleText)}</span>
+            <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
+              ${escapeHtml(statusLabel)}
+            </span>
+          </div>
+          <div style="font-size:11px; color:#475569; margin-bottom:6px;">
+            📅 ${formatPdfDate(record.createdAt)} &nbsp;|&nbsp; ${peopleLine}
+          </div>
+          ${descriptionText ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;">${escapeHtml(descriptionText)}</div>` : ""}
+          ${imagesHtml}
+          ${skippedNoteHtml}
+        </div>
+      `;
+    }).join("");
 
-    const role = getCurrentRole();
-    const roleLabel = { admin: "مدير النظام", manager: "مدير الإنتاج", engineer: "مهندس" }[role] || "فني";
+    const title = isAr ? "🔎 تقرير البحث والفلترة المتقدمة" : "🔎 Advanced Search Report";
+    const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.pdf`;
+    
+    const infoRows = [
+      { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length }
+    ];
 
-    offscreen.innerHTML = `
-      ${buildPdfBrandHeaderHtml(logoDataUrl)}
-      ${buildPdfTitleBlockHtml("🔎 تقرير البحث والفلترة المتقدمة", [
-        { label: "تاريخ التصدير", value: new Date().toLocaleDateString("ar-EG") },
-        { label: "الصلاحية", value: roleLabel },
-        { label: "إجمالي النتائج", value: lastFilteredList.length }
-      ])}
-      <div id="mPdfRecordsContainer"></div>
-    `;
-
-    offscreen.querySelector("#mPdfRecordsContainer").innerHTML =
-      recordsWithImages.map(({ record, images, hasSkippedMedia }) =>
-        buildPdfRecordBlockHtml(record, images, hasSkippedMedia)
-      ).join("") + buildPdfSignatureBlockHtml();
-
-    document.body.appendChild(offscreen);
-
-    const canvas = await window.html2canvas(offscreen, {
-      scale: 1.5,
-      useCORS: true,
-      backgroundColor: "#ffffff"
-    });
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "pt", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const imgData = canvas.toDataURL("image/jpeg", 0.72);
-
-    let heightLeft = imgHeight;
-    let position = 0;
-
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pdfHeight;
-
-    while (heightLeft > 0) {
-      position -= pdfHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-    }
-
-    pdf.save(`maintenance-search-${new Date().toISOString().slice(0, 10)}.pdf`);
+    await exportToPdf(title, infoRows, htmlContent, filename);
 
   } catch (error) {
-    console.error("Error generating maintenance search PDF:", error);
-    alert("❌ حدث خطأ أثناء إنشاء ملف PDF، حاول مرة أخرى.");
+    console.error("Error generating PDF:", error);
+    alert('حدث خطأ أثناء تصدير PDF');
   } finally {
-    if (offscreen && offscreen.parentNode) offscreen.parentNode.removeChild(offscreen);
     if (btn) {
       btn.disabled = false;
       btn.innerHTML = originalLabel;

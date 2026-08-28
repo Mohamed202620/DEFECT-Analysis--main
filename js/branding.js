@@ -323,8 +323,7 @@ export function buildPdfTitleBlockHtml(
   const infoTable = rows.length
     ? `
       <table
-        style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:11px;"
-        dir="rtl"
+        style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:11px;; table-layout:fixed; word-wrap:break-word;"
       >
         <tbody>
           ${chunkPairs(rows, 2)
