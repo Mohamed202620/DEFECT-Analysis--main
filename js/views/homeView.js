@@ -29,7 +29,7 @@ export const HomeView = () => {
       <!-- أعطال مفتوحة -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('pending')"
+        onclick="window.openTicketsWithFilter('open')"
         class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-red-500 to-amber-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -51,7 +51,7 @@ export const HomeView = () => {
       <!-- تم إصلاحها -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('resolved')"
+        onclick="window.openTicketsWithFilter('fixed')"
         class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-emerald-500"></div>
         <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
