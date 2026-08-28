@@ -1,5 +1,7 @@
 import { BottomNav } from "../components/BottomNav.js";
 import { translations } from "../config.js";
+import { isAdminRole } from "../permissions.js";
+import { renderDailyTipCard } from "../dailyTips.js";
 
 export const SystemView = () => {
 
@@ -8,13 +10,12 @@ export const SystemView = () => {
 // ============================================================
 
 const can = (permission) => {
+  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
+  if (isAdminRole(role)) return true;
+
   if (typeof window.hasPermission === "function") {
     return window.hasPermission(permission);
   }
-
-  // فحص احتياطي مباشر من الـ localStorage إذا لم يتم تحميل app.js بعد
-  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
-  if (role === "admin") return true;
 
   const permissions =
     (localStorage.getItem("permissions") || "")
@@ -22,7 +23,7 @@ const can = (permission) => {
       .map(p => p.trim().toLowerCase())
       .filter(Boolean);
 
-  return permissions.includes("all") || permissions.includes(permission.toLowerCase());
+  return permissions.includes("all") || permissions.includes("admin") || permissions.includes(String(permission || "").toLowerCase());
 };
 
 // ============================================================
@@ -84,6 +85,11 @@ return `
       ${currentRole}
     </span>
   </div>  
+
+  <!-- ========================================================
+       كارت «معلومة على الماشي» (يتغير يومياً الساعة 12 ظهراً)
+       ======================================================== -->
+  ${renderDailyTipCard()}
 
   <!-- ========================================================
        شبكة خيارات النظام

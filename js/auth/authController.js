@@ -1,6 +1,7 @@
 import { login } from './login.js';
 import { register } from './register.js';
 import { logout } from './logout.js';
+import { setCurrentRole, setCurrentPermissions, isAdminRole } from '../permissions.js';
 
 /**
  * 1. معالجة تسجيل الدخول
@@ -25,8 +26,29 @@ export async function doLogin() {
     const response = await login(phone, pass);
 
     if (response && response.status === 'success') {
+      const user = response.user || response.data || {};
+
       // حفظ بيانات المستخدم في الذاكرة المحلية
-      localStorage.setItem('currentUser', JSON.stringify(response.user || response.data));
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      localStorage.setItem('userId', user.id || user.uid || '');
+      localStorage.setItem('name', user.name || '');
+      localStorage.setItem('phone', user.phone || phone);
+      localStorage.setItem('job', user.job || '');
+      localStorage.setItem('shift', user.shift || '');
+      localStorage.setItem('department', user.department || '');
+
+      const userRole = (user.role || '').trim().toLowerCase();
+      localStorage.setItem('role', userRole);
+
+      let userPerms = user.permissions || '';
+      if (isAdminRole(userRole)) {
+        userPerms = userPerms ? `all,${userPerms}` : 'all,home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,quality,ai,kb,statistics,export,users,requests,machines,settings';
+      }
+      localStorage.setItem('permissions', userPerms);
+
+      // تحديث حالة الصلاحيات المركزية
+      setCurrentRole(userRole);
+      setCurrentPermissions(userPerms);
 
       // التوجيه للصفحة الرئيسية
       if (typeof window.navigateTo === 'function') {

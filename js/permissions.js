@@ -3,7 +3,7 @@
 // نظام الصلاحيات الموحد
 // ============================================================
 
-import { translations } from './config.js';
+import { translations, ALL_PERMISSIONS } from './config.js';
 
 // إصلاح (ترجمة شاملة): تسميات أزرار دورة حياة البلاغ/المقترح كانت
 // ثابتة بالعربي - دلوقتي بتقرأ من translations.ticketActions /
@@ -21,6 +21,7 @@ function sa() {
 
 let currentRole =
   (localStorage.getItem("role") || "")
+    .trim()
     .toLowerCase();
 
 let currentPermissions =
@@ -29,24 +30,65 @@ let currentPermissions =
     .map(p => p.trim().toLowerCase())
     .filter(Boolean);
 
+// دالة مساعدة لمعرفة هل الدور هو أدمن/مدير نظام
+export function isAdminRole(role) {
+  const r = String(role || "").trim().toLowerCase();
+  return (
+    r === "admin" ||
+    r === "superadmin" ||
+    r === "administrator" ||
+    r === "مدير النظام" ||
+    r === "مدير نظام" ||
+    r === "مدير" ||
+    r === "ادمن" ||
+    r === "مسؤول"
+  );
+}
+
+window.isAdminRole = isAdminRole;
+
 // ============================================================
 // قراءة/تحديث الحالة
 // ============================================================
 
 export function getCurrentRole() {
-  return currentRole;
+  let role = (localStorage.getItem("role") || currentRole || "").trim().toLowerCase();
+  if (!role) {
+    try {
+      const cu = JSON.parse(localStorage.getItem("currentUser") || "{}");
+      role = (cu.role || "").trim().toLowerCase();
+    } catch {
+      // ignore
+    }
+  }
+  return role || "user";
 }
 
 export function getCurrentPermissions() {
-  return currentPermissions;
+  const role = getCurrentRole();
+  if (isAdminRole(role)) {
+    return ALL_PERMISSIONS;
+  }
+  const perms = (localStorage.getItem("permissions") || "")
+    .split(",")
+    .map(p => p.trim().toLowerCase())
+    .filter(Boolean);
+  return perms.length > 0 ? perms : currentPermissions;
 }
 
 export function setCurrentRole(role) {
-  currentRole = role;
+  currentRole = String(role || "").trim().toLowerCase();
+  localStorage.setItem("role", currentRole);
 }
 
 export function setCurrentPermissions(permissions) {
-  currentPermissions = permissions;
+  if (Array.isArray(permissions)) {
+    currentPermissions = permissions.map(p => String(p).trim().toLowerCase()).filter(Boolean);
+    localStorage.setItem("permissions", currentPermissions.join(","));
+  } else if (typeof permissions === "string") {
+    currentPermissions = permissions.split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
+    localStorage.setItem("permissions", permissions);
+  }
 }
 
 // ============================================================
@@ -54,25 +96,37 @@ export function setCurrentPermissions(permissions) {
 // ============================================================
 
 export function hasPermission(permission) {
-
-  const perm =
-    String(permission || "")
-      .trim()
-      .toLowerCase();
+  const perm = String(permission || "")
+    .trim()
+    .toLowerCase();
 
   if (!perm) return false;
 
-  // Admin لديه جميع الصلاحيات
-  if (currentRole === "admin") {
+  // استخراج الدور الحالي ديناميكياً للتأكد من أحدث حالة
+  const role = getCurrentRole();
+
+  // Admin لديه جميع الصلاحيات دائماً وأبداً وبلا أي قيود
+  if (isAdminRole(role)) {
     return true;
   }
 
-  // all = جميع الصلاحيات
-  if (currentPermissions.includes("all")) {
+  // قراءة الصلاحيات الحالية المحدثة
+  const storedPerms = (localStorage.getItem("permissions") || "")
+    .split(",")
+    .map(p => p.trim().toLowerCase())
+    .filter(Boolean);
+
+  // all أو admin = جميع الصلاحيات
+  if (
+    storedPerms.includes("all") ||
+    storedPerms.includes("admin") ||
+    currentPermissions.includes("all") ||
+    currentPermissions.includes("admin")
+  ) {
     return true;
   }
 
-  return currentPermissions.includes(perm);
+  return storedPerms.includes(perm) || currentPermissions.includes(perm);
 }
 
 window.hasPermission = hasPermission;
@@ -82,14 +136,14 @@ window.can = hasPermission;
 // نطاق الوصول الكامل للبيانات (Full Data Access)
 // تستخدمها أي شاشة محتاجة تفرّق بين "يشوف كل البيانات" و"يشوف
 // بياناته المسموح له بيها بس" (زي صفحة البحث والفلترة المتقدمة)
-// بدل تكرار قائمة الأدوار في كل مكان. admin/manager نفس الدورين
-// المعتمدين فعلاً في باقي الشاشات (tickets/suggestions)، + engineer
-// هنا تحديداً لأن صفحة البحث والفلترة المتقدمة مطلوب يشوف بيها
-// المهندس كل البيانات المسموح له بيها زي الأدمن تماماً - أي دور
-// تاني (فني/مشرف/عامل...) يعتبر "وصول محدود" (بياناته هو بس)
 // ============================================================
-export function hasFullDataAccess(role = currentRole) {
-  return role === "admin" || role === "manager" || role === "engineer";
+export function hasFullDataAccess(role = getCurrentRole()) {
+  const r = String(role || getCurrentRole()).trim().toLowerCase();
+  return (
+    isAdminRole(r) ||
+    r === "manager" ||
+    r === "engineer"
+  );
 }
 
 window.hasFullDataAccess = hasFullDataAccess;
@@ -100,7 +154,8 @@ window.hasFullDataAccess = hasFullDataAccess;
 
 export function getTicketActions(ticket) {
 
-  const role = currentRole;
+  const role = getCurrentRole();
+  const isAdmin = isAdminRole(role);
   const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
   const status = String(ticket?.status || "").trim().toLowerCase();
@@ -109,12 +164,12 @@ export function getTicketActions(ticket) {
 
   // التحقق من قرابة المستخدم بالبلاغ (فني مُسند إليه أم مُبلغ)
   const isAssignee =
-    role === "admin" ||
+    isAdmin ||
     ticket.assignedToUid === myUid ||
     (!!myName && ticket.assignedTo === myName);
 
   const isReporter =
-    role === "admin" ||
+    isAdmin ||
     ticket.reportedByUid === myUid ||
     (!!myName && ticket.reportedBy === myName);
 
@@ -122,7 +177,7 @@ export function getTicketActions(ticket) {
 
     case "pending":
       // تصنيف وإسناد البلاغ للمدير أو الأدمن
-      if (role === "manager" || role === "admin") {
+      if (role === "manager" || isAdmin) {
         actions.push({ key: "assign", label: ta().assign });
       }
       break;
@@ -165,30 +220,18 @@ window.getTicketActions = getTicketActions;
 
 // ============================================================
 // أزرار دورة حياة مقترح الكايزن (Kaizen Suggestion Lifecycle Actions)
-// نفس فكرة getTicketActions بالضبط، لكن الدور الإداري المعتمد هنا
-// هو "admin" فقط (لا PM ولا manager) - راجع kaizenBoard.js
 // ============================================================
 
 export function getSuggestionActions(suggestion) {
 
-  const role = currentRole;
+  const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
   const status = String(suggestion?.status || "new").trim().toLowerCase();
 
-  const isAdmin = role === "admin";
+  const isAdmin = isAdminRole(role);
   const isAssignedTechnician = !!myUid && suggestion?.assignedToUid === myUid;
 
-  // ملكية المقترح - المرجع الأساسي هو submittedByUid (نفس منطق
-  // isReporter/isAssignee في getTicketActions أعلاه). لكن على عكس
-  // التذاكر، مقترحات الكايزن كانت بتتحقق من submittedByUid لوحده من
-  // غير أي احتياطي - فأي مقترح قديم اتسجل قبل إضافة هذا الحقل (أو
-  // اتسجل وهو فاضي لأي سبب) كان بيفقد صاحبه القدرة على "تعديل وإعادة
-  // الإرسال" نهائياً، وبيفقد أي إشعار متعلق بيه (راجع
-  // createSuggestionNotification في suggestionsApi.js اللي بيتجاهل
-  // الإرسال أصلاً لو submittedByUid فاضي). الاحتياطي بالاسم هنا بيتفعّل
-  // فقط لما الحقل يكون فاضي/مش موجود - لو موجود بيتم الاعتماد عليه
-  // حصرياً زي ما كان (بدون أي تراجع في الدقة للمقترحات الحديثة)
   const isOwner =
     (!!suggestion?.submittedByUid && suggestion.submittedByUid === myUid) ||
     (!suggestion?.submittedByUid && !!myName && suggestion?.name === myName);

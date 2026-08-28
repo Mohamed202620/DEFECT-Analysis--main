@@ -1,5 +1,6 @@
 import { BottomNav } from "../components/BottomNav.js";
-import { DEBUG } from "../config.js";
+import { DEBUG, ALL_PERMISSIONS } from "../config.js";
+import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
 
 // طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات كل
 // المستخدمين (أسماء/أرقام هواتف/أدوار) في الكونسول لكل زائر
@@ -301,11 +302,11 @@ function renderUsers(users) {
 
 
             const protectedAdmin =
-                user.role === "admin";
+                isAdminRole(user.role);
 
 
             const hasAll =
-                perms.includes("all");
+                perms.includes("all") || protectedAdmin;
 
 
             const checked =
@@ -776,6 +777,15 @@ async function(id) {
 
         });
 
+    if (isAdminRole(role)) {
+        if (!permissions.includes("all")) {
+            permissions.unshift("all");
+        }
+        ALL_PERMISSIONS.forEach(p => {
+            if (!permissions.includes(p)) permissions.push(p);
+        });
+    }
+
 
     const result =
         await updatePermissionsApi(
@@ -796,6 +806,13 @@ async function(id) {
 
 
     if (result.status === "success") {
+        const currentUid = localStorage.getItem("userId") || "";
+        if (id === currentUid) {
+            localStorage.setItem("role", role);
+            localStorage.setItem("permissions", permissions.join(","));
+            setCurrentRole(role);
+            setCurrentPermissions(permissions.join(","));
+        }
 
         loadUsersManagement();
 

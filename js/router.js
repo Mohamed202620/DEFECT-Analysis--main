@@ -44,4 +44,8 @@ import './offlineBanner.js';
 // معرّفة في أي مكان بالمشروع (راجع NotificationsModal.js)
 import './components/NotificationsModal.js';
 
+// استيراد جانبي لنظام «معلومة على الماشي» (Daily Insights & Tips)
+// تفعيل مؤقتات الـ Toast التلقائية (بعد 5 ثوانٍ وبعد 4 ساعات)
+import './dailyTips.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

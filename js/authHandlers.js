@@ -14,8 +14,8 @@ import {
 } from './services/api.js';
 
 import { navigateTo } from './renderCore.js';
-import { setCurrentRole, setCurrentPermissions } from './permissions.js';
-import { DEBUG, translations } from './config.js';
+import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
+import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
 // ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
@@ -190,45 +190,24 @@ localStorage.setItem(
   user.department || ""  
 );  
 
-localStorage.setItem(  
-  "role",  
-  (user.role || "")  
-    .trim()  
-    .toLowerCase()  
-);  
+const userRole = (user.role || "").trim().toLowerCase();
+let userPerms = user.permissions || "";
+if (isAdminRole(userRole)) {
+  userPerms = userPerms ? `all,${userPerms}` : ALL_PERMISSIONS.join(",");
+}
 
-localStorage.setItem(  
-  "permissions",  
-  user.permissions || ""  
-);  
-
+localStorage.setItem("role", userRole);
+localStorage.setItem("permissions", userPerms);
 
 // ========================================================  
 // تحديث حالة التطبيق  
 // ========================================================  
 
-setCurrentRole(  
-  (user.role || "")  
-    .trim()  
-    .toLowerCase()  
-);  
-
-
-setCurrentPermissions(  
-  (user.permissions || "")  
-    .split(",")  
-    .map(  
-      p =>  
-        p.trim().toLowerCase()  
-    )  
-    .filter(Boolean)  
-);  
-
+setCurrentRole(userRole);
+setCurrentPermissions(userPerms);
 
 // ========================================================  
 // الانتقال للرئيسية  
-// (navigateTo("home") تُنتج بالضبط نفس تأثير التعيين اليدوي
-// السابق لـ currentPage + history.pushState + render())
 // ========================================================  
 
 navigateTo("home");

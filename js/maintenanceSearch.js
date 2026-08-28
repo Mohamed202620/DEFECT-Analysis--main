@@ -615,7 +615,7 @@ window.exportMaintenanceSearchResults = async function () {
   });
 
   const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
-  const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.csv`;
+  const filename = `mscanco-maintenance-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
   
   await exportToExcel(title, headers, rows, filename);
 };
@@ -627,8 +627,9 @@ window.exportMaintenanceSearchResults = async function () {
 const PDF_PAGE_WIDTH_PX = 794;
 
 function formatPdfDate(iso) {
+  const isEn = window.currentLang === 'en';
   try {
-    return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    return new Date(iso).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
   } catch {
     return iso || '-';
   }
