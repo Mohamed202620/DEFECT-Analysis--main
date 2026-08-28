@@ -144,11 +144,30 @@ function updateFilterVisibilityForType(type) {
       `<option value="${value}">${label}</option>`
     ).join('');
     statusSelect.value = options.some(([value]) => value === previousValue) ? previousValue : 'all';
-    statusSelect.classList.toggle('hidden', type === 'pm');
+
+    const hideStatus = type === 'pm';
+    statusSelect.classList.toggle('hidden', hideStatus);
+    // إصلاح M5: تبويب "وقائية" مفيهوش فلتر حالة أصلاً (سجلات الصيانة
+    // الوقائية مالهاش status زي البلاغات) - فلما نخفي الفلتر لازم
+    // نصفّر قيمته لـ 'all' برضه مش بس نخفيه بصرياً. من غير كده، لو
+    // فضلت قيمة قديمة متسربة من تبويب "البلاغات" (زي 'pending') وهي
+    // مخفية، renderResults() هيستخدمها فعلياً ويسقط كل نتائج الوقائية
+    // صامتاً (لأن شرط الفلترة بيتطلب r._kind === 'ticket')
+    if (hideStatus) {
+      statusSelect.value = 'all';
+    }
   }
 
   if (priorityFilter) {
-    priorityFilter.classList.toggle('hidden', type === 'pm' || type === 'suggestion');
+    const hidePriority = type === 'pm' || type === 'suggestion';
+    priorityFilter.classList.toggle('hidden', hidePriority);
+    // إصلاح M5: نفس المبدأ - فلتر الأولوية بيخص البلاغات بس (Tickets)،
+    // فلو اتخفى مع تبويب "وقائية"/"كايزن" لازم يترجع لـ 'all' برضه عشان
+    // ميفضلش يسقط نتائج التبويب الحالي صامتاً بسبب قيمة قديمة متسربة
+    // من تبويب "البلاغات" (نفس شرط الفلترة بيتطلب r._kind === 'ticket')
+    if (hidePriority) {
+      priorityFilter.value = 'all';
+    }
   }
 }
 

@@ -239,8 +239,8 @@ let unsubscribeTicketsListener = null;
 // تحت. بنستثنيهم هنا عشان الفلتر الحقيقي (زي ما اتحسبت بيه أرقام
 // الكروت عبر STATUS_QUERY_ALIASES في ticketsApi.js) يفضل شغال، وبنربط
 // كل واحد منهم بأقرب تبويب موجود بصرياً بس عشان التظليل (Highlight)
-const HOME_CARD_STATUSES = ['open', 'fixed'];
-const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed' };
+const HOME_CARD_STATUSES = ['open', 'fixed', 'today'];
+const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all' };
 
 function renderStatusTabs(role) {
 
@@ -368,6 +368,10 @@ window.openTicketsWithFilter = function (status) {
         pending: 'assigned_to_me',
         open: 'assigned_to_me',
         all: 'my_tickets',
+        // إصلاح M6: "أعطال اليوم" - مفيش تبويب بتاريخ عندهم أصلاً،
+        // فبنقرّبها لأوسع نظرة متاحة ليهم (بلاغاتي) بدل ما تتفلتر
+        // بالتاريخ فقط عند الأدمن/المدير
+        today: 'my_tickets',
         resolved: 'awaiting_confirm',
         fixed: 'awaiting_confirm',
         closed: 'awaiting_confirm'
