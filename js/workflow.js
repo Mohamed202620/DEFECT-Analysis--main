@@ -1,4 +1,7 @@
 import { saveDefectApi, fetchTicketsApi } from './services/api.js';
+// إصلاح M1: جلب الدور والمستخدم الحالي عشان نمرّرهم لـ fetchTicketsApi
+// في loadDashboardStats() بدل ما تجيب كل التذاكر دايماً بدون فلترة
+import { getCurrentRole } from './permissions.js';
 // إضافة: نفس دوال الحساب المستخدمة في صفحة الإحصائيات (statistics.js)
 // اتعملها export من هناك بدون تغيير منطقها، عشان نعرض نفس الأرقام
 // (MTTR / أكثر ماكينة / أفضل فني) في كارتات الرئيسية الجديدة من
@@ -654,7 +657,15 @@ window.updateChartRangeButtons = updateChartRangeButtons;
 
 export async function loadDashboardStats() {
 
-  const result = await fetchTicketsApi();
+  // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
+  // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر
+  // حسب الصلاحيات (Admin/Manager = الكل، وباقي الأدوار = بلاغاتي +
+  // المُسندة إليّ فقط) بدل ما تجيب كل التذاكر لأي مستخدم
+  const role = getCurrentRole();
+  const myUid = localStorage.getItem("userId") || "";
+  const myName = localStorage.getItem("name") || "";
+
+  const result = await fetchTicketsApi({ role, myUid, myName });
 
   if (!result || result.status !== 'success') return;
 
