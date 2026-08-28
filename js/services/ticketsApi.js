@@ -261,13 +261,27 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     }
 
     // 4. الفلاتر العامة (الأدمن والمدير)
+    // إصلاح M2: نفس قائمة الحالات "المغلقة" المستخدمة في isClosedStatus /
+    // CLOSED_STATUSES بالظبط (js/workflow.js) - عشان كارت "تم إصلاحها"
+    // في الرئيسية يفتح بالضبط نفس الحالات اللي اتحسب عليها رقم الكارت
+    const CLOSED_STATUSES_FOR_HOME_CARDS = ["closed", "resolved", "done", "مغلق", "تم الإصلاح"];
+
     const STATUS_QUERY_ALIASES = {
       pending: ["pending", "open"],
-      in_progress: ["in_progress", "reopened", "assigned"]
+      in_progress: ["in_progress", "reopened", "assigned"],
+      fixed: CLOSED_STATUSES_FOR_HOME_CARDS
     };
 
     const statusClauses = () => {
       if (!status || status === "all") return [];
+      if (status === "open") {
+        // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
+        // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
+        // محددة سلفاً - فبدل تخمين قائمة "مفتوحة" ممكن تفوّت حالة جديدة
+        // غير متوقعة، بنستخدم عكس بالظبط نفس قائمة الحالات المغلقة
+        // (CLOSED_STATUSES_FOR_HOME_CARDS) عشان الفلتر يطابق الرقم تماماً
+        return [where("status", "not-in", CLOSED_STATUSES_FOR_HOME_CARDS)];
+      }
       const values = STATUS_QUERY_ALIASES[status];
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
