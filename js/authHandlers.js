@@ -15,7 +15,8 @@ import {
 
 import { navigateTo } from './renderCore.js';
 import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
-import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
+import { auth, DEBUG, translations, ALL_PERMISSIONS } from './config.js';
+import { signOut } from './firebase.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
 // ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
@@ -644,12 +645,13 @@ container.innerHTML = `
 // ============================================================
 
 window.logout = async function () {
-  if (typeof window.logoutUser === 'function') {
-    await window.logoutUser();
-  } else {
-    localStorage.clear();
-    setCurrentRole("");
-    setCurrentPermissions([]);
-    navigateTo("login");
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Logout Error:", error);
   }
+  localStorage.clear();
+  setCurrentRole("");
+  setCurrentPermissions([]);
+  navigateTo("login");
 };
