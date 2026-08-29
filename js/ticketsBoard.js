@@ -22,6 +22,11 @@ import {
   fetchTicketsForReportApi
 } from './services/api.js';
 import { translations } from './config.js';
+// إصلاح (تنظيف/Refactor): STATUS_CLASSES بقت مستوردة من ملف ثوابت
+// مشترك (ticketStatusConstants.js) باسم STATUS_CLASSES_BOARD (نسخة
+// "بارزة" مخصصة لشارة الحالة الأكبر هنا في اللوحة، بنفس القيم اللي
+// كانت متعرّفة محلياً هنا بالظبط - بدون أي تغيير في الشكل الظاهري)
+import { STATUS_CLASSES_BOARD } from './ticketStatusConstants.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
 // الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
@@ -40,15 +45,6 @@ function notifT() {
   const currentLang = window.currentLang || "ar";
   return (translations[currentLang] || translations.ar).notifications;
 }
-
-const STATUS_CLASSES = {
-  pending: "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-black",
-  assigned: "bg-blue-500/20 text-blue-300 border border-blue-500/40 font-black",
-  in_progress: "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-black",
-  resolved: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black",
-  closed: "bg-slate-700/60 text-slate-300 border border-slate-600 font-bold",
-  reopened: "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-black"
-};
 
 const STATUS_BAR_ACCENTS = {
   pending: "bg-amber-500 shadow-amber-500/40",
@@ -104,7 +100,7 @@ function ticketCardHtml(ticket) {
             <span class="font-black text-sm text-slate-100">${machineName}</span>
             ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
           </div>
-          <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-slate-700 text-slate-300"}">
+          <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
             ${tr.status[status] || status}
           </span>
         </div>
@@ -232,23 +228,41 @@ function getTabsForRole(role) {
 let currentStatusFilter = null;
 let unsubscribeTicketsListener = null;
 
+// إصلاح M2/M3: حالات "افتراضية" بتيجي من كروت لوحة المتابعة بالرئيسية
+// (homeView.js) مش من ضغط تبويب فعلي - 'open' (أعطال مفتوحة) و 'fixed'
+// (تم إصلاحها). دول مش أسماء تبويبات حرفية عند الأدمن/المدير، فمن غير
+// استثناء هيتم استبدالهم صامتاً بأول تبويب (all) في renderStatusTabs
+// تحت. بنستثنيهم هنا عشان الفلتر الحقيقي (زي ما اتحسبت بيه أرقام
+// الكروت عبر STATUS_QUERY_ALIASES في ticketsApi.js) يفضل شغال، وبنربط
+// كل واحد منهم بأقرب تبويب موجود بصرياً بس عشان التظليل (Highlight)
+const HOME_CARD_STATUSES = ['open', 'fixed', 'today'];
+const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all' };
+
 function renderStatusTabs(role) {
 
   const container = document.getElementById("ticketsTabsContainer");
   if (!container) return;
 
   const tabs = getTabsForRole(role);
+  const isHomeCardStatus = HOME_CARD_STATUSES.includes(currentStatusFilter);
 
-  // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير موجود في التبويبات المتاحة
-  if (!currentStatusFilter || !tabs.some(tab => tab.key === currentStatusFilter)) {
+  // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير
+  // موجود في التبويبات المتاحة - إلا إذا كان فلتر "كارت رئيسية" صالح
+  // (open/fixed) للأدمن/المدير، فبيفضل زي ما هو من غير استبدال
+  if (!currentStatusFilter || (!tabs.some(tab => tab.key === currentStatusFilter) && !isHomeCardStatus)) {
     currentStatusFilter = tabs[0].key;
   }
+
+  // مفتاح التظليل البصري فقط (مش اللي بيتبعت فعلياً للاستعلام) - كارت
+  // "أعطال مفتوحة" (open) بيظلل تبويب "قيد الانتظار"، وكارت "تم
+  // إصلاحها" (fixed) بيظلل تبويب "مغلق"، كأقرب تبويب موجود بصرياً
+  const highlightKey = HOME_CARD_TAB_ALIAS[currentStatusFilter] || currentStatusFilter;
 
   container.innerHTML = tabs.map(tab => `
     <button
       onclick="window.setTicketsStatusFilter('${tab.key}')"
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
-        currentStatusFilter === tab.key
+        highlightKey === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
           : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
       }">
@@ -333,7 +347,35 @@ window.setTicketsStatusFilter = function (status) {
  */
 window.openTicketsWithFilter = function (status) {
   if (status) {
-    currentStatusFilter = status;
+    const role = getCurrentRole();
+
+    // إصلاح M3: كروت لوحة المتابعة بالرئيسية ('open' / 'all' / 'fixed'
+    // ...إلخ) مبنية على افتراض صلاحية الأدمن/المدير (فلاتر عامة على كل
+    // التذاكر). لغير الأدمن/المدير (فني/مشغل/مهندس) مفيش تبويب بنفس
+    // الاسم أصلاً عندهم، فكان بيتم استبدال الفلتر صامتاً بأول تبويب
+    // متاح (assigned_to_me) جوه renderStatusTabs بغض النظر عن الكارت
+    // اللي ضغط عليه المستخدم فعلياً - يعني كل الكروت كانت بتؤدي لنفس
+    // التبويب. دلوقتي بنحوّل كل كارت لأقرب تبويب متاح فعلياً لصلاحيته:
+    // - "أعطال مفتوحة" (pending/open) -> "المُسندة إليّ" (شغله المفتوح)
+    // - "أعطال اليوم" و"إجمالي البلاغات" (all) -> "بلاغاتي" (my_tickets)
+    // - "تم إصلاحها" (resolved/fixed/closed) -> "بانتظار تأكيدي"
+    if (role === 'technician' || role === 'operator' || role === 'engineer') {
+      const NON_ADMIN_STATUS_MAP = {
+        pending: 'assigned_to_me',
+        open: 'assigned_to_me',
+        all: 'my_tickets',
+        // إصلاح M6: "أعطال اليوم" - مفيش تبويب بتاريخ عندهم أصلاً،
+        // فبنقرّبها لأوسع نظرة متاحة ليهم (بلاغاتي) بدل ما تتفلتر
+        // بالتاريخ فقط عند الأدمن/المدير
+        today: 'my_tickets',
+        resolved: 'awaiting_confirm',
+        fixed: 'awaiting_confirm',
+        closed: 'awaiting_confirm'
+      };
+      currentStatusFilter = NON_ADMIN_STATUS_MAP[status] || 'assigned_to_me';
+    } else {
+      currentStatusFilter = status;
+    }
   }
   if (typeof window.navigateTo === "function") {
     window.navigateTo("tickets");

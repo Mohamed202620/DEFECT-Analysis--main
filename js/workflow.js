@@ -11,6 +11,10 @@ import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '.
 // الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
 // نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
 import { translations } from './config.js';
+// إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
+// مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
+// نفس التعريف في statistics.js بالظبط
+import { isClosedStatus } from './ticketStatusConstants.js';
 // مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
 // واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
 // مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
@@ -317,18 +321,14 @@ export let currentChartRange = 'weekly';
 // 'area' (خط + تعبئة، الشكل الافتراضي القديم) / 'line' (خط بدون تعبئة) / 'bar' (أعمدة)
 export let currentChartType = 'area';
 
-// نفس تصنيف "مغلق" المستخدم في loadDashboardStats بالظبط - اتنقل هنا
-// كثابت مشترك عشان الرسم البياني وكارتات الـ KPI يتفقوا في نفس المنطق
-const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
+// نفس تصنيف "مغلق" المستخدم في loadDashboardStats بالظبط - مستوردة من
+// ملف الثوابت المشترك (ticketStatusConstants.js) عشان الرسم البياني
+// وكارتات الـ KPI يتفقوا في نفس المنطق مع باقي الملفات (statistics.js...)
 
 // آخر نسخة من مصفوفة التذاكر (تم جلبها فعلياً من Firestore عبر
 // fetchTicketsApi داخل loadDashboardStats) - بتتخزن هنا عشان تبديل
 // الفلتر يعيد الحساب فوراً محلياً من غير أي Round-trip جديد للسيرفر
 let lastTicketsSnapshot = [];
-
-function isClosedStatus(status) {
-  return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
-}
 
 // ------------------------------------------------------------
 // تجميع بيانات الرسم البياني حسب الفلتر المطلوب من مصفوفة التذاكر

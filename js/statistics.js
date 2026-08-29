@@ -10,6 +10,10 @@
 
 import { fetchTicketsApi } from './services/api.js';
 import { translations } from './config.js';
+// إصلاح (تنظيف/Refactor): CLOSED_STATUSES بقت مستوردة من ملف ثوابت
+// مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة حرفياً
+// مع نفس التعريف في workflow.js
+import { CLOSED_STATUSES } from './ticketStatusConstants.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الصفحة (بطاقات الملخص، تسميات
 // الرسوم البيانية، رسائل عدم وجود بيانات) كانت ثابتة بالعربي -
@@ -60,7 +64,6 @@ function periodMeta(period) {
 
 const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
 
-const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
 
 function el(id) {
   return document.getElementById(id);

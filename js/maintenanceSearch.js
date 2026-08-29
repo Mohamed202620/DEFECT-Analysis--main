@@ -2,9 +2,27 @@ import { exportToPdf, exportToExcel, PAGE_BREAK_CLASS } from './services/exportU
 // ============================================================
 // maintenanceSearch.js
 // منطق صفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
+// - يجمع بلاغات الأعطال (tickets) وسجلات الصيانة الوقائية
+//   (pmRecords) ومقترحات الكايزن (suggestions) في مصفوفة واحدة موحّدة
+// - الصلاحيات مُطبّقة فعلياً على مستوى جلب البيانات نفسه (وليس مجرد
+//   إخفاء واجهة): admin/manager/engineer (راجع hasFullDataAccess في
+//   permissions.js) يشوفوا كل شيء، أي دور تاني (فني...) يشوف بس
+//   السجلات المسموح له بيها فعلاً - الاستعلامات المُرسَلة لـ Firestore
+//   نفسها مختلفة حسب الدور (fetchTicketsForSearchApi/
+//   fetchPmRecordsForSearchApi/fetchSuggestionsForSearchApi في
+//   services/api.js)، فمفيش أي بيانات زيادة عن اللازم بتترجع أصلاً
+// - بحث نصي + فلاتر (نوع السجل/الحالة/الأولوية/الماكينة/التاريخ) +
+//   ترتيب + تصدير Excel و PDF (يحترمان نفس نتيجة البحث/الفلاتر
+//   المعروضة بالظبط، وبالتالي نفس نطاق الصلاحيات)
+// نفس أسلوب knowledgeBase.js تماماً (حالة موديول + دوال window.*)
 // ============================================================
 
 import { getCurrentRole, hasFullDataAccess } from './permissions.js';
+// إصلاح (تنظيف/Refactor): STATUS_LABELS و STATUS_CLASSES بقوا
+// مستوردين من ملف ثوابت مشترك (ticketStatusConstants.js) بدل تعريفهم
+// محلياً هنا (نفس القيم مستخدمة في مكان واحد بس قبل كده، لكن أي مكان
+// تاني هيحتاجها مستقبلاً هياخدها من نفس المصدر بدل تكرارها من جديد)
+import { STATUS_LABELS, STATUS_CLASSES } from './ticketStatusConstants.js';
 import {
   fetchTicketsForSearchApi,
   fetchPmRecordsForSearchApi,
@@ -24,10 +42,9 @@ import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 // حالة الموديول
 // ============================================================
 
-let allRecords = [];     // كل السجلات (بلاغات + PM + كايزن) بعد تطبيق نطاق الصلاحيات
-let lastFilteredList = [];
+let allRecords = [];     // كل السجلات (بلاغات + PM + كايزن) بعد تطبيق نطاق الصلاحيات (من مصدر الجلب نفسه)
 let isLoaded = false;
-let loadError = false;   // فشل تحميل المصادر الثلاثة معاً
+let loadError = false;   // فشل تحميل المصادر الثلاثة معاً فعلياً (مش مجرد صفر نتائج)
 let currentType = 'all'; // all | ticket | pm | suggestion
 
 const TYPE_META = {
@@ -37,24 +54,6 @@ const TYPE_META = {
   suggestion: { activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300' }
 };
 const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
-
-const STATUS_LABELS = {
-  pending: "جديد",
-  assigned: "تم الإسناد",
-  in_progress: "قيد التنفيذ",
-  resolved: "بانتظار تأكيد المُبلغ",
-  closed: "مغلقة",
-  reopened: "قيد التنفيذ"
-};
-
-const STATUS_CLASSES = {
-  pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-};
 
 const PRIORITY_LABELS = { High: "🔴 عالية", Medium: "🟡 متوسطة", Low: "🟢 منخفضة" };
 
@@ -132,11 +131,30 @@ function updateFilterVisibilityForType(type) {
       `<option value="${value}">${label}</option>`
     ).join('');
     statusSelect.value = options.some(([value]) => value === previousValue) ? previousValue : 'all';
-    statusSelect.classList.toggle('hidden', type === 'pm');
+
+    const hideStatus = type === 'pm';
+    statusSelect.classList.toggle('hidden', hideStatus);
+    // إصلاح M5: تبويب "وقائية" مفيهوش فلتر حالة أصلاً (سجلات الصيانة
+    // الوقائية مالهاش status زي البلاغات) - فلما نخفي الفلتر لازم
+    // نصفّر قيمته لـ 'all' برضه مش بس نخفيه بصرياً. من غير كده، لو
+    // فضلت قيمة قديمة متسربة من تبويب "البلاغات" (زي 'pending') وهي
+    // مخفية، renderResults() هيستخدمها فعلياً ويسقط كل نتائج الوقائية
+    // صامتاً (لأن شرط الفلترة بيتطلب r._kind === 'ticket')
+    if (hideStatus) {
+      statusSelect.value = 'all';
+    }
   }
 
   if (priorityFilter) {
-    priorityFilter.classList.toggle('hidden', type === 'pm' || type === 'suggestion');
+    const hidePriority = type === 'pm' || type === 'suggestion';
+    priorityFilter.classList.toggle('hidden', hidePriority);
+    // إصلاح M5: نفس المبدأ - فلتر الأولوية بيخص البلاغات بس (Tickets)،
+    // فلو اتخفى مع تبويب "وقائية"/"كايزن" لازم يترجع لـ 'all' برضه عشان
+    // ميفضلش يسقط نتائج التبويب الحالي صامتاً بسبب قيمة قديمة متسربة
+    // من تبويب "البلاغات" (نفس شرط الفلترة بيتطلب r._kind === 'ticket')
+    if (hidePriority) {
+      priorityFilter.value = 'all';
+    }
   }
 }
 
@@ -175,7 +193,7 @@ function getDateRangeBounds() {
   return { from, to };
 }
 
-export function handleMaintenanceSearchDateFilterChange() {
+window.handleMaintenanceSearchDateFilterChange = function () {
   const filterValue = el('mDateFilter')?.value || 'all';
   const isCustom = filterValue === 'custom';
 
@@ -183,11 +201,10 @@ export function handleMaintenanceSearchDateFilterChange() {
   el('mDateTo')?.classList.toggle('hidden', !isCustom);
 
   renderResults();
-}
-window.handleMaintenanceSearchDateFilterChange = handleMaintenanceSearchDateFilterChange;
+};
 
 // ============================================================
-// تهيئة الصفحة عند فتحها لأول مرة
+// تهيئة الصفحة عند فتحها لأول مرة (تُستدعى من renderCore.js)
 // ============================================================
 
 export async function initMaintenanceSearchView() {
@@ -229,14 +246,33 @@ export async function initMaintenanceSearchView() {
   isLoaded = true;
 
   updateFilterVisibilityForType(currentType);
-  switchMaintenanceSearchType(currentType);
+  window.switchMaintenanceSearchType(currentType);
+}
+
+// ============================================================
+// إصلاح (تحسين الأداء): إعادة رسم النتائج من البيانات المحمّلة فعلاً
+// من غير أي نداء جديد لـ Firestore - تُستخدم من renderCore.js عند
+// إعادة فتح صفحة البحث والفلترة المتقدمة في نفس الجلسة، بدل إعادة
+// استدعاء initMaintenanceSearchView() (اللي بيعيد الجلب من الصفر في
+// كل مرة حتى لو البيانات متغيرتش). بترجع false لو لسه محصلش تحميل
+// أصلاً (أول مرة) عشان renderCore.js يعرف إنه لازم يستدعي
+// initMaintenanceSearchView() بدل كده
+// ============================================================
+
+export function renderMaintenanceSearchIfLoaded() {
+  if (!isLoaded) return false;
+  const box = el('mResultsBox');
+  if (!box) return false;
+  updateFilterVisibilityForType(currentType);
+  window.switchMaintenanceSearchType(currentType);
+  return true;
 }
 
 // ============================================================
 // تبديل تبويب نوع السجل
 // ============================================================
 
-export function switchMaintenanceSearchType(type) {
+window.switchMaintenanceSearchType = function (type) {
   currentType = type;
 
   document.querySelectorAll('.m-type-btn').forEach(btn => {
@@ -248,26 +284,23 @@ export function switchMaintenanceSearchType(type) {
 
   updateFilterVisibilityForType(type);
   renderResults();
-}
-window.switchMaintenanceSearchType = switchMaintenanceSearchType;
+};
 
 // ============================================================
 // تطبيق البحث/الفلاتر
 // ============================================================
 
-export function applyMaintenanceSearchFilters() {
+window.applyMaintenanceSearchFilters = function () {
   renderResults();
-}
-window.applyMaintenanceSearchFilters = applyMaintenanceSearchFilters;
+};
 
 // ============================================================
 // فتح تفاصيل بلاغ عطل
 // ============================================================
 
-export function openMaintenanceSearchTicketDetails(ticketId) {
+window.openMaintenanceSearchTicketDetails = function (ticketId) {
   openTicketDetailsModal(ticketId);
-}
-window.openMaintenanceSearchTicketDetails = openMaintenanceSearchTicketDetails;
+};
 
 // ============================================================
 // مودال تفاصيل مقترح كايزن
@@ -341,6 +374,8 @@ async function openSuggestionDetailsModal(suggestion) {
 
   body.innerHTML = `
     <div class="space-y-4 text-right">
+
+      <!-- بيانات أساسية -->
       <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
         <div class="flex justify-between text-xs">
           <span class="text-gray-500">العنوان</span>
@@ -370,6 +405,7 @@ async function openSuggestionDetailsModal(suggestion) {
         ${suggestion.revisionNotes && status === "revision_requested" ? `<div class="text-xs text-orange-400 pt-1 border-t border-gray-800 mt-1"><b>ملاحظات التعديل:</b> ${escapeHtml(suggestion.revisionNotes)}</div>` : ""}
       </div>
 
+      <!-- صور المقترح -->
       ${suggestionImages.length ? `
         <div>
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
@@ -383,6 +419,7 @@ async function openSuggestionDetailsModal(suggestion) {
         </div>
       ` : ""}
 
+      <!-- صور التنفيذ -->
       ${implementationImages.length ? `
         <div>
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 صور بعد التنفيذ</div>
@@ -396,24 +433,27 @@ async function openSuggestionDetailsModal(suggestion) {
         </div>
       ` : ""}
 
+      <!-- التايملاين -->
       <div>
         <div class="text-[11px] font-bold text-gray-300 mb-2">🕒 سجل الحالات</div>
         ${logs.length ? logs.map(suggestionTimelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">لا يوجد سجل بعد.</div>`}
       </div>
+
     </div>
   `;
 }
 
-export function openMaintenanceSearchSuggestionDetails(suggestionId) {
+window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
   const suggestion = allRecords.find(r => r._kind === 'suggestion' && r.id === suggestionId);
   if (!suggestion) return;
   openSuggestionDetailsModal(suggestion);
-}
-window.openMaintenanceSearchSuggestionDetails = openMaintenanceSearchSuggestionDetails;
+};
 
 // ============================================================
 // بناء وعرض النتائج المفلترة
 // ============================================================
+
+let lastFilteredList = [];
 
 function renderResults() {
   const box = el('mResultsBox');
@@ -519,11 +559,10 @@ function renderResults() {
 // إعادة محاولة تحميل البيانات
 // ============================================================
 
-export function retryMaintenanceSearchLoad() {
+window.retryMaintenanceSearchLoad = function () {
   isLoaded = false;
   initMaintenanceSearchView();
-}
-window.retryMaintenanceSearchLoad = retryMaintenanceSearchLoad;
+};
 
 // ============================================================
 // جمع روابط الوسائط
@@ -544,12 +583,18 @@ function collectRecordMediaUrls(record) {
 }
 
 // ============================================================
-// تصدير النتائج المفلترة الحالية كملف Excel
+// تصدير النتائج المفلترة الحالية كملف CSV (تعديل: تنسيق التاريخ والروابط)
 // ============================================================
 
-export async function exportMaintenanceSearchResults() {
-  renderResults(); // إعادة حساب وتطبيق الفلاتر الحالية لضمان تحديث lastFilteredList
+function csvEscape(value) {
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
 
+window.exportMaintenanceSearchResults = async function () {
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
@@ -596,42 +641,15 @@ export async function exportMaintenanceSearchResults() {
 
   const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
   const filename = `mscanco-maintenance-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-  const dateFilterValue = el('mDateFilter')?.value || 'all';
-  const dateFromValue = el('mDateFrom')?.value || '';
-  const dateToValue = el('mDateTo')?.value || '';
-  const periodMap = {
-    all: isAr ? 'جميع التواريخ' : 'All Dates',
-    today: isAr ? 'اليوم' : 'Today',
-    last7: isAr ? 'آخر 7 أيام' : 'Last 7 Days',
-    month: isAr ? 'هذا الشهر' : 'This Month',
-    year: isAr ? 'هذه السنة' : 'This Year'
-  };
-  let periodLabel = periodMap[dateFilterValue] || (isAr ? 'غير محدد' : 'Not Specified');
-  if (dateFilterValue === 'custom') {
-    periodLabel = dateFromValue && dateToValue
-      ? (isAr ? `من ${dateFromValue} إلى ${dateToValue}` : `${dateFromValue} to ${dateToValue}`)
-      : (isAr ? 'فترة مخصصة' : 'Custom Range');
-  }
-
-  const typeFilterLabel = currentType === 'all'
-    ? (isAr ? 'الكل (بلاغات + وقائية + كايزن)' : 'All (Tickets + PM + Kaizen)')
-    : currentType === 'ticket' ? (isAr ? 'بلاغات الأعطال' : 'Tickets')
-    : currentType === 'pm' ? (isAr ? 'الصيانة الوقائية' : 'PM')
-    : (isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions');
-
-  await exportToExcel(title, headers, rows, filename, {
-    periodLabel,
-    extraInfoRows: [
-      { label: isAr ? 'نوع السجلات المُصدَّرة' : 'Record Type Filter', value: typeFilterLabel }
-    ]
-  });
-}
-window.exportMaintenanceSearchResults = exportMaintenanceSearchResults;
+  
+  await exportToExcel(title, headers, rows, filename);
+};
 
 // ============================================================
 // تصدير النتائج المفلترة الحالية كملف PDF احترافي (RTL)
 // ============================================================
+
+const PDF_PAGE_WIDTH_PX = 794;
 
 function formatPdfDate(iso) {
   const isEn = window.currentLang === 'en';
@@ -676,9 +694,7 @@ async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
   }
 }
 
-export async function exportMaintenanceSearchResultsPdf() {
-  renderResults(); // إعادة تطبيق الفلاتر الحالية لضمان مطابقة التقرير لما يعرض على الشاشة
-
+window.exportMaintenanceSearchResultsPdf = async function () {
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
@@ -693,42 +709,22 @@ export async function exportMaintenanceSearchResultsPdf() {
 
   try {
     const isAr = (window.currentLang || "ar") === "ar";
-    
-    // 1. حساب تفاصيل الفترة الزمنية ونوع الفلترة الحالية لتضمينها في رأس تقرير PDF
-    const dateFilterValue = el('mDateFilter')?.value || 'all';
-    const dateFromValue = el('mDateFrom')?.value || '';
-    const dateToValue = el('mDateTo')?.value || '';
-    const periodMap = {
-      all: isAr ? 'جميع التواريخ' : 'All Dates',
-      today: isAr ? 'اليوم' : 'Today',
-      last7: isAr ? 'آخر 7 أيام' : 'Last 7 Days',
-      month: isAr ? 'هذا الشهر' : 'This Month',
-      year: isAr ? 'هذه السنة' : 'This Year'
-    };
-    let periodLabel = periodMap[dateFilterValue] || (isAr ? 'غير محدد' : 'Not Specified');
-    if (dateFilterValue === 'custom') {
-      periodLabel = dateFromValue && dateToValue
-        ? (isAr ? `من ${dateFromValue} إلى ${dateToValue}` : `${dateFromValue} to ${dateToValue}`)
-        : (isAr ? 'فترة مخصصة' : 'Custom Range');
-    }
-
-    const typeFilterLabel = currentType === 'all'
-      ? (isAr ? 'الكل (بلاغات + وقائية + كايزن)' : 'All (Tickets + PM + Kaizen)')
-      : currentType === 'ticket' ? (isAr ? 'بلاغات الأعطال' : 'Tickets')
-      : currentType === 'pm' ? (isAr ? 'الصيانة الوقائية' : 'PM')
-      : (isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions');
-
-    const recordsWithImages = [];
-    for (const record of lastFilteredList) {
-      const mediaUrls = collectRecordMediaUrls(record).slice(0, 4);
-      const dataUrls = [];
-      for (const url of mediaUrls) {
-        const dataUrl = await loadImageAsCompressedDataUrl(url);
-        if (dataUrl) dataUrls.push(dataUrl);
-      }
-      const hasSkippedMedia = mediaUrls.length > dataUrls.length;
-      recordsWithImages.push({ record, images: dataUrls, hasSkippedMedia });
-    }
+    // إصلاح (تحسين الأداء): ضغط صور كل السجلات بالتوازي عبر Promise.all
+    // بدل حلقة for...await تسلسلية كانت بتستنى كل صورة تخلص قبل ما
+    // تبدأ اللي بعدها - ده كان بيبطّئ تصدير الـ PDF بشكل واضح كل ما
+    // زاد عدد السجلات/الصور. الترتيب النهائي بيفضل زي ما هو
+    // (Promise.all بيحافظ على ترتيب المصفوفة الأصلي بغض النظر عن ترتيب
+    // اكتمال كل صورة على حدة)
+    const recordsWithImages = await Promise.all(
+      lastFilteredList.map(async (record) => {
+        const mediaUrls = collectRecordMediaUrls(record).slice(0, 4);
+        const dataUrls = (
+          await Promise.all(mediaUrls.map(url => loadImageAsCompressedDataUrl(url)))
+        ).filter(Boolean);
+        const hasSkippedMedia = mediaUrls.length > dataUrls.length;
+        return { record, images: dataUrls, hasSkippedMedia };
+      })
+    );
 
     const htmlContent = recordsWithImages.map(({ record, images, hasSkippedMedia }) => {
       const kind = record._kind;
@@ -776,7 +772,6 @@ export async function exportMaintenanceSearchResultsPdf() {
           ${isAr ? "🎥 يوجد وسائط إضافية (فيديو/ملف) مرتبطة بهذا السجل - راجع تصدير Excel لروابطها الكاملة." : "🎥 Additional media (video/file) exists - see Excel export for full links."}
         </div>
       ` : "";
-
       return `
         <div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px; background: #f8fafc;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -798,11 +793,8 @@ export async function exportMaintenanceSearchResultsPdf() {
     const title = isAr ? "🔎 تقرير البحث والفلترة المتقدمة" : "🔎 Advanced Search Report";
     const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.pdf`;
     
-    // 2. إرسال معلومات الفلترة والفترة الكاملة في infoRows
     const infoRows = [
-      { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length },
-      { label: isAr ? "الفترة الزمنية" : "Period", value: periodLabel },
-      { label: isAr ? "نوع السجلات" : "Record Type", value: typeFilterLabel }
+      { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length }
     ];
 
     await exportToPdf(title, infoRows, htmlContent, filename);
@@ -816,11 +808,10 @@ export async function exportMaintenanceSearchResultsPdf() {
       btn.innerHTML = originalLabel;
     }
   }
-}
-window.exportMaintenanceSearchResultsPdf = exportMaintenanceSearchResultsPdf;
+};
 
 // ============================================================
-// كروت النتائج المعروضة
+// كارت نتيجة - بلاغ عطل
 // ============================================================
 
 function ticketResultCard(t) {
@@ -857,6 +848,10 @@ function ticketResultCard(t) {
   `;
 }
 
+// ============================================================
+// كارت نتيجة - سجل صيانة وقائية (PM)
+// ============================================================
+
 function pmResultCard(p) {
   const checklist = p.checklist || {};
   const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
@@ -883,6 +878,10 @@ function pmResultCard(p) {
     </div>
   `;
 }
+
+// ============================================================
+// كارت نتيجة - مقترح كايزن
+// ============================================================
 
 function suggestionResultCard(s) {
   const status = String(s.status || 'new').trim().toLowerCase();
