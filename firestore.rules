@@ -36,16 +36,19 @@ service cloud.firestore {
     // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
     // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
     function myProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let docSnapshot = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return docSnapshot == null ? null : docSnapshot.data;
     }
 
     function myRole() {
-      return isSignedIn() ? myProfile().role : "";
+      let profile = myProfile();
+      return profile == null ? "" : profile.role;
     }
 
     // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
     function isActive() {
-      return isSignedIn() && myProfile().status == "active";
+      let profile = myProfile();
+      return isSignedIn() && profile != null && profile.status == "active";
     }
 
     // ==========================================================
@@ -184,7 +187,7 @@ service cloud.firestore {
       // كل مستخدم يشوف إشعاراته هو بس - القاعدة بتتطبق على كل
       // مستند في نتيجة الاستعلام، فلو حد حاول يجيب إشعارات غيره
       // هيترفض الاستعلام كامل (نفس أسلوب قاعدة list في users)
-      allow read, list: if isActive() && resource.data.forUid == request.auth.uid;
+      allow read, list: if isActive() && resource.data.userId == request.auth.uid;
 
       // أي مستخدم مفعّل يقدر ينشئ إشعار لمستخدم تاني (لازم يحصل
       // ده تلقائياً مع كل انتقال حالة تذكرة - راجع ticketsApi.js)
@@ -193,7 +196,7 @@ service cloud.firestore {
       // المستخدم يقدر يعلّم إشعاره هو بس كمقروء، من غير ما يغيّر
       // أي حقل تاني في المستند
       allow update: if isActive()
-                    && resource.data.forUid == request.auth.uid
+                    && resource.data.userId == request.auth.uid
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
 
       allow delete: if false;

@@ -8,6 +8,7 @@ import {
   collection,
   query,
   where,
+  limit,
   getDocs,
   doc,
   getDoc,
@@ -85,7 +86,7 @@ export async function login(phone, pass) {
     // ==================================================
 
     const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
     const legacySnapshot = await getDocs(legacyQuery);
 
     if (legacySnapshot.empty) {
@@ -175,7 +176,7 @@ export async function login(phone, pass) {
     // إذا يوجد حساب Auth لكن لا يوجد مستند users/{uid}، حاولنا الترحيل
     // من بيانات المستخدم القديم برقم الهاتف نفسه إذا كانت موجودة.
     const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
     const legacySnapshot = await getDocs(legacyQuery);
 
     if (!legacySnapshot.empty) {

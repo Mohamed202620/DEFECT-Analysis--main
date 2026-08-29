@@ -14,6 +14,7 @@ import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView } from './maintenanceSearch.js';
 import { refreshAttendanceCard } from './attendanceCard.js';
 import './holidaysManagement.js';
+import { auth } from './config.js';
 
 export let currentPage = 'login';
 
@@ -385,26 +386,26 @@ if (currentPage === "settings") {
 // NAVIGATION
 // ============================================================
 
-export function navigateTo(
-page,
-addToHistory = true
-) {
+export async function navigateTo(page, addToHistory = true) {
+  if (page !== "login" && page !== "register") {
+    try {
+      if (auth.currentUser === null) {
+        await auth.authStateReady();
+        if (!auth.currentUser) {
+          console.warn("User not in Firebase Auth. Redirecting to login.");
+          localStorage.clear(); page = "login";
+        }
+      }
+    } catch (e) {
+      console.warn("Auth check failed", e);
+    }
+  }
 
-currentPage =
-page;
-
-if (addToHistory) {
-
-history.pushState(  
-  { page },  
-  "",  
-  `#${page}`  
-);
-
-}
-
-render();
-
+  currentPage = page;
+  if (addToHistory) {
+    history.pushState({ page }, "", `#${page}`);
+  }
+  render();
 }
 
 window.navigateTo =
