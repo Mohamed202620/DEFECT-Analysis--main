@@ -8,7 +8,7 @@ export const COMPANY_BANNER_PATH = "/assets/branding/company-banner.png";
 
 // شعار مختصر (الرمز الدائري فقط بدون النص الطويل واختام الجودة)
 // بخلفية شفافة بالكامل - مُجهّز خصيصاً لشريط التطبيق العلوي
-export const LOGO_ICON_PATH = "/assets/branding/logo-mark.png";
+export const LOGO_ICON_PATH = "assets/branding/logo-mark.png";
 
 export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
 export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY COMPANY LTD.";
@@ -237,7 +237,7 @@ export function renderHeader() {
               alt="${COMPANY_SHORT}"
               class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200 hover:scale-105"
               style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
-              onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='/assets/icons/app-icon.png';}"
+              onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='assets/icons/app-icon.png';}"
             />
             <div class="app-header-brand-copy min-w-0 flex-1 leading-tight overflow-hidden">
               <div class="app-header-brand-name text-[12px] sm:text-[14px] md:text-[15px] font-black tracking-wide truncate" style="color:#f8fafc;">
