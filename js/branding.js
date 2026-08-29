@@ -49,6 +49,23 @@ function chunkPairs(arr, size) {
 // نفسه. الحل: نحوّل اللوجو لـ Data URL مرة واحدة ونخزّنه، وأي
 // تقرير PDF بعد كده (أو حتى أول مرة) بينتظر الدالة دي قبل ما
 // يبني الـ HTML بتاعه، فيضمن ظهور اللوجو 100% في كل تقرير.
+//
+// إصلاح: كانت النسخة القديمة بتحمّل الصورة عبر Image() وتُعيد رسمها
+// على <canvas> لاستخراج الـ Data URL منه (canvas.toDataURL) - في أي
+// بيئة بيتصرف فيها المتصفح مع الصورة على إنها "معزولة" (Tainted
+// Canvas)، ولو حتى الصورة نفسها من نفس الأصل (Same-Origin)، كان
+// toDataURL بيرمي استثناء أمان، وقتها الكود القديم كان "يفشل بصمت"
+// ويرجّع مسار الملف العادي (/assets/...png) بدل Data URL حقيقي.
+// تصدير الـ PDF (html2canvas مع <img src="...">) كان شغال برضه في
+// الحالة دي لأنه بيقبل أي رابط صورة عادي، فالمشكلة كانت مستخبية ولا
+// تظهر إلا في تصدير الإكسيل (ExcelJS محتاج Base64 حقيقي فقط، مش
+// رابط) - فكان اللوجو بيختفي من ملفات الإكسيل تحديداً من غير أي
+// خطأ ظاهر في الكونسول يوضّح السبب.
+//
+// الحل الجذري: استبدال Image()+canvas بـ fetch() + FileReader، وهي
+// طريقة مالهاش علاقة بالـ Canvas أصلاً (فمفيش أي Tainted Canvas
+// ممكن يحصل)، وبتشتغل بشكل موثوق لأي ملف من نفس الأصل (Same-Origin)
+// بغض النظر عن أي إعدادات CORS.
 let _cachedLogoDataUrl = null;
 let _cachedLogoPromise = null;
 
@@ -56,34 +73,32 @@ export function getCompanyLogoDataUrl() {
   if (_cachedLogoDataUrl) return Promise.resolve(_cachedLogoDataUrl);
   if (_cachedLogoPromise) return _cachedLogoPromise;
 
-  _cachedLogoPromise = new Promise(resolve => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
+  _cachedLogoPromise = (async () => {
+    try {
+      const response = await fetch(COMPANY_BANNER_PATH);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-    img.onload = () => {
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth || img.width;
-        canvas.height = img.naturalHeight || img.height;
-        canvas.getContext("2d").drawImage(img, 0, 0);
-        _cachedLogoDataUrl = canvas.toDataURL("image/png");
-      } catch (e) {
-        // مثلاً لو الصفحة اتفتحت من file:// وسياسة الأمان منعت
-        // قراءة الـ Canvas: نرجع لمسار الملف العادي بدل ما نفشل
-        console.warn("تعذر تحويل لوجو الشركة إلى Data URL، سيتم استخدام مسار الملف مباشرة:", e);
-        _cachedLogoDataUrl = COMPANY_BANNER_PATH;
+      const blob = await response.blob();
+
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+
+      // ضمان صيغة data:image/... حقيقية (وليس مجرد نص عادي) قبل الاعتماد عليها
+      if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
+        _cachedLogoDataUrl = dataUrl;
+        return _cachedLogoDataUrl;
       }
-      resolve(_cachedLogoDataUrl);
-    };
-
-    img.onerror = () => {
-      console.warn("تعذر تحميل ملف لوجو الشركة نهائياً، سيتم عرض اسم الشركة نصياً بدلاً منه في التقارير.");
+      throw new Error("Unexpected FileReader result");
+    } catch (e) {
+      console.warn("تعذر تحميل/تحويل لوجو الشركة إلى Data URL، سيتم عرض اسم الشركة نصياً بدلاً منه في التقارير:", e);
       _cachedLogoPromise = null;
-      resolve(null);
-    };
-
-    img.src = COMPANY_BANNER_PATH;
-  });
+      return null;
+    }
+  })();
 
   return _cachedLogoPromise;
 }
