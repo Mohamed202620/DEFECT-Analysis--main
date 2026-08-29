@@ -14,7 +14,7 @@ import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
 // نفس التعريف في statistics.js بالظبط
-import { isClosedStatus } from './ticketStatusConstants.js';
+import { isClosedStatus, isOverdueTicket } from './ticketStatusConstants.js';
 // مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
 // واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
 // مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
@@ -676,12 +676,16 @@ export async function loadDashboardStats() {
   let open = 0;
   let closed = 0;
   let today = 0;
+  let overdue = 0;
 
   tickets.forEach(ticket => {
     if (isClosedStatus(ticket.status)) {
       closed++;
     } else {
       open++;
+      if (isOverdueTicket(ticket)) {
+        overdue++;
+      }
     }
 
     if (ticket.createdAt) {
@@ -696,6 +700,7 @@ export async function loadDashboardStats() {
     open,
     closed,
     today,
+    overdue,
     total: tickets.length
   };
 
@@ -716,6 +721,7 @@ export async function loadDashboardStats() {
   setText('statOpenCount', stats.open);
   setText('statClosedCount', stats.closed);
   setText('statTodayCount', stats.today);
+  setText('statOverdueCount', stats.overdue);
   setText('statTotalCount', stats.total);
 
   // ============================================================

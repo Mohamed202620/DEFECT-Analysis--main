@@ -30,7 +30,7 @@ export const HomeView = () => {
     <!-- ملخص العدادات الحية -->
     <div class="space-y-2">
       <h3 class="text-xs font-bold dyn-text-muted opacity-80 px-1">${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</h3>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
 
       <!-- أعطال مفتوحة -->
       <button
@@ -86,6 +86,24 @@ export const HomeView = () => {
         <div class="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/>
+          </svg>
+        </div>
+      </button>
+
+      <!-- بلاغات متأخرة -->
+      <button
+        type="button"
+        onclick="window.openTicketsWithFilter('overdue')"
+        class="relative text-start dyn-card border border-rose-500/30 hover:border-rose-400/60 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent p-3.5 rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
+        <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1.5 bg-rose-500"></div>
+        <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] font-black text-rose-400/80 group-hover:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+        <div>
+          <span class="text-[11px] dyn-text-muted opacity-75 block mb-0.5 font-medium">${t.kpiOverdue || (currentLang === 'ar' ? 'بلاغات متأخرة' : 'Overdue Tickets')}</span>
+          <span id="statOverdueCount" class="text-xl font-black text-rose-400">${stats.overdue || 0}</span>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>
         </div>
       </button>

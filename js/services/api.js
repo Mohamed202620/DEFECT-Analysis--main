@@ -89,3 +89,11 @@ export {
   implementSuggestionApi,
   fetchSuggestionLogsApi
 } from "./suggestionsApi.js";
+
+export {
+  fetchOfficialHolidaysApi,
+  addOfficialHolidayApi,
+  deleteOfficialHolidayApi
+} from "./holidaysApi.js";
+
+

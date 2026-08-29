@@ -21,6 +21,15 @@ export function isClosedStatus(status) {
   return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
 }
 
+// فحص هل البلاغ متأخر (مفتوح لأكثر من 24 ساعة)
+export function isOverdueTicket(ticket) {
+  if (!ticket || !ticket.createdAt || isClosedStatus(ticket.status)) return false;
+  const created = new Date(ticket.createdAt);
+  if (isNaN(created)) return false;
+  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
+  return hoursSinceCreation > 24;
+}
+
 // تسميات حالات البلاغ بالعربي - نفس النصوص المستخدمة في كروت نتائج
 // البحث والفلترة المتقدمة (maintenanceSearch.js) وتصدير PDF الخاص بيها
 export const STATUS_LABELS = {
