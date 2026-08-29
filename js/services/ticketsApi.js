@@ -12,8 +12,8 @@ import { getCurrentRole } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
-import { CLOSED_STATUSES } from "../ticketStatusConstants.js";
-import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket } from "./offlineQueue.js";
+import { CLOSED_STATUSES, isOverdueTicket } from "../ticketStatusConstants.js";
+import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction } from "./offlineQueue.js";
 
 import {
   collection,
@@ -88,6 +88,52 @@ export async function syncOfflineTicketsApi() {
       }
     } catch (error) {
       console.error("Error syncing offline ticket:", item.localId, error);
+    }
+  }
+  return { status: "success", synced, total: queued.length };
+}
+
+// إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): مزامنة إجراءات
+// دورة حياة التذكرة (بدء تنفيذ/تم الإصلاح/تأكيد الإغلاق) المخزّنة
+// محلياً وقت انقطاع الإنترنت - بنفس نمط syncOfflineTicketsApi فوق
+// بالظبط، بترتيب زمني (الأقدم أولاً) عشان دورة حياة كل تذكرة تتنفذ
+// بنفس التسلسل اللي حصل بيه فعلياً. أي إجراء يفشل (مثلاً التذكرة
+// اتحذفت أو تغيّرت حالتها من جهة تانية في الأثناء) بيفضل في الطابور
+// للمحاولة تاني، ومفيش أي إجراء بيتفوّت صامتاً
+export async function syncOfflineTicketActionsApi() {
+  const queued = await getQueuedActions();
+  if (!queued.length) {
+    return { status: "success", synced: 0, total: 0 };
+  }
+
+  let synced = 0;
+  for (const item of queued) {
+    try {
+      const { type, ticketId, payload } = item.action || {};
+      let result;
+
+      if (type === "start") {
+        result = await startTicketApi(ticketId, { skipOfflineQueue: true });
+      } else if (type === "resolve") {
+        result = await resolveTicketApi(
+          ticketId,
+          payload?.mechanicNotes,
+          payload?.afterImages,
+          { skipOfflineQueue: true }
+        );
+      } else if (type === "close") {
+        result = await closeTicketApi(ticketId, { skipOfflineQueue: true });
+      } else {
+        console.error("Unknown queued action type:", type);
+        continue;
+      }
+
+      if (result.status === "success") {
+        await removeQueuedAction(item.localId);
+        synced++;
+      }
+    } catch (error) {
+      console.error("Error syncing offline ticket action:", item.localId, error);
     }
   }
   return { status: "success", synced, total: queued.length };
@@ -239,6 +285,12 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
           if (status === "today") {
             tickets = tickets.filter(isCreatedToday);
           }
+          // إضافة (تحسين Workflow - كارت "بلاغات متأخرة"): فلترة محلية
+          // بنفس دالة isOverdueTicket المستخدمة في حساب كارت الرئيسية
+          // (workflow.js) بالظبط، عشان الفلتر يطابق الرقم الظاهر تماماً
+          if (status === "overdue") {
+            tickets = tickets.filter(t => isOverdueTicket(t));
+          }
           // ترتيب محلياً حسب التاريخ من الأحدث للأقدم
           tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
           callback({ status: "success", data: tickets });
@@ -293,7 +345,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     };
 
     const statusClauses = () => {
-      if (!status || status === "all" || status === "today") return [];
+      if (!status || status === "all" || status === "today" || status === "overdue") return [];
       if (status === "open") {
         // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
         // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
@@ -327,6 +379,11 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       // حتى لو currentStatusFilter='today' وصل للمسار ده لأي سبب
       if (status === "today") {
         tickets = tickets.filter(isCreatedToday);
+      }
+      // إضافة (تحسين Workflow - كارت "بلاغات متأخرة"): نفس المبدأ لو
+      // currentStatusFilter='overdue' وصل للمسار ده (فني/مهندس)
+      if (status === "overdue") {
+        tickets = tickets.filter(t => isOverdueTicket(t));
       }
       tickets.sort(
         (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
@@ -672,7 +729,86 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
   }
 }
 
-export async function startTicketApi(ticketId) {
+// إضافة (تحسين Workflow - إعادة إسناد): للمدير/الأدمن بس - بتسمح
+// بنقل تذكرة "تم الإسناد"/"قيد التنفيذ" لفني تاني (لو الفني الأصلي
+// بقى غير متاح مثلاً) بدل ما التذكرة تفضل عالقة من غير أي تحرك. بترجع
+// حالة التذكرة لـ "assigned" دايماً (حتى لو كانت in_progress) عشان
+// الفني الجديد يبدأ التنفيذ بنفسه من الأول ويبقى في السجل واضح مين
+// المسؤول فعلياً عن كل مرحلة
+export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid }) {
+  if (!assignedTo) {
+    return { status: "error", message: "assignedTo مطلوب" };
+  }
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "التذكرة غير موجودة" };
+    }
+
+    const currentData = ticketSnap.data();
+    const fromStatus = String(currentData.status || "").trim().toLowerCase();
+    const previousAssignee = currentData.assignedTo || "غير محدد";
+
+    // إعادة الإسناد مسموحة بس للتذاكر المفتوحة فعلياً (تم الإسناد/قيد
+    // التنفيذ/معاد فتحها) - مش على تذاكر بانتظار تأكيد المُبلغ أو مغلقة
+    // بالفعل، عشان منغيّرش مسؤول تذكرة خلصت مرحلتها
+    if (!["assigned", "in_progress", "reopened"].includes(fromStatus)) {
+      return {
+        status: "error",
+        message: "إعادة الإسناد متاحة فقط للتذاكر (تم الإسناد / قيد التنفيذ)"
+      };
+    }
+
+    await updateDoc(
+      ticketRef,
+      stampUpdate({
+        status: "assigned",
+        assignedTo,
+        assignedToUid: assignedToUid || null
+      })
+    );
+
+    addTicketLog(ticketId, {
+      action: "reassign",
+      fromStatus,
+      toStatus: "assigned",
+      note: `إعادة إسناد من "${previousAssignee}" إلى "${assignedTo}"`
+    });
+
+    if (assignedToUid) {
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: `تم إسناد بلاغ صيانة إليك (إعادة إسناد)`,
+        ticketId
+      });
+    }
+
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error reassigning ticket:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}) {
+  // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "بدء التنفيذ"
+  // مايحتاجش أي بيانات إضافية من المستخدم، فلو مفيش نت بنخزّن الإجراء
+  // محلياً فوراً ونرجّعه كـ "queued" بدل ما يفشل الطلب بلا أي بديل
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const localId = await queueOfflineAction({ type: "start", ticketId });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - سيتم تنفيذ (بدء التنفيذ) تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline start action:", error);
+      return { status: "error", message: "تعذر حفظ الإجراء محلياً" };
+    }
+  }
+
   try {
     await updateDoc(doc(db, "tickets", ticketId), stampUpdate({ status: "in_progress" }));
     addTicketLog(ticketId, {
@@ -687,7 +823,7 @@ export async function startTicketApi(ticketId) {
   }
 }
 
-export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []) {
+export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = [], { skipOfflineQueue = false } = {}) {
   if (!mechanicNotes || !mechanicNotes.trim()) {
     return { status: "error", message: "ملاحظات الفني مطلوبة" };
   }
@@ -695,6 +831,30 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
   if (!images.length) {
     return { status: "error", message: "لازم صورة واحدة على الأقل بعد الإصلاح (بحد أقصى 3)" };
   }
+
+  // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): نفس التحقق من
+  // صحة البيانات فوق بيتنفذ الأول (عشان مدخلات ناقصة متتخزنش في
+  // الطابور أصلاً)، وبعدين لو مفيش نت بنخزّن النص والصور (Base64) محلياً
+  // ونرفعها فعلياً على ImgBB/Firestore لما الاتصال يرجع (نفس أسلوب
+  // queueOfflineTicket تماماً)
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const localId = await queueOfflineAction({
+        type: "resolve",
+        ticketId,
+        payload: { mechanicNotes: mechanicNotes.trim(), afterImages: images }
+      });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - سيتم رفع بيانات الإصلاح تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline resolve action:", error);
+      return { status: "error", message: "تعذر حفظ الإجراء محلياً" };
+    }
+  }
+
   try {
     const afterImageUrls = (
       await Promise.all(images.map((img, i) => uploadBase64Image(img, `${ticketId}_after_${i + 1}`)))
@@ -731,7 +891,23 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
   }
 }
 
-export async function closeTicketApi(ticketId) {
+export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}) {
+  // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "تأكيد
+  // الإغلاق" برضه مايحتاجش بيانات إضافية - نفس أسلوب startTicketApi
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const localId = await queueOfflineAction({ type: "close", ticketId });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - سيتم تنفيذ (تأكيد الإغلاق) تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline close action:", error);
+      return { status: "error", message: "تعذر حفظ الإجراء محلياً" };
+    }
+  }
+
   try {
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
     const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;

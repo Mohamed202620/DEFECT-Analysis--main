@@ -44,6 +44,7 @@ export {
   fetchResolvedTicketsApi,
   subscribeToTicketsBoardApi,
   assignTicketApi,
+  reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
@@ -56,7 +57,8 @@ export {
   subscribeToMyNotificationsApi,
   markNotificationReadApi,
   markAllNotificationsAsRead,
-  syncOfflineTicketsApi
+  syncOfflineTicketsApi,
+  syncOfflineTicketActionsApi
 } from "./ticketsApi.js";
 
 export { fetchDashboardDataApi } from "./dashboardApi.js";
@@ -87,10 +89,3 @@ export {
   implementSuggestionApi,
   fetchSuggestionLogsApi
 } from "./suggestionsApi.js";
-
-// إضافة: إدارة الإجازات الرسمية (كارت حضور الوردية - attendanceCard.js)
-export {
-  fetchOfficialHolidaysApi,
-  addOfficialHolidayApi,
-  deleteOfficialHolidayApi
-} from "./holidaysApi.js";
