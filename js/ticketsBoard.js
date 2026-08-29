@@ -13,6 +13,7 @@ import {
   subscribeToTicketsBoardApi,
   fetchTechniciansApi,
   assignTicketApi,
+  reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
@@ -26,7 +27,7 @@ import { translations } from './config.js';
 // مشترك (ticketStatusConstants.js) باسم STATUS_CLASSES_BOARD (نسخة
 // "بارزة" مخصصة لشارة الحالة الأكبر هنا في اللوحة، بنفس القيم اللي
 // كانت متعرّفة محلياً هنا بالظبط - بدون أي تغيير في الشكل الظاهري)
-import { STATUS_CLASSES_BOARD } from './ticketStatusConstants.js';
+import { STATUS_CLASSES_BOARD, isOverdueTicket } from './ticketStatusConstants.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
 // الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
@@ -63,6 +64,8 @@ function getActionButtonStyle(actionKey) {
       return 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 border border-blue-500';
     case 'assign':
       return 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 border border-indigo-500';
+    case 'reassign':
+      return 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 border border-amber-500';
     case 'close':
       return 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600';
     case 'reopen':
@@ -118,6 +121,7 @@ function ticketCardHtml(ticket) {
             ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
             'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
           }">⚡ ${ticket.priority}</span>` : ""}
+          ${isOverdueTicket(ticket) ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
         </div>
 
         ${ticket.mechanicNotes ? `
@@ -235,8 +239,8 @@ let unsubscribeTicketsListener = null;
 // تحت. بنستثنيهم هنا عشان الفلتر الحقيقي (زي ما اتحسبت بيه أرقام
 // الكروت عبر STATUS_QUERY_ALIASES في ticketsApi.js) يفضل شغال، وبنربط
 // كل واحد منهم بأقرب تبويب موجود بصرياً بس عشان التظليل (Highlight)
-const HOME_CARD_STATUSES = ['open', 'fixed', 'today'];
-const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all' };
+const HOME_CARD_STATUSES = ['open', 'fixed', 'today', 'overdue'];
+const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all', overdue: 'pending' };
 
 function renderStatusTabs(role) {
 
@@ -368,6 +372,10 @@ window.openTicketsWithFilter = function (status) {
         // فبنقرّبها لأوسع نظرة متاحة ليهم (بلاغاتي) بدل ما تتفلتر
         // بالتاريخ فقط عند الأدمن/المدير
         today: 'my_tickets',
+        // إضافة (تحسين Workflow - "بلاغات متأخرة"): مفيش تبويب SLA
+        // مخصص عندهم أصلاً - أقرب نظرة متاحة ليهم هي "المُسندة إليّ"
+        // (شغلهم المفتوح اللي ممكن يكون متأخر فيه)
+        overdue: 'assigned_to_me',
         resolved: 'awaiting_confirm',
         fixed: 'awaiting_confirm',
         closed: 'awaiting_confirm'
@@ -447,6 +455,40 @@ window.handleTicketAction = async function (ticketId, action) {
 
     result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
 
+  } else if (action === "reassign") {
+
+    // إضافة (تحسين Workflow - إعادة إسناد): نفس منطق "assign" بالظبط
+    // (اختيار فني من قائمة الفنيين المتاحين)، لكن بيستدعي
+    // reassignTicketApi بدل assignTicketApi - متاحة للتذاكر (تم
+    // الإسناد/قيد التنفيذ) فقط، ومفيدة لو الفني الأصلي بقى غير متاح
+    const techResult = await fetchTechniciansApi();
+    const technicians = techResult.status === "success" ? techResult.data : [];
+
+    if (!technicians.length) {
+      alert(tr.noTechnicians);
+      return;
+    }
+
+    const values = await openActionModal({
+      title: tr.reassignTitle,
+      submitLabel: tr.reassignSubmit,
+      fields: [
+        {
+          id: "assignedTo",
+          label: tr.reassignToLabel,
+          type: "select",
+          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+        }
+      ]
+    });
+
+    if (!values) return;
+
+    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
+    if (!assignedTo) return;
+
+    result = await reassignTicketApi(ticketId, { assignedTo, assignedToUid });
+
   } else if (action === "start") {
 
     result = await startTicketApi(ticketId);
@@ -488,7 +530,15 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (result?.status !== "success") {
+  if (result?.status === "queued") {
+    // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "queued"
+    // مش خطأ - الإجراء اتحفظ محلياً وهيتنفذ تلقائياً عند عودة الاتصال
+    // (راجع offlineBanner.js -> syncOfflineTicketActionsApi). بنستخدم
+    // نص الترجمة الجاهز (tr.actionQueuedOffline) بدل رسالة الـ API
+    // الخام (عربي دايماً) عشان يفضل متوافق مع اللغة الحالية للواجهة،
+    // ومن غير علامة "❌" اللي بتوحي بفشل العملية
+    alert("📥 " + tr.actionQueuedOffline);
+  } else if (result?.status !== "success") {
     const msg = result?.message || "";
     const isArabicMessage = /[\u0600-\u06FF]/.test(msg);
 

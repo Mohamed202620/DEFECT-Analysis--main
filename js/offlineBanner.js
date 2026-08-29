@@ -6,7 +6,7 @@
 //    بلاغات محفوظة محلياً (راجع syncOfflineTicketsApi في ticketsApi.js)
 // ============================================================
 
-import { syncOfflineTicketsApi } from './services/api.js';
+import { syncOfflineTicketsApi, syncOfflineTicketActionsApi } from './services/api.js';
 import { translations } from './config.js';
 
 const BANNER_ID = "offlineBanner";
@@ -60,8 +60,14 @@ window.addEventListener("online", async () => {
 
   try {
 
-    const result = await syncOfflineTicketsApi();
-    const synced = result?.synced || 0;
+    // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): مزامنة
+    // البلاغات الجديدة المحفوظة محلياً + إجراءات دورة حياة التذاكر
+    // (بدء تنفيذ/تم الإصلاح/تأكيد الإغلاق) مع بعض عند عودة الاتصال
+    const [ticketsResult, actionsResult] = await Promise.all([
+      syncOfflineTicketsApi(),
+      syncOfflineTicketActionsApi()
+    ]);
+    const synced = (ticketsResult?.synced || 0) + (actionsResult?.synced || 0);
 
     setBanner(
       true,

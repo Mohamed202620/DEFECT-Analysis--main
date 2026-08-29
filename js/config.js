@@ -381,6 +381,8 @@ export const translations = {
       kpiClosed: "تم إصلاحها",
       kpiToday: "أعطال اليوم",
       kpiTotal: "إجمالي البلاغات",
+      kpiOverdue: "بلاغات متأخرة",
+      kpiOverdueHint: "مفتوحة منذ أكثر من 24 ساعة",
 
       mttr: "متوسط زمن الإصلاح",
       topMachine: "أكثر ماكينة عطلاً",
@@ -407,7 +409,6 @@ export const translations = {
       chartDaily: "يومي",
       chartWeekly: "أسبوعي",
       chartMonthly: "شهري",
-      chartWeekShort: "أسبوع",
       chartTypeLine: "خطي",
       chartTypeArea: "مساحة",
       chartTypeBar: "أعمدة",
@@ -732,8 +733,7 @@ export const translations = {
       monthlyReportBtn: "🗓️ تقرير شهري (PDF)",
       loadingTickets: "جاري تحميل التذاكر...",
       kaizenBoardTitle: "💡 متابعة الكايزن",
-      loadingSuggestions: "جاري تحميل المقترحات...",
-      settingsTitle: "⚙️ إعدادات النظام"
+      loadingSuggestions: "جاري تحميل المقترحات..."
     },
 
     // مفاتيح أزرار دورة حياة البلاغ (permissions.js: getTicketActions)
@@ -743,6 +743,7 @@ export const translations = {
       resolve: "✅ تم الإصلاح",
       confirm: "✔️ تأكيد الإغلاق",
       reject: "❌ رفض ورجوع للفني",
+      reassign: "🔄 إعادة إسناد",
       details: "🔍 تفاصيل"
     },
 
@@ -802,6 +803,7 @@ export const translations = {
       },
       reportedByLabel: "بلّغ:",
       assignedToLabel: "مُسندة إلى:",
+      overdueBadge: "متأخر",
       mechanicNotesLabel: "ملاحظات الفني:",
       operatorFeedbackLabel: "ملاحظات المُبلّغ:",
       prevPage: "السابق",
@@ -819,6 +821,9 @@ export const translations = {
       typePM: "صيانة وقائية (PM)",
       typeOther: "أخرى",
       assignToLabel: "إسناد إلى",
+      reassignTitle: "🔄 إعادة إسناد التذكرة",
+      reassignSubmit: "إعادة الإسناد",
+      reassignToLabel: "إعادة الإسناد إلى",
       resolveTitle: "✅ تسجيل إتمام الإصلاح",
       resolveSubmit: "تم الإصلاح",
       mechanicNotesField: "ملاحظات الفني",
@@ -829,6 +834,7 @@ export const translations = {
       operatorFeedbackField: "ما المشكلة المتبقية؟",
       operatorFeedbackPlaceholder: "مثال: لا يزال يوجد تسريب...",
       genericActionError: "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى أو تواصل مع الأدمن.",
+      actionQueuedOffline: "لا يوجد اتصال بالإنترنت - تم حفظ الإجراء محلياً وسيتم تنفيذه تلقائياً عند عودة الاتصال",
       libsNotLoaded: "❌ مكتبات إنشاء التقرير غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول مرة أخرى.",
       preparingReport: "⏳ جاري تجهيز التقرير...",
       reportDataError: "❌ تعذر تجهيز بيانات التقرير، حاول مرة أخرى.",
@@ -1038,6 +1044,8 @@ export const translations = {
       kpiClosed: "Resolved",
       kpiToday: "Today's Breakdowns",
       kpiTotal: "Total Tickets",
+      kpiOverdue: "Overdue Tickets",
+      kpiOverdueHint: "Open for more than 24 hours",
 
       mttr: "Avg. Repair Time (MTTR)",
       topMachine: "Top Faulty Machine",
@@ -1064,7 +1072,6 @@ export const translations = {
       chartDaily: "Daily",
       chartWeekly: "Weekly",
       chartMonthly: "Monthly",
-      chartWeekShort: "Week",
       chartTypeLine: "Line",
       chartTypeArea: "Area",
       chartTypeBar: "Bar",
@@ -1365,8 +1372,7 @@ export const translations = {
       monthlyReportBtn: "🗓️ Monthly Report (PDF)",
       loadingTickets: "Loading tickets...",
       kaizenBoardTitle: "💡 Track Kaizen",
-      loadingSuggestions: "Loading suggestions...",
-      settingsTitle: "⚙️ System Settings"
+      loadingSuggestions: "Loading suggestions..."
     },
 
     ticketActions: {
@@ -1375,6 +1381,7 @@ export const translations = {
       resolve: "✅ Resolved",
       confirm: "✔️ Confirm Closure",
       reject: "❌ Reject & Return to Technician",
+      reassign: "🔄 Reassign",
       details: "🔍 Details"
     },
 
@@ -1431,6 +1438,7 @@ export const translations = {
       },
       reportedByLabel: "Reported by:",
       assignedToLabel: "Assigned to:",
+      overdueBadge: "Overdue",
       mechanicNotesLabel: "Technician notes:",
       operatorFeedbackLabel: "Reporter feedback:",
       prevPage: "Previous",
@@ -1448,6 +1456,9 @@ export const translations = {
       typePM: "Preventive Maintenance (PM)",
       typeOther: "Other",
       assignToLabel: "Assign To",
+      reassignTitle: "🔄 Reassign Ticket",
+      reassignSubmit: "Reassign",
+      reassignToLabel: "Reassign To",
       resolveTitle: "✅ Log Repair Completion",
       resolveSubmit: "Resolved",
       mechanicNotesField: "Technician Notes",
@@ -1458,6 +1469,7 @@ export const translations = {
       operatorFeedbackField: "What issue remains?",
       operatorFeedbackPlaceholder: "Example: there's still a leak...",
       genericActionError: "An error occurred while performing the action, try again or contact the admin.",
+      actionQueuedOffline: "No internet connection - the action was saved locally and will run automatically once connection is back",
       libsNotLoaded: "❌ Report-generation libraries are not currently loaded, check your internet connection and try again.",
       preparingReport: "⏳ Preparing report...",
       reportDataError: "❌ Could not prepare report data, try again.",
