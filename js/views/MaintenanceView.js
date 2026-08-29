@@ -1,5 +1,10 @@
 import { BottomNav } from "../components/BottomNav.js";
 import { translations } from "../config.js";
+// إصلاح (اتساق واجهة الصلاحيات): نفس دالة الصلاحيات المستخدمة في
+// homeView.js - عشان أزرار مركز الصيانة تتفق مع نفس منطق الإخفاء
+// المتبع في الرئيسية، بدل الاعتماد بس على حماية المسار (Router) اللي
+// بتمنع الدخول فعلياً لكنها متمنعش ظهور زرار بيؤدي لصفحة "غير مصرح"
+import { hasPermission } from "../permissions.js";
 
 export const MaintenanceView = () => {
   const currentLang = window.currentLang || "ar";
@@ -24,6 +29,7 @@ export const MaintenanceView = () => {
   <!-- شبكة الإجراءات السريعة -->
   <div class="grid grid-cols-2 gap-3.5">
 
+    ${hasPermission("maintenance") ? `
     <!-- تسجيل عطل - تصميم الطوارئ البارز -->
     <button 
       type="button"
@@ -54,7 +60,9 @@ export const MaintenanceView = () => {
       <span class="font-bold text-xs text-gray-100">${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}</span>
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.ticketsDesc || ''}</span>
     </button>
+    ` : ''}
 
+    ${hasPermission("suggestions") ? `
     <!-- نظام كايزن -->
     <button 
       type="button"
@@ -80,7 +88,9 @@ export const MaintenanceView = () => {
       <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
     </button>
+    ` : ''}
 
+    ${hasPermission("maintenance") ? `
     <!-- البحث والفلترة المتقدمة (زر عريض بارز) -->
     <button 
       type="button"
@@ -146,6 +156,7 @@ export const MaintenanceView = () => {
         <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       </div>
     </button>
+    ` : ''}
 
   </div>
 
