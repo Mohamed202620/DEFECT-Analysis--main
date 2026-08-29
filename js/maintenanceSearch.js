@@ -2,19 +2,6 @@ import { exportToPdf, exportToExcel, PAGE_BREAK_CLASS } from './services/exportU
 // ============================================================
 // maintenanceSearch.js
 // منطق صفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
-// - يجمع بلاغات الأعطال (tickets) وسجلات الصيانة الوقائية
-//   (pmRecords) ومقترحات الكايزن (suggestions) في مصفوفة واحدة موحّدة
-// - الصلاحيات مُطبّقة فعلياً على مستوى جلب البيانات نفسه (وليس مجرد
-//   إخفاء واجهة): admin/manager/engineer (راجع hasFullDataAccess في
-//   permissions.js) يشوفوا كل شيء، أي دور تاني (فني...) يشوف بس
-//   السجلات المسموح له بيها فعلاً - الاستعلامات المُرسَلة لـ Firestore
-//   نفسها مختلفة حسب الدور (fetchTicketsForSearchApi/
-//   fetchPmRecordsForSearchApi/fetchSuggestionsForSearchApi في
-//   services/api.js)، فمفيش أي بيانات زيادة عن اللازم بتترجع أصلاً
-// - بحث نصي + فلاتر (نوع السجل/الحالة/الأولوية/الماكينة/التاريخ) +
-//   ترتيب + تصدير Excel و PDF (يحترمان نفس نتيجة البحث/الفلاتر
-//   المعروضة بالظبط، وبالتالي نفس نطاق الصلاحيات)
-// نفس أسلوب knowledgeBase.js تماماً (حالة موديول + دوال window.*)
 // ============================================================
 
 import { getCurrentRole, hasFullDataAccess } from './permissions.js';
@@ -37,9 +24,10 @@ import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 // حالة الموديول
 // ============================================================
 
-let allRecords = [];     // كل السجلات (بلاغات + PM + كايزن) بعد تطبيق نطاق الصلاحيات (من مصدر الجلب نفسه)
+let allRecords = [];     // كل السجلات (بلاغات + PM + كايزن) بعد تطبيق نطاق الصلاحيات
+let lastFilteredList = [];
 let isLoaded = false;
-let loadError = false;   // فشل تحميل المصادر الثلاثة معاً فعلياً (مش مجرد صفر نتائج)
+let loadError = false;   // فشل تحميل المصادر الثلاثة معاً
 let currentType = 'all'; // all | ticket | pm | suggestion
 
 const TYPE_META = {
@@ -187,7 +175,7 @@ function getDateRangeBounds() {
   return { from, to };
 }
 
-window.handleMaintenanceSearchDateFilterChange = function () {
+export function handleMaintenanceSearchDateFilterChange() {
   const filterValue = el('mDateFilter')?.value || 'all';
   const isCustom = filterValue === 'custom';
 
@@ -195,10 +183,11 @@ window.handleMaintenanceSearchDateFilterChange = function () {
   el('mDateTo')?.classList.toggle('hidden', !isCustom);
 
   renderResults();
-};
+}
+window.handleMaintenanceSearchDateFilterChange = handleMaintenanceSearchDateFilterChange;
 
 // ============================================================
-// تهيئة الصفحة عند فتحها لأول مرة (تُستدعى من renderCore.js)
+// تهيئة الصفحة عند فتحها لأول مرة
 // ============================================================
 
 export async function initMaintenanceSearchView() {
@@ -240,14 +229,14 @@ export async function initMaintenanceSearchView() {
   isLoaded = true;
 
   updateFilterVisibilityForType(currentType);
-  window.switchMaintenanceSearchType(currentType);
+  switchMaintenanceSearchType(currentType);
 }
 
 // ============================================================
 // تبديل تبويب نوع السجل
 // ============================================================
 
-window.switchMaintenanceSearchType = function (type) {
+export function switchMaintenanceSearchType(type) {
   currentType = type;
 
   document.querySelectorAll('.m-type-btn').forEach(btn => {
@@ -259,23 +248,26 @@ window.switchMaintenanceSearchType = function (type) {
 
   updateFilterVisibilityForType(type);
   renderResults();
-};
+}
+window.switchMaintenanceSearchType = switchMaintenanceSearchType;
 
 // ============================================================
 // تطبيق البحث/الفلاتر
 // ============================================================
 
-window.applyMaintenanceSearchFilters = function () {
+export function applyMaintenanceSearchFilters() {
   renderResults();
-};
+}
+window.applyMaintenanceSearchFilters = applyMaintenanceSearchFilters;
 
 // ============================================================
 // فتح تفاصيل بلاغ عطل
 // ============================================================
 
-window.openMaintenanceSearchTicketDetails = function (ticketId) {
+export function openMaintenanceSearchTicketDetails(ticketId) {
   openTicketDetailsModal(ticketId);
-};
+}
+window.openMaintenanceSearchTicketDetails = openMaintenanceSearchTicketDetails;
 
 // ============================================================
 // مودال تفاصيل مقترح كايزن
@@ -349,8 +341,6 @@ async function openSuggestionDetailsModal(suggestion) {
 
   body.innerHTML = `
     <div class="space-y-4 text-right">
-
-      <!-- بيانات أساسية -->
       <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
         <div class="flex justify-between text-xs">
           <span class="text-gray-500">العنوان</span>
@@ -380,7 +370,6 @@ async function openSuggestionDetailsModal(suggestion) {
         ${suggestion.revisionNotes && status === "revision_requested" ? `<div class="text-xs text-orange-400 pt-1 border-t border-gray-800 mt-1"><b>ملاحظات التعديل:</b> ${escapeHtml(suggestion.revisionNotes)}</div>` : ""}
       </div>
 
-      <!-- صور المقترح -->
       ${suggestionImages.length ? `
         <div>
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
@@ -394,7 +383,6 @@ async function openSuggestionDetailsModal(suggestion) {
         </div>
       ` : ""}
 
-      <!-- صور التنفيذ -->
       ${implementationImages.length ? `
         <div>
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 صور بعد التنفيذ</div>
@@ -408,27 +396,24 @@ async function openSuggestionDetailsModal(suggestion) {
         </div>
       ` : ""}
 
-      <!-- التايملاين -->
       <div>
         <div class="text-[11px] font-bold text-gray-300 mb-2">🕒 سجل الحالات</div>
         ${logs.length ? logs.map(suggestionTimelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">لا يوجد سجل بعد.</div>`}
       </div>
-
     </div>
   `;
 }
 
-window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
+export function openMaintenanceSearchSuggestionDetails(suggestionId) {
   const suggestion = allRecords.find(r => r._kind === 'suggestion' && r.id === suggestionId);
   if (!suggestion) return;
   openSuggestionDetailsModal(suggestion);
-};
+}
+window.openMaintenanceSearchSuggestionDetails = openMaintenanceSearchSuggestionDetails;
 
 // ============================================================
 // بناء وعرض النتائج المفلترة
 // ============================================================
-
-let lastFilteredList = [];
 
 function renderResults() {
   const box = el('mResultsBox');
@@ -534,10 +519,11 @@ function renderResults() {
 // إعادة محاولة تحميل البيانات
 // ============================================================
 
-window.retryMaintenanceSearchLoad = function () {
+export function retryMaintenanceSearchLoad() {
   isLoaded = false;
   initMaintenanceSearchView();
-};
+}
+window.retryMaintenanceSearchLoad = retryMaintenanceSearchLoad;
 
 // ============================================================
 // جمع روابط الوسائط
@@ -558,18 +544,12 @@ function collectRecordMediaUrls(record) {
 }
 
 // ============================================================
-// تصدير النتائج المفلترة الحالية كملف CSV (تعديل: تنسيق التاريخ والروابط)
+// تصدير النتائج المفلترة الحالية كملف Excel
 // ============================================================
 
-function csvEscape(value) {
-  const str = String(value ?? '');
-  if (/[",\n]/.test(str)) {
-    return '"' + str.replace(/"/g, '""') + '"';
-  }
-  return str;
-}
+export async function exportMaintenanceSearchResults() {
+  renderResults(); // إعادة حساب وتطبيق الفلاتر الحالية لضمان تحديث lastFilteredList
 
-window.exportMaintenanceSearchResults = async function () {
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
@@ -617,7 +597,6 @@ window.exportMaintenanceSearchResults = async function () {
   const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
   const filename = `mscanco-maintenance-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-  // معلومات إضافية عن الفلاتر النشطة وقت التصدير (عرض فقط - بدون أي تأثير على نتائج الفلترة نفسها)
   const dateFilterValue = el('mDateFilter')?.value || 'all';
   const dateFromValue = el('mDateFrom')?.value || '';
   const dateToValue = el('mDateTo')?.value || '';
@@ -647,13 +626,12 @@ window.exportMaintenanceSearchResults = async function () {
       { label: isAr ? 'نوع السجلات المُصدَّرة' : 'Record Type Filter', value: typeFilterLabel }
     ]
   });
-};
+}
+window.exportMaintenanceSearchResults = exportMaintenanceSearchResults;
 
 // ============================================================
 // تصدير النتائج المفلترة الحالية كملف PDF احترافي (RTL)
 // ============================================================
-
-const PDF_PAGE_WIDTH_PX = 794;
 
 function formatPdfDate(iso) {
   const isEn = window.currentLang === 'en';
@@ -698,7 +676,9 @@ async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
   }
 }
 
-window.exportMaintenanceSearchResultsPdf = async function () {
+export async function exportMaintenanceSearchResultsPdf() {
+  renderResults(); // إعادة تطبيق الفلاتر الحالية لضمان مطابقة التقرير لما يعرض على الشاشة
+
   if (!lastFilteredList.length) {
     alert('لا توجد نتائج لتصديرها بالفلاتر الحالية');
     return;
@@ -713,6 +693,31 @@ window.exportMaintenanceSearchResultsPdf = async function () {
 
   try {
     const isAr = (window.currentLang || "ar") === "ar";
+    
+    // 1. حساب تفاصيل الفترة الزمنية ونوع الفلترة الحالية لتضمينها في رأس تقرير PDF
+    const dateFilterValue = el('mDateFilter')?.value || 'all';
+    const dateFromValue = el('mDateFrom')?.value || '';
+    const dateToValue = el('mDateTo')?.value || '';
+    const periodMap = {
+      all: isAr ? 'جميع التواريخ' : 'All Dates',
+      today: isAr ? 'اليوم' : 'Today',
+      last7: isAr ? 'آخر 7 أيام' : 'Last 7 Days',
+      month: isAr ? 'هذا الشهر' : 'This Month',
+      year: isAr ? 'هذه السنة' : 'This Year'
+    };
+    let periodLabel = periodMap[dateFilterValue] || (isAr ? 'غير محدد' : 'Not Specified');
+    if (dateFilterValue === 'custom') {
+      periodLabel = dateFromValue && dateToValue
+        ? (isAr ? `من ${dateFromValue} إلى ${dateToValue}` : `${dateFromValue} to ${dateToValue}`)
+        : (isAr ? 'فترة مخصصة' : 'Custom Range');
+    }
+
+    const typeFilterLabel = currentType === 'all'
+      ? (isAr ? 'الكل (بلاغات + وقائية + كايزن)' : 'All (Tickets + PM + Kaizen)')
+      : currentType === 'ticket' ? (isAr ? 'بلاغات الأعطال' : 'Tickets')
+      : currentType === 'pm' ? (isAr ? 'الصيانة الوقائية' : 'PM')
+      : (isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions');
+
     const recordsWithImages = [];
     for (const record of lastFilteredList) {
       const mediaUrls = collectRecordMediaUrls(record).slice(0, 4);
@@ -771,6 +776,7 @@ window.exportMaintenanceSearchResultsPdf = async function () {
           ${isAr ? "🎥 يوجد وسائط إضافية (فيديو/ملف) مرتبطة بهذا السجل - راجع تصدير Excel لروابطها الكاملة." : "🎥 Additional media (video/file) exists - see Excel export for full links."}
         </div>
       ` : "";
+
       return `
         <div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px; background: #f8fafc;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -792,8 +798,11 @@ window.exportMaintenanceSearchResultsPdf = async function () {
     const title = isAr ? "🔎 تقرير البحث والفلترة المتقدمة" : "🔎 Advanced Search Report";
     const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.pdf`;
     
+    // 2. إرسال معلومات الفلترة والفترة الكاملة في infoRows
     const infoRows = [
-      { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length }
+      { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length },
+      { label: isAr ? "الفترة الزمنية" : "Period", value: periodLabel },
+      { label: isAr ? "نوع السجلات" : "Record Type", value: typeFilterLabel }
     ];
 
     await exportToPdf(title, infoRows, htmlContent, filename);
@@ -807,10 +816,11 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       btn.innerHTML = originalLabel;
     }
   }
-};
+}
+window.exportMaintenanceSearchResultsPdf = exportMaintenanceSearchResultsPdf;
 
 // ============================================================
-// كارت نتيجة - بلاغ عطل
+// كروت النتائج المعروضة
 // ============================================================
 
 function ticketResultCard(t) {
@@ -847,10 +857,6 @@ function ticketResultCard(t) {
   `;
 }
 
-// ============================================================
-// كارت نتيجة - سجل صيانة وقائية (PM)
-// ============================================================
-
 function pmResultCard(p) {
   const checklist = p.checklist || {};
   const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
@@ -877,10 +883,6 @@ function pmResultCard(p) {
     </div>
   `;
 }
-
-// ============================================================
-// كارت نتيجة - مقترح كايزن
-// ============================================================
 
 function suggestionResultCard(s) {
   const status = String(s.status || 'new').trim().toLowerCase();
