@@ -11,7 +11,9 @@ import { initMainChart, loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
-import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
+import { initMaintenanceSearchView } from './maintenanceSearch.js';
+import { refreshAttendanceCard } from './attendanceCard.js';
+import './holidaysManagement.js';
 
 export let currentPage = 'login';
 
@@ -162,6 +164,12 @@ if (currentPage === "home") {
 
     }  
 
+    if (typeof refreshAttendanceCard === "function") {
+
+      refreshAttendanceCard();
+
+    }  
+
   }, 100);  
 
 }  
@@ -257,19 +265,7 @@ if (currentPage === "maintenanceSearch") {
 
   setTimeout(() => {  
 
-    // إصلاح (تحسين الأداء): لو البيانات كانت اتحمّلت قبل كده في نفس
-    // الجلسة (المستخدم فتح نفس الصفحة تاني بدون أي تغيير)، منعيدش
-    // نداء initMaintenanceSearchView() تاني (وبالتالي منعيدش جلب
-    // Firestore من الصفر) - بس بنعيد رسم نفس النتائج المحفوظة فعلاً،
-    // لأن #mResultsBox بيتبني من جديد فاضي وقت التنقل بين الصفحات.
-    // إعادة التحميل الفعلي (Force Refresh) لسه متاحة عبر زر "إعادة
-    // المحاولة" (window.retryMaintenanceSearchLoad بيصفّر isLoaded
-    // بنفسه قبل ما يستدعي initMaintenanceSearchView() من جديد)
-    const alreadyRendered =
-      typeof renderMaintenanceSearchIfLoaded === "function" &&
-      renderMaintenanceSearchIfLoaded();
-
-    if (!alreadyRendered && typeof initMaintenanceSearchView === "function") {  
+    if (typeof initMaintenanceSearchView === "function") {  
 
       initMaintenanceSearchView();  
 
@@ -357,6 +353,25 @@ if (
   setTimeout(() => {  
 
     loadPendingUsers();  
+
+  }, 100);  
+
+}
+
+
+// ========================================================  
+// SETTINGS AUTO LOAD (الإجازات الرسمية)
+// ========================================================  
+
+if (currentPage === "settings") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadHolidays === "function") {  
+
+      window.loadHolidays();  
+
+    }  
 
   }, 100);  
 

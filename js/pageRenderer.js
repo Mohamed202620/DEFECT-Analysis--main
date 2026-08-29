@@ -303,6 +303,72 @@ case 'system':
   return SystemView();  
 
 
+// ========================================================  
+// SETTINGS (الإجازات الرسمية - المستخدمة في كارت حضور الوردية)
+// ========================================================  
+
+case 'settings':  
+
+  return hasPermission("settings")  
+
+    ? PageView(  
+        t().settingsTitle,  
+        `  
+          <div class="space-y-4">  
+
+            <!-- نموذج إضافة إجازة رسمية جديدة -->
+            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 class="text-sm font-bold text-blue-400">🎉 الإجازات الرسمية</h3>
+              <p class="text-[11px] text-gray-400">
+                تُستخدم هذه القائمة في كارت حضور الوردية بالصفحة الرئيسية: أي يوم عمل مُجدوَل (من ضمن الـ6 أيام) يقع في إجازة رسمية هنا يُحتسب بالكامل إضافي (×1.5)، وأي يوم راحة دورية للفني لا يتأثر بها.
+              </p>
+
+              <div class="grid grid-cols-2 gap-2">
+                <input
+                  id="newHolidayDate"
+                  type="date"
+                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs"
+                >
+                <input
+                  id="newHolidayLabel"
+                  type="text"
+                  placeholder="اسم الإجازة (مثال: عيد الفطر)"
+                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs"
+                >
+              </div>
+
+              <button
+                onclick="window.addHoliday()"
+                class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition active:scale-95">
+                ➕ إضافة إجازة رسمية
+              </button>
+
+              <button
+                onclick="window.seedDefaultHolidays2026()"
+                class="w-full py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 font-bold text-[11px] text-amber-300 transition active:scale-95">
+                📋 إضافة القائمة الافتراضية لإجازات 2026 دفعة واحدة
+              </button>
+            </div>
+
+            <button
+              onclick="window.loadHolidays()"
+              class="w-full bg-[#1E293B] border border-gray-700 hover:border-gray-600 rounded-lg p-2.5 font-bold text-gray-300 text-xs transition">
+              🔄 تحديث القائمة
+            </button>
+
+            <div id="holidaysContainer" class="mt-2 space-y-2">
+              <div class="text-center text-gray-500 text-xs py-6">
+                جاري تحميل الإجازات الرسمية...
+              </div>
+            </div>
+
+          </div>  
+        `  
+      )  
+
+    : unauthorizedPage("settings");  
+
+
 default:  
 
   // إذا كان المستخدم مسجلاً دخوله بالفعل، فإن أي صفحة غير معروفة

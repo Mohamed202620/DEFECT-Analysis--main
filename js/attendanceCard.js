@@ -13,6 +13,94 @@
 import { db } from "./config.js";
 import { doc, getDoc } from "./firebase.js";
 import { getCompanyLogoDataUrl, COMPANY_NAME_AR, COMPANY_SHORT } from "./branding.js";
+import { fetchOfficialHolidaysApi } from "./services/api.js";
+
+// ============================================================
+// 0. الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
+// ============================================================
+// إضافة: نظام الإجازات الرسمية. يُدار من شاشة "settings" (راجع
+// holidaysManagement.js) ويُستخدم هنا لتحديد هل اليوم الحالي
+// إجازة رسمية أم لا، عشان نطبّق القاعدة المتفق عليها:
+//   - إجازة رسمية تقع في يوم من أيام راحة الفني (الدورة) → لا شيء،
+//     بدون أي إضافة.
+//   - إجازة رسمية تقع في يوم من أيام عمله وهو شغال فيه → كل
+//     ساعات اليوم ده تُحتسب إضافي (×1.5) بالكامل، مش عادي.
+// الكاش (localStorage + متغيّر الموديول) بيضمن إن كارت الحضور
+// يشتغل حتى بدون إنترنت (Offline-First، بنفس فلسفة باقي التطبيق)،
+// مع تحديث فوري لما الأدمن يضيف/يحذف إجازة من شاشة الإعدادات
+// (invalidateHolidaysCache).
+// ============================================================
+
+const HOLIDAYS_CACHE_KEY = "official_holidays_cache_v1";
+
+let holidaysMemoryCache = null; // مصفوفة {date, label} أو null لو لسه ما اتحمّلتش
+
+/**
+ * جلب قائمة الإجازات الرسمية (Firestore أولاً، مع الرجوع للكاش
+ * المحلي المحفوظ في localStorage عند تعذّر الاتصال)
+ */
+export async function getOfficialHolidays() {
+
+  if (Array.isArray(holidaysMemoryCache)) {
+    return holidaysMemoryCache;
+  }
+
+  try {
+    const result = await fetchOfficialHolidaysApi();
+    if (result.status === "success") {
+      holidaysMemoryCache = result.data;
+      try {
+        localStorage.setItem(HOLIDAYS_CACHE_KEY, JSON.stringify(result.data));
+      } catch (e) {
+        // تجاهل أخطاء التخزين (مساحة ممتلئة مثلاً) - الكاش في الذاكرة كافي لهذه الجلسة
+      }
+      return holidaysMemoryCache;
+    }
+  } catch (e) {
+    console.warn("[Attendance] فشل جلب الإجازات الرسمية من Firestore، سيتم استخدام الكاش المحلي:", e);
+  }
+
+  // احتياطي: قراءة آخر نسخة محفوظة محلياً (Offline)
+  try {
+    const raw = localStorage.getItem(HOLIDAYS_CACHE_KEY);
+    holidaysMemoryCache = raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    holidaysMemoryCache = [];
+  }
+
+  return holidaysMemoryCache;
+
+}
+
+/**
+ * إبطال الكاش (تُستدعى من شاشة إدارة الإجازات بعد أي إضافة/حذف،
+ * عشان التغيير ينعكس فوراً في كارت الحضور بدون انتظار إعادة تحميل
+ * الصفحة بالكامل)
+ */
+export function invalidateHolidaysCache() {
+  holidaysMemoryCache = null;
+}
+
+/**
+ * هل التاريخ المُعطى (YYYY-MM-DD) إجازة رسمية؟ - تعتمد على الكاش
+ * المُحمَّل مسبقاً (يجب استدعاء getOfficialHolidays() أولاً)
+ */
+export function isOfficialHolidayDate(dateStr, holidaysList) {
+  const list = Array.isArray(holidaysList) ? holidaysList : (holidaysMemoryCache || []);
+  return list.some(h => h.date === dateStr);
+}
+
+/**
+ * نسخة متزامنة (Sync) من قائمة الإجازات الرسمية المُحمَّلة بالفعل
+ * في الكاش - تُستخدم في renderAttendanceCard() اللي بيُستدعى أحياناً
+ * بشكل متزامن (زي أول رسم للصفحة الرئيسية في homeView.js قبل ما أي
+ * بيانات غير متزامنة تتحمّل) فمينفعش يستنى Promise. لو الكاش لسه
+ * فاضي (أول ظهور للصفحة قبل اكتمال refreshAttendanceCard) هترجع
+ * مصفوفة فاضية مؤقتاً، وهتتحدث تلقائياً بعد أول refreshAttendanceCard()
+ */
+export function getCachedOfficialHolidays() {
+  return holidaysMemoryCache || [];
+}
 
 // ============================================================
 // 1. جلب بيانات الفني من البروفايل (Firestore + Cache محلي)
@@ -27,14 +115,17 @@ export async function getTechnicianProfile(customUserId = null) {
   const userId = customUserId || localStorage.getItem("userId") || "local_user";
   
   // القيم الافتراضية المستندة للبروفايل
+  // إصلاح: كانت مواعيد الوردية الافتراضية 19:00/07:00 (7م-7ص) بدل
+  // 08:00/20:00 (8ص-8م) المتفق عليها فعلياً (وردية 12 ساعة تبدأ
+  // 8 صباحاً نهاري، أو 8 مساءً ليلي)
   let profile = {
     userId: userId,
     name: localStorage.getItem("name") || "فني صيانة",
     job: localStorage.getItem("job") || "فني صيانة ميكانيكية/كهربائية",
     shiftColor: localStorage.getItem("shift") || "جرين",
     shiftStartDate: "2026-01-01",
-    shiftStart: "19:00",
-    shiftEnd: "07:00",
+    shiftStart: "08:00",
+    shiftEnd: "20:00",
     hourlyRate: 50,
     monthTargetHours: 192
   };
@@ -101,9 +192,11 @@ export async function getTechnicianProfile(customUserId = null) {
  * @param {string|Date} startDate تاريخ بداية الوردية المرجعي
  * @param {string} shiftColor لون الوردية (جرين / بلو / ريد)
  * @param {string|Date} [targetDate] التاريخ المراد حسابه (الافتراضي: اليوم)
+ * @param {string} [shiftStart] ميعاد بداية الوردية النهارية (افتراضي 08:00)
+ * @param {string} [shiftEnd] ميعاد نهاية الوردية النهارية / بداية الليلية (افتراضي 20:00)
  * @returns {Object} تفاصيل الوردية واليوم في الدورة
  */
-export function getMyShiftInfo(startDate = "2026-01-01", shiftColor = "جرين", targetDate = new Date()) {
+export function getMyShiftInfo(startDate = "2026-01-01", shiftColor = "جرين", targetDate = new Date(), shiftStart = "08:00", shiftEnd = "20:00") {
   const sDate = new Date(startDate);
   const tDate = typeof targetDate === "string" ? new Date(targetDate) : new Date(targetDate);
   
@@ -125,10 +218,17 @@ export function getMyShiftInfo(startDate = "2026-01-01", shiftColor = "جرين"
   const cycleLength = 18; // 6 + 3 + 6 + 3
   const cycleIndex = (((diffDays - colorOffset) % cycleLength) + cycleLength) % cycleLength; // 0 .. 17
 
+  // إصلاح: مواعيد الوردية كانت ثابتة 07:00/19:00 بدل الاعتماد على
+  // الميعاد الفعلي المتفق عليه (08:00 صباحاً - 08:00 مساءً)، وكمان
+  // متجاهلة تماماً قيمتي shiftStart/shiftEnd القادمتين من بروفايل
+  // الفني. دلوقتي شكل النص بيتبني ديناميكياً من الميعادين الفعليين.
+  const dayShiftTime = `${shiftStart} - ${shiftEnd}`;
+  const nightShiftTime = `${shiftEnd} - ${shiftStart}`;
+
   let isWorkDay = true;
   let isNight = false;
   let shiftType = "نهاري";
-  let shiftTime = "07:00 - 19:00";
+  let shiftTime = dayShiftTime;
   let dayInCycleText = "";
   let badgeColorClass = "bg-blue-500/20 text-blue-300 border-blue-500/40";
 
@@ -138,7 +238,7 @@ export function getMyShiftInfo(startDate = "2026-01-01", shiftColor = "جرين"
     isWorkDay = true;
     isNight = false;
     shiftType = "نهاري";
-    shiftTime = "07:00 - 19:00";
+    shiftTime = dayShiftTime;
     dayInCycleText = `يوم ${dayNum} من 6`;
     badgeColorClass = "bg-amber-500/20 text-amber-300 border-amber-500/40";
   } else if (cycleIndex >= 6 && cycleIndex <= 8) {
@@ -156,7 +256,7 @@ export function getMyShiftInfo(startDate = "2026-01-01", shiftColor = "جرين"
     isWorkDay = true;
     isNight = true;
     shiftType = "ليلي";
-    shiftTime = "19:00 - 07:00";
+    shiftTime = nightShiftTime;
     dayInCycleText = `يوم ${dayNum} من 6`;
     badgeColorClass = "bg-indigo-500/20 text-indigo-300 border-indigo-500/40";
   } else {
@@ -315,9 +415,33 @@ export async function checkOut() {
     diffHours = 12;
   }
 
-  // القاعدة: حتى 12 ساعة عادي، الزيادة إضافي × 1.5
-  const regularHours = Math.min(12, Number(diffHours.toFixed(2)));
-  const overtimeHours = Number(Math.max(0, diffHours - 12).toFixed(2));
+  // إضافة: هل اليوم إجازة رسمية وهو أصلاً يوم عمل مُجدوَل للفني؟
+  // القاعدة المتفق عليها: لو حاضر ويوم عمله يوافق إجازة رسمية،
+  // ساعات اليوم كله تُحتسب إضافي (×1.5) بالكامل، مش عادي حتى لو
+  // أقل من أو يساوي 12 ساعة. (لو الإجازة الرسمية وقعت في يوم راحته
+  // الدورية أصلاً، مفيش أي تسجيل حضور هيحصل، فمفيش تأثير هناك).
+  const holidays = await getOfficialHolidays();
+  const shiftInfoToday = getMyShiftInfo(
+    profile.shiftStartDate, profile.shiftColor, todayStr, profile.shiftStart, profile.shiftEnd
+  );
+  const isHolidayWork = shiftInfoToday.isWorkDay && isOfficialHolidayDate(todayStr, holidays);
+
+  let regularHours, overtimeHours;
+
+  if (isHolidayWork) {
+    // إجازة رسمية + يوم عمل مُجدوَل = كل الساعات إضافي بالكامل
+    regularHours = 0;
+    overtimeHours = Number(diffHours.toFixed(2));
+  } else {
+    // القاعدة العادية للعرض اليومي: حتى 12 ساعة عادي، الزيادة إضافي
+    // × 1.5 - ملحوظة: التصنيف النهائي (عادي/إضافي) للشهر بيُعاد
+    // حسابه فعلياً على مستوى الشهر كله في calculateMonth() حسب سقف
+    // الـ192 ساعة الشهري المتفق عليه، مش على مستوى اليوم الواحد -
+    // القيم هنا بمثابة ملخص تقريبي لليوم نفسه بس
+    regularHours = Math.min(12, Number(diffHours.toFixed(2)));
+    overtimeHours = Number(Math.max(0, diffHours - 12).toFixed(2));
+  }
+
   const totalHours = Number((regularHours + overtimeHours).toFixed(2));
 
   const regularEarnings = regularHours * profile.hourlyRate;
@@ -326,7 +450,7 @@ export async function checkOut() {
 
   const updatedRecord = {
     ...currentRecord,
-    checkIn: currentRecord.checkIn || "07:00",
+    checkIn: currentRecord.checkIn || "08:00",
     checkInTimestamp: checkInTimestamp,
     checkOut: timeStr,
     checkOutTimestamp: now.getTime(),
@@ -338,7 +462,9 @@ export async function checkOut() {
     totalEarnings,
     status: "checked_out",
     isExtraDay: false,
-    isLeave: false
+    isLeave: false,
+    isHolidayWork,
+    note: isHolidayWork ? "يوم عمل مصادف لإجازة رسمية (محتسب إضافي بالكامل)" : (currentRecord.note || "")
   };
 
   saveDailyAttendanceRecord(profile.userId, todayStr, updatedRecord);
@@ -364,8 +490,8 @@ export async function addExtraDay() {
 
   const updatedRecord = {
     ...currentRecord,
-    checkIn: currentRecord.checkIn || "19:00",
-    checkOut: currentRecord.checkOut || "07:00",
+    checkIn: currentRecord.checkIn || "20:00",
+    checkOut: currentRecord.checkOut || "08:00",
     regularHours,
     overtimeHours,
     totalHours,
@@ -425,6 +551,25 @@ export async function takeLeave() {
 
 /**
  * حساب ساعات وأموال الشهر كاملاً
+ *
+ * إصلاح جوهري: كان الحساب القديم بيجمع regularHours/overtimeHours
+ * المُخزَّنة لكل يوم على حدة (واللي كانت بتتحدد بقاعدة "أكتر من 12
+ * ساعة في نفس اليوم = إضافي")، فكان أي شهر فيه عدد أيام عمل عادية
+ * (12 ساعة/يوم) أكتر من 16 يوم (أي أكتر من 192 ساعة) بيُحتسب بالكامل
+ * "عادي" غلط، رغم إن المتفق عليه فعلياً: "بنتخاسب في الشهر على 192
+ * ساعة، والزيادة عن كده تُحتسب إضافي (×1.5)" - وهو أمر متوقع الحدوث
+ * بشكل طبيعي لأن دورة الـ18 يوم مش بتتقسم بالظبط على شهور 30/31 يوم.
+ *
+ * القاعدة الجديدة:
+ *  - أيام الحضور العادي + أيام الإجازة من الرصيد (8س) تتجمع في
+ *    "مجمّع الساعات العادية" (pool) أولاً.
+ *  - عادي (نهائي) = أقل قيمة بين (المجمّع، 192)
+ *  - إضافي (نهائي) = (المجمّع - 192 لو كان أكبر) + كل ساعات أيام
+ *    العمل الإضافي (isExtraDay) + كل ساعات أيام العمل المصادفة
+ *    لإجازة رسمية (isHolidayWork) - الاتنين دول دايماً إضافي كامل
+ *    بغض النظر عن سقف الـ192، لأنهم عمل إضافي عن الجدول الأساسي
+ *    أصلاً (سواء بمبادرة الفني أو بحكم مصادفة إجازة رسمية).
+ *
  * @param {string} userId معرّف الفني
  * @param {string} [yearMonth] الشهر بصيغة YYYY-MM (الافتراضي: الشهر الحالي)
  * @param {number} [customHourlyRate]
@@ -435,11 +580,12 @@ export function calculateMonth(userId, yearMonth = null, customHourlyRate = 50, 
   const currentYM = yearMonth || getTodayDateString().substring(0, 7); // "2026-08"
   const prefix = `attendance_${userId}_${currentYM}`;
   
-  let totalRegularHours = 0;
-  let totalOvertimeHours = 0;
+  let poolHours = 0;         // ساعات الحضور العادي + الإجازة من الرصيد (تُقارن بسقف الـ192)
+  let fixedOvertimeHours = 0; // ساعات الأيام الإضافية + أيام الإجازات الرسمية المشتغلة (إضافي دايماً)
   let totalWorkDays = 0;
   let totalLeaves = 0;
   let totalExtraDays = 0;
+  let totalHolidayWorkDays = 0;
   let daysList = [];
 
   // قراءة كل الأيام المسجلة لهذا الشهر من localStorage
@@ -450,12 +596,22 @@ export function calculateMonth(userId, yearMonth = null, customHourlyRate = 50, 
         const record = JSON.parse(localStorage.getItem(key));
         if (record) {
           daysList.push(record);
-          totalRegularHours += (Number(record.regularHours) || 0);
-          totalOvertimeHours += (Number(record.overtimeHours) || 0);
-          
-          if (record.isLeave) totalLeaves++;
-          else if (record.isExtraDay) totalExtraDays++;
-          else if (record.totalHours > 0) totalWorkDays++;
+
+          const dayTotalHours = Number(record.totalHours) || 0;
+
+          if (record.isHolidayWork) {
+            fixedOvertimeHours += dayTotalHours;
+            totalHolidayWorkDays++;
+          } else if (record.isExtraDay) {
+            fixedOvertimeHours += dayTotalHours;
+            totalExtraDays++;
+          } else if (record.isLeave) {
+            poolHours += dayTotalHours;
+            totalLeaves++;
+          } else if (dayTotalHours > 0) {
+            poolHours += dayTotalHours;
+            totalWorkDays++;
+          }
         }
       } catch (e) {
         console.error("Error reading month record:", e);
@@ -468,6 +624,11 @@ export function calculateMonth(userId, yearMonth = null, customHourlyRate = 50, 
 
   const targetHours = customTargetHours || 192;
   const rate = customHourlyRate || 50;
+
+  // تصنيف مجمّع الساعات العادية على سقف الـ192 الشهري
+  const totalRegularHours = Number(Math.min(poolHours, targetHours).toFixed(2));
+  const poolOvertimeHours = Number(Math.max(0, poolHours - targetHours).toFixed(2));
+  const totalOvertimeHours = Number((poolOvertimeHours + fixedOvertimeHours).toFixed(2));
 
   // إجمالي الساعات
   const totalHours = Number((totalRegularHours + totalOvertimeHours).toFixed(2));
@@ -493,6 +654,7 @@ export function calculateMonth(userId, yearMonth = null, customHourlyRate = 50, 
     totalWorkDays,
     totalLeaves,
     totalExtraDays,
+    totalHolidayWorkDays,
     daysList
   };
 }
@@ -526,8 +688,11 @@ export async function exportPDF(customUserId = null, customYM = null) {
     monthData.daysList.forEach((row, idx) => {
       const isExtra = row.isExtraDay;
       const isLeave = row.isLeave;
+      const isHolidayWork = row.isHolidayWork;
       const rowBg = idx % 2 === 0 ? "bg-white" : "bg-slate-50";
-      const statusBadge = isExtra 
+      const statusBadge = isHolidayWork
+        ? '<span style="color:#b45309;font-weight:bold;">🎉 عمل بإجازة رسمية (إضافي بالكامل)</span>'
+        : isExtra 
         ? '<span style="color:#b45309;font-weight:bold;">يوم إضافي (+12س)</span>'
         : (isLeave ? '<span style="color:#047857;font-weight:bold;">إجازة رصيد (8س)</span>' : '<span style="color:#1e3a8a;font-weight:bold;">حضور عادي</span>');
 
@@ -725,14 +890,18 @@ export function renderAttendanceCard(customProfile = null) {
   const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
   const shiftColor = customProfile?.shiftColor || localStorage.getItem("shift") || "جرين";
   const shiftStartDate = customProfile?.shiftStartDate || "2026-01-01";
-  const shiftStart = customProfile?.shiftStart || "19:00";
-  const shiftEnd = customProfile?.shiftEnd || "07:00";
+  const shiftStart = customProfile?.shiftStart || "08:00";
+  const shiftEnd = customProfile?.shiftEnd || "20:00";
   const hourlyRate = Number(customProfile?.hourlyRate) || 50;
   const monthTargetHours = Number(customProfile?.monthTargetHours) || 192;
 
   // اليوم وتفاصيل الدورة
   const todayStr = getTodayDateString();
-  const shiftInfo = getMyShiftInfo(shiftStartDate, shiftColor, todayStr);
+  const shiftInfo = getMyShiftInfo(shiftStartDate, shiftColor, todayStr, shiftStart, shiftEnd);
+
+  // إضافة: هل اليوم إجازة رسمية؟ (نسخة متزامنة من الكاش - راجع
+  // getCachedOfficialHolidays أعلاه لسبب استخدام النسخة المتزامنة هنا)
+  const isHolidayToday = isOfficialHolidayDate(todayStr, getCachedOfficialHolidays());
 
   // السجل الحالي لليوم
   const todayRecord = getDailyAttendanceRecord(userId, todayStr) || {
@@ -877,6 +1046,22 @@ export function renderAttendanceCard(customProfile = null) {
         </div>
       </div>
 
+      <!-- إضافة: بادج تنبيهي لو اليوم إجازة رسمية -->
+      ${isHolidayToday ? `
+        <div id="attendanceHolidayBadge" class="flex items-center gap-2 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2 text-[11px] text-amber-200 font-bold">
+          <span>🎉</span>
+          <span>
+            ${
+              !shiftInfo.isWorkDay
+                ? "اليوم إجازة رسمية (يوم راحتك الدورية أصلاً - بدون أي تأثير على حسابك)"
+                : todayRecord.isHolidayWork
+                  ? "اليوم إجازة رسمية وأنت شغال - كل ساعات اليوم محتسبة إضافي (×1.5) بالكامل"
+                  : "اليوم إجازة رسمية وهو يوم عملك المُجدوَل - أي ساعات هتشتغلها هتتحسب إضافي (×1.5) بالكامل"
+            }
+          </span>
+        </div>
+      ` : ""}
+
       <!-- الصف 3: دخول: --:-- | خروج: --:-- | زرار تسجيل دخول او خروج -->
       <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
         <div class="flex items-center gap-3 text-xs">
@@ -985,6 +1170,10 @@ export async function refreshAttendanceCard() {
   const container = document.getElementById("attendanceCardContainer");
   if (container) {
     const profile = await getTechnicianProfile();
+    // إضافة: تحميل/تحديث كاش الإجازات الرسمية قبل الرسم، عشان بادج
+    // "اليوم إجازة رسمية" (وقاعدة احتساب العمل فيها إضافي بالكامل)
+    // يشتغلوا بأحدث بيانات متاحة
+    await getOfficialHolidays();
     container.innerHTML = renderAttendanceCard(profile);
   }
 }

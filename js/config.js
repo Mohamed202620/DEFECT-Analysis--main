@@ -731,7 +731,8 @@ export const translations = {
       monthlyReportBtn: "🗓️ تقرير شهري (PDF)",
       loadingTickets: "جاري تحميل التذاكر...",
       kaizenBoardTitle: "💡 متابعة الكايزن",
-      loadingSuggestions: "جاري تحميل المقترحات..."
+      loadingSuggestions: "جاري تحميل المقترحات...",
+      settingsTitle: "⚙️ إعدادات النظام"
     },
 
     // مفاتيح أزرار دورة حياة البلاغ (permissions.js: getTicketActions)
@@ -1362,7 +1363,8 @@ export const translations = {
       monthlyReportBtn: "🗓️ Monthly Report (PDF)",
       loadingTickets: "Loading tickets...",
       kaizenBoardTitle: "💡 Track Kaizen",
-      loadingSuggestions: "Loading suggestions..."
+      loadingSuggestions: "Loading suggestions...",
+      settingsTitle: "⚙️ System Settings"
     },
 
     ticketActions: {
