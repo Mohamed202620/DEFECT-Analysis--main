@@ -9,6 +9,10 @@
 import { db } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
+// إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
+// ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
+// نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
+import { CLOSED_STATUSES } from "../ticketStatusConstants.js";
 import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket } from "./offlineQueue.js";
 
 import {
@@ -210,14 +214,31 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
   try {
     const ticketsRef = collection(db, "tickets");
 
+    // إصلاح M6: فلتر زمني "أعطال اليوم" - بنفس منطق حساب كارت "أعطال
+    // اليوم" في loadDashboardStats (workflow.js) بالظبط (مقارنة
+    // toDateString() مع تاريخ اليوم)، بغض النظر عن حالة التذكرة
+    const isCreatedToday = (ticket) => {
+      if (!ticket.createdAt) return false;
+      const created = new Date(ticket.createdAt);
+      if (isNaN(created.getTime())) return false;
+      return created.toDateString() === new Date().toDateString();
+    };
+
     const handleSnapshotWithoutOrder = (q, context) => {
       return onSnapshot(
         q,
         (querySnapshot) => {
-          const tickets = [];
+          let tickets = [];
           querySnapshot.forEach(docSnap => {
             tickets.push({ id: docSnap.id, ...docSnap.data() });
           });
+          // إصلاح M6: فلترة محلية بتاريخ اليوم (فوق أي فلتر حالة) لما
+          // يكون الفلتر المطلوب "today" - نفس أسلوب فلترة التاريخ
+          // المحلية المستخدم بالفعل في fetchTicketsForReportApi بدل أي
+          // استعلام Firestore إضافي على createdAt (تفادياً لأي Composite Index)
+          if (status === "today") {
+            tickets = tickets.filter(isCreatedToday);
+          }
           // ترتيب محلياً حسب التاريخ من الأحدث للأقدم
           tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
           callback({ status: "success", data: tickets });
@@ -261,13 +282,26 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     }
 
     // 4. الفلاتر العامة (الأدمن والمدير)
+    // إصلاح (تنظيف/Refactor): CLOSED_STATUSES بقت مستوردة من ملف الثوابت
+    // المشترك بدل مصفوفة محلية مكررة (CLOSED_STATUSES_FOR_HOME_CARDS)
+    // - عشان كارت "تم إصلاحها" في الرئيسية يفضل مطابق تماماً لنفس
+    // منطق isClosedStatus في workflow.js حتى لو القائمة اتعدّلت مستقبلاً
     const STATUS_QUERY_ALIASES = {
       pending: ["pending", "open"],
-      in_progress: ["in_progress", "reopened", "assigned"]
+      in_progress: ["in_progress", "reopened", "assigned"],
+      fixed: CLOSED_STATUSES
     };
 
     const statusClauses = () => {
-      if (!status || status === "all") return [];
+      if (!status || status === "all" || status === "today") return [];
+      if (status === "open") {
+        // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
+        // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
+        // محددة سلفاً - فبدل تخمين قائمة "مفتوحة" ممكن تفوّت حالة جديدة
+        // غير متوقعة، بنستخدم عكس بالظبط نفس قائمة الحالات المغلقة
+        // (CLOSED_STATUSES) عشان الفلتر يطابق الرقم تماماً
+        return [where("status", "not-in", CLOSED_STATUSES)];
+      }
       const values = STATUS_QUERY_ALIASES[status];
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
@@ -287,7 +321,14 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       if (!reportedReady || !assignedReady) return;
       const merged = new Map();
       [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
-      const tickets = Array.from(merged.values()).sort(
+      let tickets = Array.from(merged.values());
+      // إصلاح M6: نفس فلترة "أعطال اليوم" المحلية كمان في مسار
+      // الفنيين/المهندسين (بلاغاتي + المُسندة إليّ) عشان تفضل شغالة
+      // حتى لو currentStatusFilter='today' وصل للمسار ده لأي سبب
+      if (status === "today") {
+        tickets = tickets.filter(isCreatedToday);
+      }
+      tickets.sort(
         (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
       );
       callback({ status: "success", data: tickets });
