@@ -316,6 +316,26 @@ function formatReportPriority(p, isEn) {
 }
 
 // ============================================================
+// تسمية نصية واضحة لنطاق الفترة الزمنية المُختار (عرض فقط - لا تُغيّر منطق الفلترة)
+// ============================================================
+function getPeriodLabel(filterType, fromDate, toDate, isAr) {
+  const map = {
+    all: isAr ? 'جميع السجلات (السجل الكامل)' : 'All Records (Full History)',
+    today: isAr ? 'اليوم' : 'Today',
+    last7: isAr ? 'آخر 7 أيام' : 'Last 7 Days',
+    month: isAr ? 'هذا الشهر' : 'This Month',
+    year: isAr ? 'هذه السنة' : 'This Year'
+  };
+  if (filterType === 'custom') {
+    if (fromDate && toDate) return isAr ? `من ${fromDate} إلى ${toDate}` : `${fromDate} to ${toDate}`;
+    if (fromDate) return isAr ? `من ${fromDate}` : `From ${fromDate}`;
+    if (toDate) return isAr ? `حتى ${toDate}` : `Until ${toDate}`;
+    return isAr ? 'فترة مخصصة' : 'Custom Range';
+  }
+  return map[filterType] || (isAr ? 'غير محدد' : 'Not Specified');
+}
+
+// ============================================================
 // الدالة المركزية لتصدير الإكسيل
 // ============================================================
 window.runExcelExport = async function (type) {
@@ -372,7 +392,8 @@ window.runExcelExport = async function (type) {
       const filename = `mscanco-tickets-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'بلاغات الأعطال' : 'Tickets'
+        sheetName: isAr ? 'بلاغات الأعطال' : 'Tickets',
+        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
       });
 
     } else if (type === 'pm') {
@@ -406,7 +427,8 @@ window.runExcelExport = async function (type) {
       const filename = `mscanco-pm-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'الصيانة الوقائية' : 'PM Records'
+        sheetName: isAr ? 'الصيانة الوقائية' : 'PM Records',
+        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
       });
 
     } else if (type === 'suggestions') {
@@ -442,7 +464,8 @@ window.runExcelExport = async function (type) {
       const filename = `mscanco-kaizen-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
       await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions'
+        sheetName: isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions',
+        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
       });
 
     } else if (type === 'master') {
@@ -540,7 +563,8 @@ window.runExcelExport = async function (type) {
       const masterTitle = isAr ? 'التقرير الشامل المجمع لعمليات الصيانة والكايزن' : 'MSCANCO Master Maintenance & Kaizen Operations Report';
       const filename = `mscanco-operations-master-${new Date().toISOString().slice(0, 10)}.xlsx`;
       await exportToExcel(masterTitle, [], [], filename, {
-        sheets: multiSheets
+        sheets: multiSheets,
+        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
       });
     }
     if (statusBox) {
