@@ -1,4 +1,4 @@
-import { getCurrentRole } from '../permissions.js';
+import { getCurrentRole, hasFullDataAccess } from '../permissions.js';
 import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlockHtml, getCompanyLogoDataUrl } from '../branding.js';
 
 export const PAGE_BREAK_CLASS = "no-page-break";
@@ -172,15 +172,30 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   const role = (getCurrentRole() || localStorage.getItem("role") || "user").toLowerCase();
   const userName = localStorage.getItem("name") || (isAr ? "مستخدم النظام" : "System User");
   const userPhone = localStorage.getItem("phone") || "";
+  const rawPerms = localStorage.getItem("permissions") || "";
+  const isFullAccess = hasFullDataAccess(role);
 
-  // Date formatting for the sub-header (e.g., 26 / 7 / 2026)
-  const now = new Date();
-  const defaultDateStr = `${now.getDate()} / ${now.getMonth() + 1} / ${now.getFullYear()}`;
-  const docDate = options.date || defaultDateStr;
-  const docShift = options.shift || (localStorage.getItem("shift") ? localStorage.getItem("shift") : "1");
-  const docIssuingNo = options.issuingNo || options.issueNo || `${Math.floor(100 + (now.getTime() % 900))}`;
-  const formCode = options.formCode || "MS/ENG/Form/IR-01";
-  const formRevision = options.formRevision || "Rev. 02   Issue Date: 1 Jan 2017";
+  const roleLabel = {
+    admin: isAr ? "مدير النظام (Admin)" : "System Administrator",
+    manager: isAr ? "مدير الإنتاج والعمليات (Manager)" : "Production & Operations Manager",
+    engineer: isAr ? "مهندس صيانة (Engineer)" : "Maintenance Engineer",
+    technician: isAr ? "فني صيانة (Technician)" : "Maintenance Technician",
+    quality: isAr ? "مفتش جودة (Quality Inspector)" : "Quality Inspector"
+  }[role] || (isAr ? `مستخدم (${role})` : `User (${role})`);
+
+  let permSummaryText = "";
+  if (role === "admin" || isFullAccess) {
+    permSummaryText = isAr ? "صلاحيات كاملة (إدارة، تعديل، تصدير، اعتماد)" : "Full Access (Admin, Edit, Export, Approve)";
+  } else if (rawPerms) {
+    permSummaryText = isAr ? `صلاحيات مخصصة: ${rawPerms}` : `Custom Permissions: ${rawPerms}`;
+  } else {
+    permSummaryText = isAr ? "صلاحيات قياسية (عرض وإدخال)" : "Standard Access (View & Submit)";
+  }
+
+  const exportDateStr = new Date().toLocaleString(isAr ? "ar-EG" : "en-US", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true
+  });
 
   const wb = new window.ExcelJS.Workbook();
   wb.creator = `${userName} - MSCANCO`;
@@ -207,25 +222,26 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     let sRows = (sheetConfig.rows || rows).map(r => [...r]);
     const sName = sheetConfig.sheetName || (isAr ? "التقرير" : "Report");
 
-    // Ensure Sequential Numbering (S/N or م) starting strictly at 1
-    const hasSeqCol = sHeaders.length > 0 && (sHeaders[0] === "S/N" || sHeaders[0] === "#" || sHeaders[0] === "م" || sHeaders[0] === "ت" || sHeaders[0].toLowerCase() === "seq");
+    // 4. Ensure Sequential Numbering (# / م) starting strictly at 1 for the first visible record
+    const hasSeqCol = sHeaders.length > 0 && (sHeaders[0] === "#" || sHeaders[0] === "م" || sHeaders[0] === "ت" || sHeaders[0].toLowerCase() === "seq");
     if (!hasSeqCol) {
-      sHeaders.unshift("S/N");
+      sHeaders.unshift(isAr ? "م" : "#");
       sRows = sRows.map((row, idx) => [idx + 1, ...row]);
     } else {
+      // Re-index column 0 to guarantee it starts strictly at 1
       sRows = sRows.map((row, idx) => {
         row[0] = idx + 1;
         return row;
       });
     }
 
-    const totalCols = Math.max(sHeaders.length, 10);
+    const totalCols = Math.max(sHeaders.length, 7);
 
     const ws = wb.addWorksheet(sName, {
       views: [{
         rightToLeft: isAr,
         state: "frozen",
-        ySplit: 5,
+        ySplit: 8,
         showGridLines: true
       }],
       pageSetup: {
@@ -234,22 +250,37 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
         fitToPage: true,
         fitToWidth: 1,
         fitToHeight: 0,
-        printTitlesRow: "5:5",
+        printTitlesRow: "8:8",
         margins: {
-          left: 0.3, right: 0.3, top: 0.4, bottom: 0.4,
-          header: 0.2, footer: 0.2
+          left: 0.4, right: 0.4, top: 0.6, bottom: 0.6,
+          header: 0.3, footer: 0.3
         }
       }
     });
 
-    // Row heights matching the official printed slip exactly
-    ws.getRow(1).height = 24; // Arabic Corporate Name + Logo
-    ws.getRow(2).height = 20; // English Corporate Name + ISO certification
-    ws.getRow(3).height = 26; // Document Title (e.g. / MRO ISSUE SLIP - STOCK ITEMS)
-    ws.getRow(4).height = 24; // Metadata Sub-Header (Date: ... | Shift: ... | Issuing #: ...)
-    ws.getRow(5).height = 28; // Table Columns Header Row
+    // Row heights for a balanced visual scale
+    ws.getRow(1).height = 24;
+    ws.getRow(2).height = 18;
+    ws.getRow(3).height = 18;
+    ws.getRow(4).height = 8;
+    ws.getRow(5).height = 28;
+    ws.getRow(6).height = 22;
+    ws.getRow(7).height = 20;
+    ws.getRow(8).height = 30;
 
-    // 1. Embed Corporate Logo in Header (Rows 1-2, Col A-B)
+    // Reserve a fixed-size box (cols A:B, rows 1-4) exclusively for the logo,
+    // independent of any report's actual column content. Without this floor,
+    // short headers (e.g. a narrow "#"/"Item Code" pair) could shrink columns
+    // A/B below the logo's width and let it visually bleed into the brand
+    // name text starting at column C. The auto-fit pass further down respects
+    // this same floor so it can only widen these two columns, never shrink them.
+    ws.getColumn(1).width = 9;
+    ws.getColumn(2).width = 17;
+    ws.mergeCells(1, 1, 4, 2);
+
+    // 1. Embed Corporate Logo in its reserved box (Rows 1-4, Cols A-B)
+    // Sized to the banner's real aspect ratio (2172x724 ≈ 3:1) instead of a
+    // fixed width/height that used to stretch it slightly out of proportion.
     if (logoB64 && logoB64.startsWith("data:image/")) {
       try {
         const extension = logoB64.includes("png") ? "png" : "jpeg";
@@ -257,10 +288,10 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
           base64: logoB64,
           extension: extension,
         });
-        
+
         ws.addImage(imageId, {
-          tl: { col: 0.05, row: 0.05 },
-          ext: { width: 140, height: 48 },
+          tl: { col: 0.08, row: 0.15 },
+          ext: { width: 170, height: 57 },
           editAs: "oneCell"
         });
       } catch (imgErr) {
@@ -268,302 +299,215 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     }
 
-    // Partition column indexes for top header (Logo | Company Name | Quality Seals)
-    const midColStart = Math.min(3, Math.max(2, Math.floor(totalCols * 0.25)));
-    const midColEnd = Math.max(midColStart, totalCols - 2);
-    const rightColStart = midColEnd + 1;
-    const rightColEnd = totalCols;
+    // 2. Official Corporate Branding Banner (Arabic & English & International Certifications)
+    const brandColStart = 3;
+    const brandColEnd = totalCols;
 
     // Row 1: Arabic Corporate Name
-    // "شركة محمود سعيد وشركاه المحدودة (إحدى شركات مجموعة محمود سعيد المحدودة)"
-    ws.mergeCells(1, midColStart, 1, midColEnd);
-    const brandArCell = ws.getCell(1, midColStart);
-    brandArCell.value = "شركة محمود سعيد وشركاه المحدودة  (إحدى شركات مجموعة محمود سعيد المحدودة)";
-    brandArCell.font = { name: "Arial", size: 12, bold: true, color: { argb: "FF0B3D91" } };
-    brandArCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells(1, brandColStart, 1, brandColEnd);
+    const brandArCell = ws.getCell(1, brandColStart);
+    brandArCell.value = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة (MSCANCO)";
+    brandArCell.font = { name: "Arial", size: 12.5, bold: true, color: { argb: "FF0B3D91" } };
+    brandArCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
     // Row 2: English Corporate Name
-    // "Mahmoud Saeed & Partners - CanMaking Factory (subsidiary of Mahmoud Saeed Group Ltd.)"
-    ws.mergeCells(2, midColStart, 2, midColEnd);
-    const brandEnCell = ws.getCell(2, midColStart);
-    brandEnCell.value = "Mahmoud Saeed & Partners - CanMaking Factory (subsidiary of Mahmoud Saeed Group Ltd.)";
-    brandEnCell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF1E293B" } };
-    brandEnCell.alignment = { horizontal: "center", vertical: "middle" };
+    ws.mergeCells(2, brandColStart, 2, brandColEnd);
+    const brandEnCell = ws.getCell(2, brandColStart);
+    brandEnCell.value = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY CO. LTD.";
+    brandEnCell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF334155" } };
+    brandEnCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
-    // Right Corner (Rows 1-2): Quality Seals / ISO Certified Info
-    if (rightColStart <= rightColEnd) {
-      ws.mergeCells(1, rightColStart, 2, rightColEnd);
-      const qualityCell = ws.getCell(1, rightColStart);
-      qualityCell.value = "CERTIFIED ISO 9001:2015\nFSSC 22000 | ISO 14001\nISO 45001:2018 (SGS)";
-      qualityCell.font = { name: "Arial", size: 7.5, bold: true, italic: true, color: { argb: "FF475569" } };
-      qualityCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    }
+    // Row 3: Certified Quality Standards
+    ws.mergeCells(3, brandColStart, 3, brandColEnd);
+    const certCell = ws.getCell(3, brandColStart);
+    certCell.value = isAr 
+      ? "شهادات الجودة المعتمدة: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018"
+      : "Certified Standards: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018";
+    certCell.font = { name: "Arial", size: 8.5, italic: true, color: { argb: "FF64748B" } };
+    certCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
-    // Row 3: Official Document Title Bar (e.g. / MRO ISSUE SLIP - STOCK ITEMS)
-    ws.mergeCells(3, 1, 3, totalCols);
-    const titleCell = ws.getCell("A3");
-    let displayTitle = sTitle.trim();
-    if (!displayTitle.startsWith("/")) {
-      displayTitle = `/ ${displayTitle}`;
-    }
-    titleCell.value = displayTitle.toUpperCase();
-    titleCell.font = { name: "Arial", size: 13, bold: true, color: { argb: "FF0F172A" } };
-    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+    // Row 5: Report Title Banner (Deep Navy Bar with Bold White Display)
+    ws.mergeCells(5, 1, 5, sHeaders.length);
+    const titleCell = ws.getCell("A5");
+    titleCell.value = `📋 ${sTitle.toUpperCase()}`;
+    titleCell.font = { name: "Arial", size: 12, bold: true, color: { argb: "FFFFFFFF" } };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B3D91" } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
-    titleCell.border = {
-      top: { style: "medium", color: { argb: "FF0F172A" } },
-      bottom: { style: "thin", color: { argb: "FF334155" } },
-      left: { style: "medium", color: { argb: "FF0F172A" } },
-      right: { style: "medium", color: { argb: "FF0F172A" } }
+
+    // Row 6: User & Role & Permissions Header (Organized & Clear Metadata)
+    ws.mergeCells(6, 1, 6, sHeaders.length);
+    const userMetaCell = ws.getCell("A6");
+    const userTitleLabel = isAr ? "👤 المُصدِّر:" : "👤 Exported By:";
+    const roleTitleLabel = isAr ? "🏷️ الدور الوظيفي:" : "🏷️ Role:";
+    const permTitleLabel = isAr ? "🛡️ الصلاحيات:" : "🛡️ Permissions:";
+    userMetaCell.value = `${userTitleLabel} ${userName}${userPhone ? ` (${userPhone})` : ""}   |   ${roleTitleLabel} ${roleLabel}   |   ${permTitleLabel} ${permSummaryText}`;
+    userMetaCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF1E293B" } };
+    userMetaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+    userMetaCell.alignment = { horizontal: "center", vertical: "middle" };
+    userMetaCell.border = {
+      top: { style: "thin", color: { argb: "FFCBD5E1" } },
+      bottom: { style: "thin", color: { argb: "FFCBD5E1" } }
     };
 
-    // Row 4: Sub-Header Information Bar: Date: ... | Shift: ... | Issuing #: ...
-    const dateSpanEnd = Math.max(2, Math.floor(totalCols * 0.35));
-    const shiftSpanStart = dateSpanEnd + 1;
-    const shiftSpanEnd = Math.max(shiftSpanStart, Math.floor(totalCols * 0.70));
-    const issueSpanStart = shiftSpanEnd + 1;
-    const issueSpanEnd = totalCols;
+    // Row 7: Date, Time, Records Count & Verification Stamp
+    ws.mergeCells(7, 1, 7, sHeaders.length);
+    const dateMetaCell = ws.getCell("A7");
+    const dateLabel = isAr ? "🗓️ تاريخ ووقت التصدير:" : "🗓️ Generated On:";
+    const countLabel = isAr ? "📊 إجمالي السجلات المُدرجة:" : "📊 Total Records:";
+    const countUnit = isAr ? "سجل" : "records";
+    dateMetaCell.value = `${dateLabel} ${exportDateStr}   |   ${countLabel} ${sRows.length} ${countUnit}   |   🏢 MSCANCO Industrial Operations System`;
+    dateMetaCell.font = { name: "Arial", size: 8.5, italic: true, color: { argb: "FF475569" } };
+    dateMetaCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+    dateMetaCell.alignment = { horizontal: "center", vertical: "middle" };
+    dateMetaCell.border = {
+      bottom: { style: "medium", color: { argb: "FF94A3B8" } }
+    };
 
-    // Date Block (Left)
-    ws.mergeCells(4, 1, 4, dateSpanEnd);
-    const dateCell = ws.getCell(4, 1);
-    dateCell.value = `Date:   ${docDate}`;
-    dateCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    dateCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
-
-    // Shift Block (Center)
-    ws.mergeCells(4, shiftSpanStart, 4, shiftSpanEnd);
-    const shiftCell = ws.getCell(4, shiftSpanStart);
-    shiftCell.value = `Shift:   ${docShift}`;
-    shiftCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    shiftCell.alignment = { horizontal: "center", vertical: "middle" };
-
-    // Issuing # Block (Right)
-    ws.mergeCells(4, issueSpanStart, 4, issueSpanEnd);
-    const issueCell = ws.getCell(4, issueSpanStart);
-    issueCell.value = `Issuing #:   ${docIssuingNo}`;
-    issueCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    issueCell.alignment = { horizontal: isAr ? "left" : "right", vertical: "middle" };
-
-    // Apply clean border around Sub-Header Row
-    for (let c = 1; c <= totalCols; c++) {
-      const cell = ws.getCell(4, c);
-      cell.border = {
-        top: { style: "thin", color: { argb: "FF334155" } },
-        bottom: { style: "medium", color: { argb: "FF0F172A" } },
-        left: c === 1 ? { style: "medium", color: { argb: "FF0F172A" } } : undefined,
-        right: c === totalCols ? { style: "medium", color: { argb: "FF0F172A" } } : undefined
-      };
-    }
-
-    // Row 5: Table Column Headers
-    const headerRow = ws.getRow(5);
+    // Row 8: Table Column Headers (Dark Industrial Theme)
+    const headerRow = ws.getRow(8);
     headerRow.values = sHeaders;
-    headerRow.height = 28;
+    headerRow.height = 30;
 
-    headerRow.eachCell({ includeEmpty: true }, (cell, colIdx) => {
-      if (colIdx <= totalCols) {
-        cell.font = { name: "Arial", bold: true, color: { argb: "FF0F172A" }, size: 9.5 };
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-        cell.border = {
-          top: { style: "medium", color: { argb: "FF0F172A" } },
-          left: { style: "thin", color: { argb: "FF334155" } },
-          bottom: { style: "medium", color: { argb: "FF0F172A" } },
-          right: { style: "thin", color: { argb: "FF334155" } }
-        };
-      }
+    headerRow.eachCell((cell, colIdx) => {
+      cell.font = { name: "Arial", bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = {
+        top: { style: "medium", color: { argb: "FF0F172A" } },
+        left: { style: "thin", color: { argb: "FF475569" } },
+        bottom: { style: "medium", color: { argb: "FF0F172A" } },
+        right: { style: "thin", color: { argb: "FF475569" } }
+      };
     });
 
     // Auto-Filter on Headers
     ws.autoFilter = {
-      from: { row: 5, column: 1 },
-      to: { row: 5, column: sHeaders.length }
+      from: { row: 8, column: 1 },
+      to: { row: 8, column: sHeaders.length }
     };
 
     // Detect column indexes for specialized formatting
     const statusColIdx = sHeaders.findIndex(h => h.includes("الحالة") || h.toLowerCase().includes("status")) + 1;
     const priorityColIdx = sHeaders.findIndex(h => h.includes("الأولوية") || h.toLowerCase().includes("priority")) + 1;
     const attachColIdx = sHeaders.findIndex(h => h.includes("روابط") || h.includes("مرفقات") || h.toLowerCase().includes("attach") || h.toLowerCase().includes("media")) + 1;
-    const codeColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("item code") || h.includes("كود الصنف") || h.includes("رقم البلاغ") || h.includes("رقم السجل") || h.toLowerCase().includes("id")) + 1;
-    const descColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("description") || h.includes("الوصف") || h.includes("البيان") || h.includes("عنوان")) + 1;
-    const qtyColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("qty") || h.includes("الكمية") || h.includes("العدد")) + 1;
-    const uomColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("uom") || h.includes("الوحدة")) + 1;
-    const costColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("cost") || h.toLowerCase().includes("price") || h.includes("السعر") || h.includes("التكلفة")) + 1;
-    const machineColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("machine") || h.includes("الماكينة")) + 1;
-    const lineColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("line") || h.includes("الخط")) + 1;
-    const costCenterColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("cost center") || h.includes("مركز التكلفة")) + 1;
-    const receiverColIdx = sHeaders.findIndex(h => h.toLowerCase().includes("received by") || h.includes("المستلم") || h.includes("اسم الفني") || h.includes("بواسطة") || h.toLowerCase().includes("by")) + 1;
+    const idColIdx = sHeaders.findIndex(h => (h.includes("رقم") || h.includes("كود") || h.toLowerCase().includes("id") || h.toLowerCase().includes("code")) && h !== "#" && h !== "م") + 1;
+    const dateColIdx = sHeaders.findIndex(h => h.includes("تاريخ") || h.toLowerCase().includes("date")) + 1;
+    const typeColIdx = sHeaders.findIndex(h => h.includes("النوع") || h.toLowerCase().includes("type")) + 1;
 
-    // Populate Data Rows with Official Form Grid Lines
+    // 3. Populate Data Rows with Sequential Indexing & Badges
     sRows.forEach((rowData, rIdx) => {
       const row = ws.addRow(rowData);
       const isEven = rIdx % 2 === 0;
       row.height = 24;
 
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        if (colNumber <= totalCols) {
-          cell.font = { name: "Arial", size: 9.5, color: { argb: "FF1E293B" } };
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: isEven ? "FFFFFFFF" : "FFF8FAFC" }
-          };
+      row.eachCell((cell, colNumber) => {
+        // Base zebra styling
+        cell.font = { name: "Arial", size: 9.5, color: { argb: "FF1E293B" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: isEven ? "FFFFFFFF" : "FFF8FAFC" }
+        };
 
-          // Precise alignments matching engineering slip
-          if (colNumber === 1) { // S/N
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF0F172A" } };
-          } else if (colNumber === codeColIdx || colNumber === qtyColIdx || colNumber === uomColIdx || colNumber === machineColIdx || colNumber === lineColIdx || colNumber === costCenterColIdx || colNumber === statusColIdx || colNumber === priorityColIdx) {
-            cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-            if (colNumber === codeColIdx || colNumber === costCenterColIdx) {
-              cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF0F172A" } };
-            }
-          } else if (colNumber === costColIdx) {
-            cell.alignment = { horizontal: "right", vertical: "middle" };
-          } else if (colNumber === descColIdx) {
-            cell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle", wrapText: true };
-          } else if (colNumber === receiverColIdx) {
-            cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-          } else {
-            cell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle", wrapText: true };
+        // Alignments based on semantic column type
+        if (colNumber === 1) { // Sequence #
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF0B3D91" } };
+        } else if (colNumber === idColIdx || colNumber === dateColIdx || colNumber === typeColIdx || colNumber === statusColIdx || colNumber === priorityColIdx) {
+          cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        } else {
+          cell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle", wrapText: true };
+        }
+
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE2E8F0" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } }
+        };
+
+        // Status Badge Styling
+        if (colNumber === statusColIdx && cell.value) {
+          const val = cell.value.toString().toLowerCase();
+          if (val.includes("مغلق") || val.includes("منفذ") || val.includes("closed") || val.includes("done") || val.includes("مكتمل") || val.includes("إصلاح") || val.includes("resolved") || val.includes("معتمد") || val.includes("approved")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } }; // Soft Green
+            cell.font = { name: "Arial", color: { argb: "FF15803D" }, bold: true, size: 9.5 };
+          } else if (val.includes("مفتوح") || val.includes("بلاغ") || val.includes("open") || val.includes("ticket") || val.includes("جديد") || val.includes("معلق") || val.includes("pending")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } }; // Soft Red
+            cell.font = { name: "Arial", color: { argb: "FFB91C1C" }, bold: true, size: 9.5 };
+          } else if (val.includes("مستمر") || val.includes("جار") || val.includes("progress") || val.includes("assign") || val.includes("مسند") || val.includes("مراجعة") || val.includes("review")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } }; // Soft Amber
+            cell.font = { name: "Arial", color: { argb: "FFB45309" }, bold: true, size: 9.5 };
+          } else if (val.includes("تعديل") || val.includes("revision")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEDD5" } }; // Soft Orange
+            cell.font = { name: "Arial", color: { argb: "FFC2410C" }, bold: true, size: 9.5 };
+          } else if (val.includes("مرفوض") || val.includes("rejected")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE4E6" } }; // Soft Rose
+            cell.font = { name: "Arial", color: { argb: "FF9F1239" }, bold: true, size: 9.5 };
           }
+        }
 
-          cell.border = {
-            top: { style: "thin", color: { argb: "FF94A3B8" } },
-            left: { style: "thin", color: { argb: "FF94A3B8" } },
-            bottom: { style: "thin", color: { argb: "FF94A3B8" } },
-            right: { style: "thin", color: { argb: "FF94A3B8" } }
-          };
-
-          // Status Badge Styling (Soft, Professional Highlights)
-          if (colNumber === statusColIdx && cell.value) {
-            const val = cell.value.toString().toLowerCase();
-            if (val.includes("مغلق") || val.includes("منفذ") || val.includes("closed") || val.includes("done") || val.includes("مكتمل") || val.includes("إصلاح") || val.includes("resolved") || val.includes("معتمد") || val.includes("approved")) {
-              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
-              cell.font = { name: "Arial", color: { argb: "FF15803D" }, bold: true, size: 9.5 };
-            } else if (val.includes("مفتوح") || val.includes("بلاغ") || val.includes("open") || val.includes("ticket") || val.includes("جديد") || val.includes("معلق") || val.includes("pending")) {
-              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
-              cell.font = { name: "Arial", color: { argb: "FFB91C1C" }, bold: true, size: 9.5 };
-            } else if (val.includes("مستمر") || val.includes("جار") || val.includes("progress") || val.includes("assign") || val.includes("مسند") || val.includes("مراجعة") || val.includes("review")) {
-              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
-              cell.font = { name: "Arial", color: { argb: "FFB45309" }, bold: true, size: 9.5 };
-            }
+        // Priority Badge Styling
+        if (colNumber === priorityColIdx && cell.value) {
+          const val = cell.value.toString().toLowerCase();
+          if (val.includes("عالية") || val.includes("high") || val.includes("red")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+            cell.font = { name: "Arial", color: { argb: "FFB91C1C" }, bold: true, size: 9.5 };
+          } else if (val.includes("متوسطة") || val.includes("medium") || val.includes("yellow")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+            cell.font = { name: "Arial", color: { argb: "FFB45309" }, bold: true, size: 9.5 };
+          } else if (val.includes("منخفضة") || val.includes("low") || val.includes("green")) {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+            cell.font = { name: "Arial", color: { argb: "FF475569" }, size: 9.5 };
           }
+        }
 
-          // Attachments Hyperlinks
-          if (colNumber === attachColIdx && cell.value) {
-            const val = cell.value.toString();
-            if (val.includes("http")) {
-              const urls = val.split(" | ").filter(u => u.startsWith("http"));
-              if (urls.length > 0) {
-                const firstUrl = urls[0];
-                const extraCount = urls.length - 1;
-                cell.value = {
-                  text: isAr ? "📎 فتح المرفق" + (extraCount > 0 ? ` (+${extraCount})` : "") 
-                             : "📎 View Attachment" + (extraCount > 0 ? ` (+${extraCount})` : ""),
-                  hyperlink: firstUrl,
-                  tooltip: firstUrl
-                };
-                cell.font = { name: "Arial", color: { argb: "FF1D4ED8" }, underline: true, bold: true, size: 9.5 };
-              }
+        // Attachments Hyperlinks
+        if (colNumber === attachColIdx && cell.value) {
+          const val = cell.value.toString();
+          if (val.includes("http")) {
+            const urls = val.split(" | ").filter(u => u.startsWith("http"));
+            if (urls.length > 0) {
+              const firstUrl = urls[0];
+              const extraCount = urls.length - 1;
+              cell.value = {
+                text: isAr ? "📎 فتح المرفق" + (extraCount > 0 ? ` (+${extraCount})` : "") 
+                           : "📎 View Attachment" + (extraCount > 0 ? ` (+${extraCount})` : ""),
+                hyperlink: firstUrl,
+                tooltip: firstUrl
+              };
+              cell.font = { name: "Arial", color: { argb: "FF1D4ED8" }, underline: true, bold: true, size: 9.5 };
             }
           }
         }
       });
     });
 
-    // If rows are fewer than 10, fill empty grid rows for true pre-printed slip resemblance
-    const minRows = options.minRows !== undefined ? options.minRows : (sRows.length < 10 ? 10 : sRows.length);
-    if (sRows.length < minRows) {
-      for (let emptyIdx = sRows.length + 1; emptyIdx <= minRows; emptyIdx++) {
-        const emptyRowValues = new Array(totalCols).fill("");
-        emptyRowValues[0] = emptyIdx; // Sequential numbering in column 1
-        const emptyRow = ws.addRow(emptyRowValues);
-        emptyRow.height = 22;
+    // 5. Add Summary / Total Row at the bottom
+    const summaryRow = ws.addRow([]);
+    summaryRow.height = 24;
+    
+    ws.mergeCells(summaryRow.number, 1, summaryRow.number, 2);
+    const sumCellA = ws.getCell(summaryRow.number, 1);
+    sumCellA.value = isAr ? `📊 الإجمالي: ${sRows.length} سجل` : `📊 Total: ${sRows.length} records`;
+    sumCellA.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
+    sumCellA.alignment = { horizontal: "center", vertical: "middle" };
 
-        emptyRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-          if (colNumber <= totalCols) {
-            cell.font = { name: "Arial", size: 9, color: { argb: "FF64748B" } };
-            cell.alignment = { horizontal: "center", vertical: "middle" };
-            cell.border = {
-              top: { style: "thin", color: { argb: "FFCBD5E1" } },
-              left: { style: "thin", color: { argb: "FFCBD5E1" } },
-              bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
-              right: { style: "thin", color: { argb: "FFCBD5E1" } }
-            };
-          }
-        });
-      }
-    }
+    summaryRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      cell.border = {
+        top: { style: "medium", color: { argb: "FF94A3B8" } },
+        bottom: { style: "double", color: { argb: "FF0F172A" } },
+        left: { style: "thin", color: { argb: "FFCBD5E1" } },
+        right: { style: "thin", color: { argb: "FFCBD5E1" } }
+      };
+    });
 
-    // Spacer Row
-    const spacerRow = ws.addRow([]);
-    spacerRow.height = 14;
-
-    // Signatures Section (3 Columns: Issued by / Approved by / Revised by)
-    const sigRowNumber = ws.rowCount + 1;
-    ws.addRow([]); // Create signature row
-    const sigRow = ws.getRow(sigRowNumber);
-    sigRow.height = 36;
-
-    const sigCol1End = Math.max(2, Math.floor(totalCols * 0.33));
-    const sigCol2Start = sigCol1End + 1;
-    const sigCol2End = Math.max(sigCol2Start, Math.floor(totalCols * 0.67));
-    const sigCol3Start = sigCol2End + 1;
-    const sigCol3End = totalCols;
-
-    // 1. Issued by
-    ws.mergeCells(sigRowNumber, 1, sigRowNumber, sigCol1End);
-    const issuedCell = ws.getCell(sigRowNumber, 1);
-    const issuedName = options.issuedBy || userName || "";
-    issuedCell.value = `Issued by /   ${issuedName} ....................................`;
-    issuedCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    issuedCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
-
-    // 2. Approved by
-    ws.mergeCells(sigRowNumber, sigCol2Start, sigRowNumber, sigCol2End);
-    const approvedCell = ws.getCell(sigRowNumber, sigCol2Start);
-    const approvedName = options.approvedBy || "";
-    approvedCell.value = `Approved by /   ${approvedName} ....................................`;
-    approvedCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    approvedCell.alignment = { horizontal: "center", vertical: "middle" };
-
-    // 3. Revised by
-    ws.mergeCells(sigRowNumber, sigCol3Start, sigRowNumber, sigCol3End);
-    const revisedCell = ws.getCell(sigRowNumber, sigCol3Start);
-    const revisedName = options.revisedBy || "";
-    revisedCell.value = `Revised by /   ${revisedName} ....................................`;
-    revisedCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0F172A" } };
-    revisedCell.alignment = { horizontal: isAr ? "left" : "right", vertical: "middle" };
-
-    // Bottom Document Control Footer (MS/ENG/Form/IR-01 & Rev. 02 Issue Date: 1 Jan 2017)
-    const docControlRowNumber = ws.rowCount + 1;
-    ws.addRow([]);
-    const docControlRow = ws.getRow(docControlRowNumber);
-    docControlRow.height = 18;
-
-    const docCtrlMid = Math.floor(totalCols / 2);
-
-    // Left Footer: Form Code
-    ws.mergeCells(docControlRowNumber, 1, docControlRowNumber, docCtrlMid);
-    const formCodeCell = ws.getCell(docControlRowNumber, 1);
-    formCodeCell.value = formCode;
-    formCodeCell.font = { name: "Arial", size: 8.5, bold: true, color: { argb: "FF475569" } };
-    formCodeCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
-
-    // Right Footer: Revision & Issue Date
-    ws.mergeCells(docControlRowNumber, docCtrlMid + 1, docControlRowNumber, totalCols);
-    const formRevCell = ws.getCell(docControlRowNumber, docCtrlMid + 1);
-    formRevCell.value = formRevision;
-    formRevCell.font = { name: "Arial", size: 8.5, color: { argb: "FF475569" } };
-    formRevCell.alignment = { horizontal: isAr ? "left" : "right", vertical: "middle" };
-
-    // Auto-fit Columns Width with Mathematical Content Calculation
+    // 6. Auto-fit Columns Width with Mathematical Content Calculation
     ws.columns.forEach((column, colIdx) => {
       let maxLen = 0;
       column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
-        if (rowNumber >= 5 && rowNumber < sigRowNumber) {
+        if (rowNumber >= 8) {
           const cellVal = cell.value;
           let cellLen = 0;
           if (cellVal && cellVal.text) {
@@ -580,9 +524,13 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       });
 
       if (colIdx === 0) {
-        column.width = 7; // Column S/N
+        // Column # — never below the logo-box reservation (9)
+        column.width = Math.max(8, 9);
+      } else if (colIdx === 1) {
+        // Second column shares the logo box — never below its reservation (17)
+        column.width = Math.max(Math.min(Math.max(maxLen + 4, 14), 48), 17);
       } else {
-        column.width = Math.min(Math.max(maxLen + 4, 13), 45);
+        column.width = Math.min(Math.max(maxLen + 4, 14), 48);
       }
     });
   }
