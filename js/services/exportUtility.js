@@ -29,6 +29,7 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
   ];
   
   const container = document.createElement('div');
+  // نحدد عرض ثابت ومناسب للورقة لضمان دقة التقاط الشاشة
   container.style.width = '794px';
   container.style.boxSizing = 'border-box';
   container.style.padding = '24px';
@@ -37,6 +38,7 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
   container.style.fontFamily = 'Arial, Tahoma, sans-serif';
   container.dir = isAr ? 'rtl' : 'ltr';
   
+  // يجب أن يكون العنصر داخل الـ DOM لكي يقوم المتصفح بدمج الحروف العربية بشكل صحيح
   container.style.position = 'absolute';
   container.style.left = '-9999px';
   container.style.top = '0';
@@ -90,6 +92,7 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
   
   document.body.appendChild(container);
   
+  // ننتظر قليلاً لضمان تحميل الخطوط وتطبيق المتصفح لاتجاه وحروف اللغة العربية (Text Shaping)
   await new Promise(r => setTimeout(r, 150));
   
   try {
@@ -126,6 +129,7 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
     const addFooter = (p, current, total) => {
       p.setFontSize(10);
       p.setTextColor(100);
+      // استخدمنا الإنجليزية والأرقام فقط لتجنب تشوه الخط الافتراضي لـ jsPDF مع العربية
       const text = `Page ${current} / ${total}`;
       p.text(text, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
     };
@@ -160,9 +164,11 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     return;
   }
 
+  // 1. Determine active application language
   const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
   const isAr = currentLang === "ar";
   
+  // 2. Fetch user information, role and permissions
   const role = (getCurrentRole() || localStorage.getItem("role") || "user").toLowerCase();
   const userName = localStorage.getItem("name") || (isAr ? "مستخدم النظام" : "System User");
   const userPhone = localStorage.getItem("phone") || "";
@@ -197,10 +203,12 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   wb.created = new Date();
   wb.modified = new Date();
 
+  // Support either single-sheet or multi-sheet
   const sheetsToCreate = options.sheets && options.sheets.length > 0
     ? options.sheets
     : [{ sheetName: options.sheetName || (isAr ? "سجل البيانات" : "Data Log"), title, headers, rows }];
 
+  // Preload company logo (High-Resolution)
   let logoB64 = null;
   try {
     logoB64 = await getCompanyLogoDataUrl();
@@ -214,11 +222,13 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     let sRows = (sheetConfig.rows || rows).map(r => [...r]);
     const sName = sheetConfig.sheetName || (isAr ? "التقرير" : "Report");
 
+    // 4. Ensure Sequential Numbering (# / م) starting strictly at 1 for the first visible record
     const hasSeqCol = sHeaders.length > 0 && (sHeaders[0] === "#" || sHeaders[0] === "م" || sHeaders[0] === "ت" || sHeaders[0].toLowerCase() === "seq");
     if (!hasSeqCol) {
       sHeaders.unshift(isAr ? "م" : "#");
       sRows = sRows.map((row, idx) => [idx + 1, ...row]);
     } else {
+      // Re-index column 0 to guarantee it starts strictly at 1
       sRows = sRows.map((row, idx) => {
         row[0] = idx + 1;
         return row;
@@ -227,13 +237,13 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
 
     const totalCols = Math.max(sHeaders.length, 7);
 
+    // Corporate identity palette (kept consistent across every report in the app)
     const NAVY = "FF0B3D91";
     const GOLD = "FFC9972E";
     const DARK = "FF1E293B";
     const LIGHT_GREY = "FFE2E8F0";
     const LIGHTER_GREY = "FFF8FAFC";
     const WHITE = "FFFFFFFF";
-    const BLACK = "FF000000";
 
     const ws = wb.addWorksheet(sName, {
       pageSetup: {
@@ -249,26 +259,45 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     });
 
+    // Reserve a minimum width for cols A/B so the logo has room without
+    // overlapping the brand-name text starting at column C.
     ws.getColumn(1).width = 9;
     ws.getColumn(2).width = 17;
 
-    // ------------------------------------------------------------
-    // Rows 1-3: Official Letterhead Header (مطابق للورق الرسمي)
-    // ------------------------------------------------------------
-    ws.getRow(1).height = 26;
-    ws.getRow(2).height = 20;
-    ws.getRow(3).height = 16;
-    ws.getRow(4).height = 6; // مسافة الخط السفلي الفاصل
+    // NOTE ON MERGED CELLS: every merge below spans a SINGLE row across
+    // multiple columns only. Merging across multiple ROWS *and* columns at
+    // once (e.g. a 4-row x 2-col logo box) previously caused a
+    // Google-Sheets-specific rendering bug where the merged cell's style
+    // bled down the entire column for hundreds of empty rows below it. That
+    // pattern is intentionally avoided everywhere in this function now.
 
-    // 1. إضافة شعار الشركة (MSCANCO) في أعلى اليسار
+    // ------------------------------------------------------------
+    // Rows 1-4: Corporate header block (logo + brand identity + gold accent)
+    // ------------------------------------------------------------
+    ws.getRow(1).height = 24;
+    ws.getRow(2).height = 18;
+    ws.getRow(3).height = 18;
+    ws.getRow(4).height = 7;
+
+    // 1. Embed Corporate Logo, floating over rows 1-4 / cols A-B (no merge)
+    // Sized to the banner's real aspect ratio (2172x724 ≈ 3:1) with a FIXED
+    // pixel size (oneCellAnchor + ext), not a twoCellAnchor stretched to fill
+    // the cell box. Deliberate choice: column B's width is NOT constant —
+    // the auto-fit pass further down can widen it based on actual report
+    // content (ticket IDs, etc.), so anchoring the image to stretch across
+    // that cell box would distort its aspect ratio unpredictably from one
+    // report to the next. A fixed-size anchor guarantees the exact
+    // proportions every time, which is an explicit hard requirement — that
+    // takes priority over an unverified Google-Sheets-compatibility gain
+    // from switching anchor types.
     let logoEmbedded = false;
     if (logoB64 && logoB64.startsWith("data:image/")) {
       try {
         const extension = logoB64.includes("png") ? "png" : "jpeg";
         const imageId = wb.addImage({ base64: logoB64, extension });
         ws.addImage(imageId, {
-          tl: { col: 0.08, row: 0.1 },
-          ext: { width: 160, height: 55 },
+          tl: { col: 0.08, row: 0.15 },
+          ext: { width: 170, height: 57 },
           editAs: "oneCell"
         });
         logoEmbedded = true;
@@ -277,14 +306,21 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     }
 
+    // Text fallback: if the logo image couldn't be loaded/embedded for any
+    // reason, the reserved box must never be left blank — show the short
+    // company name instead so the header still reads as intentional branding.
     if (!logoEmbedded) {
       const logoFallbackCell = ws.getCell(1, 1);
       logoFallbackCell.value = "MSCANCO";
       logoFallbackCell.font = { name: "Arial", size: 16, bold: true, color: { argb: NAVY } };
       logoFallbackCell.alignment = { horizontal: "center", vertical: "middle" };
+      logoFallbackCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WHITE } };
     }
 
-    // تنظيف وتثبيت الخلفية البيضاء تحت الهيدر
+    // Defensive cleanup: explicitly force a plain white fill on cols A/B for
+    // a generous range of rows below the header, independent of whatever
+    // caused the reported bleed, so nothing can ever visually leak down the
+    // sheet again.
     for (let rr = 5; rr <= 90; rr++) {
       for (let cc = 1; cc <= 2; cc++) {
         ws.getCell(rr, cc).fill = { type: "pattern", pattern: "solid", fgColor: { argb: WHITE } };
@@ -294,41 +330,56 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     const brandColStart = 3;
     const brandColEnd = totalCols;
 
-    // الصف 1: النص العربي المطابق للورق الرسمي
+    // Row 1: Arabic Corporate Name
     ws.mergeCells(1, brandColStart, 1, brandColEnd);
     const brandArCell = ws.getCell(1, brandColStart);
-    brandArCell.value = "شركة محمود سعيد وشركائه - مصنع علب المرطبات (إحدى شركات مجموعة محمود سعيد المحدودة)";
-    brandArCell.font = { name: "Arial", size: 12.5, bold: true, color: { argb: BLACK } };
-    brandArCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    brandArCell.value = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة (MSCANCO)";
+    brandArCell.font = { name: "Arial", size: 12.5, bold: true, color: { argb: NAVY } };
+    brandArCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
-    // الصف 2: النص الإنجليزي المطابق للورق الرسمي
+    // Row 2: English Corporate Name
     ws.mergeCells(2, brandColStart, 2, brandColEnd);
     const brandEnCell = ws.getCell(2, brandColStart);
-    brandEnCell.value = "Mahmoud Saeed & Partners - CanMaking Factory (subsidiary of Mahmoud Saeed Group Ltd.)";
-    brandEnCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF334155" } };
-    brandEnCell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    brandEnCell.value = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY CO. LTD.";
+    brandEnCell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FF334155" } };
+    brandEnCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
-    // الصف 3: شهادات الجودة والأيزو المعتمدة
+    // Row 3: Certified Quality Standards (kept from the original logo artwork)
     ws.mergeCells(3, brandColStart, 3, brandColEnd);
     const certCell = ws.getCell(3, brandColStart);
     certCell.value = isAr
-      ? "شهادات الجودة المعتمدة: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018 (SGS)"
-      : "Certified Standards: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018 (SGS)";
+      ? "شهادات الجودة المعتمدة: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018"
+      : "Certified Standards: FSSC 22000  |  ISO 9001:2015  |  ISO 14001:2015  |  ISO 45001:2018";
     certCell.font = { name: "Arial", size: 8.5, italic: true, color: { argb: "FF64748B" } };
-    certCell.alignment = { horizontal: "center", vertical: "middle" };
+    certCell.alignment = { horizontal: isAr ? "right" : "left", vertical: "middle" };
 
-    // الصف 4: رسم الخط الأسود السميك الفاصل تحت الهيدر الرسمي كما هو في المطبوعات
-    for (let col = 1; col <= totalCols; col++) {
-      const lineCell = ws.getCell(4, col);
-      lineCell.border = {
-        bottom: { style: "medium", color: { argb: BLACK } }
-      };
+    // Row 4: Gold accent divider — the company's second official brand color,
+    // used as a thin bar that closes off the header block before the title.
+    ws.mergeCells(4, 1, 4, totalCols);
+    const goldDividerCell = ws.getCell(4, 1);
+    goldDividerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
+
+    // Bordered letterhead frame around the whole header block (rows 1-4),
+    // matching the official company letterhead's bordered-card look. This is
+    // applied per-cell around the perimeter (not just the merge-master
+    // cells) because a merged cell's outer edges in XLSX are only guaranteed
+    // to render when every underlying cell along that edge carries the same
+    // border — this way the frame renders correctly regardless of the
+    // logo image's fate, so the header always looks like a designed card.
+    const HEADER_FRAME_BORDER = { style: "medium", color: { argb: NAVY } };
+    for (let c = 1; c <= totalCols; c++) {
+      ws.getCell(1, c).border = { ...(ws.getCell(1, c).border || {}), top: HEADER_FRAME_BORDER };
+      ws.getCell(4, c).border = { ...(ws.getCell(4, c).border || {}), bottom: HEADER_FRAME_BORDER };
+    }
+    for (let rr = 1; rr <= 4; rr++) {
+      ws.getCell(rr, 1).border = { ...(ws.getCell(rr, 1).border || {}), left: HEADER_FRAME_BORDER };
+      ws.getCell(rr, totalCols).border = { ...(ws.getCell(rr, totalCols).border || {}), right: HEADER_FRAME_BORDER };
     }
 
-    let r = 5;
+    let r = 5; // running row cursor for everything below the fixed header block
 
     // ------------------------------------------------------------
-    // Title bar — شريط عنوان التقرير
+    // Title bar — deep navy with a gold underline for the two-tone identity
     // ------------------------------------------------------------
     ws.getRow(r).height = 28;
     ws.mergeCells(r, 1, r, totalCols);
@@ -341,7 +392,9 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     r++;
 
     // ------------------------------------------------------------
-    // معلومات التقرير — Report Information
+    // "معلومات التقرير" / Report Information — structured label:value grid,
+    // one field per row, so every field is unambiguous and easy to scan
+    // (replaces the old single cramped metadata line).
     // ------------------------------------------------------------
     ws.getRow(r).height = 20;
     ws.mergeCells(r, 1, r, totalCols);
@@ -353,7 +406,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     infoSectionHeaderCell.border = { bottom: { style: "thin", color: { argb: "FFCBD5E1" } } };
     r++;
 
-    const labelColEnd = 2;
+    const labelColEnd = 2; // label always occupies cols 1-2
     const addInfoRow = (label, value) => {
       ws.getRow(r).height = 18;
       ws.mergeCells(r, 1, r, labelColEnd);
@@ -389,6 +442,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       });
     }
 
+    // Small system footer tag closing the info block
     ws.getRow(r).height = 14;
     ws.mergeCells(r, 1, r, totalCols);
     const sysTagCell = ws.getCell(r, 1);
@@ -399,7 +453,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     r++;
 
     // ------------------------------------------------------------
-    // Data Table Header Row
+    // Data table header row (dark industrial theme, unchanged design)
     // ------------------------------------------------------------
     const tableHeaderRowNum = r;
     const headerRow = ws.getRow(tableHeaderRowNum);
@@ -418,6 +472,8 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       };
     });
 
+    // Freeze panes / print titles / auto-filter now reference the dynamic
+    // header row instead of a hardcoded row number
     ws.views = [{
       rightToLeft: isAr,
       state: "frozen",
@@ -431,6 +487,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       to: { row: tableHeaderRowNum, column: sHeaders.length }
     };
 
+    // Detect column indexes for specialized formatting
     const statusColIdx = sHeaders.findIndex(h => h.includes("الحالة") || h.toLowerCase().includes("status")) + 1;
     const priorityColIdx = sHeaders.findIndex(h => h.includes("الأولوية") || h.toLowerCase().includes("priority")) + 1;
     const attachColIdx = sHeaders.findIndex(h => h.includes("روابط") || h.includes("مرفقات") || h.toLowerCase().includes("attach") || h.toLowerCase().includes("media")) + 1;
@@ -438,12 +495,14 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     const dateColIdx = sHeaders.findIndex(h => h.includes("تاريخ") || h.toLowerCase().includes("date")) + 1;
     const typeColIdx = sHeaders.findIndex(h => h.includes("النوع") || h.toLowerCase().includes("type")) + 1;
 
+    // 3. Populate Data Rows with Sequential Indexing & Badges
     sRows.forEach((rowData, rIdx) => {
       const row = ws.addRow(rowData);
       const isEven = rIdx % 2 === 0;
       row.height = 24;
 
       row.eachCell((cell, colNumber) => {
+        // Base zebra styling
         cell.font = { name: "Arial", size: 9.5, color: { argb: "FF1E293B" } };
         cell.fill = {
           type: "pattern",
@@ -451,7 +510,8 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
           fgColor: { argb: isEven ? WHITE : LIGHTER_GREY }
         };
 
-        if (colNumber === 1) {
+        // Alignments based on semantic column type
+        if (colNumber === 1) { // Sequence #
           cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: NAVY } };
         } else if (colNumber === idColIdx || colNumber === dateColIdx || colNumber === typeColIdx || colNumber === statusColIdx || colNumber === priorityColIdx) {
@@ -467,26 +527,28 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
           right: { style: "thin", color: { argb: "FFE2E8F0" } }
         };
 
+        // Status Badge Styling
         if (colNumber === statusColIdx && cell.value) {
           const val = cell.value.toString().toLowerCase();
           if (val.includes("مغلق") || val.includes("منفذ") || val.includes("closed") || val.includes("done") || val.includes("مكتمل") || val.includes("إصلاح") || val.includes("resolved") || val.includes("معتمد") || val.includes("approved")) {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } }; // Soft Green
             cell.font = { name: "Arial", color: { argb: "FF15803D" }, bold: true, size: 9.5 };
           } else if (val.includes("مفتوح") || val.includes("بلاغ") || val.includes("open") || val.includes("ticket") || val.includes("جديد") || val.includes("معلق") || val.includes("pending")) {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } }; // Soft Red
             cell.font = { name: "Arial", color: { argb: "FFB91C1C" }, bold: true, size: 9.5 };
           } else if (val.includes("مستمر") || val.includes("جار") || val.includes("progress") || val.includes("assign") || val.includes("مسند") || val.includes("مراجعة") || val.includes("review")) {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } }; // Soft Amber
             cell.font = { name: "Arial", color: { argb: "FFB45309" }, bold: true, size: 9.5 };
           } else if (val.includes("تعديل") || val.includes("revision")) {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEDD5" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFEDD5" } }; // Soft Orange
             cell.font = { name: "Arial", color: { argb: "FFC2410C" }, bold: true, size: 9.5 };
           } else if (val.includes("مرفوض") || val.includes("rejected")) {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE4E6" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE4E6" } }; // Soft Rose
             cell.font = { name: "Arial", color: { argb: "FF9F1239" }, bold: true, size: 9.5 };
           }
         }
 
+        // Priority Badge Styling
         if (colNumber === priorityColIdx && cell.value) {
           const val = cell.value.toString().toLowerCase();
           if (val.includes("عالية") || val.includes("high") || val.includes("red")) {
@@ -501,6 +563,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
           }
         }
 
+        // Attachments Hyperlinks
         if (colNumber === attachColIdx && cell.value) {
           const val = cell.value.toString();
           if (val.includes("http")) {
@@ -521,6 +584,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       });
     });
 
+    // 5. Add Summary / Total Row at the bottom
     const summaryRow = ws.addRow([]);
     summaryRow.height = 24;
     const summaryRowNum = summaryRow.number;
@@ -542,9 +606,10 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     });
 
     // ------------------------------------------------------------
-    // الاعتمادات والتوقيعات
+    // "الاعتمادات" / Approvals — three signature blocks that close every
+    // report out as an official company document rather than a raw export.
     // ------------------------------------------------------------
-    let sr = summaryRowNum + 2;
+    let sr = summaryRowNum + 2; // one blank row of breathing room first
 
     ws.getRow(sr).height = 22;
     ws.mergeCells(sr, 1, sr, totalCols);
@@ -567,6 +632,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       isAr ? "الوظيفة:" : "Title:"
     ];
 
+    // Block title row
     ws.getRow(sr).height = 20;
     blocks.forEach(b => {
       ws.mergeCells(sr, b.start, sr, b.end);
@@ -579,6 +645,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     });
     sr++;
 
+    // Name / Title rows (each a blank line to fill in by hand)
     sigFields.forEach(fieldLabel => {
       ws.getRow(sr).height = 20;
       blocks.forEach(b => {
@@ -592,6 +659,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       sr++;
     });
 
+    // Signature line (extra tall, blank, bottom border only = the line to sign above)
     ws.getRow(sr).height = 34;
     blocks.forEach(b => {
       ws.mergeCells(sr, b.start, sr, b.end);
@@ -603,6 +671,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     });
     sr++;
 
+    // Date row
     ws.getRow(sr).height = 20;
     blocks.forEach(b => {
       ws.mergeCells(sr, b.start, sr, b.end);
@@ -614,6 +683,9 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     });
     sr++;
 
+    // 6. Auto-fit Columns Width — measured ONLY across the actual data table
+    // (header row through the summary row), so the wider signature-block
+    // labels below can never distort column sizing for the real data grid.
     ws.columns.forEach((column, colIdx) => {
       let maxLen = 0;
       column.eachCell({ includeEmpty: true }, (cell, rowNumber) => {
@@ -634,8 +706,10 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       });
 
       if (colIdx === 0) {
+        // Column # — never below the logo-box reservation (9)
         column.width = Math.max(8, 9);
       } else if (colIdx === 1) {
+        // Second column shares the logo box — never below its reservation (17)
         column.width = Math.max(Math.min(Math.max(maxLen + 4, 14), 48), 17);
       } else {
         column.width = Math.min(Math.max(maxLen + 4, 14), 48);
@@ -643,6 +717,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     });
   }
 
+  // Generate buffer and trigger download safely
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   
@@ -656,16 +731,21 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   downloadBlobFile(blob, finalFilename);
 }
 
+/**
+ * دالة مساعدة عامة وموثوقة لتنزيل ملفات Blob عبر كل بيئات المتصفحات والأجهزة المحمولة وداخل الـ iframe
+ */
 export async function downloadBlobFile(blob, filename) {
   const isEn = window.currentLang === 'en';
   const isAr = !isEn;
 
+  // 1. دعم متصفحات قديمة إذا وجدت
   if (window.navigator && typeof window.navigator.msSaveOrOpenBlob === 'function') {
     window.navigator.msSaveOrOpenBlob(blob, filename);
     showDownloadSuccessToast(null, null, filename, isEn);
     return;
   }
 
+  // 2. تحويل الـ Blob إلى Base64 Data URL لتجاوز حظر blob: URLs الصادر عن sandbox المتصفح داخل الـ iframe
   let dataUrl = null;
   try {
     dataUrl = await new Promise((resolve) => {
@@ -678,6 +758,7 @@ export async function downloadBlobFile(blob, filename) {
     console.warn("Could not convert blob to Data URL:", e);
   }
 
+  // 3. إنشاء Blob URL أيضاً
   let blobUrl = null;
   try {
     blobUrl = URL.createObjectURL(blob);
@@ -687,6 +768,7 @@ export async function downloadBlobFile(blob, filename) {
 
   const effectiveDownloadUrl = dataUrl || blobUrl;
 
+  // 4. المحاولة التلقائية المباشرة
   if (effectiveDownloadUrl) {
     try {
       const a = document.createElement("a");
@@ -706,8 +788,10 @@ export async function downloadBlobFile(blob, filename) {
     }
   }
 
+  // 5. إظهار نافذة/شريط التنزيل المباشر دائماً لتمكين المستخدم من النقر المباشر
   showDownloadSuccessToast(effectiveDownloadUrl, blobUrl, filename, isEn);
 
+  // إبقاء الرابط حياً
   if (blobUrl) {
     setTimeout(() => {
       try {
@@ -719,7 +803,11 @@ export async function downloadBlobFile(blob, filename) {
   }
 }
 
+/**
+ * شريط تفاعلي عائم يظهر فور تجهيز الملف مع زر تنزيل مباشر في حال واجه المستخدم إذن أو حجب في الـ iframe
+ */
 function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
+  // إزالة أي إشعار سابق
   const existing = document.getElementById("mscanco-download-toast");
   if (existing) {
     existing.remove();
@@ -762,6 +850,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
 
   document.body.appendChild(toast);
 
+  // إخفاء تلقائي بعد 35 ثانية
   setTimeout(() => {
     if (toast.parentNode) {
       toast.classList.add("opacity-0", "transition-opacity", "duration-500");
