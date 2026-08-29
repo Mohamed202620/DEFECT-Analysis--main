@@ -268,17 +268,19 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     ws.getRow(7).height = 24;
     ws.getRow(8).height = 30;
 
-    // Reserve a fixed-size box (cols A:B, rows 1-4) exclusively for the logo,
-    // independent of any report's actual column content. Without this floor,
-    // short headers (e.g. a narrow "#"/"Item Code" pair) could shrink columns
-    // A/B below the logo's width and let it visually bleed into the brand
-    // name text starting at column C. The auto-fit pass further down respects
-    // this same floor so it can only widen these two columns, never shrink them.
+    // Reserve a minimum width for cols A/B so the logo has room without
+    // overlapping the brand-name text starting at column C. NOTE: this used
+    // to also merge cells (1,1,4,2) into a single logo "box", but merging
+    // across rows/cols here is the likely cause of a Google-Sheets-specific
+    // rendering bug where the merged cell's implicit style bled down the
+    // ENTIRE column A/B far past row 4 (reported as a solid yellow fill
+    // running for hundreds of empty rows). Removed the merge entirely —
+    // the floating image below is anchored independently of cell merging,
+    // so no merge is actually needed for it to render correctly.
     ws.getColumn(1).width = 9;
     ws.getColumn(2).width = 17;
-    ws.mergeCells(1, 1, 4, 2);
 
-    // 1. Embed Corporate Logo in its reserved box (Rows 1-4, Cols A-B)
+    // 1. Embed Corporate Logo, floating over rows 1-4 / cols A-B (no merge)
     // Sized to the banner's real aspect ratio (2172x724 ≈ 3:1) instead of a
     // fixed width/height that used to stretch it slightly out of proportion.
     let logoEmbedded = false;
@@ -304,11 +306,25 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     // Text fallback: if the logo image couldn't be loaded/embedded for any
     // reason, the reserved box must never be left blank — show the short
     // company name instead so the header still reads as intentional branding.
+    // Explicit white fill here too, so this cell can never inherit/carry any
+    // stray background color forward.
     if (!logoEmbedded) {
       const logoFallbackCell = ws.getCell(1, 1);
       logoFallbackCell.value = "MSCANCO";
       logoFallbackCell.font = { name: "Arial", size: 16, bold: true, color: { argb: "FF0B3D91" } };
       logoFallbackCell.alignment = { horizontal: "center", vertical: "middle" };
+      logoFallbackCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+    }
+
+    // Defensive cleanup: explicitly force a plain white fill on cols A/B for
+    // a generous range of rows below the header (independent of whatever
+    // caused the reported bleed) so nothing can visually leak down the sheet.
+    // Rows 1-4 are left untouched (they already carry the correct
+    // branding/fallback styling set above).
+    for (let r = 5; r <= 60; r++) {
+      for (let c = 1; c <= 2; c++) {
+        ws.getCell(r, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+      }
     }
 
     // 2. Official Corporate Branding Banner (Arabic & English & International Certifications)
@@ -688,4 +704,3 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
     }
   }, 35000);
 }
-
