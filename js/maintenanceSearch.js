@@ -616,8 +616,37 @@ window.exportMaintenanceSearchResults = async function () {
 
   const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
   const filename = `mscanco-maintenance-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
-  
-  await exportToExcel(title, headers, rows, filename);
+
+  // معلومات إضافية عن الفلاتر النشطة وقت التصدير (عرض فقط - بدون أي تأثير على نتائج الفلترة نفسها)
+  const dateFilterValue = el('mDateFilter')?.value || 'all';
+  const dateFromValue = el('mDateFrom')?.value || '';
+  const dateToValue = el('mDateTo')?.value || '';
+  const periodMap = {
+    all: isAr ? 'جميع التواريخ' : 'All Dates',
+    today: isAr ? 'اليوم' : 'Today',
+    last7: isAr ? 'آخر 7 أيام' : 'Last 7 Days',
+    month: isAr ? 'هذا الشهر' : 'This Month',
+    year: isAr ? 'هذه السنة' : 'This Year'
+  };
+  let periodLabel = periodMap[dateFilterValue] || (isAr ? 'غير محدد' : 'Not Specified');
+  if (dateFilterValue === 'custom') {
+    periodLabel = dateFromValue && dateToValue
+      ? (isAr ? `من ${dateFromValue} إلى ${dateToValue}` : `${dateFromValue} to ${dateToValue}`)
+      : (isAr ? 'فترة مخصصة' : 'Custom Range');
+  }
+
+  const typeFilterLabel = currentType === 'all'
+    ? (isAr ? 'الكل (بلاغات + وقائية + كايزن)' : 'All (Tickets + PM + Kaizen)')
+    : currentType === 'ticket' ? (isAr ? 'بلاغات الأعطال' : 'Tickets')
+    : currentType === 'pm' ? (isAr ? 'الصيانة الوقائية' : 'PM')
+    : (isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions');
+
+  await exportToExcel(title, headers, rows, filename, {
+    periodLabel,
+    extraInfoRows: [
+      { label: isAr ? 'نوع السجلات المُصدَّرة' : 'Record Type Filter', value: typeFilterLabel }
+    ]
+  });
 };
 
 // ============================================================
