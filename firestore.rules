@@ -320,6 +320,19 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // officialHolidays - الإجازات الرسمية (تُستخدم في كارت حضور
+    // الوردية لاحتساب أيام العمل المصادفة لإجازة رسمية كإضافي
+    // بالكامل - راجع attendanceCard.js / holidaysApi.js). القراءة
+    // لأي مستخدم مفعّل (محتاجينها في الكارت)، لكن الإضافة/الحذف
+    // مقصورة على الأدمن فقط (صلاحية "settings" - راجع pageRenderer.js)
+    // ==========================================================
+    match /officialHolidays/{holidayId} {
+      allow read: if isActive();
+      allow create, delete: if myRole() == "admin";
+      allow update: if false;
+    }
+
+    // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
     // defects ...) - أي مستخدم مفعّل (status == active) يقدر
     // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
