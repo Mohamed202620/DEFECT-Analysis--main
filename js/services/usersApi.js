@@ -226,29 +226,38 @@ export async function registerUserApi(userData) {
 
     const { password: _pw, ...userDataWithoutPassword } = userData;
 
+    const rawShift = String(userData.shift || "").trim();
+    const shiftLower = rawShift.toLowerCase();
+    const shiftColor = shiftLower.includes("green") || shiftLower.includes("خضراء") ? "green" :
+                       shiftLower.includes("red") || shiftLower.includes("حمراء") ? "red" :
+                       shiftLower.includes("blue") || shiftLower.includes("زرقاء") ? "blue" : "green";
+
     try {
 
       await setDoc(
         doc(db, "users", cred.user.uid),
         {
-
-          ...userDataWithoutPassword,
-
+          name: String(userData.name || "").trim(),
           phone,
-
+          code: String(userData.code || "").trim(),
+          job: String(userData.job || "Technician").trim(),
+          department: String(userData.department || "Production").trim(),
+          shift: rawShift || "Green",
+          shiftColor: userData.shiftColor || shiftColor,
+          hourlyRate: Number(userData.hourlyRate) || 50,
+          monthTargetHours: Number(userData.monthTargetHours) || 192,
+          leaveBalance: Number(userData.leaveBalance) || 21,
+          ...userDataWithoutPassword,
+          phone,
           // الحساب الجديد ينتظر الموافقة
           role:
             "pending",
-
           permissions:
             "",
-
           status:
             "pending",
-
           createdAt:
             new Date().toISOString()
-
         }
       );
 

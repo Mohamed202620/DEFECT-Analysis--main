@@ -643,17 +643,13 @@ container.innerHTML = `
 // LOGOUT
 // ============================================================
 
-window.logout =
-function () {
-
-localStorage.clear();
-
-setCurrentRole("");
-
-setCurrentPermissions([]);
-
-navigateTo(
-"login"
-);
-
+window.logout = async function () {
+  if (typeof window.logoutUser === 'function') {
+    await window.logoutUser();
+  } else {
+    localStorage.clear();
+    setCurrentRole("");
+    setCurrentPermissions([]);
+    navigateTo("login");
+  }
 };

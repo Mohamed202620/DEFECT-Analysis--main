@@ -312,7 +312,7 @@ export const HomeView = () => {
 
       <!-- زر تسجيل الخروج -->
       <button
-        onclick="if(confirm('${t.logoutConfirm.replace(/'/g, "\\'")}')) { localStorage.clear(); window.location.reload(); }"
+        onclick="if(confirm('${t.logoutConfirm.replace(/'/g, "\\'")}')) { window.logout(); }"
         class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 transition active:scale-95 shadow-md">
         <span>🚪</span>
         <span>${(translations[currentLang] || translations.en).logout}</span>

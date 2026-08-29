@@ -59,7 +59,6 @@ export async function register(userData = {}) {
       !name ||
       !phone ||
       !password ||
-      !confirmPassword ||
       !shift ||
       !job ||
       !department ||
@@ -82,7 +81,7 @@ export async function register(userData = {}) {
     // التحقق من كلمة السر
     // ========================================================
 
-    if (password !== confirmPassword) {
+    if (confirmPassword && password !== confirmPassword) {
 
       return {
 
