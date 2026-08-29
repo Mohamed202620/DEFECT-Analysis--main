@@ -87,3 +87,10 @@ export {
   implementSuggestionApi,
   fetchSuggestionLogsApi
 } from "./suggestionsApi.js";
+
+// إضافة: إدارة الإجازات الرسمية (كارت حضور الوردية - attendanceCard.js)
+export {
+  fetchOfficialHolidaysApi,
+  addOfficialHolidayApi,
+  deleteOfficialHolidayApi
+} from "./holidaysApi.js";
