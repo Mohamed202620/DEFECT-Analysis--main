@@ -248,7 +248,6 @@ export async function registerUserApi(userData) {
           monthTargetHours: Number(userData.monthTargetHours) || 192,
           leaveBalance: Number(userData.leaveBalance) || 21,
           ...userDataWithoutPassword,
-          phone,
           // الحساب الجديد ينتظر الموافقة
           role:
             "pending",
