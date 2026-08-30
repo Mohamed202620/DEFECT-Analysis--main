@@ -22,7 +22,8 @@ export {
   limit,
   onSnapshot,
   writeBatch,
-  deleteDoc
+  deleteDoc,
+  getCountFromServer
 } from 'firebase/firestore';
 
 export {
