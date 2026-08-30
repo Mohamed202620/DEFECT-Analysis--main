@@ -59,9 +59,11 @@ if (
   currentPage !== "tickets" &&
   typeof window.cleanupTicketsBoard === "function"
 ) {
-
-  window.cleanupTicketsBoard();
-
+  try {
+    window.cleanupTicketsBoard();
+  } catch (e) {
+    console.warn("Cleanup tickets error:", e);
+  }
 }
 
 // ========================================================
@@ -76,21 +78,38 @@ if (
   currentPage !== "kaizenBoard" &&
   typeof window.cleanupKaizenBoard === "function"
 ) {
-
-  window.cleanupKaizenBoard();
-
+  try {
+    window.cleanupKaizenBoard();
+  } catch (e) {
+    console.warn("Cleanup kaizen error:", e);
+  }
 }
 
 activePage = currentPage;
 
-app.style.opacity = "0.4";
-
-setTimeout(() => {
-
-app.innerHTML =  
-  renderPage(currentPage);  
-
-app.style.opacity = "1";  
+// رندر فوري مباشر لتجنب أي شاشة بيضاء أو تأخير على الموبايل
+try {
+  const renderedHtml = renderPage(currentPage);
+  app.innerHTML = renderedHtml || "";
+  app.style.opacity = "1";
+} catch (renderError) {
+  console.error("renderPage Error on (" + currentPage + "):", renderError);
+  app.innerHTML = `
+    <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] text-white" dir="rtl">
+      <div class="bg-red-950/80 border border-red-500/50 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-3">
+        <h3 class="text-base font-bold text-red-400">⚠️ تعذر عرض الصفحة (${currentPage})</h3>
+        <p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">
+          ${String(renderError?.message || renderError)}
+        </p>
+        <div class="flex gap-2 justify-center pt-2">
+          <button onclick="window.navigateTo('home')" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">الرئيسية</button>
+          <button onclick="window.navigateTo('login')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">تسجيل الدخول</button>
+        </div>
+      </div>
+    </div>
+  `;
+  app.style.opacity = "1";
+}
 
 // ========================================================
 // DESKTOP SIDEBAR
@@ -125,7 +144,11 @@ if (sidebarContainer) {
 // ========================================================
 
 if (typeof window.refreshHeader === "function") {
-  window.refreshHeader();
+  try {
+    window.refreshHeader();
+  } catch (e) {
+    console.warn("refreshHeader warning:", e);
+  }
 }
 
 // ========================================================
@@ -137,9 +160,11 @@ if (typeof window.refreshHeader === "function") {
 // ========================================================
 
 if (typeof window.refreshNotificationsBadge === "function") {
-
-  window.refreshNotificationsBadge();
-
+  try {
+    window.refreshNotificationsBadge();
+  } catch (e) {
+    console.warn("refreshNotificationsBadge warning:", e);
+  }
 }
 
 
@@ -397,8 +422,6 @@ if (currentPage === "ticketDetails") {
 
 }
 
-}, 150);
-
 }
 
 // ============================================================
@@ -406,25 +429,33 @@ if (currentPage === "ticketDetails") {
 // ============================================================
 
 export async function navigateTo(page, addToHistory = true) {
-  if (page !== "login" && page !== "register") {
-    try {
-      if (auth.currentUser === null) {
-        await auth.authStateReady();
-        if (!auth.currentUser) {
-          console.warn("User not in Firebase Auth. Redirecting to login.");
-          localStorage.clear(); page = "login";
-        }
-      }
-    } catch (e) {
-      console.warn("Auth check failed", e);
-    }
-  }
-
   currentPage = page;
   if (addToHistory) {
     history.pushState({ page }, "", `#${page}`);
   }
+  
+  // رندر فوري للصفحة لضمان الاستجابة السريعة وعدم ظهور أي شاشة بيضاء
   render();
+
+  // فحص حالة الجلسة بالخلفية بدون تعطيل إظهار الصفحة للمستخدم
+  if (page !== "login" && page !== "register") {
+    try {
+      const hasLocalUser = localStorage.getItem("phone") || localStorage.getItem("userId");
+      if (!hasLocalUser) {
+        console.warn("No user credentials found in storage. Redirecting to login.");
+        currentPage = "login";
+        render();
+        return;
+      }
+
+      if (auth && typeof auth.authStateReady === "function" && auth.currentUser === null) {
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
+        await Promise.race([auth.authStateReady(), timeoutPromise]);
+      }
+    } catch (e) {
+      console.warn("Auth check non-blocking warning:", e);
+    }
+  }
 }
 
 window.navigateTo =
