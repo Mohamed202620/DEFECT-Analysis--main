@@ -70,8 +70,24 @@ const PERMISSIONS = [
 // ======================================
 // واجهة المستخدم
 // ======================================
+// إصلاح (توحيد): كانت الصفحتان "users" (قائمة عرض فقط قديمة في
+// pageRenderer.js) و"requests" (هذه الصفحة، وبها فعلياً كل أدوات
+// الإدارة: بحث/فلاتر/تعديل دور وصلاحيات/حذف) منفصلتين وبينهما تكرار
+// وتضارب رغم إن مسمى "طلبات الانضمام" كان بيوحي إنها لمراجعة
+// المستخدمين الجدد بس. تم توحيدهما في نفس الواجهة والمنطق:
+//   - صفحة "users" (المستخدمون) = نفس الواجهة الكاملة، بدون فلتر
+//     افتراضي (تعرض الكل).
+//   - صفحة "requests" (طلبات الانضمام) = نفس الواجهة بالظبط، لكن
+//     بفلتر "قيد الانتظار" مُفعّل تلقائياً من البداية (لأن هذا هو
+//     الغرض الفعلي من مسماها)، والأدمن يقدر يغيّر الفلتر يدوياً لو
+//     احتاج يشوف باقي المستخدمين من نفس الشاشة.
+function renderUsersManagementPage({
+    title = "إدارة المستخدمين والصلاحيات",
+    subtitle = "إدارة الحسابات وتعيين الأدوار والصلاحيات",
+    defaultStatusFilter = ""
+} = {}) {
 
-export const RequestsView = () => `
+return `
 
 <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
 
@@ -87,10 +103,10 @@ export const RequestsView = () => `
             </button>
             <div>
                 <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
-                    <span>👥</span> إدارة المستخدمين والصلاحيات
+                    <span>👥</span> ${title}
                 </h2>
                 <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
-                    إدارة الحسابات وتعيين الأدوار والصلاحيات
+                    ${subtitle}
                 </p>
             </div>
         </div>
@@ -119,19 +135,19 @@ export const RequestsView = () => `
             onchange="window.filterUsers()"
             class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
-            <option value="">
+            <option value="" ${defaultStatusFilter === "" ? "selected" : ""}>
                 كل الحالات
             </option>
 
-            <option value="active">
+            <option value="active" ${defaultStatusFilter === "active" ? "selected" : ""}>
                 🟢 Active (مفعل)
             </option>
 
-            <option value="pending">
+            <option value="pending" ${defaultStatusFilter === "pending" ? "selected" : ""}>
                 🟡 Pending (قيد الانتظار)
             </option>
 
-            <option value="rejected">
+            <option value="rejected" ${defaultStatusFilter === "rejected" ? "selected" : ""}>
                 🔴 Rejected (مرفوض)
             </option>
 
@@ -207,6 +223,24 @@ export const RequestsView = () => `
 ${BottomNav("system")}
 
 `;
+
+}
+
+// صفحة "طلبات الانضمام" - نفس واجهة الإدارة الكاملة، بفلتر "قيد
+// الانتظار" مُفعّل تلقائياً بما يطابق الغرض من اسمها
+export const RequestsView = () => renderUsersManagementPage({
+    title: "طلبات الانضمام",
+    subtitle: "مراجعة المستخدمين الجدد قيد الانتظار (يمكن تغيير الفلتر لعرض الكل)",
+    defaultStatusFilter: "pending"
+});
+
+// صفحة "المستخدمون" - نفس واجهة الإدارة الكاملة بدون فلتر افتراضي
+// (تحل محل القائمة القديمة للعرض فقط في pageRenderer.js)
+export const UsersManagementView = () => renderUsersManagementPage({
+    title: "إدارة المستخدمين والصلاحيات",
+    subtitle: "إدارة الحسابات وتعيين الأدوار والصلاحيات",
+    defaultStatusFilter: ""
+});
 
 
 // ======================================
@@ -1015,8 +1049,15 @@ export async function loadUsersManagement() {
         }
 
 
-        // رسم المستخدمين
-        renderUsers(users);
+        // رسم المستخدمين - نستخدم filterUsers() بدل renderUsers()
+        // المباشرة عشان يحترم الفلتر الافتراضي المحدد في القالب
+        // (مثلاً "pending" في صفحة طلبات الانضمام) أو أي فلتر/بحث
+        // يكون الأدمن مختاره فعلاً في الشاشة قبل إعادة التحميل
+        if (typeof window.filterUsers === "function") {
+            window.filterUsers();
+        } else {
+            renderUsers(users);
+        }
 
 
         dlog(
@@ -1073,16 +1114,16 @@ export async function loadPendingUsers() {
 // الحالية أو صلاحيات المستخدم)، مما يسبب طلب Firestore غير
 // ضروري (وربما خطأ صلاحيات) في كل مرة يُفتح فيها التطبيق.
 // تم تقييده الآن بالتأكد من وجود عنصر usersContainer فعلياً
-// في الصفحة الحالية (أي أن المستخدم بالفعل على صفحة requests)،
-// وهو نفس الفحص المستخدم في router.js.
+// في الصفحة الحالية.
 //
-// إصلاح إضافي: الـ id "usersContainer" ده كان قبل كده مُستخدَم
-// كمان في صفحة "users" (pageRenderer.js) بنفس الاسم بالظبط، فكان
-// ممكن هذا الكود يكتب فوق محتوى صفحة "users" لو المستخدم كان واقف
-// عليها في نفس لحظة الـ 300ms. تم تغيير id صفحة "users" إلى
-// "usersDirectoryContainer" (راجع pageRenderer.js و authHandlers.js)
-// فبقى "usersContainer" فريد ومملوك لصفحة "requests" بس، فالفحص
-// التالي بقى كافي وصحيح 100%.
+// تحديث (توحيد): بعد توحيد صفحتي "users" و"requests" في نفس
+// الواجهة (UsersManagementView / RequestsView، راجع أعلى الملف)،
+// بقى العنصر "usersContainer" ينتمي شرعاً للصفحتين معاً، وبقى
+// استدعاء loadUsersManagement() هنا صحيح لأي منهما. التحميل
+// الفعلي والموثوق لكل صفحة بيحصل عبر renderCore.js (USERS AUTO
+// LOAD / REQUESTS AUTO LOAD) في كل مرة يتنقل فيها المستخدم لأي
+// من الصفحتين؛ هذا الاستدعاء هنا مرة واحدة فقط عند إقلاع
+// التطبيق وغير ضار (نفس الاستعلام ونفس الفلتر الظاهر وقتها).
 
 setTimeout(() => {
 
