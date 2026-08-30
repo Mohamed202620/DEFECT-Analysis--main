@@ -263,8 +263,14 @@ case 'users':
               ${t().refreshList}  
             </button>  
 
+            <!-- إصلاح: تم تغيير الـ id من "usersContainer" إلى
+                 "usersDirectoryContainer" لأن "usersContainer" نفسه
+                 مُستخدم في صفحة "requests" (RequestsView.js)، وكان
+                 تصادم الـ id بيخلي auto-loader بتاع requests يكتب
+                 فوق محتوى هذه الصفحة في ظروف معينة (راجع authHandlers.js
+                 و renderCore.js اللي اتعدّلوا بنفس الاسم الجديد) -->
             <div  
-              id="usersContainer"  
+              id="usersDirectoryContainer"  
               class="mt-4"  
             >  
 

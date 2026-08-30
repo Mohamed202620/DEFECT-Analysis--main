@@ -445,15 +445,19 @@ dlog(
 "DEBUG: Load Users Started..."
 );
 
+// إصلاح: الـ id بقى "usersDirectoryContainer" بدل "usersContainer"
+// اللي كان بيتشارك بالغلط مع صفحة "requests" (RequestsView.js) - كان
+// بيسبب استبدال قائمة هذه الصفحة (للعرض فقط) بقائمة إدارة المستخدمين
+// الكاملة من الصفحة التانية في ظروف توقيت معينة
 const container =
 document.getElementById(
-"usersContainer"
+"usersDirectoryContainer"
 );
 
 if (!container) {
 
 console.warn(  
-  "usersContainer غير موجود"  
+  "usersDirectoryContainer غير موجود"  
 );  
 
 return;
