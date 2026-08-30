@@ -134,6 +134,12 @@ export async function syncOfflineTicketActionsApi() {
         );
       } else if (type === "close") {
         result = await closeTicketApi(ticketId, { skipOfflineQueue: true });
+      } else if (type === "reassign") {
+        result = await reassignTicketApi(
+          ticketId,
+          { assignedTo: payload?.assignedTo, assignedToUid: payload?.assignedToUid },
+          { skipOfflineQueue: true }
+        );
       } else {
         console.error("Unknown queued action type:", type);
         continue;
@@ -819,10 +825,35 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
 // حالة التذكرة لـ "assigned" دايماً (حتى لو كانت in_progress) عشان
 // الفني الجديد يبدأ التنفيذ بنفسه من الأول ويبقى في السجل واضح مين
 // المسؤول فعلياً عن كل مرحلة
-export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid }) {
+export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid }, { skipOfflineQueue = false } = {}) {
   if (!assignedTo) {
     return { status: "error", message: "assignedTo مطلوب" };
   }
+
+  // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): لو مفيش نت،
+  // منقدرش نتحقق من حالة التذكرة الحالية على السيرفر (getDoc) قبل ما
+  // نسمح بإعادة الإسناد - فبنخزّن الإجراء محلياً "بشكل متفائل" (Optimistic)
+  // ونأجّل التحقق الفعلي (هل التذكرة لسه assigned/in_progress؟) لحظة
+  // المزامنة عند عودة الاتصال، بنفس أسلوب باقي إجراءات دورة حياة
+  // التذكرة (start/resolve/close)
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const localId = await queueOfflineAction({
+        type: "reassign",
+        ticketId,
+        payload: { assignedTo, assignedToUid: assignedToUid || null }
+      });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - سيتم تنفيذ (إعادة الإسناد) تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline reassign action:", error);
+      return { status: "error", message: "تعذر حفظ الإجراء محلياً" };
+    }
+  }
+
   try {
     const ticketRef = doc(db, "tickets", ticketId);
     const ticketSnap = await getDoc(ticketRef);
