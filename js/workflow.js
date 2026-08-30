@@ -1,4 +1,4 @@
-import { saveDefectApi, fetchTicketsApi } from './services/api.js';
+import { saveDefectApi, fetchTicketsApi, fetchTicketCountsApi } from './services/api.js';
 // إصلاح M1: جلب الدور والمستخدم الحالي عشان نمرّرهم لـ fetchTicketsApi
 // في loadDashboardStats() بدل ما تجيب كل التذاكر دايماً بدون فلترة
 import { getCurrentRole } from './permissions.js';
@@ -357,22 +357,24 @@ function buildChartDataset(tickets, range, lang) {
   }
 
   if (range === 'monthly') {
-    // توزيع أعطال السنة الحالية على مدار أشهر السنة الـ 12 (يناير → ديسمبر)
-    const currentYear = now.getFullYear();
-    const labels = t.months || ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
-    const open = new Array(12).fill(0);
-    const closed = new Array(12).fill(0);
+    // توزيع أعطال الشهر الحالي على أسابيعه (حتى 5 أسابيع حسب طول الشهر)
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const weeksCount = Math.ceil(daysInMonth / 7);
+
+    const labels = Array.from({ length: weeksCount }, (_, i) => `${t.chartWeekShort} ${i + 1}`);
+    const open = new Array(weeksCount).fill(0);
+    const closed = new Array(weeksCount).fill(0);
 
     tickets.forEach(ticket => {
       const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
       if (!created || isNaN(created)) return;
-      if (created.getFullYear() !== currentYear) return;
+      if (created.getFullYear() !== year || created.getMonth() !== month) return;
 
-      const monthIndex = created.getMonth(); // 0 = يناير ... 11 = ديسمبر
-      if (monthIndex >= 0 && monthIndex < 12) {
-        if (isClosedStatus(ticket.status)) closed[monthIndex]++;
-        else open[monthIndex]++;
-      }
+      const weekIndex = Math.min(weeksCount - 1, Math.floor((created.getDate() - 1) / 7));
+      if (isClosedStatus(ticket.status)) closed[weekIndex]++;
+      else open[weekIndex]++;
     });
 
     return { labels, open, closed };
@@ -558,15 +560,7 @@ export function renderMainChart(range = currentChartRange, tickets = lastTickets
         tooltip: { rtl: isRtl, textDirection: isRtl ? 'rtl' : 'ltr' }
       },
       scales: {
-        x: {
-          ticks: {
-            color: '#9CA3AF',
-            font: { size: 9 },
-            maxRotation: 45,
-            autoSkip: true
-          },
-          grid: { color: 'rgba(51, 65, 85, 0.2)' }
-        },
+        x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(51, 65, 85, 0.2)' } },
         y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' }, beginAtZero: true }
       }
     }
@@ -670,44 +664,65 @@ export async function loadDashboardStats() {
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
+  const isAdminOrManager = role === "admin" || role === "manager";
 
-  const result = await fetchTicketsApi({ role, myUid, myName });
+  // إضافة (تحسين الأداء - Aggregation Queries): للأدمن/المدير، أرقام
+  // الكروت الرئيسية (مفتوحة/تم إصلاحها/اليوم/الإجمالي) بتتحسب بدقة
+  // كاملة عبر استعلامات عدّ مباشرة (fetchTicketCountsApi) بدل تحميل
+  // كل تذكرة - سريعة وثابتة التكلفة تقريباً مهما كبر حجم البيانات.
+  // بالتوازي، بنجيب عيّنة محدودة (Bounded) من أحدث 500 تذكرة بس
+  // (maxCount) لحساب الرسم البياني + MTTR + أكثر ماكينة/فني + بلاغات
+  // متأخرة (راجع التعليق في fetchTicketCountsApi لسبب هذا الفصل).
+  // لغير الأدمن/المدير: مفيش أي تغيير - نفس الجلب الكامل زي الأول
+  // (حجم بياناتهم أصلاً محدود ومربوط بحسابهم الشخصي بس)
+  const [countsResult, sampleResult] = await Promise.all([
+    isAdminOrManager ? fetchTicketCountsApi() : Promise.resolve(null),
+    fetchTicketsApi({ role, myUid, myName, maxCount: isAdminOrManager ? 500 : undefined })
+  ]);
 
-  if (!result || result.status !== 'success') return;
+  if (!sampleResult || sampleResult.status !== 'success') return;
 
-  const tickets = Array.isArray(result.data) ? result.data : [];
+  const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
 
   const todayStr = new Date().toDateString();
 
-  let open = 0;
-  let closed = 0;
-  let today = 0;
+  // أرقام "احتياطية" محسوبة من العيّنة المحدودة - بتُستخدم بس لو
+  // استعلامات العدّ فشلت لأي سبب (مثلاً مشكلة شبكة)، أو للأدوار
+  // التانية اللي أصلاً مفيهاش استعلام عدّ منفصل
+  let openSample = 0;
+  let closedSample = 0;
+  let todaySample = 0;
   let overdue = 0;
 
   tickets.forEach(ticket => {
     if (isClosedStatus(ticket.status)) {
-      closed++;
+      closedSample++;
     } else {
-      open++;
-      if (isOverdueTicket(ticket)) {
-        overdue++;
-      }
+      openSample++;
     }
 
     if (ticket.createdAt) {
       const created = new Date(ticket.createdAt);
       if (!isNaN(created) && created.toDateString() === todayStr) {
-        today++;
+        todaySample++;
       }
+    }
+
+    // إضافة (تحسين Workflow - SLA بسيط): عدّ البلاغات المفتوحة اللي
+    // عدّت عليها مدة "التأخير" (isOverdueTicket في ticketStatusConstants.js)
+    if (isOverdueTicket(ticket)) {
+      overdue++;
     }
   });
 
+  const countsOk = countsResult && countsResult.status === "success";
+
   const stats = {
-    open,
-    closed,
-    today,
+    open: countsOk ? countsResult.data.open : openSample,
+    closed: countsOk ? countsResult.data.closed : closedSample,
+    today: countsOk ? countsResult.data.today : todaySample,
     overdue,
-    total: tickets.length
+    total: countsOk ? countsResult.data.total : tickets.length
   };
 
   window.dashboardData = stats;
@@ -715,7 +730,11 @@ export async function loadDashboardStats() {
   // ============================================================
   // الرسم البياني: نفس مصفوفة التذاكر اللي جاية فعلياً من Firestore
   // (fetchTicketsApi فوق) بتتخزّن وتتبعت للرسم البياني عشان يتحدّث
-  // بالفلتر الزمني الحالي (يومي/أسبوعي/شهري) من غير أي طلب إضافي
+  // بالفلتر الزمني الحالي (يومي/أسبوعي/شهري) من غير أي طلب إضافي.
+  // للأدمن/المدير: دي عيّنة أحدث 500 تذكرة بس (maxCount فوق) مش كل
+  // الأرشيف - مقبول تماماً لرسم بياني/مؤشرات تقريبية، عكس أرقام
+  // الكروت الأربعة (open/closed/today/total) اللي دقيقة 100% دايماً
+  // بفضل fetchTicketCountsApi بغض النظر عن حجم العيّنة دي
   // ============================================================
   renderMainChart(currentChartRange, tickets);
 
@@ -727,8 +746,8 @@ export async function loadDashboardStats() {
   setText('statOpenCount', stats.open);
   setText('statClosedCount', stats.closed);
   setText('statTodayCount', stats.today);
-  setText('statOverdueCount', stats.overdue);
   setText('statTotalCount', stats.total);
+  setText('statOverdueCount', stats.overdue);
 
   // ============================================================
   // إضافة: تنبيه "بلاغ حرج" + كارتات MTTR / أكثر ماكينة عطلاً /
