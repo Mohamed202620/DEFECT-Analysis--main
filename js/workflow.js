@@ -14,7 +14,7 @@ import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
 // نفس التعريف في statistics.js بالظبط
-import { isClosedStatus, isOverdueTicket } from './ticketStatusConstants.js';
+import { isClosedStatus, isOverdueTicket, parseTicketDate } from './ticketStatusConstants.js';
 // مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
 // واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
 // مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
@@ -332,28 +332,42 @@ let lastTicketsSnapshot = [];
 
 // ------------------------------------------------------------
 // تجميع بيانات الرسم البياني حسب الفلتر المطلوب من مصفوفة التذاكر
+// مع حماية شاملة ضد أي قيم undefined واستخراج دقيق للتواريخ
 // ------------------------------------------------------------
 function buildChartDataset(tickets, range, lang) {
-  const t = (translations[lang] || translations.en).home;
+  const currentLang = lang || window.currentLang || 'ar';
+  const t = (translations[currentLang] || translations.ar || translations.en)?.home || {};
   const now = new Date();
 
+  // آلية أمان لتنظيف مصفوفة العناوين ومنع مرور أي undefined نهائياً
+  const sanitizeLabels = (rawList, fallbackPrefix = '') => {
+    return (rawList || []).map((item, idx) => {
+      if (item !== null && item !== undefined && String(item).trim() !== '' && String(item) !== 'undefined') {
+        return String(item);
+      }
+      return `${fallbackPrefix} ${idx + 1}`.trim();
+    });
+  };
+
   if (range === 'daily') {
-    // توزيع أعطال اليوم الحالي على مدار الساعة (00:00 → 23:00)
+    // توزيع أعطال اليوم الحالي على مدار 24 ساعة (00:00 → 23:00)
     const labels = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0') + ':00');
     const open = new Array(24).fill(0);
     const closed = new Array(24).fill(0);
     const todayStr = now.toDateString();
 
-    tickets.forEach(ticket => {
-      const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
-      if (!created || isNaN(created) || created.toDateString() !== todayStr) return;
+    (tickets || []).forEach(ticket => {
+      const created = parseTicketDate(ticket);
+      if (!created || created.toDateString() !== todayStr) return;
 
       const hour = created.getHours();
-      if (isClosedStatus(ticket.status)) closed[hour]++;
-      else open[hour]++;
+      if (hour >= 0 && hour < 24) {
+        if (isClosedStatus(ticket.status)) closed[hour]++;
+        else open[hour]++;
+      }
     });
 
-    return { labels, open, closed };
+    return { labels: sanitizeLabels(labels, currentLang === 'en' ? 'Hour' : 'ساعة'), open, closed };
   }
 
   if (range === 'monthly') {
@@ -363,26 +377,46 @@ function buildChartDataset(tickets, range, lang) {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const weeksCount = Math.ceil(daysInMonth / 7);
 
-    const labels = Array.from({ length: weeksCount }, (_, i) => `${t.chartWeekShort} ${i + 1}`);
+    // استخراج بادئة الأسبوع مع بديل آمن يمنع ظهور 'undefined'
+    const weekPrefix = (t.chartWeekShort && typeof t.chartWeekShort === 'string' && t.chartWeekShort !== 'undefined')
+      ? t.chartWeekShort
+      : (currentLang === 'en' ? 'Week' : 'الأسبوع');
+
+    const labels = Array.from({ length: weeksCount }, (_, i) => `${weekPrefix} ${i + 1}`);
     const open = new Array(weeksCount).fill(0);
     const closed = new Array(weeksCount).fill(0);
 
-    tickets.forEach(ticket => {
-      const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
-      if (!created || isNaN(created)) return;
+    (tickets || []).forEach(ticket => {
+      const created = parseTicketDate(ticket);
+      if (!created) return;
       if (created.getFullYear() !== year || created.getMonth() !== month) return;
 
       const weekIndex = Math.min(weeksCount - 1, Math.floor((created.getDate() - 1) / 7));
-      if (isClosedStatus(ticket.status)) closed[weekIndex]++;
-      else open[weekIndex]++;
+      if (weekIndex >= 0 && weekIndex < weeksCount) {
+        if (isClosedStatus(ticket.status)) closed[weekIndex]++;
+        else open[weekIndex]++;
+      }
     });
 
-    return { labels, open, closed };
+    return { labels: sanitizeLabels(labels, weekPrefix), open, closed };
   }
 
-  // الافتراضي: أسبوعي - من السبت إلى الجمعة (أسبوع العمل الحالي، مش
-  // بالضرورة آخر 7 أيام متدحرجة)، بنفس ترتيب t.weekdays (يبدأ بالسبت)
-  const labels = t.weekdays;
+  // الافتراضي: أسبوعي - من السبت إلى الجمعة (أسبوع العمل الحالي)
+  const fallbackWeekdays = currentLang === 'en'
+    ? ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]
+    : ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+
+  const rawLabels = (Array.isArray(t.weekdays) && t.weekdays.length === 7)
+    ? t.weekdays
+    : fallbackWeekdays;
+
+  const labels = rawLabels.map((lbl, idx) => {
+    if (lbl && typeof lbl === 'string' && lbl.trim() !== '' && lbl !== 'undefined') {
+      return lbl;
+    }
+    return fallbackWeekdays[idx] || (currentLang === 'en' ? `Day ${idx + 1}` : `يوم ${idx + 1}`);
+  });
+
   const open = new Array(7).fill(0);
   const closed = new Array(7).fill(0);
 
@@ -395,17 +429,19 @@ function buildChartDataset(tickets, range, lang) {
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-  tickets.forEach(ticket => {
-    const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
-    if (!created || isNaN(created)) return;
+  (tickets || []).forEach(ticket => {
+    const created = parseTicketDate(ticket);
+    if (!created) return;
     if (created < startOfWeek || created >= endOfWeek) return;
 
     const dayIndex = (created.getDay() + 1) % 7; // 0=السبت ... 6=الجمعة
-    if (isClosedStatus(ticket.status)) closed[dayIndex]++;
-    else open[dayIndex]++;
+    if (dayIndex >= 0 && dayIndex < 7) {
+      if (isClosedStatus(ticket.status)) closed[dayIndex]++;
+      else open[dayIndex]++;
+    }
   });
 
-  return { labels, open, closed };
+  return { labels: sanitizeLabels(labels, currentLang === 'en' ? 'Day' : 'يوم'), open, closed };
 }
 
 // إنشاء تدرّج لوني عمودي لطبقة التعبئة تحت كل خط (بديل أنيق للون
@@ -512,10 +548,23 @@ export function renderMainChart(range = currentChartRange, tickets = lastTickets
   lastTicketsSnapshot = Array.isArray(tickets) ? tickets : lastTicketsSnapshot;
 
   const lang = window.currentLang || 'ar';
-  const t = (translations[lang] || translations.en).home;
+  const t = (translations[lang] || translations.ar || translations.en)?.home || {};
   const isRtl = lang === 'ar';
 
   const data = buildChartDataset(lastTicketsSnapshot, currentChartRange, lang);
+  
+  // طبقة أمان إضافية لضمان عدم تمرير undefined لـ Chart.js أبداً
+  if (!Array.isArray(data.labels) || data.labels.length === 0) {
+    data.labels = ['1', '2', '3', '4', '5', '6', '7'];
+  } else {
+    data.labels = data.labels.map((lbl, i) => {
+      if (lbl === undefined || lbl === null || String(lbl).trim() === '' || String(lbl) === 'undefined') {
+        return lang === 'en' ? `Point ${i + 1}` : `نقطة ${i + 1}`;
+      }
+      return String(lbl);
+    });
+  }
+
   const datasets = buildChartDatasets(data, currentChartType, t);
   const chartJsType = currentChartType === 'bar' ? 'bar' : 'line';
 
@@ -701,11 +750,9 @@ export async function loadDashboardStats() {
       openSample++;
     }
 
-    if (ticket.createdAt) {
-      const created = new Date(ticket.createdAt);
-      if (!isNaN(created) && created.toDateString() === todayStr) {
-        todaySample++;
-      }
+    const created = parseTicketDate(ticket);
+    if (created && created.toDateString() === todayStr) {
+      todaySample++;
     }
 
     // إضافة (تحسين Workflow - SLA بسيط): عدّ البلاغات المفتوحة اللي

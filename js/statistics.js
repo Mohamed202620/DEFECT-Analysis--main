@@ -13,7 +13,7 @@ import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): CLOSED_STATUSES بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة حرفياً
 // مع نفس التعريف في workflow.js
-import { CLOSED_STATUSES } from './ticketStatusConstants.js';
+import { CLOSED_STATUSES, parseTicketDate } from './ticketStatusConstants.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الصفحة (بطاقات الملخص، تسميات
 // الرسوم البيانية، رسائل عدم وجود بيانات) كانت ثابتة بالعربي -
@@ -81,10 +81,9 @@ function filterByPeriod(tickets, period) {
   else if (period === 'week') since.setDate(since.getDate() - 7);
   else if (period === 'month') since.setMonth(since.getMonth() - 1);
 
-  return tickets.filter(t => {
-    if (!t.createdAt) return false;
-    const created = new Date(t.createdAt);
-    return !isNaN(created) && created >= since;
+  return (tickets || []).filter(t => {
+    const created = parseTicketDate(t);
+    return created && created >= since;
   });
 }
 
@@ -211,17 +210,19 @@ function computeLineBreakdown(tickets) {
 // إضافة: export بدون تغيير أي منطق - عشان كارت MTTR الجديد في
 // الرئيسية (homeView.js عبر workflow.js) يستخدم نفس الحساب بالظبط
 export function computeMTTR(tickets) {
-  const resolvedTickets = tickets.filter(t => {
+  const resolvedTickets = (tickets || []).filter(t => {
     const status = String(t.status || '').trim().toLowerCase();
-    return CLOSED_STATUSES.includes(status) && t.createdAt && t.updatedAt;
+    const created = parseTicketDate(t);
+    const updated = parseTicketDate(t.updatedAt || t);
+    return CLOSED_STATUSES.includes(status) && created && updated;
   });
 
   if (!resolvedTickets.length) return { avgHours: null, sampleSize: 0 };
 
   const totalHours = resolvedTickets.reduce((sum, t) => {
-    const created = new Date(t.createdAt);
-    const updated = new Date(t.updatedAt);
-    if (isNaN(created) || isNaN(updated) || updated < created) return sum;
+    const created = parseTicketDate(t);
+    const updated = parseTicketDate(t.updatedAt || t);
+    if (!created || !updated || updated < created) return sum;
     return sum + (updated - created) / (1000 * 60 * 60);
   }, 0);
 

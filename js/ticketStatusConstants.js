@@ -86,14 +86,52 @@ export function getOverdueThresholdHours(priority) {
   return OVERDUE_HOURS_BY_PRIORITY[priority] ?? OVERDUE_HOURS_DEFAULT;
 }
 
+// ============================================================
+// تحليل وتوحيد قراءة التاريخ/الوقت من تذاكر Firestore أو API
+// يدعم جميع التنسيقات (Timestamp, seconds, nanoseconds, ISO string, milliseconds, Date)
+// ============================================================
+export function parseTicketDate(ticketOrRaw) {
+  if (!ticketOrRaw) return null;
+  if (ticketOrRaw instanceof Date) {
+    return isNaN(ticketOrRaw.getTime()) ? null : ticketOrRaw;
+  }
+  const raw = (typeof ticketOrRaw === 'object' && ticketOrRaw !== null && !('seconds' in ticketOrRaw) && !('_seconds' in ticketOrRaw) && typeof ticketOrRaw.toDate !== 'function')
+    ? (ticketOrRaw.createdAt || ticketOrRaw.timestamp || ticketOrRaw.created_at || ticketOrRaw.date || ticketOrRaw.updatedAt)
+    : ticketOrRaw;
+
+  if (!raw) return null;
+  if (raw instanceof Date) {
+    return isNaN(raw.getTime()) ? null : raw;
+  }
+  if (typeof raw.toDate === 'function') {
+    const d = raw.toDate();
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof raw === 'object' && ('seconds' in raw || '_seconds' in raw)) {
+    const sec = raw.seconds ?? raw._seconds;
+    const nano = raw.nanoseconds ?? raw._nanoseconds ?? 0;
+    const d = new Date(sec * 1000 + Math.floor(nano / 1000000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof raw === 'number') {
+    const ms = raw < 1e11 ? raw * 1000 : raw;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof raw === 'string') {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
 // نفس فحص "هل البلاغ ده متأخر؟" - مفتوح (مش مغلق) + عدّى عليه أكتر
 // من حد التأخير المناسب لأولويته (getOverdueThresholdHours) من وقت
 // الإبلاغ (createdAt)
 export function isOverdueTicket(ticket, now = new Date()) {
   if (!ticket || isClosedStatus(ticket.status)) return false;
-  if (!ticket.createdAt) return false;
-  const created = new Date(ticket.createdAt);
-  if (isNaN(created.getTime())) return false;
+  const created = parseTicketDate(ticket);
+  if (!created) return false;
   const hoursOpen = (now - created) / (1000 * 60 * 60);
   return hoursOpen > getOverdueThresholdHours(ticket.priority);
 }
