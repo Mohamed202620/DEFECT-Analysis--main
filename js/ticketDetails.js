@@ -6,6 +6,7 @@
 
 import { fetchTicketByIdApi, fetchTicketLogsApi } from './services/api.js';
 import { translations } from './config.js';
+import { STATUS_LABELS } from './ticketStatusConstants.js';
 
 const LOG_ICONS = {
   created: "📝",

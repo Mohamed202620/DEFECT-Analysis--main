@@ -28,6 +28,7 @@ import './errorScanner.js';
 // استيراد جانبي (Side-effect) لربط دوال لوحة متابعة التذاكر بـ window
 // (window.loadTicketsBoard / window.handleTicketAction)
 import './ticketsBoard.js';
+import './ticketDetails.js';
 
 // استيراد جانبي (Side-effect) لربط دوال لوحة متابعة الكايزن بـ window
 // (window.loadKaizenBoard / window.handleKaizenAction) - منطق مستقل

@@ -76,6 +76,7 @@ case 'maintenanceSearch':
 
 
 case 'issue':  
+case 'defect':  
 
   return hasPermission("issue")  
     ? IssueView()  
@@ -106,6 +107,16 @@ case 'quality':
   return hasPermission("quality")  
     ? QualityView()  
     : unauthorizedPage("quality");  
+
+
+case 'ticketDetails':
+
+  return hasPermission("maintenance")
+    ? PageView(
+        (window.currentLang === 'en' ? 'Ticket Details' : 'تفاصيل التذكرة'),
+        `<div id="ticketDetailsContainer" class="p-1"></div>`
+      )
+    : unauthorizedPage("maintenance");
 
 
 case 'tickets':  
@@ -195,6 +206,8 @@ case 'kaizenBoard':
     : unauthorizedPage("suggestions");  
 
 
+case 'ai':
+case 'qr':
 case 'errorScanner':  
 
   // ملاحظة: "errorScanner" صلاحية دقيقة جديدة (تطابق نمط باقي صلاحيات

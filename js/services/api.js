@@ -77,6 +77,12 @@ export {
 export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
 
 export {
+  fetchOfficialHolidaysApi,
+  addOfficialHolidayApi,
+  deleteOfficialHolidayApi
+} from "./holidaysApi.js";
+
+export {
   saveSuggestionApi,
   subscribeToSuggestionsBoardApi,
   fetchSuggestionsForReportApi,

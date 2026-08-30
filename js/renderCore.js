@@ -378,6 +378,25 @@ if (currentPage === "settings") {
 
 }
 
+
+// ========================================================  
+// TICKET DETAILS AUTO LOAD
+// ========================================================  
+
+if (currentPage === "ticketDetails") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadTicketDetails === "function") {  
+
+      window.loadTicketDetails();  
+
+    }  
+
+  }, 100);  
+
+}
+
 }, 150);
 
 }
