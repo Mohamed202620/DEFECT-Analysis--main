@@ -49,6 +49,7 @@ export {
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
+  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
@@ -75,12 +76,6 @@ export {
 } from "./machineErrorsApi.js";
 
 export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
-
-export {
-  fetchOfficialHolidaysApi,
-  addOfficialHolidayApi,
-  deleteOfficialHolidayApi
-} from "./holidaysApi.js";
 
 export {
   saveSuggestionApi,

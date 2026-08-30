@@ -1017,6 +1017,76 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
   }
 }
 
+// ============================================================
+// إضافة (تحسين Workflow - إجراءات جماعية Bulk Actions): تأكيد إغلاق
+// أكتر من تذكرة "بانتظار تأكيد" مرة واحدة، بدل الضغط على كل تذكرة
+// لوحدها. تحديث الحالة الفعلي لكل التذاكر بيتم في Batch واحد
+// (writeBatch) - طلب واحد لـ Firestore بدل N طلب منفصل، وبعدين تسجيل
+// الـ Log والإشعار لكل تذكرة بيحصل بالتوازي (منفصل عن الـ Batch لأن
+// addDoc بيحتاج معرف تلقائي جديد، والهدف من الـ Batch هو التحديث
+// الأساسي الذري بس). أي تذكرة مش بحالة "resolved" بيتم تجاهلها بأمان
+// (مفيش إغلاق جماعي لتذاكر لسه قيد التنفيذ مثلاً)
+// ============================================================
+export async function bulkCloseTicketsApi(ticketIds) {
+  if (!Array.isArray(ticketIds) || !ticketIds.length) {
+    return { status: "error", message: "لم يتم تحديد أي تذكرة" };
+  }
+
+  try {
+    // 1. قراءة كل التذاكر أولاً - للتحقق من إن الحالة "resolved" فعلاً
+    // (المسموح إغلاقه جماعياً)، ولمعرفة assignedToUid لإرسال إشعار لاحقاً
+    const snapshots = await Promise.all(
+      ticketIds.map(id => getDoc(doc(db, "tickets", id)))
+    );
+
+    const validIds = [];
+    const assigneeByTicket = {};
+
+    snapshots.forEach((snap, i) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      if (String(data.status || "").trim().toLowerCase() !== "resolved") return;
+      const id = ticketIds[i];
+      validIds.push(id);
+      assigneeByTicket[id] = data.assignedToUid || null;
+    });
+
+    if (!validIds.length) {
+      return { status: "error", message: "لا توجد تذاكر صالحة للإغلاق الجماعي (بانتظار تأكيد فقط)" };
+    }
+
+    // 2. تحديث الحالة لكل التذاكر الصالحة في Batch واحد (ذرّي - إما
+    // كلها تنجح أو كلها تفشل مع بعض)
+    const batch = writeBatch(db);
+    validIds.forEach(id => {
+      batch.update(doc(db, "tickets", id), stampUpdate({ status: "closed" }));
+    });
+    await batch.commit();
+
+    // 3. تسجيل Log + إشعار لكل تذكرة بالتوازي (بعد نجاح التحديث الأساسي)
+    await Promise.all(validIds.map(async id => {
+      addTicketLog(id, { action: "close", fromStatus: "resolved", toStatus: "closed" });
+      const assignedToUid = assigneeByTicket[id];
+      if (assignedToUid) {
+        createNotification(assignedToUid, {
+          type: "closed",
+          message: `تم تأكيد إغلاق البلاغ - شكراً لك`,
+          ticketId: id
+        });
+      }
+    }));
+
+    return {
+      status: "success",
+      closedCount: validIds.length,
+      skippedCount: ticketIds.length - validIds.length
+    };
+  } catch (error) {
+    console.error("Error bulk closing tickets:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 export async function rejectTicketApi(ticketId, reason) {
   if (!reason || !reason.trim()) {
     return { status: "error", message: "سبب الرفض مطلوب" };
