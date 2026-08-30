@@ -382,17 +382,16 @@ export const translations = {
       kpiToday: "أعطال اليوم",
       kpiTotal: "إجمالي البلاغات",
       kpiOverdue: "بلاغات متأخرة",
-      kpiOverdueHint: "مفتوحة منذ أكثر من 24 ساعة",
+      kpiOverdueHint: "حسب أولوية كل بلاغ",
 
       mttr: "متوسط زمن الإصلاح",
       topMachine: "أكثر ماكينة عطلاً",
       topTech: "أفضل فني",
       noData: "لا توجد بيانات",
 
-      // إضافة: أسماء أيام الأسبوع والشهور لعناوين الرسم البياني في الرئيسية
+      // إضافة: أسماء أيام الأسبوع لعناوين الرسم البياني في الرئيسية
+      // (كانت ثابتة بالعربي جوه workflow.js - initMainChart)
       weekdays: ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"],
-      months: ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
-      chartWeekShort: "أسبوع",
 
       quickAccess: "الوصول السريع",
       reportIssue: "إبلاغ عن عطل",
@@ -805,6 +804,7 @@ export const translations = {
       reportedByLabel: "بلّغ:",
       assignedToLabel: "مُسندة إلى:",
       overdueBadge: "متأخر",
+      overdueThresholdHint: "تجاوز الحد المسموح ({n} ساعة) لأولوية هذا البلاغ",
       mechanicNotesLabel: "ملاحظات الفني:",
       operatorFeedbackLabel: "ملاحظات المُبلّغ:",
       prevPage: "السابق",
@@ -1046,17 +1046,16 @@ export const translations = {
       kpiToday: "Today's Breakdowns",
       kpiTotal: "Total Tickets",
       kpiOverdue: "Overdue Tickets",
-      kpiOverdueHint: "Open for more than 24 hours",
+      kpiOverdueHint: "Based on each ticket's priority",
 
       mttr: "Avg. Repair Time (MTTR)",
       topMachine: "Top Faulty Machine",
       topTech: "Top Technician",
       noData: "No data",
 
-      // Weekday and Month labels for the home dashboard chart
+      // Weekday labels for the home dashboard chart (previously
+      // hardcoded in Arabic inside workflow.js - initMainChart)
       weekdays: ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"],
-      months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-      chartWeekShort: "Week",
 
       quickAccess: "Quick Access",
       reportIssue: "Report Breakdown",
@@ -1441,6 +1440,7 @@ export const translations = {
       reportedByLabel: "Reported by:",
       assignedToLabel: "Assigned to:",
       overdueBadge: "Overdue",
+      overdueThresholdHint: "Exceeded the allowed time ({n}h) for this ticket's priority",
       mechanicNotesLabel: "Technician notes:",
       operatorFeedbackLabel: "Reporter feedback:",
       prevPage: "Previous",

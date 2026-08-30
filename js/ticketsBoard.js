@@ -27,7 +27,7 @@ import { translations } from './config.js';
 // مشترك (ticketStatusConstants.js) باسم STATUS_CLASSES_BOARD (نسخة
 // "بارزة" مخصصة لشارة الحالة الأكبر هنا في اللوحة، بنفس القيم اللي
 // كانت متعرّفة محلياً هنا بالظبط - بدون أي تغيير في الشكل الظاهري)
-import { STATUS_CLASSES_BOARD, isOverdueTicket } from './ticketStatusConstants.js';
+import { STATUS_CLASSES_BOARD, isOverdueTicket, getOverdueThresholdHours } from './ticketStatusConstants.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
 // الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
@@ -121,7 +121,7 @@ function ticketCardHtml(ticket) {
             ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
             'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
           }">⚡ ${ticket.priority}</span>` : ""}
-          ${isOverdueTicket(ticket) ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
+          ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
         </div>
 
         ${ticket.mechanicNotes ? `

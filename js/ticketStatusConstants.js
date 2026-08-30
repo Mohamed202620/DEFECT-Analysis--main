@@ -21,15 +21,6 @@ export function isClosedStatus(status) {
   return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
 }
 
-// فحص هل البلاغ متأخر (مفتوح لأكثر من 24 ساعة)
-export function isOverdueTicket(ticket) {
-  if (!ticket || !ticket.createdAt || isClosedStatus(ticket.status)) return false;
-  const created = new Date(ticket.createdAt);
-  if (isNaN(created)) return false;
-  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
-  return hoursSinceCreation > 24;
-}
-
 // تسميات حالات البلاغ بالعربي - نفس النصوص المستخدمة في كروت نتائج
 // البحث والفلترة المتقدمة (maintenanceSearch.js) وتصدير PDF الخاص بيها
 export const STATUS_LABELS = {
@@ -65,3 +56,44 @@ export const STATUS_CLASSES_BOARD = {
   closed: "bg-slate-700/60 text-slate-300 border border-slate-600 font-bold",
   reopened: "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-black"
 };
+
+// ============================================================
+// إضافة (تحسين Workflow - كارت "بلاغات متأخرة" في الرئيسية):
+// حد "التأخير" بالساعات - أي بلاغ مفتوح (مش مغلق) عدّى عليه أكتر من
+// الحد المناسب لأولويته من غير حل يتحسب "متأخر". قيمة واحدة هنا
+// تتحكم في: حساب كارت الرئيسية (workflow.js)، وفلتر فتح البلاغات
+// المتأخرة نفسها (services/ticketsApi.js)، وشارة "⏰ متأخر" على كارت
+// التذكرة (ticketsBoard.js) - عشان يفضلوا متطابقين دايماً
+//
+// SLA متدرّج حسب الأولوية: بلاغ "High" (حرج) بيتحسب متأخر بعد وقت
+// أقصر بكتير من بلاغ "Low" - نفس المنطق المتّبع في أي نظام صيانة
+// صناعي حقيقي (عطل خط إنتاج كامل غير عطل بسيط في زاوية بعيدة).
+// البلاغات من غير أولوية محددة أصلاً بتاخد الحد الافتراضي المتوسط
+// ============================================================
+export const OVERDUE_HOURS_BY_PRIORITY = {
+  High: 4,
+  Medium: 12,
+  Low: 48
+};
+export const OVERDUE_HOURS_DEFAULT = 24; // للبلاغات من غير أولوية محددة
+
+// الاسم القديم (متوافق مع أي كود لسه بيستخدمه) - بيرجع الحد
+// الافتراضي بس؛ الاستخدام الصحيح دلوقتي هو getOverdueThresholdHours()
+export const OVERDUE_HOURS_THRESHOLD = OVERDUE_HOURS_DEFAULT;
+
+// حد "التأخير" بالساعات المناسب لأولوية بلاغ معيّن
+export function getOverdueThresholdHours(priority) {
+  return OVERDUE_HOURS_BY_PRIORITY[priority] ?? OVERDUE_HOURS_DEFAULT;
+}
+
+// نفس فحص "هل البلاغ ده متأخر؟" - مفتوح (مش مغلق) + عدّى عليه أكتر
+// من حد التأخير المناسب لأولويته (getOverdueThresholdHours) من وقت
+// الإبلاغ (createdAt)
+export function isOverdueTicket(ticket, now = new Date()) {
+  if (!ticket || isClosedStatus(ticket.status)) return false;
+  if (!ticket.createdAt) return false;
+  const created = new Date(ticket.createdAt);
+  if (isNaN(created.getTime())) return false;
+  const hoursOpen = (now - created) / (1000 * 60 * 60);
+  return hoursOpen > getOverdueThresholdHours(ticket.priority);
+}
