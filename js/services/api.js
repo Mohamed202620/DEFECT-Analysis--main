@@ -38,6 +38,7 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
+  fetchTicketCountsApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
@@ -89,11 +90,3 @@ export {
   implementSuggestionApi,
   fetchSuggestionLogsApi
 } from "./suggestionsApi.js";
-
-export {
-  fetchOfficialHolidaysApi,
-  addOfficialHolidayApi,
-  deleteOfficialHolidayApi
-} from "./holidaysApi.js";
-
-

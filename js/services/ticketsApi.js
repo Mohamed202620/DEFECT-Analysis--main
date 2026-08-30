@@ -36,7 +36,8 @@ import {
   orderBy,
   limit,
   onSnapshot,
-  writeBatch
+  writeBatch,
+  getCountFromServer
 } from "../firebase.js";
 
 // ============================================================
@@ -161,12 +162,19 @@ export async function syncOfflineTicketActionsApi() {
 // بدون آرجيومنتس شغال (role/myUid/myName هيبقوا undefined) عشان أي
 // استخدام قديم للدالة ميتكسرش، لكنه هيرجع النتيجة الفارغة/المقيّدة
 // المناسبة لغير الأدمن/المدير بدل كل التذاكر.
-export async function fetchTicketsApi({ role, myUid, myName } = {}) {
+export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
   try {
     const ticketsRef = collection(db, "tickets");
 
     if (role === "admin" || role === "manager") {
-      const q = query(ticketsRef, orderBy("createdAt", "desc"));
+      // إضافة (تحسين الأداء - Aggregation Queries): maxCount اختياري -
+      // لما بيتم تمريره (زي استدعاء loadDashboardStats للرئيسية) بيحدّ
+      // عدد المستندات المقروءة فعلياً (بعد ترتيبها بالأحدث أولاً)، بدل
+      // قراءة كل تذكرة في تاريخ النظام. من غيره (الاستخدام الافتراضي،
+      // زي صفحة الإحصائيات) السلوك زي ما هو تماماً - قراءة كاملة
+      const clauses = [orderBy("createdAt", "desc")];
+      if (maxCount) clauses.push(limit(maxCount));
+      const q = query(ticketsRef, ...clauses);
       const querySnapshot = await getDocs(q);
       const tickets = [];
       querySnapshot.forEach(docSnap => {
@@ -194,6 +202,62 @@ export async function fetchTicketsApi({ role, myUid, myName } = {}) {
     return { status: "success", data: tickets };
   } catch (error) {
     console.error("Error fetching tickets:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+// ============================================================
+// إضافة (تحسين الأداء - Aggregation Queries): حساب أرقام كروت لوحة
+// المتابعة الرئيسية (مفتوحة/تم إصلاحها/اليوم/الإجمالي) للأدمن/المدير
+// عبر استعلامات عدّ مباشرة من Firestore (getCountFromServer) بدل
+// تحميل كل مستند تذكرة بالكامل فعلياً. العدّ بيتم على السيرفر ويرجع
+// رقم واحد بس لكل استعلام - فمهما كبر عدد التذاكر (آلاف أو عشرات
+// الآلاف) التكلفة والسرعة بتفضل شبه ثابتة، عكس القراءة الكاملة القديمة.
+//
+// ملحوظة مهمة: "بلاغات متأخرة" مش موجودة هنا عمداً - حسابها الدقيق
+// بيعتمد على أولوية كل تذكرة (SLA متدرّج: High/Medium/Low/افتراضي)،
+// وده محتاج فلترة على أكتر من حقل مع بعض (status + priority +
+// createdAt) في نفس الاستعلام - يعني 4 استعلامات عدّ منفصلة (وحدة
+// لكل مستوى أولوية)، وكل واحدة هتحتاج Composite Index جديد في
+// Firestore. تفادياً لمخاطر النشر (لو الـ Index متعملش، النتيجة
+// بترجع فاضية صامتة زي ما بيحصل مع أي Composite Index ناقص في باقي
+// الملف)، "بلاغات متأخرة" + الرسم البياني + MTTR + أكثر ماكينة/فني
+// فاضلين بيتحسبوا في loadDashboardStats (workflow.js) من عينة محدودة
+// (Bounded, أحدث التذاكر) بدل استعلامات عدّ إضافية - دقة كاملة
+// مضمونة للأربع أرقام دي بس، وتقريب معقول (آخر التذاكر) للباقي
+// ============================================================
+
+function getLocalDayRangeISO(date = new Date()) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return [start.toISOString(), end.toISOString()];
+}
+
+export async function fetchTicketCountsApi() {
+  try {
+    const ticketsRef = collection(db, "tickets");
+    const [todayStartISO, todayEndISO] = getLocalDayRangeISO();
+
+    const [totalSnap, openSnap, closedSnap, todaySnap] = await Promise.all([
+      getCountFromServer(query(ticketsRef)),
+      getCountFromServer(query(ticketsRef, where("status", "not-in", CLOSED_STATUSES))),
+      getCountFromServer(query(ticketsRef, where("status", "in", CLOSED_STATUSES))),
+      getCountFromServer(
+        query(ticketsRef, where("createdAt", ">=", todayStartISO), where("createdAt", "<", todayEndISO))
+      )
+    ]);
+
+    return {
+      status: "success",
+      data: {
+        total: totalSnap.data().count,
+        open: openSnap.data().count,
+        closed: closedSnap.data().count,
+        today: todaySnap.data().count
+      }
+    };
+  } catch (error) {
+    console.error("Error fetching ticket counts:", error);
     return { status: "error", message: error.message };
   }
 }
