@@ -6,13 +6,22 @@
 //                                     resolved -> in_progress (رفض مع سبب)
 // ============================================================
 
-import { db, auth } from "../config.js";
+import { db } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
 import { CLOSED_STATUSES, isOverdueTicket } from "../ticketStatusConstants.js";
+
+// إضافة (تحسين الأداء - نطاق افتراضي للوحة التذاكر): حد أقصى لعدد
+// التذاكر اللي بتترجع لتبويب "الكل"/"أعطال اليوم"/"بلاغات متأخرة" عند
+// الأدمن/المدير (اللي بيرجّعوا كل تذكرة اتسجلت على الإطلاق بدون فلتر
+// حالة). مع نمو البيانات مع الوقت (آلاف التذاكر) ده كان بيبطّئ اللوحة
+// ويزوّد قراءات Firestore بلا داعي. باقي التبويبات (قيد الانتظار/قيد
+// التنفيذ/مغلق...) بتفضل من غير حد لأن حجمها الطبيعي محدود أصلاً
+// (تذاكر مفتوحة حالياً، مش الأرشيف كله)
+const TICKETS_BOARD_DEFAULT_LIMIT = 300;
 import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction } from "./offlineQueue.js";
 
 import {
@@ -25,6 +34,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   onSnapshot,
   writeBatch
 } from "../firebase.js";
@@ -153,15 +163,9 @@ export async function syncOfflineTicketActionsApi() {
 // المناسبة لغير الأدمن/المدير بدل كل التذاكر.
 export async function fetchTicketsApi({ role, myUid, myName } = {}) {
   try {
-    if (auth && auth.authStateReady) {
-      try {
-        await auth.authStateReady();
-      } catch {}
-    }
-
     const ticketsRef = collection(db, "tickets");
 
-    if (role === "admin" || role === "manager" || (!role && !myName)) {
+    if (role === "admin" || role === "manager") {
       const q = query(ticketsRef, orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       const tickets = [];
@@ -172,6 +176,8 @@ export async function fetchTicketsApi({ role, myUid, myName } = {}) {
     }
 
     // باقي الأدوار (فني / مشغل / مهندس): بلاغاتي + المُسندة إليّ فقط
+    // (استعلامين بالاسم بدل orderBy لتفادي أي Composite Index، والترتيب
+    // بيتم محلياً زي باقي دوال فلترة الصلاحيات في نفس الملف)
     const [reportedSnap, assignedSnap] = await Promise.all([
       getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
       getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
@@ -187,8 +193,8 @@ export async function fetchTicketsApi({ role, myUid, myName } = {}) {
 
     return { status: "success", data: tickets };
   } catch (error) {
-    console.warn("Error fetching tickets:", error);
-    return { status: "error", message: error.message, data: [] };
+    console.error("Error fetching tickets:", error);
+    return { status: "error", message: error.message };
   }
 }
 
@@ -363,7 +369,17 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     };
 
     if (role === "admin" || role === "manager") {
-      const q = query(ticketsRef, ...statusClauses());
+      const clauses = statusClauses();
+      // إضافة (تحسين الأداء): لو مفيش فلتر حالة صريح (يعني clauses
+      // فاضية - حالات "all"/"today"/"overdue") بيرجع كل تذكرة اتسجلت
+      // على الإطلاق - بنحدها بآخر TICKETS_BOARD_DEFAULT_LIMIT تذكرة
+      // (الأحدث أولاً) من غير أي احتياج لـ Composite Index جديد (orderBy
+      // على حقل واحد بس، بدون أي where على status في نفس الاستعلام).
+      // لو فيه فلتر حالة صريح (pending/in_progress/closed/fixed/open...)
+      // بيفضل من غير حد لأن حجمها الطبيعي محدود أصلاً
+      const q = clauses.length === 0
+        ? query(ticketsRef, orderBy("createdAt", "desc"), limit(TICKETS_BOARD_DEFAULT_LIMIT))
+        : query(ticketsRef, ...clauses);
       return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(admin/manager)");
     }
 
@@ -611,13 +627,7 @@ async function createNotification(forUid, { type, message, ticketId }) {
 // ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index
 // في Firestore - الترتيب بيتم محلياً بنفس أسلوب subscribeToTicketsBoardApi
 export async function fetchMyNotificationsApi(uid) {
-  if (!uid) return { status: "success", data: [] };
   try {
-    if (auth && auth.authStateReady) {
-      try {
-        await auth.authStateReady();
-      } catch {}
-    }
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
     const querySnapshot = await getDocs(q);
     const notifications = [];
@@ -629,8 +639,8 @@ export async function fetchMyNotificationsApi(uid) {
   } catch (error) {
     const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
     if (fallback) return fallback;
-    console.warn("Error fetching notifications:", error);
-    return { status: "error", message: error.message, data: [] };
+    console.error("Error fetching notifications:", error);
+    return { status: "error", message: error.message };
   }
 }
 
