@@ -1,7 +1,6 @@
 // ============================================================
 // authHandlers.js
-// معالجات تسجيل الدخول / إنشاء حساب / تسجيل الخروج / تحميل
-// المستخدمين (صفحة users المبسطة)
+// معالجات تسجيل الدخول / إنشاء حساب / تسجيل الخروج
 // (تم استخراجه من router.js دون أي تغيير في السلوك الظاهر -
 // نفس التحقق من البيانات، ونفس رسائل الأخطاء بالضبط)
 // ============================================================
@@ -9,7 +8,6 @@
 import { login } from './auth/login.js';
 
 import {
-  fetchUsers,
   registerUserApi
 } from './services/api.js';
 
@@ -437,212 +435,10 @@ alert(
 // ============================================================
 // LOAD USERS
 // ============================================================
-
-window.loadUsers =
-async function () {
-
-dlog(
-"DEBUG: Load Users Started..."
-);
-
-// إصلاح: الـ id بقى "usersDirectoryContainer" بدل "usersContainer"
-// اللي كان بيتشارك بالغلط مع صفحة "requests" (RequestsView.js) - كان
-// بيسبب استبدال قائمة هذه الصفحة (للعرض فقط) بقائمة إدارة المستخدمين
-// الكاملة من الصفحة التانية في ظروف توقيت معينة
-const container =
-document.getElementById(
-"usersDirectoryContainer"
-);
-
-if (!container) {
-
-console.warn(  
-  "usersDirectoryContainer غير موجود"  
-);  
-
-return;
-
-}
-
-container.innerHTML = `
-
-<div  
-  class="  
-    text-center  
-    py-8  
-    text-gray-400  
-  "  
->  
-
-  ${t().loadingUsers}  
-
-</div>
-
-`;
-
-try {
-
-const result =  
-  await fetchUsers();  
-
-
-dlog(  
-  "DEBUG: API Result:",  
-  result  
-);  
-
-
-if (  
-  result.status !==  
-  "success"  
-) {  
-
-  container.innerHTML = `  
-
-    <div  
-      class="  
-        text-red-400  
-        text-center  
-        py-6  
-      "  
-    >  
-
-      ${t().errorPrefix}  
-      ${result.message || t().loadUsersError}  
-
-    </div>  
-
-  `;  
-
-  return;  
-
-}  
-
-
-const usersList =  
-  Array.isArray(result.data)  
-    ? result.data  
-    : [];  
-
-
-dlog(  
-  "DEBUG: Users Count:",  
-  usersList.length  
-);  
-
-
-if (!usersList.length) {  
-
-  container.innerHTML = `  
-
-    <div  
-      class="  
-        text-center  
-        text-gray-500  
-        py-6  
-      "  
-    >  
-
-      ${t().noUsers}  
-
-    </div>  
-
-  `;  
-
-  return;  
-
-}  
-
-
-let html = "";  
-
-
-usersList.forEach(  
-  user => {  
-
-    html += `  
-
-      <div  
-        class="  
-          bg-[#1E293B]  
-          rounded-xl  
-          p-3  
-          mb-3  
-          text-white  
-          text-xs  
-          border  
-          border-gray-700  
-        "  
-      >  
-
-        <div>  
-          <b>  
-            ${user.name || t().unnamedUser}  
-          </b>  
-        </div>  
-
-        <div class="text-gray-400">  
-          📱 ${user.phone || ""}  
-        </div>  
-
-        <div class="text-blue-400">  
-          ${t().roleLabel}  
-          ${user.role || "pending"}  
-        </div>  
-
-        <div class="text-gray-400">  
-          ${t().statusLabel}  
-          ${user.status || "-"}  
-        </div>  
-
-        <div class="text-gray-400">  
-          ${t().shiftLabel}  
-          ${user.shift || "-"}  
-        </div>  
-
-        <div class="text-gray-400">  
-          ${t().departmentLabel}  
-          ${user.department || "-"}  
-        </div>  
-
-      </div>  
-
-    `;  
-
-  }  
-);  
-
-
-container.innerHTML =  
-  html;
-
-} catch (error) {
-
-console.error(  
-  "LOAD USERS ERROR:",  
-  error  
-);  
-
-
-container.innerHTML = `  
-
-  <div  
-    class="  
-      text-red-400  
-      text-center  
-      py-6  
-    "  
-  >  
-
-    ${t().loadUsersErrorCatch}  
-
-  </div>  
-
-`;
-
-}
-
-};
+// إصلاح (توحيد): الدالة القديمة (قائمة عرض فقط) اتشالت من هنا لأن
+// صفحة "users" بقت بتستخدم UsersManagementView() (نفس واجهة/منطق
+// صفحة "requests") بدل القالب القديم اللي كان بينادي الدالة دي -
+// راجع RequestsView.js -> loadUsersManagement() بدلاً منها
 
 // ============================================================
 // LOGOUT

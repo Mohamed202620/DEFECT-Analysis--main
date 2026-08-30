@@ -8,7 +8,7 @@
 import { renderPage } from './pageRenderer.js';
 import { Sidebar } from './components/Sidebar.js';
 import { initMainChart, loadDashboardStats } from './workflow.js';
-import { loadPendingUsers } from './views/RequestsView.js';
+import { loadPendingUsers, loadUsersManagement } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView } from './maintenanceSearch.js';
@@ -59,11 +59,9 @@ if (
   currentPage !== "tickets" &&
   typeof window.cleanupTicketsBoard === "function"
 ) {
-  try {
-    window.cleanupTicketsBoard();
-  } catch (e) {
-    console.warn("Cleanup tickets error:", e);
-  }
+
+  window.cleanupTicketsBoard();
+
 }
 
 // ========================================================
@@ -78,38 +76,21 @@ if (
   currentPage !== "kaizenBoard" &&
   typeof window.cleanupKaizenBoard === "function"
 ) {
-  try {
-    window.cleanupKaizenBoard();
-  } catch (e) {
-    console.warn("Cleanup kaizen error:", e);
-  }
+
+  window.cleanupKaizenBoard();
+
 }
 
 activePage = currentPage;
 
-// رندر فوري مباشر لتجنب أي شاشة بيضاء أو تأخير على الموبايل
-try {
-  const renderedHtml = renderPage(currentPage);
-  app.innerHTML = renderedHtml || "";
-  app.style.opacity = "1";
-} catch (renderError) {
-  console.error("renderPage Error on (" + currentPage + "):", renderError);
-  app.innerHTML = `
-    <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] text-white" dir="rtl">
-      <div class="bg-red-950/80 border border-red-500/50 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-3">
-        <h3 class="text-base font-bold text-red-400">⚠️ تعذر عرض الصفحة (${currentPage})</h3>
-        <p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">
-          ${String(renderError?.message || renderError)}
-        </p>
-        <div class="flex gap-2 justify-center pt-2">
-          <button onclick="window.navigateTo('home')" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">الرئيسية</button>
-          <button onclick="window.navigateTo('login')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">تسجيل الدخول</button>
-        </div>
-      </div>
-    </div>
-  `;
-  app.style.opacity = "1";
-}
+app.style.opacity = "0.4";
+
+setTimeout(() => {
+
+app.innerHTML =  
+  renderPage(currentPage);  
+
+app.style.opacity = "1";  
 
 // ========================================================
 // DESKTOP SIDEBAR
@@ -144,11 +125,7 @@ if (sidebarContainer) {
 // ========================================================
 
 if (typeof window.refreshHeader === "function") {
-  try {
-    window.refreshHeader();
-  } catch (e) {
-    console.warn("refreshHeader warning:", e);
-  }
+  window.refreshHeader();
 }
 
 // ========================================================
@@ -160,11 +137,9 @@ if (typeof window.refreshHeader === "function") {
 // ========================================================
 
 if (typeof window.refreshNotificationsBadge === "function") {
-  try {
-    window.refreshNotificationsBadge();
-  } catch (e) {
-    console.warn("refreshNotificationsBadge warning:", e);
-  }
+
+  window.refreshNotificationsBadge();
+
 }
 
 
@@ -305,19 +280,17 @@ if (currentPage === "maintenanceSearch") {
 // ========================================================  
 // USERS AUTO LOAD  
 // ========================================================  
+// إصلاح (توحيد): صفحة "users" بقت بتستخدم نفس واجهة/منطق
+// UsersManagementView() (راجع RequestsView.js وpageRenderer.js)،
+// فبقت بتحتاج نفس التحميل التلقائي بتاع loadUsersManagement() بدل
+// window.loadUsers() القديمة (اللي كانت بترسم قائمة عرض فقط في
+// عنصر مختلف مبقاش موجود أصلاً في القالب الجديد)
 
 if (currentPage === "users") {  
 
   setTimeout(() => {  
 
-    if (  
-      typeof window.loadUsers ===  
-      "function"  
-    ) {  
-
-      window.loadUsers();  
-
-    }  
+    loadUsersManagement();  
 
   }, 100);  
 
@@ -403,24 +376,7 @@ if (currentPage === "settings") {
 
 }
 
-
-// ========================================================  
-// TICKET DETAILS AUTO LOAD
-// ========================================================  
-
-if (currentPage === "ticketDetails") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadTicketDetails === "function") {  
-
-      window.loadTicketDetails();  
-
-    }  
-
-  }, 100);  
-
-}
+}, 150);
 
 }
 
@@ -429,33 +385,25 @@ if (currentPage === "ticketDetails") {
 // ============================================================
 
 export async function navigateTo(page, addToHistory = true) {
+  if (page !== "login" && page !== "register") {
+    try {
+      if (auth.currentUser === null) {
+        await auth.authStateReady();
+        if (!auth.currentUser) {
+          console.warn("User not in Firebase Auth. Redirecting to login.");
+          localStorage.clear(); page = "login";
+        }
+      }
+    } catch (e) {
+      console.warn("Auth check failed", e);
+    }
+  }
+
   currentPage = page;
   if (addToHistory) {
     history.pushState({ page }, "", `#${page}`);
   }
-  
-  // رندر فوري للصفحة لضمان الاستجابة السريعة وعدم ظهور أي شاشة بيضاء
   render();
-
-  // فحص حالة الجلسة بالخلفية بدون تعطيل إظهار الصفحة للمستخدم
-  if (page !== "login" && page !== "register") {
-    try {
-      const hasLocalUser = localStorage.getItem("phone") || localStorage.getItem("userId");
-      if (!hasLocalUser) {
-        console.warn("No user credentials found in storage. Redirecting to login.");
-        currentPage = "login";
-        render();
-        return;
-      }
-
-      if (auth && typeof auth.authStateReady === "function" && auth.currentUser === null) {
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 2000));
-        await Promise.race([auth.authStateReady(), timeoutPromise]);
-      }
-    } catch (e) {
-      console.warn("Auth check non-blocking warning:", e);
-    }
-  }
 }
 
 window.navigateTo =
