@@ -9,29 +9,17 @@
 
 import { fetchTicketByIdApi, fetchTicketLogsApi } from '../services/api.js';
 import { getTicketActions } from '../permissions.js';
-
-const STATUS_LABELS_AR = {
-  pending: "جديد",
-  assigned: "تم الإسناد",
-  in_progress: "قيد التنفيذ",
-  resolved: "بانتظار تأكيد المُبلغ",
-  closed: "مغلق",
-  reopened: "قيد التنفيذ" // توافق مع أي بيانات قديمة قبل التحديث
-};
-
-const STATUS_BADGE_CLASSES = {
-  pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-};
-
-// حالات تُعتبر "مفتوحة" (الماكينة لسه متأثرة/البلاغ لسه شغال) لحساب
-// زمن التوقف بشكل حي، وأي حالة غير مذكورة هنا (resolved/closed) تعتبر
-// حالة منتهية وبيتوقف عندها حساب زمن التوقف فعلياً
-const OPEN_STATUSES = ["pending", "assigned", "in_progress", "reopened"];
+// إصلاح (تنظيف/Refactor): كانت دي نسخة رابعة مكررة (يدوياً) من نفس
+// تسميات حالة البلاغ الموجودة أصلاً في ticketStatusConstants.js -
+// موحّدة دلوقتي مع باقي الملفات (workflow.js/statistics.js/
+// maintenanceSearch.js/ticketsBoard.js) عشان أي حالة جديدة تتضاف
+// تبان في كل مكان مرة واحدة. الفرق الوحيد اللي كان موجود هنا هو
+// "مغلق" (مذكّر) بدل "مغلقة" (مؤنث) - اتوحّد على النسخة المشتركة.
+// STATUS_CLASSES و isClosedStatus بقوا مستوردين هنا كمان لنفس السبب -
+// كان فيه STATUS_BADGE_CLASSES محلي مطابق حرفياً لـ STATUS_CLASSES
+// المشتركة، وOPEN_STATUSES محلي منفصل كان ممكن ينحرف عن isClosedStatus
+// لو حالة جديدة اتضافت مستقبلاً وحد نسي يحدّث الاتنين مع بعض
+import { STATUS_LABELS as STATUS_LABELS_AR, STATUS_CLASSES as STATUS_BADGE_CLASSES, isClosedStatus } from '../ticketStatusConstants.js';
 
 const PRIORITY_BADGES = {
   High: { label: "🔴 عالية", cls: "bg-red-500/10 text-red-400 border border-red-500/20" },
@@ -58,6 +46,7 @@ const CATEGORY_ICONS = {
 const ACTION_ICONS = {
   create: "📝",
   assign: "🛠️",
+  reassign: "🔄",
   start: "▶️",
   resolve: "✅",
   close: "✔️",
@@ -72,6 +61,7 @@ const ACTION_ICONS = {
 // بدل تكرار/ازدواج نفس المنطق هنا من جديد
 const ACTION_BUTTON_STYLES = {
   assign: "bg-blue-600 hover:bg-blue-500 text-white",
+  reassign: "bg-amber-600 hover:bg-amber-500 text-white",
   start: "bg-indigo-600 hover:bg-indigo-500 text-white",
   resolve: "bg-emerald-600 hover:bg-emerald-500 text-white",
   confirm: "bg-emerald-600 hover:bg-emerald-500 text-white",
@@ -122,7 +112,11 @@ function computeDowntime(ticket) {
   const created = ticket?.createdAt ? new Date(ticket.createdAt) : null;
   if (!created || isNaN(created)) return null;
 
-  const isOpen = OPEN_STATUSES.includes(status);
+  // إصلاح (تنظيف/Refactor): "مفتوحة" هنا = عكس isClosedStatus بالظبط
+  // (نفس المصدر المشترك) بدل قائمة OPEN_STATUSES منفصلة كانت ممكن
+  // تنحرف عن CLOSED_STATUSES لو حالة جديدة اتضافت مستقبلاً ونسي حد
+  // يحدّث الاتنين مع بعض
+  const isOpen = !isClosedStatus(status);
   const end = isOpen
     ? new Date()
     : (ticket?.updatedAt ? new Date(ticket.updatedAt) : new Date());
