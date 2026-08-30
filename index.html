@@ -174,6 +174,31 @@
       user-select: none;
     }
 
+    /* عكس صورة أيقونة الشعار أفقياً في وضع RTL (اللغة العربية) لتتجه فتحة الشعار نحو النص */
+    [dir="rtl"] .app-header-logo,
+    html[dir="rtl"] .app-header-logo,
+    html[lang="ar"] .app-header-logo {
+      transform: scaleX(-1);
+    }
+
+    [dir="rtl"] .app-header-logo:hover,
+    html[dir="rtl"] .app-header-logo:hover,
+    html[lang="ar"] .app-header-logo:hover {
+      transform: scaleX(-1) scale(1.05);
+    }
+
+    [dir="ltr"] .app-header-logo,
+    html[dir="ltr"] .app-header-logo,
+    html[lang="en"] .app-header-logo {
+      transform: scaleX(1);
+    }
+
+    [dir="ltr"] .app-header-logo:hover,
+    html[dir="ltr"] .app-header-logo:hover,
+    html[lang="en"] .app-header-logo:hover {
+      transform: scale(1.05);
+    }
+
     @media (max-width: 480px) {
       #appHeader .app-header-row-top {
         gap: 0.5rem;

@@ -235,7 +235,7 @@ export function renderHeader() {
             <img
               src="${LOGO_ICON_PATH}"
               alt="${COMPANY_SHORT}"
-              class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200 hover:scale-105"
+              class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200"
               style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
               onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='assets/icons/app-icon.png';}"
             />
