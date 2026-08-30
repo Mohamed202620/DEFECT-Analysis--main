@@ -1,8 +1,20 @@
 import { translations } from '../config.js';
+import { hasPermission } from '../permissions.js';
 
 export const BottomNav = (activeTab) => {
   const currentLang = window.currentLang || 'ar';
   const t = translations[currentLang] || translations['ar'] || {};
+
+  // إصلاح: تبويب "النظام" كان ظاهر لكل مستخدم مسجّل دخول بلا أي فحص
+  // صلاحية، فأي فني/مشغّل عادي كان بيدوس عليه ويوصله لشاشة "لا يوجد
+  // صلاحية" فاضية بلا فايدة. دلوقتي بيظهر بس لو معاه صلاحية واحدة
+  // على الأقل من صلاحيات صفحة النظام الأربعة (نفس فحص can() الموجود
+  // جوه SystemView.js نفسها لإخفاء/إظهار كل زرار بداخلها)
+  const canSeeSystemTab =
+    hasPermission("users") ||
+    hasPermission("requests") ||
+    hasPermission("machines") ||
+    hasPermission("settings");
 
   const navItems = [
     { 
@@ -23,12 +35,12 @@ export const BottomNav = (activeTab) => {
       label: t.navQuality || (currentLang === 'en' ? "Quality" : "الجودة"), 
       action: "window.navigateTo('quality')" 
     },
-    { 
+    ...(canSeeSystemTab ? [{
       id: "system", 
       icon: "⚙️", 
       label: t.navSystem || (currentLang === 'en' ? "System" : "النظام"), 
       action: "window.navigateTo('system')" 
-    }
+    }] : [])
   ];
 
   return `

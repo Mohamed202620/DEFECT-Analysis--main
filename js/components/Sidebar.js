@@ -1,4 +1,5 @@
 import { translations } from '../config.js';
+import { hasPermission } from '../permissions.js';
 
 // ============================================================
 // Sidebar.js
@@ -21,6 +22,15 @@ export const Sidebar = (activeTab) => {
   if (!isLoggedIn) return '';
 
   const name = localStorage.getItem('name') || '';
+
+  // إصلاح: نفس إصلاح BottomNav.js - عنصر "النظام" كان ظاهر لكل
+  // مستخدم بدون فحص صلاحية، فبيظهر بس دلوقتي لو معاه صلاحية واحدة
+  // على الأقل من الأربعة (نفس فحص can() جوه SystemView.js)
+  const canSeeSystemTab =
+    hasPermission("users") ||
+    hasPermission("requests") ||
+    hasPermission("machines") ||
+    hasPermission("settings");
 
   const navItems = [
     {
@@ -47,12 +57,12 @@ export const Sidebar = (activeTab) => {
       label: t.navQuality || 'الجودة',
       action: "window.navigateTo('quality')"
     },
-    {
+    ...(canSeeSystemTab ? [{
       id: 'system',
       icon: '⚙️',
       label: t.navSystem || 'النظام',
       action: "window.navigateTo('system')"
-    }
+    }] : [])
   ];
 
   return `
