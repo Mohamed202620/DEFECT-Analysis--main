@@ -17,6 +17,7 @@ import {
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
+  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchMyNotificationsApi,
   markNotificationReadApi,
@@ -91,6 +92,16 @@ function ticketCardHtml(ticket) {
   const status = String(ticket.status || "").trim().toLowerCase();
   const machineName = ticket.machine || ticket.machineName || "-";
   const accentClass = STATUS_BAR_ACCENTS[status] || "bg-slate-600";
+  // إضافة (تحسين Workflow - إجراءات جماعية): الكارت بيظهر بيه Checkbox
+  // في وضع التحديد الجماعي (بغض النظر عن حالة التذكرة - الإغلاق
+  // الجماعي نفسه بيتجاهل أي تذكرة مش "بانتظار تأكيد" بأمان من ناحية
+  // الـ API، لكن التصدير الجماعي بيشتغل على أي حالة)
+  const bulkCheckboxHtml = bulkSelectMode ? `
+    <label class="flex items-center shrink-0 cursor-pointer">
+      <input type="checkbox" onchange="window.toggleTicketSelection('${ticket.id}')" ${selectedTicketIds.has(ticket.id) ? "checked" : ""}
+        class="w-5 h-5 rounded border-gray-600 bg-slate-800 text-amber-500 focus:ring-amber-500 cursor-pointer">
+    </label>
+  ` : "";
 
   return `
     <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 mb-3 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all">
@@ -100,6 +111,7 @@ function ticketCardHtml(ticket) {
       <div class="rtl:pr-2.5 ltr:pl-2.5 space-y-2.5">
         <div class="flex justify-between items-center gap-2">
           <div class="flex items-center gap-2">
+            ${bulkCheckboxHtml}
             <span class="font-black text-sm text-slate-100">${machineName}</span>
             ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
           </div>
@@ -232,6 +244,157 @@ function getTabsForRole(role) {
 let currentStatusFilter = null;
 let unsubscribeTicketsListener = null;
 
+// ============================================================
+// إضافة (تحسين Workflow - إجراءات جماعية Bulk Actions): تحديد أكتر
+// من تذكرة "بانتظار تأكيد" وتأكيد إغلاقهم مرة واحدة، أو تصدير مجموعة
+// تذاكر محددة كـ PDF واحد - بدل الضغط على كل تذكرة لوحدها. متاحة
+// للأدمن/المدير فقط (نفس صلاحية "إعادة الإسناد")
+// ============================================================
+let bulkSelectMode = false;
+let selectedTicketIds = new Set();
+
+function isBulkActionsRole(role) {
+  return role === "admin" || role === "manager";
+}
+
+function renderBulkSelectToggle() {
+  const container = document.getElementById("bulkSelectToggleContainer");
+  if (!container) return;
+
+  const role = getCurrentRole();
+  if (!isBulkActionsRole(role)) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const tr = t();
+  container.innerHTML = `
+    <button
+      onclick="window.toggleBulkSelectMode()"
+      class="w-full text-xs font-bold py-2 rounded-lg border transition-all active:scale-95 ${
+        bulkSelectMode
+          ? "bg-amber-600 border-amber-500 text-white"
+          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+      }">
+      ${bulkSelectMode ? (tr.bulkSelectExit || "إنهاء وضع التحديد") : (tr.bulkSelectEnter || "☑️ تحديد للإجراءات الجماعية")}
+    </button>
+  `;
+}
+
+function renderBulkActionsBar() {
+  const container = document.getElementById("bulkActionsBar");
+  if (!container) return;
+
+  if (!bulkSelectMode || selectedTicketIds.size === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const tr = t();
+  container.innerHTML = `
+    <div class="flex items-center justify-between gap-2 bg-[#1E293B] border border-amber-500/40 rounded-xl p-2.5">
+      <span class="text-xs font-bold text-amber-300">${(tr.bulkSelectedCount || "{n} محدد").replace("{n}", selectedTicketIds.size)}</span>
+      <div class="flex gap-2">
+        <button onclick="window.bulkCloseSelectedTickets()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all">
+          ${tr.bulkCloseBtn || "✔️ تأكيد إغلاق المحدد"}
+        </button>
+        <button onclick="window.bulkExportSelectedTickets()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white active:scale-95 transition-all">
+          ${tr.bulkExportBtn || "📄 تصدير PDF"}
+        </button>
+        <button onclick="window.clearBulkSelection()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white active:scale-95 transition-all">
+          ${tr.bulkClearBtn || "إلغاء"}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+window.toggleBulkSelectMode = function () {
+  bulkSelectMode = !bulkSelectMode;
+  selectedTicketIds.clear();
+  renderBulkSelectToggle();
+  renderBulkActionsBar();
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
+
+window.toggleTicketSelection = function (ticketId) {
+  if (selectedTicketIds.has(ticketId)) {
+    selectedTicketIds.delete(ticketId);
+  } else {
+    selectedTicketIds.add(ticketId);
+  }
+  renderBulkActionsBar();
+};
+
+window.clearBulkSelection = function () {
+  selectedTicketIds.clear();
+  renderBulkActionsBar();
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
+
+window.bulkCloseSelectedTickets = async function () {
+  const tr = t();
+  if (!selectedTicketIds.size) return;
+
+  if (!confirm((tr.bulkCloseConfirm || "تأكيد إغلاق {n} تذكرة؟").replace("{n}", selectedTicketIds.size))) return;
+
+  const result = await bulkCloseTicketsApi(Array.from(selectedTicketIds));
+
+  if (result.status === "success") {
+    let msg = (tr.bulkCloseSuccess || "تم إغلاق {n} تذكرة بنجاح").replace("{n}", result.closedCount);
+    if (result.skippedCount > 0) {
+      msg += " — " + (tr.bulkCloseSkipped || "تم تجاهل {n} (غير بانتظار تأكيد)").replace("{n}", result.skippedCount);
+    }
+    alert("✅ " + msg);
+    selectedTicketIds.clear();
+    renderBulkActionsBar();
+  } else {
+    alert("❌ " + (result.message || tr.genericActionError));
+  }
+};
+
+window.bulkExportSelectedTickets = async function () {
+  const tr = t();
+  if (!selectedTicketIds.size) return;
+
+  const selectedTickets = boardAllTickets.filter(ticket => selectedTicketIds.has(ticket.id));
+  if (!selectedTickets.length) return;
+
+  try {
+    const isAr = (window.currentLang || "ar") === "ar";
+
+    // إضافة (تحسين Workflow - إجراءات جماعية): نفس Pipeline تصدير
+    // التقرير الشهري بالظبط (buildReportTicketBlockHtml + exportToPdf)
+    // لكن على مجموعة التذاكر المحددة فقط بدل آخر 30 يوم
+    const ticketsWithImages = await Promise.all(selectedTickets.map(async ticket => {
+      const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0)
+                        ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : []);
+      const dataUrls = (
+        await Promise.all(mediaUrls.slice(0, 4).map(url => loadImageAsCompressedDataUrl(url)))
+      ).filter(Boolean);
+      return { ticket, dataUrls };
+    }));
+
+    let blocksHtml = ticketsWithImages.map(({ ticket, dataUrls }) => {
+      let html = buildReportTicketBlockHtml(ticket, dataUrls);
+      return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
+    }).join("");
+
+    const htmlContent = `<div id="mPdfRecordsContainer">${blocksHtml}</div>`;
+    const title = isAr ? "📄 تصدير تذاكر محددة" : "📄 Selected Tickets Export";
+    const filename = `selected-tickets-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const infoRows = [
+      { label: isAr ? "عدد التذاكر" : "Ticket count", value: String(selectedTickets.length) }
+    ];
+
+    await exportToPdf(title, infoRows, htmlContent, filename);
+  } catch (error) {
+    console.error("Error exporting selected tickets:", error);
+    alert("❌ " + (tr.reportGenerateError || "حدث خطأ أثناء تجهيز الملف"));
+  }
+};
+
+
 // إصلاح M2/M3: حالات "افتراضية" بتيجي من كروت لوحة المتابعة بالرئيسية
 // (homeView.js) مش من ضغط تبويب فعلي - 'open' (أعطال مفتوحة) و 'fixed'
 // (تم إصلاحها). دول مش أسماء تبويبات حرفية عند الأدمن/المدير، فمن غير
@@ -283,6 +446,8 @@ window.loadTicketsBoard = function () {
 
   const role = getCurrentRole();
   renderStatusTabs(role);
+  renderBulkSelectToggle();
+  renderBulkActionsBar();
   boardVisibleCount = BOARD_CHUNK_SIZE;
 
   const container = document.getElementById("ticketsBoardContainer");
@@ -342,6 +507,10 @@ window.setTicketsStatusFilter = function (status) {
 
   currentStatusFilter = status;
   boardVisibleCount = BOARD_CHUNK_SIZE;
+  // إضافة (تحسين Workflow - إجراءات جماعية): تصفير أي تحديد قديم عند
+  // تبديل التبويب - تذاكر التبويب الجديد مختلفة، فالتحديد القديم مالوش
+  // معنى وممكن يبين مضلل (عدد محدد من غير أي Checkbox متعلّم فعلياً)
+  selectedTicketIds.clear();
   window.loadTicketsBoard();
 
 };
