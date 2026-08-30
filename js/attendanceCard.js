@@ -35,6 +35,17 @@ const HOLIDAYS_CACHE_KEY = "official_holidays_cache_v1";
 
 let holidaysMemoryCache = null; // مصفوفة {date, label} أو null لو لسه ما اتحمّلتش
 
+// ============================================================
+// إضافة: حالة طي/فرد كارت الحضور - لتوفير مساحة بالصفحة الرئيسية
+// - الكارت يبدأ دايماً "مصغّر" أول ما تُفتح الصفحة (متغيّر الموديول
+//   بيبدأ false مع كل تحميل جديد للصفحة، مفيش حفظ في localStorage
+//   بناءً على الاتفاق)
+// - بيفضل محفوظ خلال نفس الجلسة عبر أي إعادة رسم (checkIn/checkOut/
+//   addExtraDay/takeLeave كلها بتنادي refreshAttendanceCard) عشان
+//   لو المستخدم فاتح التفاصيل ما تتقفلش لوحدها وهو بيسجل حضوره
+// ============================================================
+let attendanceCardExpanded = false;
+
 /**
  * جلب قائمة الإجازات الرسمية (Firestore أولاً، مع الرجوع للكاش
  * المحلي المحفوظ في localStorage عند تعذّر الاتصال)
@@ -1027,8 +1038,56 @@ export function renderAttendanceCard(customProfile = null) {
           <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold border ${shiftInfo.badgeColorClass}">
             ${shiftInfo.shiftType === "ليلي" ? "🌙 ليلي" : (shiftInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
           </span>
+
+          <!-- إضافة: زرار طي/فرد الكارت - لتصغير الكارت وتوفير مساحة
+               بالصفحة الرئيسية، مع إبقاء زر الدخول/الخروج (تحت) ظاهر
+               دايماً حتى في الوضع المصغّر -->
+          <button
+            type="button"
+            id="attendanceToggleBtn"
+            onclick="window.toggleAttendanceCard()"
+            aria-expanded="${attendanceCardExpanded ? "true" : "false"}"
+            aria-controls="attendanceExpandableContent"
+            title="${attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل"}"
+            class="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      <!-- الصف 3: دخول: --:-- | خروج: --:-- | زرار تسجيل دخول او خروج -
+           إضافة: نُقل هنا (يفضل ظاهر دايماً فوق الطي) لأنه أهم إجراء
+           بالكارت (تسجيل حضور/انصراف)، عشان طيّ الكارت لتوفير المساحة
+           ميمنعش الفني من الوصول له بضغطة واحدة -->
+      <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
+        <div class="flex items-center gap-3 text-xs">
+          <div>
+            <span class="text-[10px] text-slate-400 block font-medium">الدخول:</span>
+            <span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span>
+          </div>
+          <div class="h-6 w-px bg-white/10"></div>
+          <div>
+            <span class="text-[10px] text-slate-400 block font-medium">الخروج:</span>
+            <span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span>
+          </div>
+        </div>
+
+        <div>
+          ${actionButtonHtml}
+        </div>
+      </div>
+
+      <!-- إضافة: حاوية قابلة للطي تجمّع باقي التفاصيل (الدورة، تنبيه
+           الإجازة الرسمية، ملخص اليوم، ملخص الشهر، الأزرار الإضافية) -
+           بتتفتح/تتقفل بـ toggleAttendanceCard() عبر max-height لعمل
+           انتقال سلس بدل إظهار/إخفاء فجائي -->
+      <div
+        id="attendanceExpandableContent"
+        class="overflow-hidden transition-all duration-300 ease-in-out space-y-3.5"
+        style="max-height: ${attendanceCardExpanded ? "1200px" : "0px"}; opacity: ${attendanceCardExpanded ? "1" : "0"};"
+        aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
 
       <!-- الصف 2: الدورة: يوم X من 6 | التاريخ | معاد الوردية -->
       <div id="attendanceRow2" class="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-white/5 text-center items-center">
@@ -1061,25 +1120,6 @@ export function renderAttendanceCard(customProfile = null) {
           </span>
         </div>
       ` : ""}
-
-      <!-- الصف 3: دخول: --:-- | خروج: --:-- | زرار تسجيل دخول او خروج -->
-      <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
-        <div class="flex items-center gap-3 text-xs">
-          <div>
-            <span class="text-[10px] text-slate-400 block font-medium">الدخول:</span>
-            <span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span>
-          </div>
-          <div class="h-6 w-px bg-white/10"></div>
-          <div>
-            <span class="text-[10px] text-slate-400 block font-medium">الخروج:</span>
-            <span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span>
-          </div>
-        </div>
-
-        <div>
-          ${actionButtonHtml}
-        </div>
-      </div>
 
       <!-- الصف 4: ملخص اليوم: ساعات + فلوس -->
       <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-3 py-2 rounded-xl border border-blue-400/20 text-xs">
@@ -1157,6 +1197,9 @@ export function renderAttendanceCard(customProfile = null) {
         </button>
       </div>
 
+      </div>
+      <!-- نهاية حاوية الطي (attendanceExpandableContent) -->
+
     </div>
   </div>
   `;
@@ -1165,6 +1208,38 @@ export function renderAttendanceCard(customProfile = null) {
 // ============================================================
 // 8. تسجيل الدوال العامة في window للعمل التفاعلي
 // ============================================================
+
+/**
+ * طي/فرد كارت الحضور - بيغيّر الحالة (attendanceCardExpanded) وبيحرّك
+ * حاوية attendanceExpandableContent عبر max-height بدل إعادة رسم
+ * الكارت بالكامل (renderAttendanceCard) عشان الانتقال يبقى سلس بصرياً
+ * ومفيش وميض (flicker) في باقي الكارت. الحالة بتفضل محفوظة في متغيّر
+ * الموديول (attendanceCardExpanded) عشان لو الكارت اتعاد رسمه بعدين
+ * (زي بعد تسجيل دخول/خروج) الوضع (مفتوح/مقفول) ميترجعش لمصغّر تلقائياً
+ */
+export function toggleAttendanceCard() {
+  attendanceCardExpanded = !attendanceCardExpanded;
+
+  const content = document.getElementById("attendanceExpandableContent");
+  const chevron = document.getElementById("attendanceToggleChevron");
+  const toggleBtn = document.getElementById("attendanceToggleBtn");
+
+  if (content) {
+    // scrollHeight بيرجع الارتفاع الكامل الفعلي للمحتوى حتى لو حالياً
+    // مقفول بـ max-height:0 (overflow:hidden بس مش display:none)،
+    // فبيدينا انتقال دقيق بدل رقم تقديري ثابت
+    content.style.maxHeight = attendanceCardExpanded ? `${content.scrollHeight}px` : "0px";
+    content.style.opacity = attendanceCardExpanded ? "1" : "0";
+    content.setAttribute("aria-hidden", attendanceCardExpanded ? "false" : "true");
+  }
+  if (chevron) {
+    chevron.classList.toggle("rotate-180", attendanceCardExpanded);
+  }
+  if (toggleBtn) {
+    toggleBtn.setAttribute("aria-expanded", attendanceCardExpanded ? "true" : "false");
+    toggleBtn.title = attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل";
+  }
+}
 
 export async function refreshAttendanceCard() {
   const container = document.getElementById("attendanceCardContainer");
@@ -1186,6 +1261,7 @@ if (typeof window !== "undefined") {
   window.takeLeaveShift = takeLeave;
   window.exportAttendancePDF = exportPDF;
   window.refreshAttendanceCard = refreshAttendanceCard;
+  window.toggleAttendanceCard = toggleAttendanceCard;
   window.getMyShiftInfo = getMyShiftInfo;
   window.calculateAttendanceMonth = calculateMonth;
   window.renderAttendanceCard = renderAttendanceCard;
