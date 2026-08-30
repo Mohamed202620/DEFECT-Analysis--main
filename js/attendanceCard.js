@@ -945,16 +945,14 @@ export function renderAttendanceCard(customProfile = null) {
   let actionButtonHtml = "";
   if (isExtraDay) {
     actionButtonHtml = `
-      <div class="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-1">
-        <span>⭐</span>
-        <span>يوم إضافي مسجل</span>
+      <div class="px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[10px] flex items-center justify-center gap-1">
+        <span>⭐ إضافي</span>
       </div>
     `;
   } else if (isLeave) {
     actionButtonHtml = `
-      <div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1">
-        <span>🏖️</span>
-        <span>إجازة من الرصيد</span>
+      <div class="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[10px] flex items-center justify-center gap-1">
+        <span>🏖️ إجازة</span>
       </div>
     `;
   } else if (isCheckedIn) {
@@ -963,24 +961,22 @@ export function renderAttendanceCard(customProfile = null) {
         type="button"
         id="btnShiftCheckOut"
         onclick="window.checkOutShift()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-md shadow-red-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span>
-        <span>تسجيل خروج</span>
-        <span class="rtl:rotate-180 text-sm">🚪</span>
+        class="group relative px-2.5 py-1.5 rounded-lg font-black text-[10px] text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-md shadow-red-950/50 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+        <span>خروج</span>
       </button>
     `;
   } else if (isCheckedOut) {
     actionButtonHtml = `
-      <div class="flex items-center gap-1.5">
-        <div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1">
-          <span>✅</span>
-          <span>تم إتمام الوردية</span>
+      <div class="flex items-center gap-1">
+        <div class="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[10px] flex items-center justify-center gap-1">
+          <span>✅ تمت</span>
         </div>
         <button
           type="button"
           title="تعديل الدخول"
           onclick="window.checkInShift()"
-          class="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] transition">
+          class="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] transition">
           🔄
         </button>
       </div>
@@ -991,57 +987,46 @@ export function renderAttendanceCard(customProfile = null) {
         type="button"
         id="btnShiftCheckIn"
         onclick="window.checkInShift()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-md shadow-emerald-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span>
-        <span>تسجيل دخول</span>
-        <span class="rtl:rotate-180 text-sm">📲</span>
+        class="group relative px-2.5 py-1.5 rounded-lg font-black text-[10px] text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-md shadow-emerald-950/50 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+        <span>دخول</span>
       </button>
     `;
   }
 
   return `
   <!-- كارت حضور الوردية الفخم MSCANCO EGYPT -->
-  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border-2 border-[#D4AF37] shadow-xl shadow-blue-950/40 rounded-2xl p-4 text-white relative overflow-hidden transition-all duration-300">
+  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border-2 border-[#D4AF37] shadow-xl shadow-blue-950/40 rounded-xl p-3 text-white relative overflow-hidden transition-all duration-300">
     
     <!-- خلفية ناعمة وشعار مائي خفيف -->
     <div class="absolute -left-10 -bottom-10 w-36 h-36 bg-[#D4AF37]/10 rounded-full blur-2xl pointer-events-none"></div>
     <div class="absolute -right-10 -top-10 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-    <div class="relative z-10 space-y-3.5">
+    <div class="relative z-10 space-y-2">
       
-      <!-- الصف 1: الاسم | الوظيفة | لون الشفت | نوع الوردية الحالية ليلي/نهاري -->
-      <div id="attendanceRow1" class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
+      <!-- الصف 1: Header/Collapsed View -->
+      <div id="attendanceRow1" class="flex items-center justify-between gap-2">
         
-        <!-- الاسم والوظيفة -->
-        <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] font-black text-sm shrink-0 shadow-inner">
+        <!-- الاسم وشارة الشفت -->
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] text-xs shrink-0 shadow-inner">
             👷
           </div>
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="font-black text-sm text-white truncate max-w-[140px] sm:max-w-[200px]">${name}</span>
-              <span class="text-[9px] text-[#D4AF37] font-bold px-1.5 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
+              <span class="font-bold text-xs text-white truncate max-w-[100px] sm:max-w-[140px]">${name}</span>
+              <span class="px-1 py-0.5 rounded text-[8px] font-bold border ${shiftInfo.badgeColorClass}">
+                ${shiftInfo.shiftType === "ليلي" ? "🌙 ليلي" : (shiftInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
+              </span>
             </div>
-            <div class="text-[11px] text-slate-300 font-medium truncate max-w-[150px] sm:max-w-[220px]">${job}</div>
+            <div class="text-[10px] text-slate-300 font-medium truncate max-w-[140px] sm:max-w-[180px]">${job}</div>
           </div>
         </div>
 
-        <!-- شارات الشفت والنوع -->
-        <div class="flex items-center gap-1.5 shrink-0">
-          <!-- لون الشفت -->
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border ${shiftInfo.colorBadge.bg} ${shiftInfo.colorBadge.border} ${shiftInfo.colorBadge.text}">
-            <span class="w-1.5 h-1.5 rounded-full ${shiftInfo.colorBadge.dot}"></span>
-            <span>${shiftInfo.colorBadge.label}</span>
-          </span>
-
-          <!-- نوع الوردية الحالية -->
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold border ${shiftInfo.badgeColorClass}">
-            ${shiftInfo.shiftType === "ليلي" ? "🌙 ليلي" : (shiftInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
-          </span>
-
-          <!-- إضافة: زرار طي/فرد الكارت - لتصغير الكارت وتوفير مساحة
-               بالصفحة الرئيسية، مع إبقاء زر الدخول/الخروج (تحت) ظاهر
-               دايماً حتى في الوضع المصغّر -->
+        <!-- زرار الاكشن و زرار التوسيع -->
+        <div class="flex items-center gap-1 shrink-0">
+          ${actionButtonHtml}
+          
           <button
             type="button"
             id="attendanceToggleBtn"
@@ -1049,33 +1034,11 @@ export function renderAttendanceCard(customProfile = null) {
             aria-expanded="${attendanceCardExpanded ? "true" : "false"}"
             aria-controls="attendanceExpandableContent"
             title="${attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل"}"
-            class="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
-            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            class="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
-        </div>
-      </div>
-
-      <!-- الصف 3: دخول: --:-- | خروج: --:-- | زرار تسجيل دخول او خروج -
-           إضافة: نُقل هنا (يفضل ظاهر دايماً فوق الطي) لأنه أهم إجراء
-           بالكارت (تسجيل حضور/انصراف)، عشان طيّ الكارت لتوفير المساحة
-           ميمنعش الفني من الوصول له بضغطة واحدة -->
-      <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
-        <div class="flex items-center gap-3 text-xs">
-          <div>
-            <span class="text-[10px] text-slate-400 block font-medium">الدخول:</span>
-            <span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span>
-          </div>
-          <div class="h-6 w-px bg-white/10"></div>
-          <div>
-            <span class="text-[10px] text-slate-400 block font-medium">الخروج:</span>
-            <span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span>
-          </div>
-        </div>
-
-        <div>
-          ${actionButtonHtml}
         </div>
       </div>
 
@@ -1085,9 +1048,24 @@ export function renderAttendanceCard(customProfile = null) {
            انتقال سلس بدل إظهار/إخفاء فجائي -->
       <div
         id="attendanceExpandableContent"
-        class="overflow-hidden transition-all duration-300 ease-in-out space-y-3.5"
+        class="overflow-hidden transition-all duration-300 ease-in-out"
         style="max-height: ${attendanceCardExpanded ? "1200px" : "0px"}; opacity: ${attendanceCardExpanded ? "1" : "0"};"
         aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
+
+        <div class="pt-2 border-t border-white/10 mt-1 space-y-3.5">
+          
+          <!-- الصف 3 (نُقل للداخل لتوفير المساحة): دخول: --:-- | خروج: --:-- -->
+          <div id="attendanceRow3" class="flex items-center justify-center gap-6 bg-slate-950/40 p-2 rounded-xl border border-white/10">
+            <div class="text-center">
+              <span class="text-[10px] text-slate-400 block font-medium">الدخول</span>
+              <span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span>
+            </div>
+            <div class="h-6 w-px bg-white/10"></div>
+            <div class="text-center">
+              <span class="text-[10px] text-slate-400 block font-medium">الخروج</span>
+              <span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span>
+            </div>
+          </div>
 
       <!-- الصف 2: الدورة: يوم X من 6 | التاريخ | معاد الوردية -->
       <div id="attendanceRow2" class="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-white/5 text-center items-center">
@@ -1197,6 +1175,7 @@ export function renderAttendanceCard(customProfile = null) {
         </button>
       </div>
 
+      </div>
       </div>
       <!-- نهاية حاوية الطي (attendanceExpandableContent) -->
 

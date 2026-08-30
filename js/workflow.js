@@ -357,24 +357,22 @@ function buildChartDataset(tickets, range, lang) {
   }
 
   if (range === 'monthly') {
-    // توزيع أعطال الشهر الحالي على أسابيعه (حتى 5 أسابيع حسب طول الشهر)
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const weeksCount = Math.ceil(daysInMonth / 7);
-
-    const labels = Array.from({ length: weeksCount }, (_, i) => `${t.chartWeekShort} ${i + 1}`);
-    const open = new Array(weeksCount).fill(0);
-    const closed = new Array(weeksCount).fill(0);
+    // توزيع أعطال السنة الحالية على مدار أشهر السنة الـ 12 (يناير → ديسمبر)
+    const currentYear = now.getFullYear();
+    const labels = t.months || ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    const open = new Array(12).fill(0);
+    const closed = new Array(12).fill(0);
 
     tickets.forEach(ticket => {
       const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
       if (!created || isNaN(created)) return;
-      if (created.getFullYear() !== year || created.getMonth() !== month) return;
+      if (created.getFullYear() !== currentYear) return;
 
-      const weekIndex = Math.min(weeksCount - 1, Math.floor((created.getDate() - 1) / 7));
-      if (isClosedStatus(ticket.status)) closed[weekIndex]++;
-      else open[weekIndex]++;
+      const monthIndex = created.getMonth(); // 0 = يناير ... 11 = ديسمبر
+      if (monthIndex >= 0 && monthIndex < 12) {
+        if (isClosedStatus(ticket.status)) closed[monthIndex]++;
+        else open[monthIndex]++;
+      }
     });
 
     return { labels, open, closed };
@@ -560,7 +558,15 @@ export function renderMainChart(range = currentChartRange, tickets = lastTickets
         tooltip: { rtl: isRtl, textDirection: isRtl ? 'rtl' : 'ltr' }
       },
       scales: {
-        x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(51, 65, 85, 0.2)' } },
+        x: {
+          ticks: {
+            color: '#9CA3AF',
+            font: { size: 9 },
+            maxRotation: 45,
+            autoSkip: true
+          },
+          grid: { color: 'rgba(51, 65, 85, 0.2)' }
+        },
         y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' }, beginAtZero: true }
       }
     }

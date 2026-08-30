@@ -389,9 +389,10 @@ export const translations = {
       topTech: "أفضل فني",
       noData: "لا توجد بيانات",
 
-      // إضافة: أسماء أيام الأسبوع لعناوين الرسم البياني في الرئيسية
-      // (كانت ثابتة بالعربي جوه workflow.js - initMainChart)
+      // إضافة: أسماء أيام الأسبوع والشهور لعناوين الرسم البياني في الرئيسية
       weekdays: ["السبت", "الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"],
+      months: ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"],
+      chartWeekShort: "أسبوع",
 
       quickAccess: "الوصول السريع",
       reportIssue: "إبلاغ عن عطل",
@@ -1052,9 +1053,10 @@ export const translations = {
       topTech: "Top Technician",
       noData: "No data",
 
-      // Weekday labels for the home dashboard chart (previously
-      // hardcoded in Arabic inside workflow.js - initMainChart)
+      // Weekday and Month labels for the home dashboard chart
       weekdays: ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"],
+      months: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+      chartWeekShort: "Week",
 
       quickAccess: "Quick Access",
       reportIssue: "Report Breakdown",

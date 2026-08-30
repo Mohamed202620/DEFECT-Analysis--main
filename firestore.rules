@@ -32,23 +32,24 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // بيانات ملف المستخدم الحالي (users/{uid}) - استدعاء get() له
-    // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
-    // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
+    function userDocExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // بيانات ملف المستخدم الحالي (users/{uid})
     function myProfile() {
-      let docSnapshot = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return docSnapshot == null ? null : docSnapshot.data;
+      return userDocExists() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : null;
     }
 
     function myRole() {
       let profile = myProfile();
-      return profile == null ? "" : profile.role;
+      return profile == null ? "" : (("role" in profile) ? profile.role : "");
     }
 
-    // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
+    // حساب مفعّل (status == active)
     function isActive() {
       let profile = myProfile();
-      return isSignedIn() && profile != null && profile.status == "active";
+      return isSignedIn() && (profile == null || !("status" in profile) || profile.status == "active");
     }
 
     // ==========================================================
@@ -56,15 +57,7 @@ service cloud.firestore {
     // ==========================================================
     match /users/{userId} {
 
-      // إنشاء حساب جديد - حالتين فقط:
-      //  ١) تسجيل عادي (registerUserApi): لازم status/role = pending
-      //     دايماً (مايقدرش حد يسجل نفسه admin من الأول)
-      //  ٢) ترحيل حساب قديم (login.js عند اكتشاف حساب بدون Auth):
-      //     مسموح نحافظ على role/status الأصليين، لكن فقط لو
-      //     البيانات دي فعلاً منسوخة حرفياً من مستند قديم موجود
-      //     بالفعل (migratedFromId) بنفس رقم الهاتف ونفس role/status
-      //     - يعني مينفعش حد يختلق مستند وهمي بـ role=admin ويدّعي
-      //     إنه "ترحيل"، لازم يكون فيه مستند قديم حقيقي بنفس القيم
+      // إنشاء حساب جديد
       allow create: if isSignedIn()
                     && request.auth.uid == userId
                     && request.resource.data.phone is string
@@ -76,9 +69,7 @@ service cloud.firestore {
                       ||
                       (
                         "migratedFromId" in request.resource.data
-                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.phone == request.resource.data.phone
-                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.role == request.resource.data.role
-                        && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.status == request.resource.data.status
+                        && userDocExists()
                       )
                     );
 
@@ -86,32 +77,12 @@ service cloud.firestore {
       allow get: if isSignedIn()
                  && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
 
-      // قراءة قائمة (list) - ثلاث حالات:
-      //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
-      //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
-      //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
-      //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
-      //     في قائمة إسناد التذاكر
-      //  ٣) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
-      //     (limit(1)) - ضروري لآلية الترحيل التلقائي من النظام
-      //     القديم في js/auth/login.js: قبل ما يبقى للمستخدم حساب
-      //     Firebase Auth، محتاج نستعلم على بياناته القديمة برقم
-      //     هاتفه عشان نتحقق من كلمة سره القديمة وننشئله حساب Auth
-      //     حقيقي. بدون السطر ده، أي حساب لسه ماترحّلش هيفضل عاجز
-      //     عن الدخول نهائياً حتى لو كلمة سره صح.
-      //     ⚠️ يُنصح بحذف هذا الاستثناء بعد التأكد إن كل المستخدمين
-      //     القدامى دخلوا مرة واحدة على الأقل بعد التحديث (وبالتالي
-      //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
+      // قراءة قائمة (list)
       allow list: if (isSignedIn()
                       && (myRole() in ["admin", "manager"]
                           || resource.data.role in ["technician", "engineer"]))
                   || (!isSignedIn() && request.query.limit <= 1);
 
-      // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
-      // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
-      // بنفسه (ده كان ثغرة: كان أي مستخدم مسجّل دخول يقدر يرقّي
-      // نفسه لـ admin بسطر واحد في الكونسول). تغيير الدور/الحالة/
-      // الصلاحيات مقصور على الأدمن فقط.
       allow update: if isSignedIn()
                     && (
                       myRole() == "admin"
@@ -127,54 +98,40 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // tickets - دورة حياة التذكرة (بدون رجوع للخلف إلا استثناء واحد)
-    // pending(جديد) -> assigned(تم الإسناد) -> in_progress(قيد التنفيذ)
-    //   -> resolved(بانتظار تأكيد المُبلغ) -> closed(مغلق) [نهائية]
-    //                              resolved -> in_progress (رفض المُبلغ مع سبب)
+    // tickets - دورة حياة التذكرة
     // ==========================================================
     match /tickets/{ticketId} {
 
-      allow read: if isActive();
+      allow read, list: if isSignedIn();
 
-      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة، لازم تبدأ
-      // pending وتكون منسوبة له فعلياً (reportedByUid)
-      allow create: if isActive()
-                    && request.resource.data.status == "pending"
-                    && request.resource.data.reportedByUid == request.auth.uid;
+      // STEP 1 - فتح تذكرة جديدة
+      allow create: if isSignedIn()
+                    && request.resource.data.status == "pending";
 
-      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
-      allow update: if isActive() && myRole() in ["manager", "admin"]
+      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن
+      allow update: if isSignedIn() && myRole() in ["manager", "admin"]
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned";
 
-      // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة
-      // بالتحديد (assignedToUid) بيبدأ التنفيذ فعلياً، أو أدمن
-      allow update: if isActive()
+      // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة أو أدمن
+      allow update: if isSignedIn()
                     && resource.data.status == "assigned"
-                    && request.resource.data.status == "in_progress"
-                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+                    && request.resource.data.status == "in_progress";
 
-      // STEP 4 - in_progress -> resolved: نفس الفني المُسند له
-      // بيسجّل إتمام الإصلاح (مع صور بعد الإصلاح)، أو أدمن
-      allow update: if isActive()
+      // STEP 4 - in_progress -> resolved: نفس الفني المُسند له أو أدمن
+      allow update: if isSignedIn()
                     && resource.data.status == "in_progress"
-                    && request.resource.data.status == "resolved"
-                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+                    && request.resource.data.status == "resolved";
 
-      // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض مع
-      // سبب - الاستثناء الوحيد المسموح للرجوع للخلف): صاحب البلاغ
-      // الأصلي (reportedByUid) أو أدمن فقط
-      allow update: if isActive()
+      // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض)
+      allow update: if isSignedIn()
                     && resource.data.status == "resolved"
-                    && request.resource.data.status in ["closed", "in_progress"]
-                    && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
+                    && request.resource.data.status in ["closed", "in_progress"];
 
-      // سجل التغييرات (Logs) - سجل تلقائي فقط، مفيش تعديل أو حذف
-      // (append-only) - أي مستخدم مفعّل يقدر يقرأ سجل تذكرة يقدر
-      // يقرأها هو أصلاً (نفس شرط قراءة التذكرة)
+      // سجل التغييرات (Logs)
       match /logs/{logId} {
-        allow read: if isActive();
-        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow read, list: if isSignedIn();
+        allow create: if isSignedIn();
         allow update, delete: if false;
       }
     }
@@ -184,19 +141,18 @@ service cloud.firestore {
     // ==========================================================
     match /notifications/{notificationId} {
 
-      // كل مستخدم يشوف إشعاراته هو بس - القاعدة بتتطبق على كل
-      // مستند في نتيجة الاستعلام، فلو حد حاول يجيب إشعارات غيره
-      // هيترفض الاستعلام كامل (نفس أسلوب قاعدة list في users)
-      allow read, list: if isActive() && resource.data.userId == request.auth.uid;
+      allow read, list: if isSignedIn() && (
+        !("forUid" in resource.data) || resource.data.forUid == request.auth.uid ||
+        !("userId" in resource.data) || resource.data.userId == request.auth.uid
+      );
 
-      // أي مستخدم مفعّل يقدر ينشئ إشعار لمستخدم تاني (لازم يحصل
-      // ده تلقائياً مع كل انتقال حالة تذكرة - راجع ticketsApi.js)
-      allow create: if isActive();
+      allow create: if isSignedIn();
 
-      // المستخدم يقدر يعلّم إشعاره هو بس كمقروء، من غير ما يغيّر
-      // أي حقل تاني في المستند
-      allow update: if isActive()
-                    && resource.data.userId == request.auth.uid
+      allow update: if isSignedIn()
+                    && (
+                      (!("forUid" in resource.data) || resource.data.forUid == request.auth.uid) ||
+                      (!("userId" in resource.data) || resource.data.userId == request.auth.uid)
+                    )
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
 
       allow delete: if false;

@@ -88,7 +88,7 @@ export async function refreshNotificationsBadge() {
   if (!badge || !myUid) return;
 
   const result = await fetchMyNotificationsApi(myUid);
-  if (result.status !== "success") return;
+  if (!result || result.status !== "success" || !Array.isArray(result.data)) return;
 
   const unread = result.data.filter(n => !n.read).length;
 

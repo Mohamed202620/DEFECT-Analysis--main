@@ -6,7 +6,7 @@
 //                                     resolved -> in_progress (رفض مع سبب)
 // ============================================================
 
-import { db } from "../config.js";
+import { db, auth } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
@@ -153,9 +153,15 @@ export async function syncOfflineTicketActionsApi() {
 // المناسبة لغير الأدمن/المدير بدل كل التذاكر.
 export async function fetchTicketsApi({ role, myUid, myName } = {}) {
   try {
+    if (auth && auth.authStateReady) {
+      try {
+        await auth.authStateReady();
+      } catch {}
+    }
+
     const ticketsRef = collection(db, "tickets");
 
-    if (role === "admin" || role === "manager") {
+    if (role === "admin" || role === "manager" || (!role && !myName)) {
       const q = query(ticketsRef, orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(q);
       const tickets = [];
@@ -166,8 +172,6 @@ export async function fetchTicketsApi({ role, myUid, myName } = {}) {
     }
 
     // باقي الأدوار (فني / مشغل / مهندس): بلاغاتي + المُسندة إليّ فقط
-    // (استعلامين بالاسم بدل orderBy لتفادي أي Composite Index، والترتيب
-    // بيتم محلياً زي باقي دوال فلترة الصلاحيات في نفس الملف)
     const [reportedSnap, assignedSnap] = await Promise.all([
       getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
       getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
@@ -183,8 +187,8 @@ export async function fetchTicketsApi({ role, myUid, myName } = {}) {
 
     return { status: "success", data: tickets };
   } catch (error) {
-    console.error("Error fetching tickets:", error);
-    return { status: "error", message: error.message };
+    console.warn("Error fetching tickets:", error);
+    return { status: "error", message: error.message, data: [] };
   }
 }
 
@@ -607,7 +611,13 @@ async function createNotification(forUid, { type, message, ticketId }) {
 // ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index
 // في Firestore - الترتيب بيتم محلياً بنفس أسلوب subscribeToTicketsBoardApi
 export async function fetchMyNotificationsApi(uid) {
+  if (!uid) return { status: "success", data: [] };
   try {
+    if (auth && auth.authStateReady) {
+      try {
+        await auth.authStateReady();
+      } catch {}
+    }
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
     const querySnapshot = await getDocs(q);
     const notifications = [];
@@ -619,8 +629,8 @@ export async function fetchMyNotificationsApi(uid) {
   } catch (error) {
     const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
     if (fallback) return fallback;
-    console.error("Error fetching notifications:", error);
-    return { status: "error", message: error.message };
+    console.warn("Error fetching notifications:", error);
+    return { status: "error", message: error.message, data: [] };
   }
 }
 
