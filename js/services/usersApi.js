@@ -18,6 +18,7 @@ import {
   deleteUser,
   collection,
   getDocs,
+  getDoc,
   addDoc,
   doc,
   setDoc,
@@ -26,6 +27,27 @@ import {
   query,
   where
 } from "../firebase.js";
+
+// إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
+// قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
+// بشكل ثابت، بغض النظر عن "الوظيفة" اللي اختارها المستخدم في فورم
+// التسجيل (regJob في registerView.js). دلوقتي بيتحدد حسب الوظيفة
+// المُختارة فعلاً - الصلاحيات (permissions) تفضل كما هي
+// (DEFAULT_USER_PERMISSIONS) في كل الحالات؛ الأدمن لسه قادر يعدّل
+// الدور/الصلاحيات يدوياً بعد القبول لو محتاج (updatePermissionsApi)
+const JOB_TO_ROLE = {
+  technician: "technician",
+  operator: "operator",
+  maintainer: "technician",
+  "group leader": "manager",
+  supervisor: "manager",
+  manager: "manager"
+};
+
+function roleFromJob(job) {
+  const key = String(job || "").trim().toLowerCase();
+  return JOB_TO_ROLE[key] || "technician";
+}
 
 
 // ============================================================
@@ -512,8 +534,13 @@ export async function updateUserStatusApi(
 
     if (status === "active") {
 
+      // إصلاح: الدور بيتحدد حسب "الوظيفة" اللي اختارها المستخدم في
+      // فورم التسجيل (job) بدل ما يبقى "technician" ثابتة للجميع
+      const userSnap = await getDoc(userRef);
+      const job = userSnap.exists() ? userSnap.data().job : "";
+
       updateData.role =
-    "technician"; 
+        roleFromJob(job);
 
 
       // استخدام الصلاحيات الموحدة
