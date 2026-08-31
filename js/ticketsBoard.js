@@ -916,13 +916,17 @@ window.generateMonthlyReport = async function () {
     });
     
     if (result.status !== "success") {
-      alert(tr.reportGenerateError);
+      // إصلاح: كان بيستخدم متغير "tr" غير معرّف في هذا الـ scope
+      // (بيرمي ReferenceError يتلقطه الـ catch ويظهر الرسالة العامة
+      // genericActionError بدل الرسالة الصحيحة هنا) - الصح هو t()
+      // زي باقي الدالة بالظبط
+      alert(t().reportGenerateError);
       return;
     }
     
     const tickets = result.data;
     if (!tickets.length) {
-      alert(tr.reportNoData);
+      alert(t().reportNoData);
       return;
     }
     
