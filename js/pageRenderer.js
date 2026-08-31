@@ -33,6 +33,7 @@ import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
 import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView, UsersManagementView } from './views/RequestsView.js';
+import { MachinesView } from './views/MachinesView.js';
 import { StatsView } from './views/StatsView.js';
 
 // ============================================================
@@ -261,6 +262,22 @@ case 'requests':
   return hasPermission("requests")  
     ? RequestsView()  
     : unauthorizedPage("requests");  
+
+
+// ========================================================  
+// MACHINES (إدارة أنواع الماكينات)
+// ========================================================  
+// إصلاح (بند 1): كانت هذه الصفحة غير موجودة أصلاً في الراوتر، فأي
+// ضغطة على زرار "الماكينات" في صفحة النظام كانت بتوصل لشاشة "قيد
+// التطوير" رغم إن وصف الزرار بيوعد بـ"إدارة المعدات". دلوقتي بقت
+// صفحة كاملة (راجع views/MachinesView.js) لإضافة/تعديل/تعطيل/حذف
+// أنواع الماكينات المستخدمة في كل فورمات التطبيق.
+
+case 'machines':  
+
+  return hasPermission("machines")  
+    ? MachinesView()  
+    : unauthorizedPage("machines");  
 
 
 case 'system':  

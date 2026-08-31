@@ -15,6 +15,14 @@ import { initMaintenanceSearchView } from './maintenanceSearch.js';
 import { refreshAttendanceCard } from './attendanceCard.js';
 import './holidaysManagement.js';
 import { auth } from './config.js';
+import { loadMachineTypesFromFirestore } from './machines.js';
+
+// تحميل قائمة أنواع الماكينات من Firestore مرة واحدة عند إقلاع
+// التطبيق (بدون انتظار/await عمداً - الكاش المحلي في machines.js
+// بيبدأ بالقائمة الافتراضية أصلاً، فأي Dropdown بيترسم قبل ما
+// الطلب يخلص يفضل شغال طبيعي، وبعد اكتمال الطلب كل الفورمات
+// المفتوحة بعد كده بتاخد القائمة المحدثة من Firestore تلقائياً)
+loadMachineTypesFromFirestore();
 
 export let currentPage = 'login';
 
@@ -369,6 +377,25 @@ if (currentPage === "settings") {
     if (typeof window.loadHolidays === "function") {  
 
       window.loadHolidays();  
+
+    }  
+
+  }, 100);  
+
+}
+
+
+// ========================================================  
+// MACHINES AUTO LOAD (إدارة أنواع الماكينات)
+// ========================================================  
+
+if (currentPage === "machines") {  
+
+  setTimeout(() => {  
+
+    if (typeof window.loadMachinesAdmin === "function") {  
+
+      window.loadMachinesAdmin();  
 
     }  
 

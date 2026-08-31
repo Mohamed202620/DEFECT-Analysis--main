@@ -92,26 +92,24 @@ function extractErrorCode(rawText) {
 // قوائم الخطوط والماكينات - مطابقة لنفس القوائم المستخدمة في
 // باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق
 // ============================================================
+//
+// إصلاح (بند 1 - توحيد شامل): كانت هذه القائمة نسخة مكررة يدوياً من
+// machines.js (وكانت فعلياً ناقصة نوع "STRAP" منها - دليل عملي على
+// خطر تكرار نفس البيانات في أكتر من مكان). دلوقتي بقت مُشتقّة مباشرة
+// من نفس المصدر الموحّد (machines.js -> Firestore)، فأي تعديل يعمله
+// الأدمن من صفحة "إدارة الماكينات" بينعكس هنا تلقائياً كمان.
+//
+// getErrorScannerMachineOptions() دالة (مش قيمة ثابتة) عشان تفضل
+// دايماً بتاخد أحدث نسخة من الكاش وقت الاستدعاء الفعلي (راجع
+// ErrorScannerView.js) حتى لو الكاش اتحدّث بعد أول تحميل للصفحة
+
+import { getMachineTypeEntries } from './machines.js';
 
 export const LINE_OPTIONS = ['Line 1', 'Line 2'];
 
-export const MACHINE_OPTIONS = [
-  'Coil Handling',
-  'Baler',
-  'Cupper',
-  'Bodymaker',
-  'Trimmer',
-  'Washer',
-  'Decorator',
-  'Spray',
-  'IBO',
-  'Necker',
-  'Palletizer',
-  'Depalletizer',
-  'Front End Line Control',
-  'Mid Line Control',
-  'Back End Line Control'
-];
+export function getErrorScannerMachineOptions() {
+  return getMachineTypeEntries({ includeInactive: false }).map(m => m.key);
+}
 
 function buildOptions(list, selected) {
   return `<option value="" disabled ${selected ? '' : 'selected'}>${t().selectPlaceholder}</option>` +
@@ -448,7 +446,7 @@ function renderNotFound(code) {
       <div>
         <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.machineLabelOnly}</label>
         <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
-          ${buildOptions(MACHINE_OPTIONS)}
+          ${buildOptions(getErrorScannerMachineOptions())}
         </select>
       </div>
 
