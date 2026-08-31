@@ -673,7 +673,7 @@ function updateChartRangeButtons(activeRange) {
     btn.classList.toggle('bg-blue-600', isActive);
     btn.classList.toggle('text-white', isActive);
     btn.classList.toggle('shadow-sm', isActive);
-    btn.classList.toggle('dyn-text-muted', !isActive);
+    btn.classList.toggle('text-slate-300', !isActive);
     btn.classList.toggle('opacity-60', !isActive);
   });
 }
@@ -689,7 +689,7 @@ function updateChartTypeButtons(activeType) {
     btn.classList.toggle('bg-blue-600', isActive);
     btn.classList.toggle('text-white', isActive);
     btn.classList.toggle('shadow-sm', isActive);
-    btn.classList.toggle('dyn-text-muted', !isActive);
+    btn.classList.toggle('text-slate-300', !isActive);
     btn.classList.toggle('opacity-60', !isActive);
   });
 }
