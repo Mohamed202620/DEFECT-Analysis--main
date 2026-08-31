@@ -1,5 +1,5 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v4.3';
+const CACHE_NAME = 'maint-system-v4.4';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -41,12 +41,18 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
 
-  // نكيّش طلبات GET بس (ملفات الواجهة: HTML/JS/CSS/الصور).
+  // نكيّش طلبات GET بس لملفات الواجهة المحلية (HTML/JS/CSS/الصور)
   if (req.method !== 'GET') {
-    return; // سيب الطلب يمشي للشبكة عادي من غير أي تدخل من الـ SW
+    return;
   }
 
   const url = new URL(req.url);
+
+  // هام جداً: تجاهل أي طلب خارجي (Firebase Firestore, Auth, Storage, ImgBB, Google APIs...)
+  // لكي لا يتدخل Service Worker في اتصالات قواعد البيانات والاستعلامات الحية
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
   // لملفات الجافاسكريبت والـ HTML نستخدم Network-First لضمان أحدث كود دائماً
   if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.includes('/js/')) {

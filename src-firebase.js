@@ -31,7 +31,8 @@ export {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  deleteUser
+  deleteUser,
+  onAuthStateChanged
 } from 'firebase/auth';
 
 export {

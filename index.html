@@ -291,65 +291,79 @@
   <script type="module">
     import { refreshHeader } from './js/branding.js';
     import { navigateTo, currentPage, render } from './js/router.js';
+    import { auth, ensureAuthReady } from './js/config.js';
 
-    // بناء الهيدر فور تحميل الصفحة
-    try {
-      refreshHeader();
-    } catch (e) {
-      console.warn("Could not render header automatically:", String(e?.message || e));
-    }
+    async function initApp() {
+      // بناء الهيدر فور تحميل الصفحة
+      try {
+        refreshHeader();
+      } catch (e) {
+        console.warn("Could not render header automatically:", String(e?.message || e));
+      }
 
-    try {
-      const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
-      const initialHash = window.location.hash.replace("#", "");
+      try {
+        const savedPhone = localStorage.getItem("phone");
+        const savedUid = localStorage.getItem("userId");
+        const initialHash = window.location.hash.replace("#", "");
 
-      let targetPage = "login";
+        let targetPage = "login";
 
-      if (!isLoggedIn) {
-        targetPage = (initialHash === "register") ? "register" : "login";
-      } else {
-        if (initialHash && initialHash !== "login" && initialHash !== "register") {
-          targetPage = initialHash;
+        if (!savedPhone && !savedUid) {
+          targetPage = (initialHash === "register") ? "register" : "login";
         } else {
-          targetPage = localStorage.getItem('lastPage') || 'home';
+          // انتظار استعادة جلسة Firebase Auth لضمان إرسال رمز المصادقة الصالح مع جميع استعلامات Firestore
+          const authUser = await ensureAuthReady();
+
+          if (authUser) {
+            if (initialHash && initialHash !== "login" && initialHash !== "register") {
+              targetPage = initialHash;
+            } else {
+              targetPage = localStorage.getItem('lastPage') || 'home';
+            }
+          } else {
+            // الجلسة غير متزامنة مع Firebase Auth - توجيه لصفحة تسجيل الدخول لتوثيق الجلسة
+            targetPage = (initialHash === "register") ? "register" : "login";
+          }
+        }
+
+        if (typeof navigateTo === 'function') {
+          navigateTo(targetPage, false);
+        } else if (typeof window.navigateTo === 'function') {
+          window.navigateTo(targetPage, false);
+        }
+
+        if (typeof window.hideSplash === 'function') {
+          window.hideSplash();
+        }
+      } catch (err) {
+        const errorMsg = String(err?.message || err || 'Unknown initialization error');
+        console.error("Router error: " + errorMsg);
+        if (typeof window.hideSplash === 'function') {
+          window.hideSplash();
+        }
+
+        const appDiv = document.getElementById("app");
+        if (appDiv) {
+          appDiv.innerHTML = `
+          <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+              <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
+                  <h3 class="text-base font-bold text-red-400 mb-2">
+                      ⚠️ تعذر تحميل التطبيق
+                  </h3>
+                  <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
+                      ${errorMsg}
+                  </p>
+                  <p class="text-[11px] text-gray-400 mt-3">
+                      اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
+                  </p>
+              </div>
+          </div>
+          `;
         }
       }
-
-      if (typeof navigateTo === 'function') {
-        navigateTo(targetPage, false);
-      } else if (typeof window.navigateTo === 'function') {
-        window.navigateTo(targetPage, false);
-      }
-
-      if (typeof window.hideSplash === 'function') {
-        window.hideSplash();
-      }
-    } catch (err) {
-      const errorMsg = String(err?.message || err || 'Unknown initialization error');
-      console.error("Router error: " + errorMsg);
-      if (typeof window.hideSplash === 'function') {
-        window.hideSplash();
-      }
-
-      const appDiv = document.getElementById("app");
-      if (appDiv) {
-        appDiv.innerHTML = `
-        <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
-            <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
-                <h3 class="text-base font-bold text-red-400 mb-2">
-                    ⚠️ تعذر تحميل التطبيق
-                </h3>
-                <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-                    ${errorMsg}
-                </p>
-                <p class="text-[11px] text-gray-400 mt-3">
-                    اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
-                </p>
-            </div>
-        </div>
-        `;
-      }
     }
+
+    initApp();
   </script>
 </body>
 </html>

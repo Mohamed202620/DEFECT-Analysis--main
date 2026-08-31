@@ -11,7 +11,8 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
   getStorage,
-  getAuth
+  getAuth,
+  onAuthStateChanged
 } from "./firebase.js";
 
 
@@ -183,6 +184,22 @@ export const storage =
 
 export const auth =
   getAuth(app);
+
+/**
+ * دالة للتأكد من استعادة جلسة تسجيل الدخول من Firebase Auth قبل تنفيذ أي استعلام
+ */
+export function ensureAuthReady() {
+  return new Promise((resolve) => {
+    if (auth && typeof auth.authStateReady === "function") {
+      auth.authStateReady().then(() => resolve(auth.currentUser)).catch(() => resolve(auth.currentUser));
+    } else {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (typeof unsubscribe === "function") unsubscribe();
+        resolve(user);
+      }, () => resolve(null));
+    }
+  });
+}
 
 
 // ============================================================

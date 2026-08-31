@@ -6,7 +6,7 @@
 //                                     resolved -> in_progress (رفض مع سبب)
 // ============================================================
 
-import { db } from "../config.js";
+import { db, ensureAuthReady } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
@@ -170,6 +170,7 @@ export async function syncOfflineTicketActionsApi() {
 // المناسبة لغير الأدمن/المدير بدل كل التذاكر.
 export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
   try {
+    await ensureAuthReady();
     const ticketsRef = collection(db, "tickets");
     const clauses = [orderBy("createdAt", "desc")];
     if (maxCount) clauses.push(limit(maxCount));
