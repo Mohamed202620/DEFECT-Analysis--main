@@ -545,21 +545,8 @@ export async function loadDashboardStats() {
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
-  const isAdminOrManager = role === "admin" || role === "manager";
 
-  // إضافة (تحسين الأداء - Aggregation Queries): للأدمن/المدير، أرقام
-  // الكروت الرئيسية (مفتوحة/تم إصلاحها/اليوم/الإجمالي) بتتحسب بدقة
-  // كاملة عبر استعلامات عدّ مباشرة (fetchTicketCountsApi) بدل تحميل
-  // كل تذكرة - سريعة وثابتة التكلفة تقريباً مهما كبر حجم البيانات.
-  // بالتوازي، بنجيب عيّنة محدودة (Bounded) من أحدث 500 تذكرة بس
-  // (maxCount) لحساب الرسم البياني + MTTR + أكثر ماكينة/فني + بلاغات
-  // متأخرة (راجع التعليق في fetchTicketCountsApi لسبب هذا الفصل).
-  // لغير الأدمن/المدير: مفيش أي تغيير - نفس الجلب الكامل زي الأول
-  // (حجم بياناتهم أصلاً محدود ومربوط بحسابهم الشخصي بس)
-  const [countsResult, sampleResult] = await Promise.all([
-    isAdminOrManager ? fetchTicketCountsApi() : Promise.resolve(null),
-    fetchTicketsApi({ role, myUid, myName, maxCount: isAdminOrManager ? 500 : undefined })
-  ]);
+  const sampleResult = await fetchTicketsApi({ maxCount: 500 });
 
   if (!sampleResult || sampleResult.status !== 'success') return;
 
@@ -567,54 +554,38 @@ export async function loadDashboardStats() {
 
   const todayStr = new Date().toDateString();
 
-  // أرقام "احتياطية" محسوبة من العيّنة المحدودة - بتُستخدم بس لو
-  // استعلامات العدّ فشلت لأي سبب (مثلاً مشكلة شبكة)، أو للأدوار
-  // التانية اللي أصلاً مفيهاش استعلام عدّ منفصل
-  let openSample = 0;
-  let closedSample = 0;
-  let todaySample = 0;
+  let open = 0;
+  let closed = 0;
+  let today = 0;
   let overdue = 0;
 
   tickets.forEach(ticket => {
     if (isClosedStatus(ticket.status)) {
-      closedSample++;
+      closed++;
     } else {
-      openSample++;
+      open++;
     }
 
     const created = parseTicketDate(ticket);
     if (created && created.toDateString() === todayStr) {
-      todaySample++;
+      today++;
     }
 
-    // إضافة (تحسين Workflow - SLA بسيط): عدّ البلاغات المفتوحة اللي
-    // عدّت عليها مدة "التأخير" (isOverdueTicket في ticketStatusConstants.js)
     if (isOverdueTicket(ticket)) {
       overdue++;
     }
   });
 
-  const countsOk = countsResult && countsResult.status === "success";
-
   const stats = {
-    open: countsOk ? countsResult.data.open : openSample,
-    closed: countsOk ? countsResult.data.closed : closedSample,
-    today: countsOk ? countsResult.data.today : todaySample,
+    open,
+    closed,
+    today,
     overdue,
-    total: countsOk ? countsResult.data.total : tickets.length
+    total: tickets.length
   };
 
   window.dashboardData = stats;
 
-  // ============================================================
-  // الرسم البياني: نفس مصفوفة التذاكر اللي جاية فعلياً من Firestore
-  // (fetchTicketsApi فوق) بتتخزّن وتتبعت للرسم البياني عشان يتحدّث
-  // بالفلتر الزمني الحالي (يومي/أسبوعي/شهري) من غير أي طلب إضافي.
-  // للأدمن/المدير: دي عيّنة أحدث 500 تذكرة بس (maxCount فوق) مش كل
-  // الأرشيف - مقبول تماماً لرسم بياني/مؤشرات تقريبية، عكس أرقام
-  // الكروت الأربعة (open/closed/today/total) اللي دقيقة 100% دايماً
-  // بفضل fetchTicketCountsApi بغض النظر عن حجم العيّنة دي
-  // ============================================================
   renderMainChart(currentChartRange, tickets);
 
   const setText = (id, value) => {

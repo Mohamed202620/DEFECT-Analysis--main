@@ -448,6 +448,10 @@ alert(
 window.loadUsers =
 async function () {
 
+if (typeof window.loadUsersManagement === "function") {
+  return window.loadUsersManagement();
+}
+
 dlog(
 "DEBUG: Load Users Started..."
 );

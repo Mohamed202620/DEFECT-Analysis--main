@@ -8,7 +8,7 @@
 
 import { db } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
-import { getCurrentRole } from "../permissions.js";
+import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
@@ -171,99 +171,82 @@ export async function syncOfflineTicketActionsApi() {
 export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
   try {
     const ticketsRef = collection(db, "tickets");
-
-    if (role === "admin" || role === "manager") {
-      // إضافة (تحسين الأداء - Aggregation Queries): maxCount اختياري -
-      // لما بيتم تمريره (زي استدعاء loadDashboardStats للرئيسية) بيحدّ
-      // عدد المستندات المقروءة فعلياً (بعد ترتيبها بالأحدث أولاً)، بدل
-      // قراءة كل تذكرة في تاريخ النظام. من غيره (الاستخدام الافتراضي،
-      // زي صفحة الإحصائيات) السلوك زي ما هو تماماً - قراءة كاملة
-      const clauses = [orderBy("createdAt", "desc")];
-      if (maxCount) clauses.push(limit(maxCount));
-      const q = query(ticketsRef, ...clauses);
-      const querySnapshot = await getDocs(q);
-      const tickets = [];
-      querySnapshot.forEach(docSnap => {
-        tickets.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      return { status: "success", data: tickets };
-    }
-
-    // باقي الأدوار (فني / مشغل / مهندس): بلاغاتي + المُسندة إليّ فقط
-    // (استعلامين بالاسم بدل orderBy لتفادي أي Composite Index، والترتيب
-    // بيتم محلياً زي باقي دوال فلترة الصلاحيات في نفس الملف)
-    const [reportedSnap, assignedSnap] = await Promise.all([
-      getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
-      getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
-    ]);
-
-    const merged = new Map();
-    reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-    assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-
-    const tickets = Array.from(merged.values()).sort(
-      (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
-    );
-
+    const clauses = [orderBy("createdAt", "desc")];
+    if (maxCount) clauses.push(limit(maxCount));
+    const q = query(ticketsRef, ...clauses);
+    const querySnapshot = await getDocs(q);
+    const tickets = [];
+    querySnapshot.forEach(docSnap => {
+      tickets.push({ id: docSnap.id, ...docSnap.data() });
+    });
     return { status: "success", data: tickets };
   } catch (error) {
-    console.error("Error fetching tickets:", error);
-    return { status: "error", message: error.message };
+    console.error("Error fetching tickets with orderBy:", error);
+    try {
+      const fallbackSnap = await getDocs(collection(db, "tickets"));
+      const tickets = [];
+      fallbackSnap.forEach(docSnap => {
+        tickets.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      if (maxCount && tickets.length > maxCount) {
+        return { status: "success", data: tickets.slice(0, maxCount) };
+      }
+      return { status: "success", data: tickets };
+    } catch (fallbackError) {
+      console.error("Error in fallback fetchTicketsApi:", fallbackError);
+      return { status: "error", message: fallbackError.message };
+    }
   }
 }
 
 // ============================================================
-// إضافة (تحسين الأداء - Aggregation Queries): حساب أرقام كروت لوحة
-// المتابعة الرئيسية (مفتوحة/تم إصلاحها/اليوم/الإجمالي) للأدمن/المدير
-// عبر استعلامات عدّ مباشرة من Firestore (getCountFromServer) بدل
-// تحميل كل مستند تذكرة بالكامل فعلياً. العدّ بيتم على السيرفر ويرجع
-// رقم واحد بس لكل استعلام - فمهما كبر عدد التذاكر (آلاف أو عشرات
-// الآلاف) التكلفة والسرعة بتفضل شبه ثابتة، عكس القراءة الكاملة القديمة.
-//
-// ملحوظة مهمة: "بلاغات متأخرة" مش موجودة هنا عمداً - حسابها الدقيق
-// بيعتمد على أولوية كل تذكرة (SLA متدرّج: High/Medium/Low/افتراضي)،
-// وده محتاج فلترة على أكتر من حقل مع بعض (status + priority +
-// createdAt) في نفس الاستعلام - يعني 4 استعلامات عدّ منفصلة (وحدة
-// لكل مستوى أولوية)، وكل واحدة هتحتاج Composite Index جديد في
-// Firestore. تفادياً لمخاطر النشر (لو الـ Index متعملش، النتيجة
-// بترجع فاضية صامتة زي ما بيحصل مع أي Composite Index ناقص في باقي
-// الملف)، "بلاغات متأخرة" + الرسم البياني + MTTR + أكثر ماكينة/فني
-// فاضلين بيتحسبوا في loadDashboardStats (workflow.js) من عينة محدودة
-// (Bounded, أحدث التذاكر) بدل استعلامات عدّ إضافية - دقة كاملة
-// مضمونة للأربع أرقام دي بس، وتقريب معقول (آخر التذاكر) للباقي
+// حساب أرقام كروت لوحة المتابعة الرئيسية (مفتوحة/تم إصلاحها/اليوم/الإجمالي)
+// بدقة وسرعة من البيانات المحدثة
 // ============================================================
-
-function getLocalDayRangeISO(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return [start.toISOString(), end.toISOString()];
-}
 
 export async function fetchTicketCountsApi() {
   try {
-    const ticketsRef = collection(db, "tickets");
-    const [todayStartISO, todayEndISO] = getLocalDayRangeISO();
+    const ticketsRes = await fetchTicketsApi();
+    if (ticketsRes.status !== "success") {
+      return ticketsRes;
+    }
+    const tickets = ticketsRes.data || [];
+    const todayStr = new Date().toDateString();
+    let open = 0;
+    let closed = 0;
+    let today = 0;
+    let overdue = 0;
 
-    const [totalSnap, openSnap, closedSnap, todaySnap] = await Promise.all([
-      getCountFromServer(query(ticketsRef)),
-      getCountFromServer(query(ticketsRef, where("status", "not-in", CLOSED_STATUSES))),
-      getCountFromServer(query(ticketsRef, where("status", "in", CLOSED_STATUSES))),
-      getCountFromServer(
-        query(ticketsRef, where("createdAt", ">=", todayStartISO), where("createdAt", "<", todayEndISO))
-      )
-    ]);
+    tickets.forEach(ticket => {
+      if (isClosedStatus(ticket.status)) {
+        closed++;
+      } else {
+        open++;
+      }
+      if (ticket.createdAt) {
+        const d = new Date(ticket.createdAt);
+        if (!isNaN(d.getTime()) && d.toDateString() === todayStr) {
+          today++;
+        }
+      }
+      if (isOverdueTicket(ticket)) {
+        overdue++;
+      }
+    });
 
     return {
       status: "success",
       data: {
-        total: totalSnap.data().count,
-        open: openSnap.data().count,
-        closed: closedSnap.data().count,
-        today: todaySnap.data().count
+        total: tickets.length,
+        open,
+        closed,
+        today,
+        overdue
       }
     };
   } catch (error) {
-    console.error("Error fetching ticket counts:", error);
+    console.error("Error calculating ticket counts:", error);
     return { status: "error", message: error.message };
   }
 }
@@ -438,22 +421,15 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
 
-    if (role === "admin" || role === "manager") {
+    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
       const clauses = statusClauses();
-      // إضافة (تحسين الأداء): لو مفيش فلتر حالة صريح (يعني clauses
-      // فاضية - حالات "all"/"today"/"overdue") بيرجع كل تذكرة اتسجلت
-      // على الإطلاق - بنحدها بآخر TICKETS_BOARD_DEFAULT_LIMIT تذكرة
-      // (الأحدث أولاً) من غير أي احتياج لـ Composite Index جديد (orderBy
-      // على حقل واحد بس، بدون أي where على status في نفس الاستعلام).
-      // لو فيه فلتر حالة صريح (pending/in_progress/closed/fixed/open...)
-      // بيفضل من غير حد لأن حجمها الطبيعي محدود أصلاً
       const q = clauses.length === 0
         ? query(ticketsRef, orderBy("createdAt", "desc"), limit(TICKETS_BOARD_DEFAULT_LIMIT))
         : query(ticketsRef, ...clauses);
-      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(admin/manager)");
+      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(general)");
     }
 
-    // الفنيين والمهندسين في الحالات العامة
+    // الفنيين والمشغلين في الحالات الخاصة بـ (بلاغاتي / المسندة إليّ)
     let reportedTickets = [];
     let assignedTickets = [];
     let reportedReady = false;
@@ -464,14 +440,9 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       const merged = new Map();
       [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
       let tickets = Array.from(merged.values());
-      // إصلاح M6: نفس فلترة "أعطال اليوم" المحلية كمان في مسار
-      // الفنيين/المهندسين (بلاغاتي + المُسندة إليّ) عشان تفضل شغالة
-      // حتى لو currentStatusFilter='today' وصل للمسار ده لأي سبب
       if (status === "today") {
         tickets = tickets.filter(isCreatedToday);
       }
-      // إضافة (تحسين Workflow - كارت "بلاغات متأخرة"): نفس المبدأ لو
-      // currentStatusFilter='overdue' وصل للمسار ده (فني/مهندس)
       if (status === "overdue") {
         tickets = tickets.filter(t => isOverdueTicket(t));
       }
@@ -482,7 +453,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     };
 
     const unsubReported = onSnapshot(
-      query(ticketsRef, where("reportedBy", "==", myName), ...statusClauses()),
+      query(ticketsRef, where("reportedBy", "==", myName || ""), ...statusClauses()),
       (snapshot) => {
         reportedTickets = [];
         snapshot.forEach(docSnap => reportedTickets.push({ id: docSnap.id, ...docSnap.data() }));
@@ -493,7 +464,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     );
 
     const unsubAssigned = onSnapshot(
-      query(ticketsRef, where("assignedTo", "==", myName), ...statusClauses()),
+      query(ticketsRef, where("assignedTo", "==", myName || ""), ...statusClauses()),
       (snapshot) => {
         assignedTickets = [];
         snapshot.forEach(docSnap => assignedTickets.push({ id: docSnap.id, ...docSnap.data() }));
@@ -516,32 +487,17 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 }
 
 // ============================================================
-// جلب تذاكر آخر N يوم لتقرير قابل للتصدير - مرة واحدة (getDocs
-// مش Realtime) وبنفس منطق فلترة الصلاحيات المُستخدم بالظبط في
-// subscribeToTicketsBoardApi (admin/manager = كل التذاكر،
-// وغيرهم = بلاغاتي + المُسندة إليّ فقط). فلترة التاريخ بتتم محلياً
-// (زي باقي الملف) لتفادي أي حاجة لـ Composite Index.
+// جلب تذاكر آخر N يوم لتقرير قابل للتصدير
 // ============================================================
 export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }) {
   try {
     const ticketsRef = collection(db, "tickets");
     let tickets = [];
 
-    if (role === "admin" || role === "manager") {
-      const snap = await getDocs(query(ticketsRef));
-      snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
-    } else {
-      const [reportedSnap, assignedSnap] = await Promise.all([
-        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
-      ]);
-      const merged = new Map();
-      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      tickets = Array.from(merged.values());
-    }
+    const snap = await getDocs(query(ticketsRef));
+    snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
 
-    const filtered = tickets.filter(t => String(t.createdAt || "") >= sinceISO);
+    const filtered = sinceISO ? tickets.filter(t => String(t.createdAt || "") >= sinceISO) : tickets;
     filtered.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
     return { status: "success", data: filtered };
