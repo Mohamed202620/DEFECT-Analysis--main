@@ -77,7 +77,26 @@ export const APP_VERSION = "1.1.0";
 export const APP_NAME =
   "MAINTENANCE & DEFECT SYSTEM";
 
-export const DEBUG = true;
+// إصلاح (أمان/خصوصية): كانت DEBUG ثابتة true دايماً، فبيانات المستخدم
+// الكاملة (الاسم/الهاتف/الدور/الصلاحيات) كانت بتتطبع في console
+// المتصفح في كل عملية دخول حتى في بيئة الإنتاج (راجع auth/login.js
+// و authHandlers.js اللي بيعتمدوا على DEBUG عشان يقرروا يطبعوا ولا
+// لأ). دلوقتي DEBUG بتتحدد ديناميكياً من الـ hostname: true بس على
+// localhost/الأجهزة المحلية ومعاينة Replit، وfalse في أي دومين إنتاج
+// تاني (Firebase Hosting أو أي دومين مخصص)
+export const DEBUG = (() => {
+  try {
+    const host = window.location.hostname;
+    return (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".replit.dev") ||
+      host.endsWith(".repl.co")
+    );
+  } catch {
+    return false;
+  }
+})();
 
 
 // ============================================================
