@@ -38,6 +38,7 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
+  fetchTicketCountsApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
@@ -48,6 +49,7 @@ export {
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
+  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,

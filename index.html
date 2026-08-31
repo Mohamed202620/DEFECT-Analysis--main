@@ -26,37 +26,16 @@
   <link rel="preload" as="image" href="assets/branding/company-banner.png">
 
   <!-- Chart.js & Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 
   <!-- jsPDF + html2canvas + html2pdf: لتصدير التقارير PDF -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
-  <!-- أداة Eruda Console للموبايل (وضع التعديل والتصحيح) -->
-  <script>
-    (function () {
-      var params = new URLSearchParams(window.location.search);
-      var wantsDebug = params.get('debug') === '1';
-
-      if (wantsDebug) {
-        localStorage.setItem('debug', 'true');
-      }
-
-      var debugEnabled = localStorage.getItem('debug') === 'true';
-
-      if (debugEnabled) {
-        var erudaScript = document.createElement('script');
-        erudaScript.src = 'https://cdn.jsdelivr.net/npm/eruda';
-        erudaScript.onload = function () {
-          if (window.eruda) window.eruda.init();
-        };
-        document.head.appendChild(erudaScript);
-      }
-    })();
-  </script>
+  
 
   <!-- سكريبت منع التذبذب في الألوان -->
   <script>
