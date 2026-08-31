@@ -1,17 +1,9 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-// (تم رفعه من v1.8 إلى v1.9 هنا: دعم اختيار/إرفاق أكثر من صورة أو
-// ملف في نفس العملية (مع إضافة لاحقة وحذف مستقل لكل عنصر) في كل
-// كروت صفحة الصيانة - issueView.js/suggestionView.js/ActionModal.js
-// + دعم تخزين وعرض الصور المتعددة (imageUrls) في ticketsApi.js/
-// suggestionsApi.js/imageUpload.js/TicketDetailsModal.js/kaizenBoard.js/
-// maintenanceSearch.js/ticketsBoard.js/workflow.js/renderCore.js -
-// رقم الكاش القديم v1.8 كان موجوداً بالفعل في الملف من قبل هذه
-// التعديلات، فلو المستخدم كان فاتح التطبيق قبل كده وعنده Service
-// Worker مثبّت بنفس الرقم v1.8، هيفضل يقرأ النسخة القديمة من هذه
-// الملفات (Stale-While-Revalidate) وميشوفش أي تغيير في الواجهة حتى
-// لو الكود اتغيّر فعلاً على السيرفر - رفع الرقم هنا يجبر المتصفح
-// يمسح الكاش القديم بالكامل)
-const CACHE_NAME = 'maint-system-v6.5'; 
+// (تم رفعه من v4.0 إلى v4.1 هنا: إضافة معالج notificationclick لدعم
+// إشعارات المتصفح (Browser Notifications) - راجع js/pushNotifications.js.
+// الضغط على أي إشعار بيقفل الإشعار، ويحاول يركّز (Focus) على تبويب
+// مفتوح بالفعل للتطبيق لو موجود، أو يفتح تبويب جديد لو مفيش)
+const CACHE_NAME = 'maint-system-v4.1';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -91,4 +83,40 @@ self.addEventListener('fetch', (e) => {
       return cachedRes || fetchPromise;
     })
   );
+});
+
+// ============================================================
+// حدث الضغط على إشعار (Notification Click) - إضافة (إشعارات
+// المتصفح): راجع js/pushNotifications.js لآلية إظهار الإشعار نفسه
+// (reg.showNotification). الضغط هنا بيقفل الإشعار، وبيحاول يركّز
+// على تبويب مفتوح بالفعل للتطبيق (Focus) بدل ما يفتح تبويب جديد
+// دايماً - ولو مفيش تبويب مفتوح، بيفتح واحد جديد على الصفحة الرئيسية
+// ============================================================
+self.addEventListener('notificationclick', (e) => {
+
+  e.notification.close();
+
+  const data = e.notification.data || {};
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsList) => {
+
+      for (const client of clientsList) {
+        if ('focus' in client) {
+          // إرسال تفاصيل الإشعار للتبويب المفتوح عشان الكود بتاع
+          // الواجهة (router.js/renderCore.js) يقرر بنفسه فتح تفاصيل
+          // التذكرة/المقترح المناسب - الـ Service Worker نفسه معندوش
+          // صلاحية التنقل جوه صفحة SPA واحدة
+          client.postMessage({ type: 'NOTIFICATION_CLICK', data });
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('./');
+      }
+
+    })
+  );
+
 });
