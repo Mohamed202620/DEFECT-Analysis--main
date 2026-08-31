@@ -8,21 +8,10 @@
 import { renderPage } from './pageRenderer.js';
 import { Sidebar } from './components/Sidebar.js';
 import { initMainChart, loadDashboardStats } from './workflow.js';
-import { loadPendingUsers, loadUsersManagement } from './views/RequestsView.js';
+import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
-import { initMaintenanceSearchView } from './maintenanceSearch.js';
-import { refreshAttendanceCard } from './attendanceCard.js';
-import './holidaysManagement.js';
-import { auth } from './config.js';
-import { loadMachineTypesFromFirestore } from './machines.js';
-
-// تحميل قائمة أنواع الماكينات من Firestore مرة واحدة عند إقلاع
-// التطبيق (بدون انتظار/await عمداً - الكاش المحلي في machines.js
-// بيبدأ بالقائمة الافتراضية أصلاً، فأي Dropdown بيترسم قبل ما
-// الطلب يخلص يفضل شغال طبيعي، وبعد اكتمال الطلب كل الفورمات
-// المفتوحة بعد كده بتاخد القائمة المحدثة من Firestore تلقائياً)
-loadMachineTypesFromFirestore();
+import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
 
 export let currentPage = 'login';
 
@@ -151,6 +140,21 @@ if (typeof window.refreshNotificationsBadge === "function") {
 }
 
 
+// ========================================================
+// NOTIFICATION PERMISSION BANNER (إشعارات المتصفح - بديل عملي
+// لـ Push الحقيقي بدون سيرفر، راجع pushNotifications.js)
+// (بيظهر بس في صفحة الرئيسية عشان ميبقاش مزعج في كل صفحة، والدالة
+// نفسها آمنة وبترجع فوراً لو الشروط (صلاحية لسه متسألتش/مش مقفول
+// قبل كده...) مش متوفرة)
+// ========================================================
+
+if (currentPage === "home" && typeof window.renderNotificationPermissionBanner === "function") {
+
+  window.renderNotificationPermissionBanner();
+
+}
+
+
 // ========================================================  
 // HOME CHART AUTO LOAD  
 // (initMainChart لم تكن تُستدعى أبداً سابقاً، لذلك كان الرسم
@@ -170,12 +174,6 @@ if (currentPage === "home") {
     if (typeof loadDashboardStats === "function") {  
 
       loadDashboardStats();  
-
-    }  
-
-    if (typeof refreshAttendanceCard === "function") {
-
-      refreshAttendanceCard();
 
     }  
 
@@ -274,7 +272,19 @@ if (currentPage === "maintenanceSearch") {
 
   setTimeout(() => {  
 
-    if (typeof initMaintenanceSearchView === "function") {  
+    // إصلاح (تحسين الأداء): لو البيانات كانت اتحمّلت قبل كده في نفس
+    // الجلسة (المستخدم فتح نفس الصفحة تاني بدون أي تغيير)، منعيدش
+    // نداء initMaintenanceSearchView() تاني (وبالتالي منعيدش جلب
+    // Firestore من الصفر) - بس بنعيد رسم نفس النتائج المحفوظة فعلاً،
+    // لأن #mResultsBox بيتبني من جديد فاضي وقت التنقل بين الصفحات.
+    // إعادة التحميل الفعلي (Force Refresh) لسه متاحة عبر زر "إعادة
+    // المحاولة" (window.retryMaintenanceSearchLoad بيصفّر isLoaded
+    // بنفسه قبل ما يستدعي initMaintenanceSearchView() من جديد)
+    const alreadyRendered =
+      typeof renderMaintenanceSearchIfLoaded === "function" &&
+      renderMaintenanceSearchIfLoaded();
+
+    if (!alreadyRendered && typeof initMaintenanceSearchView === "function") {  
 
       initMaintenanceSearchView();  
 
@@ -288,17 +298,19 @@ if (currentPage === "maintenanceSearch") {
 // ========================================================  
 // USERS AUTO LOAD  
 // ========================================================  
-// إصلاح (توحيد): صفحة "users" بقت بتستخدم نفس واجهة/منطق
-// UsersManagementView() (راجع RequestsView.js وpageRenderer.js)،
-// فبقت بتحتاج نفس التحميل التلقائي بتاع loadUsersManagement() بدل
-// window.loadUsers() القديمة (اللي كانت بترسم قائمة عرض فقط في
-// عنصر مختلف مبقاش موجود أصلاً في القالب الجديد)
 
 if (currentPage === "users") {  
 
   setTimeout(() => {  
 
-    loadUsersManagement();  
+    if (  
+      typeof window.loadUsers ===  
+      "function"  
+    ) {  
+
+      window.loadUsers();  
+
+    }  
 
   }, 100);  
 
@@ -365,44 +377,6 @@ if (
 
 }
 
-
-// ========================================================  
-// SETTINGS AUTO LOAD (الإجازات الرسمية)
-// ========================================================  
-
-if (currentPage === "settings") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadHolidays === "function") {  
-
-      window.loadHolidays();  
-
-    }  
-
-  }, 100);  
-
-}
-
-
-// ========================================================  
-// MACHINES AUTO LOAD (إدارة أنواع الماكينات)
-// ========================================================  
-
-if (currentPage === "machines") {  
-
-  setTimeout(() => {  
-
-    if (typeof window.loadMachinesAdmin === "function") {  
-
-      window.loadMachinesAdmin();  
-
-    }  
-
-  }, 100);  
-
-}
-
 }, 150);
 
 }
@@ -411,26 +385,26 @@ if (currentPage === "machines") {
 // NAVIGATION
 // ============================================================
 
-export async function navigateTo(page, addToHistory = true) {
-  if (page !== "login" && page !== "register") {
-    try {
-      if (auth.currentUser === null) {
-        await auth.authStateReady();
-        if (!auth.currentUser) {
-          console.warn("User not in Firebase Auth. Redirecting to login.");
-          localStorage.clear(); page = "login";
-        }
-      }
-    } catch (e) {
-      console.warn("Auth check failed", e);
-    }
-  }
+export function navigateTo(
+page,
+addToHistory = true
+) {
 
-  currentPage = page;
-  if (addToHistory) {
-    history.pushState({ page }, "", `#${page}`);
-  }
-  render();
+currentPage =
+page;
+
+if (addToHistory) {
+
+history.pushState(  
+  { page },  
+  "",  
+  `#${page}`  
+);
+
+}
+
+render();
+
 }
 
 window.navigateTo =

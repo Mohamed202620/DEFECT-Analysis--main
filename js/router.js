@@ -28,7 +28,6 @@ import './errorScanner.js';
 // استيراد جانبي (Side-effect) لربط دوال لوحة متابعة التذاكر بـ window
 // (window.loadTicketsBoard / window.handleTicketAction)
 import './ticketsBoard.js';
-import './ticketDetails.js';
 
 // استيراد جانبي (Side-effect) لربط دوال لوحة متابعة الكايزن بـ window
 // (window.loadKaizenBoard / window.handleKaizenAction) - منطق مستقل
@@ -38,6 +37,16 @@ import './kaizenBoard.js';
 // استيراد جانبي (Side-effect) لبانر حالة الاتصال + المزامنة
 // التلقائية عند عودة الإنترنت (Offline-First)
 import './offlineBanner.js';
+
+// استيراد جانبي (Side-effect) لإشعارات المتصفح (بديل عملي لـ Push
+// الحقيقي عبر FCM بدون سيرفر - راجع التعليق التفصيلي في الملف
+// نفسه). بيفعّل تلقائياً لو المستخدم مسجّل دخوله بالفعل (Refresh)
+import './pushNotifications.js';
+
+// استيراد جانبي (Side-effect) لبانر طلب تفعيل إشعارات المتصفح
+// (window.renderNotificationPermissionBanner - يُستدعى من renderCore.js
+// عند فتح صفحة الرئيسية فقط)
+import './notificationPermissionBanner.js';
 
 // استيراد جانبي (Side-effect) لربط window.openNotificationsModal /
 // window.refreshNotificationsBadge - إصلاح زر "الإشعارات" في
