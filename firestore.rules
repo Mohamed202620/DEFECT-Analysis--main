@@ -353,6 +353,43 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // notifications - إشعارات داخل التطبيق (راجع ticketsApi.js ->
+    // createNotification / fetchMyNotificationsApi / markNotificationReadApi)
+    // كانت واقعة تحت match /{document=**} العام تحت (allow read, write:
+    // if isActive()) - يعني أي مستخدم مفعّل يقدر تقنياً يعمل
+    // getDocs(collection(db,"notifications")) بدون where ويقرا
+    // إشعارات كل المستخدمين، رغم إن الواجهة نفسها دايماً بتستعلم
+    // بـ where("forUid","==", uid) فقط. الـ match الصريح ده بيقيّد
+    // القراءة فعلياً على مستوى القاعدة لصاحب الإشعار (forUid) أو
+    // الأدمن/المدير، ويقيّد التعديل على تحديث حقل read بس من صاحبه.
+    // ==========================================================
+    match /notifications/{notificationId} {
+
+      // قراءة (get/list): صاحب الإشعار (forUid) فقط، أو أدمن/مدير
+      // للمتابعة العامة عند الحاجة
+      allow read: if isActive()
+                  && (resource.data.forUid == request.auth.uid
+                      || myRole() in ["admin", "manager"]);
+
+      // إنشاء: أي مستخدم مفعّل يقدر يبعت إشعار لمستخدم تاني (زي
+      // إسناد تذكرة/مقترح لفني - createNotification بتتنفذ من جهاز
+      // المُسنِد مش من سيرفر خلفي)، لازم forUid ومحتوى الإشعار
+      // الأساسي موجودين
+      allow create: if isActive()
+                    && request.resource.data.forUid is string
+                    && request.resource.data.forUid.size() > 0
+                    && request.resource.data.read == false;
+
+      // تعديل: صاحب الإشعار بس، وبس حقل read (markNotificationReadApi/
+      // markAllNotificationsAsRead) - ممنوع أي تعديل تاني على المحتوى
+      allow update: if isActive()
+                    && resource.data.forUid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
+
+      allow delete: if false;
+    }
+
+    // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
     // defects ...) - أي مستخدم مفعّل (status == active) يقدر
     // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
