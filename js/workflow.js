@@ -18,7 +18,8 @@ import { isClosedStatus, isOverdueTicket, parseTicketDate } from './ticketStatus
 // مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
 // واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
 // مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
-import { initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles } from './components/attachmentPicker.js';
+import { initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles, compressImage } from './components/attachmentPicker.js';
+export { compressImage };
 
 // ==========================================
 // منطق معالجة وحفظ بلاغات الأعطال (Issue Logic)

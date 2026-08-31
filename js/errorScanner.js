@@ -10,7 +10,7 @@
 // أحداث change على document (لأن innerHTML يُعاد رسمه بالكامل عند التنقل)
 // ============================================================
 
-import { compressImage } from './workflow.js';
+import { compressImage } from './components/attachmentPicker.js';
 
 import {
   findMachineErrorByCode,
