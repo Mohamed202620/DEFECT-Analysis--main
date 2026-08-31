@@ -1154,16 +1154,24 @@ export async function reopenTicketApi(ticketId, reason) {
   }
   try {
     const ticketRef = doc(db, "tickets", ticketId);
-    
+
+    // إصلاح (تصحيح Workflow - رفض المُبلّغ): البلاغ المرفوض بيرجع
+    // مباشرة لنفس الفني المُسند إليه بحالة "reopened" (بدل "pending")
+    // عشان يكمل الشغل من غير ما يحتاج مدير/أدمن يعيد إسناده من الأول.
+    // "reopened" ده أصلاً معرّفة بالكامل في الترجمات والفلاتر
+    // (ticketStatusConstants.js, ticketsApi.js, permissions.js) لكن
+    // محدش كان بيحطها فعلياً - كانت بترجع pending دايماً
     await updateDoc(
       ticketRef,
-      stampUpdate({ status: "pending" })
+      stampUpdate({ status: "reopened" })
     );
 
     addTicketLog(ticketId, {
       action: "reopen",
-      fromStatus: "closed",
-      toStatus: "pending",
+      // إصلاح: كانت مسجلة "closed" وهو غلط - الرفض بيحصل من حالة
+      // "resolved" فعلياً (مفيش زرار رفض إلا على تذكرة resolved)
+      fromStatus: "resolved",
+      toStatus: "reopened",
       note: reason.trim()
     });
 
