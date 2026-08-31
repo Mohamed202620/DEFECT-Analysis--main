@@ -38,7 +38,6 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
-  fetchTicketCountsApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
@@ -49,7 +48,6 @@ export {
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
-  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
@@ -97,4 +95,14 @@ export {
   addOfficialHolidayApi,
   deleteOfficialHolidayApi
 } from "./holidaysApi.js";
+
+export {
+  fetchMachineTypesApi,
+  addMachineTypeApi,
+  updateMachineTypeApi,
+  setMachineTypeActiveApi,
+  deleteMachineTypeApi,
+  seedDefaultMachineTypesApi
+} from "./machinesApi.js";
+
 
