@@ -8,6 +8,7 @@
 // ============================================================
 
 import { translations } from '../config.js';
+import { getMachineTypeEntries } from '../machines.js';
 
 export const MaintenanceSearchView = () => {
   const currentLang = window.currentLang || "ar";
@@ -109,21 +110,17 @@ export const MaintenanceSearchView = () => {
       <select id="mMachineFilter" onchange="window.applyMaintenanceSearchFilters()"
         class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="all">${t.machineAll || (currentLang === 'en' ? 'All Machines' : 'جميع الماكينات')}</option>
-        <option value="Coil Handling">Coil Handling</option>
-        <option value="Baler">Baler</option>
-        <option value="Cupper">Cupper</option>
-        <option value="Bodymaker">Bodymaker</option>
-        <option value="Trimmer">Trimmer</option>
-        <option value="Washer">Washer</option>
-        <option value="Decorator">Decorator</option>
-        <option value="Spray">Spray</option>
-        <option value="IBO">IBO</option>
-        <option value="Necker">Necker</option>
-        <option value="Palletizer">Palletizer</option>
-        <option value="Depalletizer">Depalletizer</option>
-        <option value="Front End Line Control">Front End Line Control</option>
-        <option value="Mid Line Control">Mid Line Control</option>
-        <option value="Back End Line Control">Back End Line Control</option>
+        <!-- إصلاح (بند 1 - توحيد شامل): كانت هذه القائمة نسخة مكررة
+             يدوياً من machines.js وممكن تختلف عنها بمرور الوقت.
+             دلوقتي بتُبنى من نفس المصدر الموحّد. تشمل الأنواع
+             المعطّلة كمان (بعكس فورمات الإنشاء) لأن هذه شاشة بحث
+             عن بلاغات قديمة قد تكون مرتبطة بنوع اتعطّل لاحقاً -->
+        ${getMachineTypeEntries({ includeInactive: true }).map(m =>
+          `<option value="${m.key}">${m.key}${m.active === false ? " (معطّل)" : ""}</option>`
+        ).join("")}
+        <!-- قيم قديمة (Legacy) من نسخة سابقة من التطبيق قبل توحيد
+             أسماء الماكينات - أُبقيت كما هي لضمان إمكانية البحث عن
+             أي بلاغات قديمة محفوظة بنفس القيمتين بالضبط -->
         <option value="machine2">Machine 2</option>
         <option value="line1">Coating Line 1</option>
       </select>

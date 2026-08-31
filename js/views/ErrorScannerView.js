@@ -1,4 +1,4 @@
-import { MACHINE_OPTIONS } from '../errorScanner.js';
+import { getErrorScannerMachineOptions } from '../errorScanner.js';
 import { translations } from '../config.js';
 
 export const ErrorScannerView = () => {
@@ -11,7 +11,7 @@ export const ErrorScannerView = () => {
 
   const machineOptionsHtml = [
     `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>${t.selectMachine || (currentLang === 'en' ? 'Select machine type...' : 'اختر نوع الماكينة...')}</option>`,
-    ...MACHINE_OPTIONS.map((machine) =>
+    ...getErrorScannerMachineOptions().map((machine) =>
       `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
     )
   ].join('');
