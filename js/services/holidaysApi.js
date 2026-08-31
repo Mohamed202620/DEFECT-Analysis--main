@@ -25,12 +25,34 @@ import {
 // FETCH
 // ============================================================
 
+// إضافة (تحسين الأداء): تخزين مؤقت بسيط في الذاكرة لمدة الجلسة -
+// كانت fetchOfficialHolidaysApi بتتنادى بشكل مستقل من كل من
+// holidaysManagement.js (شاشة الإدارة) وattendanceCard.js (كارت
+// الحضور) في كل مرة تُعرض فيها الصفحة، رغم إن قائمة الإجازات
+// الرسمية بطيئة التغيّر جداً. الكاش بيتصفّر تلقائياً بإعادة تحميل
+// الصفحة، وبيتصفّر يدوياً بعد أي إضافة/حذف عشان الإدارة تشوف أثر
+// تعديلها فوراً من غير ما تستنى انتهاء مدة الكاش
+const HOLIDAYS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let holidaysCache = null; // { data, fetchedAt }
+
+function invalidateHolidaysCache() {
+  holidaysCache = null;
+}
+
 /**
  * جلب كل الإجازات الرسمية مرتبة تصاعدياً حسب التاريخ - تُستخدم في
  * شاشة الإدارة (settings) وفي كارت الحضور (للتحقق هل اليوم إجازة
  * رسمية أم لا)
  */
-export async function fetchOfficialHolidaysApi() {
+export async function fetchOfficialHolidaysApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    holidaysCache &&
+    (Date.now() - holidaysCache.fetchedAt) < HOLIDAYS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: holidaysCache.data };
+  }
 
   try {
 
@@ -53,6 +75,8 @@ export async function fetchOfficialHolidaysApi() {
         label: String(data.label || "").trim()
       });
     });
+
+    holidaysCache = { data: holidays, fetchedAt: Date.now() };
 
     return { status: "success", data: holidays };
 
@@ -94,6 +118,8 @@ export async function addOfficialHolidayApi(dateStr, label) {
       }
     );
 
+    invalidateHolidaysCache();
+
     return { status: "success", message: "تم إضافة الإجازة الرسمية" };
 
   } catch (error) {
@@ -123,6 +149,8 @@ export async function deleteOfficialHolidayApi(holidayId) {
     }
 
     await deleteDoc(doc(db, "officialHolidays", holidayId));
+
+    invalidateHolidaysCache();
 
     return { status: "success", message: "تم حذف الإجازة الرسمية" };
 

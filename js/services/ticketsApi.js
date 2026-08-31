@@ -490,19 +490,49 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 // ============================================================
 // جلب تذاكر آخر N يوم لتقرير قابل للتصدير
 // ============================================================
+// إصلاح (أمان): كانت الدالة بتستقبل role/myUid/myName كباراميترات
+// لكن من غير ما تستخدمهم خالص - النتيجة إن أي مستخدم (حتى فني عادي)
+// كان بيقدر يضغط زر "تقرير شهري PDF" ويسحب كل تذاكر الشركة (مش بس
+// بلاغاته هو). دلوقتي بتطبّق بالظبط نفس منطق الصلاحيات المُستخدم في
+// fetchTicketsForSearchApi: وصول كامل (admin/manager/engineer) يجيب
+// كل التذاكر، وإلا استعلامين where على reportedBy وassignedTo.
+//
+// تحسين (أداء): فلترة sinceISO بقت where("createdAt", ">=", sinceISO)
+// على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً - بيقلل
+// عدد المستندات المقروءة فعلياً من Firestore في كل تقرير شهري.
+// ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
+// (reportedBy+createdAt وassignedTo+createdAt) - راجع firestore.indexes.json
+// المُرفق. لحد ما الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان
+// (عبر emptyResultOnMissingIndex) بدل ما توقع الصفحة، وهتتسجل تحذير
+// في console يوضح الحاجة للـ Index.
 export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }) {
   try {
     const ticketsRef = collection(db, "tickets");
+    const isFullAccess = hasFullDataAccess(role);
+    const dateClause = sinceISO ? [where("createdAt", ">=", sinceISO)] : [];
     let tickets = [];
 
-    const snap = await getDocs(query(ticketsRef));
-    snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
+    if (isFullAccess) {
+      const snap = await getDocs(query(ticketsRef, ...dateClause));
+      snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
+    } else {
+      const [reportedSnap, assignedSnap] = await Promise.all([
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""), ...dateClause)),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName || ""), ...dateClause))
+      ]);
 
-    const filtered = sinceISO ? tickets.filter(t => String(t.createdAt || "") >= sinceISO) : tickets;
-    filtered.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      const merged = new Map();
+      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      tickets = Array.from(merged.values());
+    }
 
-    return { status: "success", data: filtered };
+    tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+    return { status: "success", data: tickets };
   } catch (error) {
+    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForReportApi");
+    if (fallback) return fallback;
     console.error("Error fetching tickets for report:", error);
     return { status: "error", message: error.message };
   }

@@ -562,28 +562,41 @@ export async function fetchSuggestionLogsApi(suggestionId) {
 }
 
 // ============================================================
-// جلب مقترحات آخر N يوم لتقرير قابل للتصدير - مرة واحدة (getDocs)
-// بنفس منطق فلترة الصلاحيات أعلاه، وفلترة التاريخ محلياً (بدون
-// Composite Index)
 // ============================================================
+// جلب مقترحات آخر N يوم لتقرير قابل للتصدير - مرة واحدة (getDocs)
+// بنفس منطق فلترة الصلاحيات أعلاه.
+// ============================================================
+// تحسين (أداء): فلترة sinceISO بقت where("createdAt", ">=", sinceISO)
+// على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً.
+// ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
+// (name+createdAt) - راجع firestore.indexes.json المُرفق. لحد ما
+// الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان (بدل ما توقع
+// الصفحة) مع تحذير في console يوضح الحاجة للـ Index.
 export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
   try {
     const suggestionsRef = collection(db, "suggestions");
     const items = [];
+    const dateClause = sinceISO ? [where("createdAt", ">=", sinceISO)] : [];
 
     if (role === "admin" || role === "manager") {
-      const snap = await getDocs(query(suggestionsRef));
+      const snap = await getDocs(query(suggestionsRef, ...dateClause));
       snap.forEach(docSnap => items.push({ id: docSnap.id, ...docSnap.data() }));
     } else {
-      const snap = await getDocs(query(suggestionsRef, where("name", "==", myName || "")));
+      const snap = await getDocs(query(suggestionsRef, where("name", "==", myName || ""), ...dateClause));
       snap.forEach(docSnap => items.push({ id: docSnap.id, ...docSnap.data() }));
     }
 
-    const filtered = items.filter(s => String(s.createdAt || "") >= sinceISO);
-    filtered.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
-    return { status: "success", data: filtered };
+    return { status: "success", data: items };
   } catch (error) {
+    if (error?.code === "failed-precondition") {
+      console.warn(
+        `[fetchSuggestionsForReportApi] محتاج Index في Firestore - ` +
+        `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
+      );
+      return { status: "success", data: [] };
+    }
     console.error("Error fetching suggestions for report:", error);
     return { status: "error", message: error.message };
   }

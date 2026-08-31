@@ -359,6 +359,16 @@ export async function registerUserApi(userData) {
 // TECHNICIANS (لقائمة اختيار الفني عند تصنيف/إسناد التذكرة)
 // ============================================================
 
+// إضافة (تحسين الأداء): تخزين مؤقت بسيط في الذاكرة لنتيجة
+// fetchTechniciansApi لمدة TECHNICIANS_CACHE_TTL_MS - كانت بتتنادى من
+// جديد (قراءة من Firestore) في كل مرة يتفتح فيها مودال "إسناد" أو
+// "إعادة إسناد" حتى لو نفس المستخدم فتح المودال أكتر من مرة خلال
+// دقايق قليلة. التخزين هنا لمدة الجلسة بس (متغير Module-level، بيتصفر
+// تلقائياً بإعادة تحميل الصفحة) - مفيش أي بيانات حساسة بتتخزن غير
+// اللي أصلاً بترجع من نفس الدالة
+const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let techniciansCache = null; // { data, fetchedAt }
+
 /**
  * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
  * تصنيف وإسناد التذاكر (راجع ticketsApi.js -> assignTicketApi).
@@ -366,7 +376,15 @@ export async function registerUserApi(userData) {
  * عشان يتوافق مع قاعدة الأمان الخاصة بقراءة /users كمجموعة
  * (راجع firestore.rules).
  */
-export async function fetchTechniciansApi() {
+export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    techniciansCache &&
+    (Date.now() - techniciansCache.fetchedAt) < TECHNICIANS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: techniciansCache.data };
+  }
 
   try {
 
@@ -397,6 +415,8 @@ export async function fetchTechniciansApi() {
       });
 
     });
+
+    techniciansCache = { data: technicians, fetchedAt: Date.now() };
 
     return { status: "success", data: technicians };
 
