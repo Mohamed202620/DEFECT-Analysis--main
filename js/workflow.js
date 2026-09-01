@@ -589,21 +589,6 @@ export async function loadDashboardStats() {
 
   window.dashboardData = stats;
 
-  // إصلاح (البيانات مش بتظهر في الرئيسية): renderMainChart() بتعتمد
-  // على مكتبة Chart.js الخارجية (محمّلة من CDN في index.html) - لو
-  // فشلت تتحمّل لأي سبب (شبكة بطيئة/متقطعة، حجب من فايروول شركة،
-  // Ad-blocker...) كانت بترمي استثناء هنا يوقف باقي الدالة بالكامل،
-  // فكل كارتات المؤشرات تحت (مفتوحة/مغلقة/اليوم/متأخرة/الإجمالي +
-  // MTTR/أكثر ماكينة/أفضل فني) كانت تفضل زي ما هي من غير أي تحديث -
-  // مع إن التذاكر نفسها كانت بتتجاب بنجاح من Firestore. دلوقتي فشل
-  // الرسم البياني (ميزة ثانوية بصرياً) بقى معزول ومبيمنعش تحديث باقي
-  // البيانات (الأساسية) من الظهور
-  try {
-    renderMainChart(currentChartRange, tickets);
-  } catch (chartError) {
-    console.warn("[loadDashboardStats] تعذّر رسم الرسم البياني الرئيسي:", chartError);
-  }
-
   const setText = (id, value) => {
     const node = document.getElementById(id);
     if (node) node.textContent = value;
@@ -616,12 +601,10 @@ export async function loadDashboardStats() {
   setText('statOverdueCount', stats.overdue);
 
   // ============================================================
-  // إضافة: تنبيه "بلاغ حرج" + كارتات MTTR / أكثر ماكينة عطلاً /
-  // أفضل فني في الرئيسية - كل ده من نفس مصفوفة tickets اللي
-  // اتجابت فوق بالفعل، فمفيش أي طلب إضافي لقاعدة البيانات
+  // إضافة: تنبيه "بلاغ حرج"
   // ============================================================
 
-  // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟
+  // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟ (نستخدم tickets المفلترة هنا لأنها تخص المستخدم)
   const hasCritical = tickets.some(t => {
     const isOpen = !isClosedStatus(t.status);
     return isOpen && String(t.priority || '').trim() === 'High';
@@ -632,25 +615,6 @@ export async function loadDashboardStats() {
     criticalBadge.classList.toggle('hidden', !hasCritical);
     criticalBadge.classList.toggle('flex', hasCritical);
   }
-
-  // متوسط زمن الإصلاح (MTTR) - نفس حساب statistics.js بالظبط
-  const { avgHours, sampleSize } = computeMTTR(tickets);
-  const mttrDisplay = !sampleSize
-    ? '—'
-    : avgHours < 1
-      ? `${Math.round(avgHours * 60)} د`
-      : avgHours < 24
-        ? `${avgHours.toFixed(1)} س`
-        : `${(avgHours / 24).toFixed(1)} يوم`;
-  setText('statMttrValue', mttrDisplay);
-
-  // أكثر ماكينة عطلاً (أول عنصر بس من نفس دالة statistics.js)
-  const [topMachine] = computeTopMachines(tickets, 1);
-  setText('statTopMachineName', topMachine ? `${topMachine[0]} (${topMachine[1]})` : 'لا توجد بيانات');
-
-  // أفضل فني حسب عدد البلاغات المُنجزة (أول عنصر بس)
-  const [topTech] = computeTechnicianPerformance(tickets, 1);
-  setText('statTopTechName', topTech ? `${topTech[0]} (${topTech[1]})` : 'لا توجد بيانات');
 }
 
 window.loadDashboardStats = loadDashboardStats;
