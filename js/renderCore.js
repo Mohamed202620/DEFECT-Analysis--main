@@ -7,7 +7,7 @@
 
 import { renderPage } from './pageRenderer.js';
 import { Sidebar } from './components/Sidebar.js';
-import { initMainChart, loadDashboardStats } from './workflow.js';
+import { loadDashboardStats } from './workflow.js';
 import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
@@ -167,30 +167,12 @@ if (currentPage === "home" && typeof window.renderNotificationPermissionBanner =
 
 
 // ========================================================  
-// HOME CHART AUTO LOAD  
-// (initMainChart لم تكن تُستدعى أبداً سابقاً، لذلك كان الرسم
-// البياني في الرئيسية لا يظهر أبداً)
+// HOME AUTO LOAD  
 // ========================================================  
 
 if (currentPage === "home") {  
 
   setTimeout(() => {  
-
-    // إصلاح (البيانات مش بتظهر في الرئيسية): initMainChart() كانت لو
-    // رمت استثناء (مثلاً Chart.js من الـ CDN لسه متحملتش) كانت بتمنع
-    // تنفيذ loadDashboardStats() اللي جاي بعدها في نفس الاستدعاء
-    // المتزامن - يعني كل بيانات الرئيسية (فتح/مغلق/اليوم/متأخر/
-    // الإجمالي...) كانت متتجابش أصلاً. عزل كل استدعاء في try خاص بيه
-    // عشان فشل أحدهما مايمنعش التاني
-    if (typeof initMainChart === "function") {  
-
-      try {
-        initMainChart();
-      } catch (chartError) {
-        console.warn("[HOME AUTO LOAD] تعذّر تهيئة الرسم البياني الرئيسي:", chartError);
-      }
-
-    }  
 
     if (typeof loadDashboardStats === "function") {  
 
