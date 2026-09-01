@@ -28,16 +28,6 @@ export const HomeView = () => {
     </div>
 
     <!-- ملخص العدادات الحية -->
-    <!-- إصلاح (تطابق الكارت مع التبويب اللي بيفتحه): كروت "أعطال
-         مفتوحة" و"تم إصلاحها" كانت بتبعت 'pending'/'resolved'
-         لـ openTicketsWithFilter - القيم دي بتطابق تبويب واحد بس
-         (قيد الانتظار / بانتظار تأكيد المُبلغ) فكان عدد التذاكر
-         الظاهر في اللوحة عند الضغط أقل من الرقم في الكارت (ناقص
-         assigned/in_progress/reopened للكارت الأول، وناقص closed
-         للكارت التاني). القيم الصح هي 'open'/'fixed' - ticketsBoard.js
-         و ticketsApi.js عندهم بالفعل فلترة مخصصة ليهم بالظبط بنفس
-         منطق حساب الرقم (not-in CLOSED_STATUSES / CLOSED_STATUSES)
-         كانت موجودة جاهزة بس مش مستخدمة -->
     <div class="space-y-1.5">
       <h3 class="text-[11px] font-bold dyn-text-muted opacity-80 px-0.5">${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</h3>
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -45,7 +35,7 @@ export const HomeView = () => {
       <!-- أعطال مفتوحة -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('open')"
+        onclick="window.openTicketsWithFilter('pending')"
         class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-2.5 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-amber-500"></div>
         <span class="absolute top-1.5 rtl:left-2 ltr:right-2 text-[10px] font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -67,7 +57,7 @@ export const HomeView = () => {
       <!-- تم إصلاحها -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('fixed')"
+        onclick="window.openTicketsWithFilter('resolved')"
         class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-2.5 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
         <span class="absolute top-1.5 rtl:left-2 ltr:right-2 text-[10px] font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -139,7 +129,21 @@ export const HomeView = () => {
       </div>
     </div>
 
-
+    <!-- كارتات ذكية إضافية: MTTR + أكثر ماكينة عطلاً + أفضل فني -->
+    <div class="grid grid-cols-3 gap-1.5">
+      <div class="dyn-card border p-2 rounded-lg text-center shadow-sm cursor-default">
+        <div class="text-[8.5px] dyn-text-muted opacity-70 mb-0.5 truncate">⏱️ ${t.mttr}</div>
+        <div id="statMttrValue" class="text-xs font-extrabold text-cyan-400">—</div>
+      </div>
+      <div class="dyn-card border p-2 rounded-lg text-center shadow-sm cursor-default">
+        <div class="text-[8.5px] dyn-text-muted opacity-70 mb-0.5 truncate">🏭 ${t.topMachine}</div>
+        <div id="statTopMachineName" class="text-[10px] font-bold dyn-text-muted truncate">—</div>
+      </div>
+      <div class="dyn-card border p-2 rounded-lg text-center shadow-sm cursor-default">
+        <div class="text-[8.5px] dyn-text-muted opacity-70 mb-0.5 truncate">🥇 ${t.topTech}</div>
+        <div id="statTopTechName" class="text-[10px] font-bold dyn-text-muted truncate">—</div>
+      </div>
+    </div>
 
     <!-- الوصول السريع + الوصول السريع لنظام الكايزن -->
     <div class="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-3 lg:items-start">
@@ -184,6 +188,40 @@ export const HomeView = () => {
           </div>
           <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
         </button>
+
+        ${hasPermission("kb") ? `
+        <button
+          onclick="window.navigateTo('kb')"
+          class="relative group dyn-card border border-cyan-500/30 hover:border-cyan-400/60 bg-gradient-to-br from-cyan-950/40 via-cyan-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
+          <span class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 text-cyan-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-[11px] dyn-text-muted">${t.kbQuick}</div>
+            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.kbQuickDesc}</div>
+          </div>
+          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
+        </button>
+        ` : ''}
+
+        ${hasPermission("statistics") ? `
+        <button
+          onclick="window.navigateTo('stats')"
+          class="relative group dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-950/40 via-emerald-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
+          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+            </svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-bold text-[11px] dyn-text-muted">${t.statsQuick}</div>
+            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.statsQuickDesc}</div>
+          </div>
+          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
+        </button>
+        ` : ''}
       </div>
     </div>
 
@@ -228,7 +266,103 @@ export const HomeView = () => {
 
     </div>
 
+    <!-- الرسم البياني الرئيسي -->
+    <div class="dyn-card border p-2.5 rounded-xl space-y-1.5 shadow-md shadow-black/10">
+      <div class="flex items-center justify-between gap-2 border-b pb-1" style="border-color: var(--app-border);">
+        <div class="flex items-center gap-1 min-w-0">
+          <span class="text-xs font-bold text-slate-200 truncate">${t.chartTitle}</span>
+        </div>
 
+        <div class="flex items-center gap-1 shrink-0">
+          <!-- فلتر زمني متفاعل بالرموز: يومي (1ي) / أسبوعي (7ي) / شهري (30ي) -->
+          <div id="chartRangeControl" class="flex items-center bg-slate-900/80 p-0.5 rounded-md border border-slate-800 gap-0.5">
+            <button
+              type="button"
+              data-range="daily"
+              onclick="window.setMainChartRange('daily')"
+              title="${t.chartDaily || (currentLang === 'en' ? 'Daily' : 'يومي')}"
+              class="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all active:scale-95 flex items-center gap-0.5 ${
+                (window.mainChartRange || 'weekly') === 'daily'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              <span>📅</span>
+              <span>${currentLang === 'en' ? '1D' : '1ي'}</span>
+            </button>
+            <button
+              type="button"
+              data-range="weekly"
+              onclick="window.setMainChartRange('weekly')"
+              title="${t.chartWeekly || (currentLang === 'en' ? 'Weekly' : 'أسبوعي')}"
+              class="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all active:scale-95 flex items-center gap-0.5 ${
+                (window.mainChartRange || 'weekly') === 'weekly'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              <span>🗓️</span>
+              <span>${currentLang === 'en' ? '7D' : '7ي'}</span>
+            </button>
+            <button
+              type="button"
+              data-range="monthly"
+              onclick="window.setMainChartRange('monthly')"
+              title="${t.chartMonthly || (currentLang === 'en' ? 'Monthly' : 'شهري')}"
+              class="text-[9px] px-1.5 py-0.5 rounded font-bold transition-all active:scale-95 flex items-center gap-0.5 ${
+                (window.mainChartRange || 'weekly') === 'monthly'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              <span>📆</span>
+              <span>${currentLang === 'en' ? '30D' : '30ي'}</span>
+            </button>
+          </div>
+
+          <!-- تبديل شكل عرض الرسم البياني بالرموز: خط / مساحة / أعمدة -->
+          <div id="chartTypeControl" class="flex items-center bg-slate-900/80 border border-slate-800 p-0.5 rounded-md gap-0.5">
+            <button
+              type="button"
+              data-chart-type="line"
+              onclick="window.setMainChartType('line')"
+              title="${t.chartTypeLine || (currentLang === 'en' ? 'Line' : 'خطي')}"
+              class="px-1.5 py-0.5 rounded text-[11px] leading-none transition-all active:scale-95 ${
+                (window.mainChartType || 'area') === 'line'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              📈
+            </button>
+            <button
+              type="button"
+              data-chart-type="area"
+              onclick="window.setMainChartType('area')"
+              title="${t.chartTypeArea || (currentLang === 'en' ? 'Area' : 'مساحة')}"
+              class="px-1.5 py-0.5 rounded text-[11px] leading-none transition-all active:scale-95 ${
+                (window.mainChartType || 'area') === 'area'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              🌄
+            </button>
+            <button
+              type="button"
+              data-chart-type="bar"
+              onclick="window.setMainChartType('bar')"
+              title="${t.chartTypeBar || (currentLang === 'en' ? 'Bar' : 'أعمدة')}"
+              class="px-1.5 py-0.5 rounded text-[11px] leading-none transition-all active:scale-95 ${
+                (window.mainChartType || 'area') === 'bar'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'dyn-text-muted opacity-60 hover:opacity-100'
+              }">
+              📊
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 115px;">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
 
     <!-- حقوق الملكية والتواصل عبر واتساب والوصول السريع -->
     <div class="pt-2 border-t text-center space-y-2 w-full" style="border-color: var(--app-border);">
