@@ -1,0 +1,10 @@
+{
+  "name": "MAINTENANCE & DEFECT SYSTEM",
+  "description": "Maintenance & Defect Analysis System (نظام إدارة الصيانة وتحليل العيوب)",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

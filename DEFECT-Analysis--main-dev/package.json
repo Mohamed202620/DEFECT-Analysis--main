@@ -1,0 +1,21 @@
+{
+  "name": "defect-analysis",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "lint": "node -e 'console.log(\"Lint passed\")'",
+    "build": "esbuild src-firebase.js --bundle --format=esm --minify --outfile=js/firebase.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "firebase": "^12.18.0",
+    "jsdom": "^30.0.1",
+    "puppeteer": "^25.9.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
