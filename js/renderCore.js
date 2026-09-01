@@ -165,9 +165,19 @@ if (currentPage === "home") {
 
   setTimeout(() => {  
 
+    // إصلاح (البيانات مش بتظهر في الرئيسية): initMainChart() كانت لو
+    // رمت استثناء (مثلاً Chart.js من الـ CDN لسه متحملتش) كانت بتمنع
+    // تنفيذ loadDashboardStats() اللي جاي بعدها في نفس الاستدعاء
+    // المتزامن - يعني كل بيانات الرئيسية (فتح/مغلق/اليوم/متأخر/
+    // الإجمالي...) كانت متتجابش أصلاً. عزل كل استدعاء في try خاص بيه
+    // عشان فشل أحدهما مايمنعش التاني
     if (typeof initMainChart === "function") {  
 
-      initMainChart();  
+      try {
+        initMainChart();
+      } catch (chartError) {
+        console.warn("[HOME AUTO LOAD] تعذّر تهيئة الرسم البياني الرئيسي:", chartError);
+      }
 
     }  
 

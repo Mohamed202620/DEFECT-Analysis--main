@@ -546,7 +546,7 @@ export async function loadDashboardStats() {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  const sampleResult = await fetchTicketsApi({ role, myUid, myName, maxCount: 500 });
+  const sampleResult = await fetchTicketsApi({ maxCount: 500 });
 
   if (!sampleResult || sampleResult.status !== 'success') return;
 
@@ -585,6 +585,21 @@ export async function loadDashboardStats() {
   };
 
   window.dashboardData = stats;
+
+  // إصلاح (البيانات مش بتظهر في الرئيسية): renderMainChart() بتعتمد
+  // على مكتبة Chart.js الخارجية (محمّلة من CDN في index.html) - لو
+  // فشلت تتحمّل لأي سبب (شبكة بطيئة/متقطعة، حجب من فايروول شركة،
+  // Ad-blocker...) كانت بترمي استثناء هنا يوقف باقي الدالة بالكامل،
+  // فكل كارتات المؤشرات تحت (مفتوحة/مغلقة/اليوم/متأخرة/الإجمالي +
+  // MTTR/أكثر ماكينة/أفضل فني) كانت تفضل زي ما هي من غير أي تحديث -
+  // مع إن التذاكر نفسها كانت بتتجاب بنجاح من Firestore. دلوقتي فشل
+  // الرسم البياني (ميزة ثانوية بصرياً) بقى معزول ومبيمنعش تحديث باقي
+  // البيانات (الأساسية) من الظهور
+  try {
+    renderMainChart(currentChartRange, tickets);
+  } catch (chartError) {
+    console.warn("[loadDashboardStats] تعذّر رسم الرسم البياني الرئيسي:", chartError);
+  }
 
   const setText = (id, value) => {
     const node = document.getElementById(id);
@@ -633,12 +648,6 @@ export async function loadDashboardStats() {
   // أفضل فني حسب عدد البلاغات المُنجزة (أول عنصر بس)
   const [topTech] = computeTechnicianPerformance(tickets, 1);
   setText('statTopTechName', topTech ? `${topTech[0]} (${topTech[1]})` : 'لا توجد بيانات');
-
-  try {
-    renderMainChart(currentChartRange, tickets);
-  } catch (error) {
-    console.error("Error rendering main chart:", error);
-  }
 }
 
 window.loadDashboardStats = loadDashboardStats;
