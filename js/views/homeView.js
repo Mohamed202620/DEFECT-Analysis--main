@@ -28,6 +28,16 @@ export const HomeView = () => {
     </div>
 
     <!-- ملخص العدادات الحية -->
+    <!-- إصلاح (تطابق الكارت مع التبويب اللي بيفتحه): كروت "أعطال
+         مفتوحة" و"تم إصلاحها" كانت بتبعت 'pending'/'resolved'
+         لـ openTicketsWithFilter - القيم دي بتطابق تبويب واحد بس
+         (قيد الانتظار / بانتظار تأكيد المُبلغ) فكان عدد التذاكر
+         الظاهر في اللوحة عند الضغط أقل من الرقم في الكارت (ناقص
+         assigned/in_progress/reopened للكارت الأول، وناقص closed
+         للكارت التاني). القيم الصح هي 'open'/'fixed' - ticketsBoard.js
+         و ticketsApi.js عندهم بالفعل فلترة مخصصة ليهم بالظبط بنفس
+         منطق حساب الرقم (not-in CLOSED_STATUSES / CLOSED_STATUSES)
+         كانت موجودة جاهزة بس مش مستخدمة -->
     <div class="space-y-1.5">
       <h3 class="text-[11px] font-bold dyn-text-muted opacity-80 px-0.5">${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</h3>
       <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
@@ -35,7 +45,7 @@ export const HomeView = () => {
       <!-- أعطال مفتوحة -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('pending')"
+        onclick="window.openTicketsWithFilter('open')"
         class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-2.5 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-amber-500"></div>
         <span class="absolute top-1.5 rtl:left-2 ltr:right-2 text-[10px] font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
@@ -57,7 +67,7 @@ export const HomeView = () => {
       <!-- تم إصلاحها -->
       <button
         type="button"
-        onclick="window.openTicketsWithFilter('resolved')"
+        onclick="window.openTicketsWithFilter('fixed')"
         class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-2.5 rounded-xl flex items-center justify-between shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
         <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
         <span class="absolute top-1.5 rtl:left-2 ltr:right-2 text-[10px] font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
