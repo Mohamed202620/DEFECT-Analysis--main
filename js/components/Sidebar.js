@@ -51,12 +51,6 @@ export const Sidebar = (activeTab) => {
       label: t.navNotifications || 'الإشعارات',
       action: "if (typeof window.openNotificationsModal === 'function') { window.openNotificationsModal(); } else if (typeof window.toggleNotifications === 'function') { window.toggleNotifications(); } else if (typeof window.showNotificationsModal === 'function') { window.showNotificationsModal(); } else { window.navigateTo('notifications'); }"
     },
-    {
-      id: 'quality',
-      icon: '📦',
-      label: t.navQuality || 'الجودة',
-      action: "window.navigateTo('quality')"
-    },
     ...(canSeeSystemTab ? [{
       id: 'system',
       icon: '⚙️',

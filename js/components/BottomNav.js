@@ -29,12 +29,6 @@ export const BottomNav = (activeTab) => {
       label: t.navMaintenance || (currentLang === 'en' ? "Maintenance" : "الصيانة"), 
       action: "window.navigateTo('maintenance')" 
     },
-    { 
-      id: "quality", 
-      icon: "📦", 
-      label: t.navQuality || (currentLang === 'en' ? "Quality" : "الجودة"), 
-      action: "window.navigateTo('quality')" 
-    },
     ...(canSeeSystemTab ? [{
       id: "system", 
       icon: "⚙️", 
