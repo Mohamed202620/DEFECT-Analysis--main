@@ -28,7 +28,6 @@ import { SuggestionView } from './views/suggestionView.js';
 import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { MaintenanceSearchView } from './views/MaintenanceSearchView.js';
-import { QualityView } from './views/QualityView.js';
 import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
 import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
@@ -100,13 +99,6 @@ case 'pm':
   return hasPermission("pm")  
     ? PMView()  
     : unauthorizedPage("pm");  
-
-
-case 'quality':  
-
-  return hasPermission("quality")  
-    ? QualityView()  
-    : unauthorizedPage("quality");  
 
 
 case 'tickets':  

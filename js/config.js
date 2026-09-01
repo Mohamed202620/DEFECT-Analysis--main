@@ -112,7 +112,7 @@ export const DEBUG = (() => {
 
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
 export const DEFAULT_USER_PERMISSIONS =
-  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,quality,ai,kb,statistics,export";
+  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export";
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
@@ -127,9 +127,6 @@ export const ALL_PERMISSIONS = [
   "reports",
   "qr",
   "errorScanner",
-
-  // الجودة
-  "quality",
 
   // الذكاء الاصطناعي والمعرفة
   "ai",
@@ -310,9 +307,6 @@ export const translations = {
     navMaintenance:
       "الصيانة",
 
-    navQuality:
-      "الجودة",
-
     navNotifications:
       "الإشعارات",
 
@@ -435,6 +429,11 @@ export const translations = {
       aiScan: "فحص الذكاء الاصطناعي",
       aiScanDesc: "تحليل عيوب الإنتاج",
 
+      kbQuick: "قاعدة المعرفة",
+      kbQuickDesc: "دليل الإصلاح والحلول",
+      statsQuick: "الإحصائيات",
+      statsQuickDesc: "معدل العيوب والتكرار",
+
       kaizenTitle: "💡 الكايزن",
       kaizenSubmit: "إرسال مقترح",
       kaizenSubmitDesc: "مقترح كايزن جديد",
@@ -469,20 +468,6 @@ export const translations = {
       noData: "لا توجد بيانات"
     },
 
-    // مفاتيح خاصة بصفحة "قسم الجودة" (QualityView.js)
-    quality: {
-      title: "قسم الجودة وتحليل العيوب",
-      subtitle: "توثيق وفحص عيوب المنتجات وقاعدة المعرفة",
-      badge: "الجودة QC",
-      defectTitle: "تصوير عيب",
-      defectDesc: "تسجيل وتوثيق العيوب البصرية (Visual Defects)",
-      aiTitle: "فحص بـ AI",
-      aiDesc: "كشف العيوب تلقائياً",
-      kbTitle: "قاعدة المعرفة",
-      kbDesc: "دليل الإصلاح والحلول",
-      statsTitle: "الإحصائيات",
-      statsDesc: "معدل العيوب والتكرار"
-    },
 
     // مفاتيح خاصة بصفحة "قسم الصيانة" (MaintenanceView.js)
     maintenance: {
@@ -977,9 +962,6 @@ export const translations = {
     navMaintenance:
       "Maintenance",
 
-    navQuality:
-      "Quality",
-
     navNotifications:
       "Notifications",
 
@@ -1098,6 +1080,11 @@ export const translations = {
       aiScan: "AI Inspection",
       aiScanDesc: "Production defect analysis",
 
+      kbQuick: "Knowledge Base",
+      kbQuickDesc: "Repair guide and solutions",
+      statsQuick: "Statistics",
+      statsQuickDesc: "Defect rate and recurrence",
+
       kaizenTitle: "💡 Kaizen",
       kaizenSubmit: "Submit Suggestion",
       kaizenSubmitDesc: "New Kaizen suggestion",
@@ -1125,20 +1112,6 @@ export const translations = {
       confirm: "Confirm",
       required: "Required",
       noData: "No data"
-    },
-
-    quality: {
-      title: "Quality & Defect Analysis",
-      subtitle: "Document and inspect product defects, plus the knowledge base",
-      badge: "QC",
-      defectTitle: "Photograph Defect",
-      defectDesc: "Log and document a visual defect",
-      aiTitle: "AI Inspection",
-      aiDesc: "Automatic defect detection",
-      kbTitle: "Knowledge Base",
-      kbDesc: "Repair guide and solutions",
-      statsTitle: "Statistics",
-      statsDesc: "Defect rate and recurrence"
     },
 
     maintenance: {
