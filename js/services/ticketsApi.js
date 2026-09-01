@@ -172,15 +172,34 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
   try {
     await ensureAuthReady();
     const ticketsRef = collection(db, "tickets");
-    const clauses = [orderBy("createdAt", "desc")];
-    if (maxCount) clauses.push(limit(maxCount));
-    const q = query(ticketsRef, ...clauses);
-    const querySnapshot = await getDocs(q);
-    const tickets = [];
-    querySnapshot.forEach(docSnap => {
-      tickets.push({ id: docSnap.id, ...docSnap.data() });
-    });
-    return { status: "success", data: tickets };
+    const isFullAccess = hasFullDataAccess(role);
+    
+    if (isFullAccess || !myName) {
+      const clauses = [orderBy("createdAt", "desc")];
+      if (maxCount) clauses.push(limit(maxCount));
+      const q = query(ticketsRef, ...clauses);
+      const querySnapshot = await getDocs(q);
+      const tickets = [];
+      querySnapshot.forEach(docSnap => {
+        tickets.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      return { status: "success", data: tickets };
+    } else {
+      const [reportedSnap, assignedSnap] = await Promise.all([
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
+      ]);
+
+      const merged = new Map();
+      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      let tickets = Array.from(merged.values());
+      tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      if (maxCount && tickets.length > maxCount) {
+        tickets = tickets.slice(0, maxCount);
+      }
+      return { status: "success", data: tickets };
+    }
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
     try {

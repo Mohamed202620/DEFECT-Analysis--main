@@ -546,7 +546,7 @@ export async function loadDashboardStats() {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  const sampleResult = await fetchTicketsApi({ maxCount: 500 });
+  const sampleResult = await fetchTicketsApi({ role, myUid, myName, maxCount: 500 });
 
   if (!sampleResult || sampleResult.status !== 'success') return;
 
@@ -585,8 +585,6 @@ export async function loadDashboardStats() {
   };
 
   window.dashboardData = stats;
-
-  renderMainChart(currentChartRange, tickets);
 
   const setText = (id, value) => {
     const node = document.getElementById(id);
@@ -635,6 +633,12 @@ export async function loadDashboardStats() {
   // أفضل فني حسب عدد البلاغات المُنجزة (أول عنصر بس)
   const [topTech] = computeTechnicianPerformance(tickets, 1);
   setText('statTopTechName', topTech ? `${topTech[0]} (${topTech[1]})` : 'لا توجد بيانات');
+
+  try {
+    renderMainChart(currentChartRange, tickets);
+  } catch (error) {
+    console.error("Error rendering main chart:", error);
+  }
 }
 
 window.loadDashboardStats = loadDashboardStats;
