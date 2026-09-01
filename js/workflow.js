@@ -187,6 +187,23 @@ export async function loadDashboardStats() {
     }
   });
 
+  const now = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+
+  const thisMonthTickets = tickets.filter(t => {
+    const d = parseTicketDate(t);
+    return d && d >= thirtyDaysAgo;
+  });
+
+  const mttrData = computeMTTR(thisMonthTickets);
+  const topMachines = computeTopMachines(thisMonthTickets, 1);
+  const topTechs = computeTechnicianPerformance(thisMonthTickets, 1);
+
+  const mttrValue = mttrData.avgHours !== null ? `${mttrData.avgHours.toFixed(1)} h` : '-';
+  const topMachineValue = topMachines.length > 0 ? topMachines[0][0] : '-';
+  const topTechValue = topTechs.length > 0 ? topTechs[0][0] : '-';
+
   const stats = {
     open,
     closed,
@@ -207,6 +224,10 @@ export async function loadDashboardStats() {
   setText('statTodayCount', stats.today);
   setText('statTotalCount', stats.total);
   setText('statOverdueCount', stats.overdue);
+
+  setText('statMttrValue', mttrValue);
+  setText('statTopMachineName', topMachineValue);
+  setText('statTopTechName', topTechValue);
 
   // ============================================================
   // إضافة: تنبيه "بلاغ حرج"
