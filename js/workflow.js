@@ -546,9 +546,12 @@ export async function loadDashboardStats() {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  const sampleResult = await fetchTicketsApi({ maxCount: 500 });
+  const sampleResult = await fetchTicketsApi({ role, myUid, myName, maxCount: 500 });
 
-  if (!sampleResult || sampleResult.status !== 'success') return;
+  if (!sampleResult || sampleResult.status !== 'success') {
+    console.warn("[loadDashboardStats] Failed to fetch tickets:", sampleResult?.message || "Unknown error");
+    return;
+  }
 
   const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
 
