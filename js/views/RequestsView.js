@@ -12,6 +12,7 @@ function dlog(...args) {
 import {
   fetchUsers,
   updatePermissionsApi,
+  updateUserMachineDepartmentApi,
   updateUserStatusApi,
   deleteUserApi
 } from "../services/api.js";
@@ -497,6 +498,55 @@ function renderUsers(users) {
                 </div>
 
 
+                <!-- تصنيف قسم الماكينات (Backend / Frontend) - يحدد
+                     أي ماكينات يشوفها هذا المستخدم في شاشة "إدارة
+                     الماكينات" (راجع getMachinesForUser في machines.js).
+                     مستقل عن حقل "القسم" العام فوق (job/department) -->
+
+                <div>
+
+                    <label
+                        class="text-xs text-gray-400">
+
+                        تصنيف الماكينات (Backend / Frontend)
+
+                    </label>
+
+
+                    <select
+                        id="machineDept-${user.id}"
+                        class="
+                        w-full
+                        mt-1
+                        rounded-lg
+                        p-2
+                        bg-[#0F172A]
+                        border
+                        border-gray-700
+                        text-sm
+                        ">
+
+                        <option
+                            value="backend"
+                            ${user.machineDepartment !== "frontend" ? "selected" : ""}>
+
+                            🛠️ Backend
+
+                        </option>
+
+                        <option
+                            value="frontend"
+                            ${user.machineDepartment === "frontend" ? "selected" : ""}>
+
+                            🖥️ Frontend
+
+                        </option>
+
+                    </select>
+
+                </div>
+
+
                 <!-- الصلاحيات -->
 
                 <div>
@@ -818,6 +868,18 @@ async function(id) {
     }
 
 
+    const machineDeptSelect =
+        document
+            .getElementById(`machineDept-${id}`);
+
+    const machineDepartment =
+        (machineDeptSelect?.value || "backend")
+            .trim()
+            .toLowerCase() === "frontend"
+            ? "frontend"
+            : "backend";
+
+
     const result =
         await updatePermissionsApi(
             id,
@@ -837,10 +899,17 @@ async function(id) {
 
 
     if (result.status === "success") {
+
+        // تحديث تصنيف الماكينات (Backend/Frontend) - استدعاء منفصل
+        // بدون تغيير توقيع updatePermissionsApi الحالي (نفس أسلوب
+        // بقية الحقول المستقلة في هذه الشاشة)
+        await updateUserMachineDepartmentApi(id, machineDepartment);
+
         const currentUid = localStorage.getItem("userId") || "";
         if (id === currentUid) {
             localStorage.setItem("role", role);
             localStorage.setItem("permissions", permissions.join(","));
+            localStorage.setItem("machineDepartment", machineDepartment);
             setCurrentRole(role);
             setCurrentPermissions(permissions.join(","));
         }

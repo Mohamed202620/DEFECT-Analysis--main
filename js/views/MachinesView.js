@@ -23,11 +23,32 @@ import {
 
 import {
   DEFAULT_MACHINE_TYPES,
-  refreshMachineTypesCache
+  refreshMachineTypesCache,
+  getMachinesForUser
 } from "../machines.js";
+
+import { getCurrentRole, isAdminRole } from "../permissions.js";
 
 // حالة التعديل الحالية (null = وضع "إضافة جديد")
 let editingMachineTypeId = null;
+
+// بيانات المستخدم الحالي المستخدمة لتحديد الصلاحيات في هذه الشاشة -
+// راجع getMachinesForUser (machines.js) لمنطق الفلترة، وملحوظة
+// "machineDepartment" هناك لتفسير سبب استخدام هذا الحقل المستقل بدل
+// حقل "department" العام الموجود بالفعل لبيانات المستخدم
+function getCurrentUserForMachines() {
+  return {
+    role: getCurrentRole(),
+    machineDepartment: localStorage.getItem("machineDepartment") || ""
+  };
+}
+
+// هل المستخدم الحالي يقدر يعدّل قسم الماكينة (Backend/Frontend)؟
+// أدمن فقط - Engineer/Technician (أو أي دور تاني) للعرض فقط، حتى لو
+// كان معاه صلاحية "machines" أصلاً للوصول للشاشة دي
+function canEditMachineDepartment() {
+  return isAdminRole(getCurrentRole());
+}
 
 
 // ======================================
@@ -71,6 +92,25 @@ export const MachinesView = () => `
             placeholder="اسم نوع الماكينة (مثال: Bodymaker)"
             class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition"
         >
+
+        <!-- القسم (Backend/Frontend) - Required. في وضع "إضافة" دايماً
+             قابل للاختيار؛ في وضع "تعديل" بيتحول تلقائياً لعرض فقط لو
+             المستخدم الحالي مش أدمن (راجع window.editMachineType) -->
+        <div>
+            <label class="block text-[10px] font-bold mb-1 text-gray-400">القسم (Department) *</label>
+            <select
+                id="machineDepartmentInput"
+                required
+                class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition appearance-none">
+                <option value="" disabled selected>اختر القسم</option>
+                <option value="backend">🛠️ Backend</option>
+                <option value="frontend">🖥️ Frontend</option>
+            </select>
+            <div id="machineDepartmentReadonly" class="hidden mt-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
+                🔒 تعديل القسم مقصور على الأدمن فقط - القسم الحالي:
+                <span id="machineDepartmentReadonlyValue" class="text-white"></span>
+            </div>
+        </div>
 
         <div>
             <input
@@ -162,10 +202,14 @@ window.loadMachinesAdmin = async function () {
         return;
     }
 
-    const types = result.data;
+    // تطبيق الصلاحية فعلياً على مستوى البيانات نفسها (مش مجرد إخفاء
+    // زر) - Admin يشوف كل الماكينات، وأي دور تاني يشوف بس ماكينات
+    // قسمه (راجع getMachinesForUser / getCurrentUserForMachines فوق)
+    const types = getMachinesForUser(getCurrentUserForMachines(), result.data);
 
     // كاش محلي بسيط في الصفحة نفسها عشان زرار "تعديل" يقدر يقرأ
-    // بيانات العنصر من غير طلب Firestore إضافي
+    // بيانات العنصر من غير طلب Firestore إضافي - نفس القائمة المفلترة
+    // المعروضة فعلياً (عشان محدش يقدر يعدّل عنصر مش ظاهر له أصلاً)
     window.__machinesAdminCache = types;
 
     if (count) {
@@ -189,6 +233,10 @@ window.loadMachinesAdmin = async function () {
                         ${m.active === false
                             ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">معطّل</span>`
                             : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">مفعّل</span>`
+                        }
+                        ${m.department === "frontend"
+                            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">🖥️ Frontend</span>`
+                            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">🛠️ Backend</span>`
                         }
                     </div>
                     ${m.units && m.units.length
@@ -231,6 +279,7 @@ window.saveMachineType = async function () {
 
     const keyInput = document.getElementById("machineKeyInput");
     const unitsInput = document.getElementById("machineUnitsInput");
+    const deptSelect = document.getElementById("machineDepartmentInput");
 
     const key = (keyInput?.value || "").trim();
     const units = (unitsInput?.value || "")
@@ -243,9 +292,29 @@ window.saveMachineType = async function () {
         return;
     }
 
+    // القسم (Backend/Frontend):
+    //  - وضع "إضافة": مطلوب دايماً من الفورم أياً كان دور المستخدم.
+    //  - وضع "تعديل" + أدمن: مسموح يغيّره من الفورم (مطلوب برضه).
+    //  - وضع "تعديل" + غير أدمن: عرض فقط - بنبعت نفس القيمة الحالية
+    //    كما هي من الكاش المحلي بدل قيمة الـ select (المُعطّل أصلاً)،
+    //    وعلى أي حال updateMachineTypeApi بيتجاهل أي تعديل للقسم من
+    //    غير أدمن حتى لو اتبعتت قيمة مختلفة - تطبيق فعلي مزدوج للصلاحية
+    let department;
+
+    if (!editingMachineTypeId || canEditMachineDepartment()) {
+        department = (deptSelect?.value || "").trim().toLowerCase();
+        if (department !== "backend" && department !== "frontend") {
+            alert("⚠️ يرجى اختيار القسم (Backend/Frontend).");
+            return;
+        }
+    } else {
+        const current = (window.__machinesAdminCache || []).find(m => m.id === editingMachineTypeId);
+        department = current?.department === "frontend" ? "frontend" : "backend";
+    }
+
     const result = editingMachineTypeId
-        ? await updateMachineTypeApi(editingMachineTypeId, key, units)
-        : await addMachineTypeApi(key, units);
+        ? await updateMachineTypeApi(editingMachineTypeId, key, units, department)
+        : await addMachineTypeApi(key, units, department);
 
     if (result.status !== "success") {
         alert("❌ " + (result.message || "حدث خطأ أثناء الحفظ."));
@@ -270,15 +339,36 @@ window.editMachineType = function (machineTypeId) {
 
     const keyInput = document.getElementById("machineKeyInput");
     const unitsInput = document.getElementById("machineUnitsInput");
+    const deptSelect = document.getElementById("machineDepartmentInput");
+    const deptReadonly = document.getElementById("machineDepartmentReadonly");
+    const deptReadonlyValue = document.getElementById("machineDepartmentReadonlyValue");
     const title = document.getElementById("machineFormTitle");
     const saveBtn = document.getElementById("machineSaveBtn");
     const cancelBtn = document.getElementById("machineCancelBtn");
 
+    const currentDept = item.department === "frontend" ? "frontend" : "backend";
+
     if (keyInput) keyInput.value = item.key;
     if (unitsInput) unitsInput.value = (item.units || []).join(",");
+    if (deptSelect) deptSelect.value = currentDept;
     if (title) title.textContent = `✏️ تعديل نوع الماكينة: ${item.key}`;
     if (saveBtn) saveBtn.textContent = "💾 حفظ التعديل";
     if (cancelBtn) cancelBtn.classList.remove("hidden");
+
+    // القسم (Department): عرض فقط لغير الأدمن - Engineer/Technician
+    // يشوفوا القسم الحالي بدون القدرة الفعلية على تغييره (راجع
+    // canEditMachineDepartment وتطبيق الصلاحية في saveMachineType /
+    // updateMachineTypeApi)
+    if (canEditMachineDepartment()) {
+        deptSelect?.classList.remove("hidden");
+        if (deptSelect) deptSelect.disabled = false;
+        deptReadonly?.classList.add("hidden");
+    } else {
+        deptSelect?.classList.add("hidden");
+        if (deptSelect) deptSelect.disabled = true;
+        if (deptReadonlyValue) deptReadonlyValue.textContent = currentDept === "frontend" ? "🖥️ Frontend" : "🛠️ Backend";
+        deptReadonly?.classList.remove("hidden");
+    }
 
     document.getElementById("machineFormBox")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -290,12 +380,22 @@ window.cancelEditMachineType = function () {
 
     const keyInput = document.getElementById("machineKeyInput");
     const unitsInput = document.getElementById("machineUnitsInput");
+    const deptSelect = document.getElementById("machineDepartmentInput");
+    const deptReadonly = document.getElementById("machineDepartmentReadonly");
     const title = document.getElementById("machineFormTitle");
     const saveBtn = document.getElementById("machineSaveBtn");
     const cancelBtn = document.getElementById("machineCancelBtn");
 
     if (keyInput) keyInput.value = "";
     if (unitsInput) unitsInput.value = "";
+    // وضع "إضافة": القسم دايماً قابل للاختيار (مطلوب) لأي مستخدم
+    // وصل للشاشة دي، بغض النظر عن دوره
+    if (deptSelect) {
+        deptSelect.value = "";
+        deptSelect.disabled = false;
+        deptSelect.classList.remove("hidden");
+    }
+    deptReadonly?.classList.add("hidden");
     if (title) title.textContent = "➕ إضافة نوع ماكينة جديد";
     if (saveBtn) saveBtn.textContent = "➕ إضافة";
     if (cancelBtn) cancelBtn.classList.add("hidden");
