@@ -58,4 +58,18 @@ import './components/NotificationsModal.js';
 // تفعيل مؤقتات الـ Toast التلقائية (بعد 5 ثوانٍ وبعد 4 ساعات)
 import './dailyTips.js';
 
+// استيراد جانبي (Side-effect) لربط دوال إدارة الإجازات الرسمية
+// بـ window (window.loadHolidays / window.addHoliday / window.deleteHoliday
+// / window.seedDefaultHolidays2026) - مستخدمة في صفحة "settings"
+// (راجع pageRenderer.js). إصلاح: كان الملف موجوداً في المشروع لكن
+// غير مستورد من أي مكان فعلياً، فكانت أزرار صفحة الإعدادات بتفشل
+// silently (window.loadHolidays غير معرّفة).
+import './holidaysManagement.js';
+
+// استيراد جانبي (Side-effect) لربط دوال إدارة Pattern الورديات
+// (رفع/استبدال ملف Excel) ومعاملات حساب الإضافي بـ window - جزء
+// من "حاسبة الحضور والمرتبات" (راجع attendanceCard.js وصفحة
+// "settings" في pageRenderer.js)
+import './attendancePatternManagement.js';
+
 export { navigateTo, currentPage, render } from './renderCore.js';

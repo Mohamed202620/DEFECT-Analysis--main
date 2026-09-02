@@ -320,6 +320,31 @@ if (currentPage === "users") {
 }  
 
 
+// ========================================================
+// SETTINGS AUTO LOAD
+// (الإجازات الرسمية + Pattern الورديات + معاملات الإضافي - راجع
+// holidaysManagement.js / attendancePatternManagement.js)
+// ========================================================
+
+if (currentPage === "settings") {
+
+  setTimeout(() => {
+
+    if (typeof window.loadHolidays === "function") {
+      window.loadHolidays();
+    }
+    if (typeof window.loadAttendancePatternStatus === "function") {
+      window.loadAttendancePatternStatus();
+    }
+    if (typeof window.loadPayrollRulesForm === "function") {
+      window.loadPayrollRulesForm();
+    }
+
+  }, 100);
+
+}
+
+
 // ========================================================  
 // TICKETS AUTO LOAD
 // (لوحة متابعة البلاغات - Real-time عبر onSnapshot، بتتفعّل

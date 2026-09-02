@@ -266,8 +266,9 @@ export async function registerUserApi(userData) {
           department: String(userData.department || "Production").trim(),
           shift: rawShift || "Green",
           shiftColor: userData.shiftColor || shiftColor,
-          hourlyRate: Number(userData.hourlyRate) || 50,
-          monthTargetHours: Number(userData.monthTargetHours) || 192,
+          // ملحوظة: حقول hourlyRate/monthTargetHours اتشالت من هنا -
+          // بيانات المرتب أصبحت محلية 100% على جهاز كل مستخدم
+          // (راجع payrollLocalStore.js) ولا يجوز تخزينها في Firestore
           leaveBalance: Number(userData.leaveBalance) || 21,
           ...userDataWithoutPassword,
           // الحساب الجديد ينتظر الموافقة

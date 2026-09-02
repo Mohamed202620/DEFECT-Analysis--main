@@ -290,6 +290,77 @@ case 'settings':
         `  
           <div class="space-y-4">  
 
+            <!-- ============================================ -->
+            <!-- إدارة Pattern الورديات (حاسبة الحضور والمرتبات) -->
+            <!-- ============================================ -->
+            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 class="text-sm font-bold text-[#D4AF37]">🧮 Pattern الورديات (GREEN / BLUE / RED)</h3>
+              <p class="text-[11px] text-gray-400">
+                ارفع ملف Excel الرسمي لجدول الورديات (M = صباحي، N = ليلي، OFF = إجازة). سيتم استخدامه تلقائياً في "حاسبة الحضور والمرتبات" بالصفحة الرئيسية لكل المستخدمين حسب فريقهم. رفع ملف جديد يستبدل الملف الحالي بالكامل.
+              </p>
+
+              <div id="patternStatusContainer">
+                <div class="text-center text-gray-500 text-xs py-4">جاري تحميل حالة الـ Pattern...</div>
+              </div>
+
+              <input
+                id="patternFileInput"
+                type="file"
+                accept=".xlsx,.xls"
+                onchange="window.previewAttendancePatternFile(this)"
+                class="w-full text-[11px] text-gray-300 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-[11px] file:font-bold bg-[#0F172A] border border-gray-700 rounded-lg p-1.5"
+              >
+
+              <div id="patternUploadPreview"></div>
+
+              <button
+                id="btnConfirmPatternUpload"
+                onclick="window.confirmAttendancePatternUpload()"
+                disabled
+                class="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs text-white transition active:scale-95">
+                ✅ تأكيد الحفظ واستبدال الـ Pattern الحالي
+              </button>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- معاملات حساب الإضافي (قابلة للتعديل) -->
+            <!-- ============================================ -->
+            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 class="text-sm font-bold text-amber-400">⚙️ معاملات حساب الحضور والإضافي</h3>
+              <p class="text-[11px] text-gray-400">
+                هذه القيم تتحكم في حساب "حاسبة الحضور والمرتبات" لكل المستخدمين. غيّرها بحذر.
+              </p>
+
+              <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <label class="block text-gray-400 mb-1">الساعات المستهدفة شهرياً</label>
+                  <input id="ruleMonthlyTargetHours" type="number" min="1" step="1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-gray-400 mb-1">خصم إجازة رسمية (ساعة/يوم)</label>
+                  <input id="ruleHolidayHoursDeduction" type="number" min="0" step="1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-gray-400 mb-1">معامل الإضافي العادي (×)</label>
+                  <input id="ruleNormalOtMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+                </div>
+                <div>
+                  <label class="block text-gray-400 mb-1">معامل العمل في OFF (×)</label>
+                  <input id="ruleOffWorkMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+                </div>
+                <div class="col-span-2">
+                  <label class="block text-gray-400 mb-1">معامل العمل بإجازة رسمية (×)</label>
+                  <input id="ruleHolidayWorkMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
+                </div>
+              </div>
+
+              <button
+                onclick="window.savePayrollRulesForm()"
+                class="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-500 font-bold text-xs text-white transition active:scale-95">
+                💾 حفظ إعدادات الإضافي
+              </button>
+            </div>
+
             <!-- نموذج إضافة إجازة رسمية جديدة -->
             <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
               <h3 class="text-sm font-bold text-blue-400">🎉 الإجازات الرسمية</h3>
