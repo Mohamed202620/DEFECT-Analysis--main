@@ -32,6 +32,16 @@ import {
   orderBy
 } from "../firebase.js";
 
+import { getCurrentRole, isAdminRole } from "../permissions.js";
+
+// تطبيع قيمة القسم (Backend/Frontend) - أي قيمة غير "frontend" بالظبط
+// (فاضية، غير موجودة، أو ماكينة قديمة اتسجلت قبل إضافة الحقل ده)
+// تتعامل تلقائياً كـ "backend" (القيمة الافتراضية المطلوبة للتوافق
+// مع البيانات القديمة)
+function normalizeDepartment(value) {
+  return String(value || "").trim().toLowerCase() === "frontend" ? "frontend" : "backend";
+}
+
 
 // ============================================================
 // FETCH
@@ -58,7 +68,11 @@ export async function fetchMachineTypesApi() {
         key: String(data.key || "").trim(),
         units: Array.isArray(data.units) ? data.units : [],
         active: data.active !== false,
-        order: typeof data.order === "number" ? data.order : 0
+        order: typeof data.order === "number" ? data.order : 0,
+        // ربط الماكينات بالقسم (backend/frontend) - الماكينات القديمة
+        // اللي اتسجلت قبل إضافة هذا الحقل (مفيش عندها department خالص
+        // في Firestore) تُعامل تلقائياً كـ "backend"
+        department: normalizeDepartment(data.department)
       });
     });
 
@@ -83,8 +97,14 @@ export async function fetchMachineTypesApi() {
  * إضافة نوع ماكينة جديد. يرفض التكرار (نفس الاسم بالظبط، غير حساس
  * لحالة الأحرف) سواء كان النوع الموجود مفعّل أو معطّل، لتفادي وجود
  * نسختين بنفس الاسم بحالتين مختلفتين.
+ *
+ * @param {string} key
+ * @param {string[]} [units]
+ * @param {string} [department] - "backend" أو "frontend" (Required من
+ *   واجهة "إضافة ماكينة" - راجع MachinesView.js). أي قيمة تانية أو
+ *   فاضية تتعامل كـ "backend" افتراضياً.
  */
-export async function addMachineTypeApi(key, units = []) {
+export async function addMachineTypeApi(key, units = [], department = "backend") {
 
   try {
 
@@ -124,6 +144,7 @@ export async function addMachineTypeApi(key, units = []) {
       {
         key: cleanKey,
         units: cleanUnits,
+        department: normalizeDepartment(department),
         active: true,
         order: maxOrder + 1,
         createdAt: new Date().toISOString(),
@@ -148,7 +169,21 @@ export async function addMachineTypeApi(key, units = []) {
 // UPDATE (تعديل الاسم/الوحدات)
 // ============================================================
 
-export async function updateMachineTypeApi(machineTypeId, key, units = []) {
+/**
+ * @param {string} machineTypeId
+ * @param {string} key
+ * @param {string[]} [units]
+ * @param {string} [department] - "backend" أو "frontend". تعديل هذا
+ *   الحقل مقصور فعلياً على الأدمن فقط: لو الدور الحالي مش أدمن، أي
+ *   قيمة متبعتة هنا تُتجاهل تماماً ولا تنعكس على المستند المحفوظ
+ *   (القيمة الحالية تفضل زي ما هي) - ده تطبيق فعلي للصلاحية على
+ *   مستوى طبقة البيانات، مش مجرد إخفاء الحقل/الزر في الواجهة (راجع
+ *   أيضاً firestore.rules اللي أصلاً بيمنع أي تعديل غير الأدمن على
+ *   مجموعة machineTypes بالكامل، فهذا الفحص طبقة حماية إضافية على
+ *   مستوى التطبيق قبل الوصول لـ Firestore أصلاً). لو الباراميتر ده
+ *   اتسيب undefined (مش متبعت خالص)، حقل department ميتلمسش نهائياً.
+ */
+export async function updateMachineTypeApi(machineTypeId, key, units = [], department = undefined) {
 
   try {
 
@@ -180,14 +215,24 @@ export async function updateMachineTypeApi(machineTypeId, key, units = []) {
       ? units.map(u => String(u).trim()).filter(Boolean)
       : [];
 
+    const updateData = {
+      key: cleanKey,
+      units: cleanUnits,
+      updatedAt: new Date().toISOString(),
+      updatedBy: localStorage.getItem("name") || "Admin"
+    };
+
+    if (department !== undefined) {
+      if (isAdminRole(getCurrentRole())) {
+        updateData.department = normalizeDepartment(department);
+      }
+      // غير أدمن: تجاهل صامت لقيمة department المتبعة - القسم يفضل
+      // كما هو محفوظ حالياً في Firestore
+    }
+
     await updateDoc(
       doc(db, "machineTypes", machineTypeId),
-      {
-        key: cleanKey,
-        units: cleanUnits,
-        updatedAt: new Date().toISOString(),
-        updatedBy: localStorage.getItem("name") || "Admin"
-      }
+      updateData
     );
 
     return { status: "success", message: "تم تحديث نوع الماكينة" };
@@ -295,7 +340,7 @@ export async function seedDefaultMachineTypesApi(defaultTypes) {
     );
 
     for (const m of toAdd) {
-      await addMachineTypeApi(m.key, m.units || []);
+      await addMachineTypeApi(m.key, m.units || [], m.department || "backend");
     }
 
     return { status: "success", added: toAdd.length };

@@ -28,6 +28,7 @@ export {
   fetchUsers,
   registerUserApi,
   updatePermissionsApi,
+  updateUserMachineDepartmentApi,
   updateUserStatusApi,
   deleteUserApi,
   fetchTechniciansApi

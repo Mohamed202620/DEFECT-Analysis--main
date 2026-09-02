@@ -510,6 +510,56 @@ export async function updatePermissionsApi(
 
 
 // ============================================================
+// UPDATE USER MACHINE DEPARTMENT (Backend / Frontend)
+// ============================================================
+
+/**
+ * تحديث تصنيف المستخدم (Backend/Frontend) المستخدم في فلترة قائمة
+ * الماكينات حسب القسم (راجع getMachinesForUser في machines.js).
+ *
+ * ملحوظة: هذا حقل مستقل تماماً اسمه "machineDepartment"، وليس نفس
+ * حقل "department" العام الموجود بالفعل في مستند المستخدم (القسم
+ * التنظيمي: Production/Mechanical/Electrical - مُستخدم في التسجيل/
+ * الملف الشخصي/كايزن/التقارير). عمل حقل مستقل هنا بدل التعديل على
+ * الحقل الموجود يمنع أي كسر لأي شاشة تانية بتعرض/تعتمد على القيمة
+ * التنظيمية الحالية.
+ */
+export async function updateUserMachineDepartmentApi(userId, machineDepartment) {
+
+  try {
+
+    if (!userId) {
+      return { status: "error", message: "معرف المستخدم غير موجود" };
+    }
+
+    const cleanDept =
+      String(machineDepartment || "").trim().toLowerCase() === "frontend"
+        ? "frontend"
+        : "backend";
+
+    await updateDoc(
+      doc(db, "users", userId),
+      {
+        machineDepartment: cleanDept,
+        updatedAt: new Date().toISOString(),
+        updatedBy: localStorage.getItem("name") || "Admin"
+      }
+    );
+
+    return { status: "success", message: "تم تحديث تصنيف القسم (Backend/Frontend)" };
+
+  } catch (error) {
+
+    console.error("Error updating user machine department:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+// ============================================================
 // UPDATE USER STATUS
 // ============================================================
 
