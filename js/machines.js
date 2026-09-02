@@ -32,6 +32,8 @@ import {
   seedDefaultMachineTypesApi
 } from "./services/machinesApi.js";
 
+import { isAdminRole } from "./permissions.js";
+
 // توليد "01".."NN" (ترقيم بخانتين دايماً)
 function padNumbers(count) {
   const list = [];
@@ -46,23 +48,28 @@ function padNumbers(count) {
 //   2) شبكة أمان محلية (Fallback) لو تعذّر الاتصال بـ Firestore
 //      تماماً (مفيش إنترنت مثلاً) عشان الفورمات تفضل شغالة بدل ما
 //      تبقى فاضية بالكامل
+// ملحوظة (ربط الماكينات بالقسم): القيمة الافتراضية لكل عنصر هنا
+// "backend" (نفس التعامل الافتراضي مع أي ماكينة قديمة بلا department -
+// راجع normalizeDepartment في services/machinesApi.js) - الأدمن يقدر
+// يعدّل قسم أي عنصر منها لاحقاً من شاشة "إدارة الماكينات" حسب التصنيف
+// الفعلي المطلوب في المصنع
 export const DEFAULT_MACHINE_TYPES = [
-  { key: "Coil Handling", units: [] },
-  { key: "Baler", units: [] },
-  { key: "Cupper", units: [] },
-  { key: "Bodymaker", units: padNumbers(11) },
-  { key: "Trimmer", units: [] },
-  { key: "Washer", units: [] },
-  { key: "Decorator", units: padNumbers(2) },
-  { key: "Spray", units: padNumbers(11) },
-  { key: "IBO", units: [] },
-  { key: "Necker", units: [] },
-  { key: "Palletizer", units: [] },
-  { key: "Depalletizer", units: [] },
-  { key: "Front End Line Control", units: [] },
-  { key: "Mid Line Control", units: [] },
-  { key: "Back End Line Control", units: [] },
-  { key: "STRAP", units: ["A1", "A2", "B1", "B2"] }
+  { key: "Coil Handling", units: [], department: "backend" },
+  { key: "Baler", units: [], department: "backend" },
+  { key: "Cupper", units: [], department: "backend" },
+  { key: "Bodymaker", units: padNumbers(11), department: "backend" },
+  { key: "Trimmer", units: [], department: "backend" },
+  { key: "Washer", units: [], department: "backend" },
+  { key: "Decorator", units: padNumbers(2), department: "backend" },
+  { key: "Spray", units: padNumbers(11), department: "backend" },
+  { key: "IBO", units: [], department: "backend" },
+  { key: "Necker", units: [], department: "backend" },
+  { key: "Palletizer", units: [], department: "backend" },
+  { key: "Depalletizer", units: [], department: "backend" },
+  { key: "Front End Line Control", units: [], department: "backend" },
+  { key: "Mid Line Control", units: [], department: "backend" },
+  { key: "Back End Line Control", units: [], department: "backend" },
+  { key: "STRAP", units: ["A1", "A2", "B1", "B2"], department: "backend" }
 ];
 
 // الكاش المحلي (Live) - بيبدأ بالقائمة الافتراضية عشان أي Dropdown
@@ -95,6 +102,7 @@ export async function loadMachineTypesFromFirestore() {
         key: m.key,
         units: m.units || [],
         active: m.active !== false,
+        department: m.department === "frontend" ? "frontend" : "backend",
         id: m.id
       }));
       machineTypesLoaded = true;
@@ -140,6 +148,54 @@ export function getMachineTypeEntries({ includeInactive = true } = {}) {
   return includeInactive
     ? machineTypesCache
     : machineTypesCache.filter(m => m.active !== false);
+}
+
+// ============================================================
+// ربط الماكينات بالقسم (Backend / Frontend)
+// ============================================================
+
+// نفس منطق normalizeDepartment في services/machinesApi.js - مكرر هنا
+// عمداً (بدون استيراد متبادل بين الملفين) لأن machines.js ملف واجهة
+// عام بيُستخدم برضه بمعزل عن services أحياناً؛ القيمتين لازم يفضلوا
+// متطابقين تماماً (backend/frontend فقط، أي حاجة تانية = backend)
+function normalizeDepartment(value) {
+  return String(value || "").trim().toLowerCase() === "frontend" ? "frontend" : "backend";
+}
+
+/**
+ * فلترة قائمة الماكينات حسب صلاحية المستخدم - دالة عامة قابلة لإعادة
+ * الاستخدام في أي شاشة محتاجة تعرض/تدير ماكينات حسب قسم المستخدم
+ * (تُستخدم حالياً في شاشة "إدارة الماكينات" - راجع MachinesView.js).
+ *
+ * - Admin: يشوف كل الماكينات بكل الأقسام بدون أي فلترة.
+ * - غير Admin: يشوف بس ماكينات قسمه هو (user.machineDepartment).
+ * - المستخدم بدون قسم محدد (machineDepartment فاضي/غير موجود):
+ *   يُعامل كـ "backend" (نفس قاعدة التوافق مع البيانات القديمة).
+ *
+ * ملحوظة: تصنيف المستخدم هنا مخزّن في حقل منفصل اسمه
+ * "machineDepartment" (backend/frontend) وليس نفس حقل "department"
+ * العام الموجود بالفعل في مستند المستخدم (Production/Mechanical/
+ * Electrical - قسم تنظيمي عام مستخدم في التسجيل والتقارير وكايزن).
+ * استخدام نفس الحقل "department" لهذا التصنيف الجديد كان هيكسر كل
+ * الأماكن اللي بتعرض/تعتمد على القيمة التنظيمية الحالية، فتم عمل
+ * حقل مستقل بدل توسيع/تغيير معنى الحقل الموجود.
+ *
+ * @param {Object} user - كائن بسيط فيه على الأقل { role, machineDepartment }
+ * @param {Array} allMachines - قائمة كل الماكينات (id/key/.../department)
+ * @returns {Array}
+ */
+export function getMachinesForUser(user, allMachines) {
+  const list = Array.isArray(allMachines) ? allMachines : [];
+
+  const role = String(user?.role || "").trim().toLowerCase();
+
+  if (isAdminRole(role)) {
+    return list;
+  }
+
+  const userDept = normalizeDepartment(user?.machineDepartment);
+
+  return list.filter(m => normalizeDepartment(m.department) === userDept);
 }
 
 // نسخة مسطّحة (بدون تقسيم) لأي كود قديم/تاني محتاج مجرد مصفوفة أسماء

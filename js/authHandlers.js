@@ -190,6 +190,15 @@ localStorage.setItem(
   user.department || ""  
 );  
 
+// تصنيف Backend/Frontend المستخدم في فلترة قائمة الماكينات حسب
+// القسم (راجع getMachinesForUser في machines.js) - حقل مستقل عن
+// "department" العام فوق (راجع ملحوظة updateUserMachineDepartmentApi
+// في services/usersApi.js)
+localStorage.setItem(  
+  "machineDepartment",  
+  user.machineDepartment || ""  
+);  
+
 const userRole = (user.role || "").trim().toLowerCase();
 let userPerms = user.permissions || "";
 if (isAdminRole(userRole)) {
