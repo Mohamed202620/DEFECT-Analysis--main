@@ -36,16 +36,19 @@ service cloud.firestore {
     // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
     // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
     function myProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let docSnapshot = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return docSnapshot == null ? null : docSnapshot.data;
     }
 
     function myRole() {
-      return isSignedIn() ? myProfile().role : "";
+      let profile = myProfile();
+      return profile == null ? "" : profile.role;
     }
 
     // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
     function isActive() {
-      return isSignedIn() && myProfile().status == "active";
+      let profile = myProfile();
+      return isSignedIn() && profile != null && profile.status == "active";
     }
 
     // ==========================================================
@@ -184,7 +187,7 @@ service cloud.firestore {
       // كل مستخدم يشوف إشعاراته هو بس - القاعدة بتتطبق على كل
       // مستند في نتيجة الاستعلام، فلو حد حاول يجيب إشعارات غيره
       // هيترفض الاستعلام كامل (نفس أسلوب قاعدة list في users)
-      allow read, list: if isActive() && resource.data.forUid == request.auth.uid;
+      allow read, list: if isActive() && resource.data.userId == request.auth.uid;
 
       // أي مستخدم مفعّل يقدر ينشئ إشعار لمستخدم تاني (لازم يحصل
       // ده تلقائياً مع كل انتقال حالة تذكرة - راجع ticketsApi.js)
@@ -193,7 +196,7 @@ service cloud.firestore {
       // المستخدم يقدر يعلّم إشعاره هو بس كمقروء، من غير ما يغيّر
       // أي حقل تاني في المستند
       allow update: if isActive()
-                    && resource.data.forUid == request.auth.uid
+                    && resource.data.userId == request.auth.uid
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
 
       allow delete: if false;
@@ -201,10 +204,211 @@ service cloud.firestore {
 
 
     // ==========================================================
+    // suggestions - مقترحات الكايزن (Kaizen) - دورة حياة صارمة
+    // مطابقة تمامًا لمنطق services/suggestionsApi.js:
+    //
+    // new(جديد) -> under_review(قيد مراجعة) [admin]
+    //           -> rejected(مرفوض) [admin، سبب إجباري]
+    // under_review -> in_progress(قيد تنفيذ) [admin، موافقة+إسناد لفني]
+    //              -> rejected(مرفوض) [admin، مسموح حتى لو بالفعل قيد
+    //                 المراجعة، سبب إجباري]
+    //              -> revision_requested(يحتاج تعديل) [admin، ملاحظات إجبارية]
+    // revision_requested -> under_review [admin مباشرة، أو صاحب
+    //                        المقترح نفسه (submittedByUid) بعد تعديل
+    //                        العنوان/المشكلة/الحل - "إعادة إرسال للمراجعة"]
+    // in_progress -> implemented(تم التنفيذ) [الفني المسؤول المُسند
+    //                إليه (assignedToUid)، أو admin]
+    // rejected / implemented = حالتان نهائيتان - ممنوع أي تحديث بعدهما
+    //
+    // الدور الإداري المعتمد هنا هو "admin" فقط - لا يوجد أي دور PM/
+    // manager لهذا الـWorkflow (خلافاً لـ tickets اللي بيسمح لـ manager
+    // أيضاً - ده مقصود ومختلف عمداً بناءً على متطلبات مقترحات الكايزن)
+    // ==========================================================
+    match /suggestions/{suggestionId} {
+
+      allow read: if isActive();
+
+      // إنشاء مقترح جديد - أي مستخدم مفعّل، لازم يبدأ status == "new"
+      // دايماً (زي ما بيفرضه saveSuggestionApi أصلاً من جهة العميل)
+      allow create: if isActive()
+                    && request.resource.data.status == "new";
+
+      // STEP 1a - new -> under_review: أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "new"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 1b / 2b - (new | under_review) -> rejected: أدمن فقط،
+      // سبب الرفض إجباري وغير فارغ (rejectionReason) - مسموح صراحة
+      // حتى لو كان المقترح بالفعل "قيد المراجعة"
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status in ["new", "under_review"]
+                    && request.resource.data.status == "rejected"
+                    && request.resource.data.rejectionReason is string
+                    && request.resource.data.rejectionReason.size() > 0;
+
+      // STEP 2a - under_review -> in_progress: أدمن فقط، وموافقة مع
+      // إسناد لفني مسؤول (assignedTo/assignedToUid إجباريين ومش فاضيين)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "in_progress"
+                    && request.resource.data.assignedTo is string
+                    && request.resource.data.assignedTo.size() > 0
+                    && request.resource.data.assignedToUid is string
+                    && request.resource.data.assignedToUid.size() > 0;
+
+      // STEP 2c - under_review -> revision_requested: أدمن فقط،
+      // ملاحظات طلب التعديل إجبارية وغير فارغة (revisionNotes)
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "under_review"
+                    && request.resource.data.status == "revision_requested"
+                    && request.resource.data.revisionNotes is string
+                    && request.resource.data.revisionNotes.size() > 0;
+
+      // STEP 3a - revision_requested -> under_review (رجوع للمراجعة
+      // بعد التعديل من الأدمن مباشرة بدون تعديل المحتوى): أدمن فقط
+      allow update: if isActive() && myRole() == "admin"
+                    && resource.data.status == "revision_requested"
+                    && request.resource.data.status == "under_review";
+
+      // STEP 3b - revision_requested -> under_review: صاحب المقترح
+      // نفسه (submittedByUid) يعدّل المقترح (عنوان/مشكلة/حل) بعد
+      // ملاحظات الأدمن، ثم يعيد إرساله للمراجعة بنفسه
+      //
+      // إصلاح: بعض المقترحات القديمة (قبل إضافة تتبّع submittedByUid،
+      // أو لو اتسجّلت والحقل فاضي لأي سبب) مفيهاش الحقل ده أصلاً -
+      // فكان صاحبها الحقيقي (اللي بيظهر اسمه فعلاً على الكارت) عمره
+      // ما هيقدر يعدّل ويعيد الإرسال لأن resource.data.submittedByUid
+      // == request.auth.uid مستحيل تتحقق أصلاً (undefined != uid).
+      // الشرط الاحتياطي التاني بيسمح فقط لو الحقل ده مش موجود على
+      // السجل، ولازم كمان اسم المستخدم الحالي (users/{uid}.name)
+      // يطابق تمامًا اسم صاحب المقترح المسجَّل وقت الإرسال - وبمجرد
+      // ما يحصل resubmit مرة، الحقل submittedByUid بيتثبّت على القيمة
+      // الصحيحة (راجع resubmitSuggestionApi) فمايتكررش الاحتياج للمسار
+      // ده تاني على نفس السجل
+      allow update: if isActive()
+                    && resource.data.status == "revision_requested"
+                    && (
+                         resource.data.submittedByUid == request.auth.uid
+                         ||
+                         (
+                           !("submittedByUid" in resource.data)
+                           && resource.data.name == myProfile().name
+                         )
+                       )
+                    && request.resource.data.status == "under_review"
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.problem is string
+                    && request.resource.data.problem.size() > 0
+                    && request.resource.data.solution is string
+                    && request.resource.data.solution.size() > 0;
+
+      // STEP 4 - in_progress -> implemented: الفني المسؤول المُسند
+      // إليه بالتحديد (assignedToUid) فقط، أو أدمن - حالة نهائية بعدها
+      allow update: if isActive()
+                    && resource.data.status == "in_progress"
+                    && request.resource.data.status == "implemented"
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+
+      allow delete: if false;
+
+      // سجل تغييرات المقترح (Logs) - append-only، نفس فكرة
+      // tickets/{ticketId}/logs بالضبط
+      match /logs/{logId} {
+        allow read: if isActive();
+        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ==========================================================
+    // officialHolidays - الإجازات الرسمية (تُستخدم في كارت حضور
+    // الوردية لاحتساب أيام العمل المصادفة لإجازة رسمية كإضافي
+    // بالكامل - راجع attendanceCard.js / holidaysApi.js). القراءة
+    // لأي مستخدم مفعّل (محتاجينها في الكارت)، لكن الإضافة/الحذف
+    // مقصورة على الأدمن فقط (صلاحية "settings" - راجع pageRenderer.js)
+    // ==========================================================
+    match /officialHolidays/{holidayId} {
+      allow read: if isActive();
+      allow create, delete: if myRole() == "admin";
+      allow update: if false;
+    }
+
+    // ==========================================================
+    // settings/attendancePattern و settings/payrollRules - بيانات
+    // Global لـ "حاسبة الحضور والمرتبات" (راجع attendanceCard.js /
+    // attendanceSettingsApi.js): جدول Pattern الورديات (GREEN/BLUE/RED)
+    // ومعاملات حساب الإضافي. القراءة لأي مستخدم مفعّل (محتاجينها في
+    // الكارت لكل الموظفين)، لكن الكتابة مقصورة على الأدمن فقط.
+    // ⚠️ ملحوظة: مفيش أي بيانات مالية شخصية (مرتب/تأمينات/PIN) هنا
+    // إطلاقاً - دي محلية 100% على جهاز المستخدم (localStorage) ولا
+    // تُرسل لـ Firestore نهائياً، فمفيش داعي لأي قاعدة أمان ليها.
+    // ==========================================================
+    match /settings/{settingId} {
+      allow read: if isActive();
+      allow write: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // machineTypes - قائمة أنواع الماكينات المستخدمة في كل فورمات
+    // التطبيق (تسجيل عطل/كايزن/فاحص الأعطال/بحث الصيانة - راجع
+    // machines.js/machinesApi.js/MachinesView.js). القراءة لأي
+    // مستخدم مفعّل (محتاجينها في كل الفورمات دي)، لكن الإضافة/
+    // التعديل/الحذف مقصورة على الأدمن فقط (صلاحية "machines")، بنفس
+    // أسلوب officialHolidays فوق - بدون هذا الـ match الصريح كانت
+    // هتقع تحت match /{document=**} تحت وأي مستخدم مفعّل هيقدر
+    // يعدّل/يحذف منها مباشرة عبر Firestore SDK بغض النظر عن فحص
+    // hasPermission("machines") في الواجهة (اللي بيتحقق في المتصفح
+    // بس ومش كافي وحده كحماية فعلية)
+    // ==========================================================
+    match /machineTypes/{machineTypeId} {
+      allow read: if isActive();
+      allow create, update, delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // notifications - إشعارات داخل التطبيق (راجع ticketsApi.js ->
+    // createNotification / fetchMyNotificationsApi / markNotificationReadApi)
+    // كانت واقعة تحت match /{document=**} العام تحت (allow read, write:
+    // if isActive()) - يعني أي مستخدم مفعّل يقدر تقنياً يعمل
+    // getDocs(collection(db,"notifications")) بدون where ويقرا
+    // إشعارات كل المستخدمين، رغم إن الواجهة نفسها دايماً بتستعلم
+    // بـ where("forUid","==", uid) فقط. الـ match الصريح ده بيقيّد
+    // القراءة فعلياً على مستوى القاعدة لصاحب الإشعار (forUid) أو
+    // الأدمن/المدير، ويقيّد التعديل على تحديث حقل read بس من صاحبه.
+    // ==========================================================
+    match /notifications/{notificationId} {
+
+      // قراءة (get/list): صاحب الإشعار (forUid) فقط، أو أدمن/مدير
+      // للمتابعة العامة عند الحاجة
+      allow read: if isActive()
+                  && (resource.data.forUid == request.auth.uid
+                      || myRole() in ["admin", "manager"]);
+
+      // إنشاء: أي مستخدم مفعّل يقدر يبعت إشعار لمستخدم تاني (زي
+      // إسناد تذكرة/مقترح لفني - createNotification بتتنفذ من جهاز
+      // المُسنِد مش من سيرفر خلفي)، لازم forUid ومحتوى الإشعار
+      // الأساسي موجودين
+      allow create: if isActive()
+                    && request.resource.data.forUid is string
+                    && request.resource.data.forUid.size() > 0
+                    && request.resource.data.read == false;
+
+      // تعديل: صاحب الإشعار بس، وبس حقل read (markNotificationReadApi/
+      // markAllNotificationsAsRead) - ممنوع أي تعديل تاني على المحتوى
+      allow update: if isActive()
+                    && resource.data.forUid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
+
+      allow delete: if false;
+    }
+
+    // ==========================================================
     // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
-    // suggestions, defects ...) - أي مستخدم مفعّل (status == active)
-    // يقدر يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً،
-    // ضيفوا match block خاص بيها فوق match /{document=**} ده.
+    // defects ...) - أي مستخدم مفعّل (status == active) يقدر
+    // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
+    // match block خاص بيها فوق match /{document=**} ده.
     // ==========================================================
     match /{document=**} {
       allow read, write: if isActive();

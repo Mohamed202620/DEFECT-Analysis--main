@@ -29,8 +29,47 @@ import './errorScanner.js';
 // (window.loadTicketsBoard / window.handleTicketAction)
 import './ticketsBoard.js';
 
+// استيراد جانبي (Side-effect) لربط دوال لوحة متابعة الكايزن بـ window
+// (window.loadKaizenBoard / window.handleKaizenAction) - منطق مستقل
+// تماماً عن ticketsBoard.js، بيستخدم بس دوال services/api.js المشتركة
+import './kaizenBoard.js';
+
 // استيراد جانبي (Side-effect) لبانر حالة الاتصال + المزامنة
 // التلقائية عند عودة الإنترنت (Offline-First)
 import './offlineBanner.js';
+
+// استيراد جانبي (Side-effect) لإشعارات المتصفح (بديل عملي لـ Push
+// الحقيقي عبر FCM بدون سيرفر - راجع التعليق التفصيلي في الملف
+// نفسه). بيفعّل تلقائياً لو المستخدم مسجّل دخوله بالفعل (Refresh)
+import './pushNotifications.js';
+
+// استيراد جانبي (Side-effect) لبانر طلب تفعيل إشعارات المتصفح
+// (window.renderNotificationPermissionBanner - يُستدعى من renderCore.js
+// عند فتح صفحة الرئيسية فقط)
+import './notificationPermissionBanner.js';
+
+// استيراد جانبي (Side-effect) لربط window.openNotificationsModal /
+// window.refreshNotificationsBadge - إصلاح زر "الإشعارات" في
+// الشريط السفلي (BottomNav.js) اللي كان بيدوّر على دالة مكانتش
+// معرّفة في أي مكان بالمشروع (راجع NotificationsModal.js)
+import './components/NotificationsModal.js';
+
+// استيراد جانبي لنظام «معلومة على الماشي» (Daily Insights & Tips)
+// تفعيل مؤقتات الـ Toast التلقائية (بعد 5 ثوانٍ وبعد 4 ساعات)
+import './dailyTips.js';
+
+// استيراد جانبي (Side-effect) لربط دوال إدارة الإجازات الرسمية
+// بـ window (window.loadHolidays / window.addHoliday / window.deleteHoliday
+// / window.seedDefaultHolidays2026) - مستخدمة في صفحة "settings"
+// (راجع pageRenderer.js). إصلاح: كان الملف موجوداً في المشروع لكن
+// غير مستورد من أي مكان فعلياً، فكانت أزرار صفحة الإعدادات بتفشل
+// silently (window.loadHolidays غير معرّفة).
+import './holidaysManagement.js';
+
+// استيراد جانبي (Side-effect) لربط دوال إدارة Pattern الورديات
+// (رفع/استبدال ملف Excel) ومعاملات حساب الإضافي بـ window - جزء
+// من "حاسبة الحضور والمرتبات" (راجع attendanceCard.js وصفحة
+// "settings" في pageRenderer.js)
+import './attendancePatternManagement.js';
 
 export { navigateTo, currentPage, render } from './renderCore.js';

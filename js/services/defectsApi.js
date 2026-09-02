@@ -10,7 +10,7 @@ import { uploadBase64Image } from "./imageUpload.js";
 import {
   collection,
   addDoc
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 
 // ============================================================

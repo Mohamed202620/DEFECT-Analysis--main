@@ -1,13 +1,23 @@
-export function PageView(title, content, currentLang = window.currentLang || "ar") {
+export function PageView(title, content, currentLang = window.currentLang || "ar", backTarget = "home") {
     const isEn = currentLang === "en";
 
+    // إصلاح (بند 5): بعض الصفحات (زي "الإعدادات") بيوصلها المستخدم
+    // فقط من صفحة "النظام"، فزرار الرجوع بقى يرجّعه لصفحة النظام
+    // نفسها بدل ما يقفز دايماً للرئيسية ويفقد السياق اللي كان فيه.
+    // باقي الصفحات (اللي مالهاش علاقة بالنظام) فضلت بترجع للرئيسية
+    // زي ما كانت بالظبط (backTarget الافتراضي = "home")
+    const backLabel = {
+        home: isEn ? "← Back Home" : "← رجوع للرئيسية",
+        system: isEn ? "← Back" : "← رجوع"
+    }[backTarget] || (isEn ? "← Back" : "← رجوع");
+
     return `
-    <div class="p-4 max-w-md mx-auto pb-12">
+    <div class="app-page p-4 max-w-md mx-auto pb-12">
         <!-- زر الرجوع -->
         <button
-            onclick="window.navigateTo('home')"
+            onclick="window.navigateTo('${backTarget}')"
             class="mb-5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
-            <span>${isEn ? '← Back Home' : '← رجوع للرئيسية'}</span>
+            <span>${backLabel}</span>
         </button>
 
         <!-- عنوان الصفحة -->

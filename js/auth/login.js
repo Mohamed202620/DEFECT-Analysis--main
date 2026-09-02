@@ -3,20 +3,17 @@ import { db, auth, DEBUG, phoneToAuthEmail } from '../config.js';
 
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import { signOut } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import {
+  createUserWithEmailAndPassword,
+  signOut,
   collection,
   query,
   where,
+  limit,
   getDocs,
   doc,
   getDoc,
   setDoc
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
 
 import { verifyPassword } from '../services/crypto.js';
 
@@ -89,7 +86,7 @@ export async function login(phone, pass) {
     // ==================================================
 
     const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
     const legacySnapshot = await getDocs(legacyQuery);
 
     if (legacySnapshot.empty) {
@@ -179,7 +176,7 @@ export async function login(phone, pass) {
     // إذا يوجد حساب Auth لكن لا يوجد مستند users/{uid}، حاولنا الترحيل
     // من بيانات المستخدم القديم برقم الهاتف نفسه إذا كانت موجودة.
     const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone));
+    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
     const legacySnapshot = await getDocs(legacyQuery);
 
     if (!legacySnapshot.empty) {

@@ -1,4 +1,7 @@
 import { BottomNav } from "../components/BottomNav.js";
+import { translations } from "../config.js";
+import { isAdminRole } from "../permissions.js";
+import { renderDailyTipCard } from "../dailyTips.js";
 
 export const SystemView = () => {
 
@@ -7,13 +10,12 @@ export const SystemView = () => {
 // ============================================================
 
 const can = (permission) => {
+  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
+  if (isAdminRole(role)) return true;
+
   if (typeof window.hasPermission === "function") {
     return window.hasPermission(permission);
   }
-
-  // فحص احتياطي مباشر من الـ localStorage إذا لم يتم تحميل app.js بعد
-  const role = (localStorage.getItem("role") || "").trim().toLowerCase();
-  if (role === "admin") return true;
 
   const permissions =
     (localStorage.getItem("permissions") || "")
@@ -21,7 +23,7 @@ const can = (permission) => {
       .map(p => p.trim().toLowerCase())
       .filter(Boolean);
 
-  return permissions.includes("all") || permissions.includes(permission.toLowerCase());
+  return permissions.includes("all") || permissions.includes("admin") || permissions.includes(String(permission || "").toLowerCase());
 };
 
 // ============================================================
@@ -33,13 +35,16 @@ const currentRole =
 .trim()
 .toUpperCase();
 
+const currentLang = window.currentLang || "ar";
+const t = (translations[currentLang] || translations.ar).system;
+
 // ============================================================
 // الواجهة
 // ============================================================
 
 return `
 
-<div class="p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
+<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
   <!-- ========================================================
        الهيدر الرئيسي
        ======================================================== -->  
@@ -54,7 +59,7 @@ return `
         gap-2
       ">
         <span>👨‍💼</span>
-        إدارة النظام والتحكم
+        ${t.title}
       </h2>
 
       <p class="
@@ -62,7 +67,7 @@ return `
         text-gray-400
         mt-0.5
       ">
-        إدارة المستخدمين والصلاحيات وإعدادات التطبيق
+        ${t.subtitle}
       </p>
     </div>
 
@@ -82,6 +87,11 @@ return `
   </div>  
 
   <!-- ========================================================
+       كارت «معلومة على الماشي» (يتغير يومياً الساعة 12 ظهراً)
+       ======================================================== -->
+  ${renderDailyTipCard()}
+
+  <!-- ========================================================
        شبكة خيارات النظام
        ======================================================== -->  
   <div class="grid grid-cols-2 gap-3.5">
@@ -90,59 +100,24 @@ return `
          المستخدمون
          ====================================================== -->
     ${can("users") ? `
-    <div
+    <button
+      type="button"
       onclick="window.navigateTo('users')"
-      class="
-        bg-[#1E293B]
-        hover:bg-[#283548]
-        border
-        border-gray-800
-        hover:border-blue-500/40
-        p-4
-        rounded-2xl
-        flex
-        flex-col
-        items-center
-        justify-center
-        text-center
-        cursor-pointer
-        transition-all
-        active:scale-95
-        shadow-md
-        group
-      "
+      class="relative text-start border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden"
     >
-      <div class="
-        w-12
-        h-12
-        rounded-xl
-        bg-blue-500/10
-        text-blue-400
-        flex
-        items-center
-        justify-center
-        text-2xl
-        mb-2
-      ">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         👥
       </div>
 
-      <span class="
-        font-bold
-        text-xs
-        text-gray-100
-      ">
-        المستخدمون
+      <span class="font-bold text-xs text-gray-100">
+        ${t.usersTitle || (currentLang === 'en' ? 'User Directory' : 'إدارة المستخدمين')}
       </span>
 
-      <span class="
-        text-[10px]
-        text-gray-400
-        mt-1
-      ">
-        إدارة الحسابات والصلاحيات
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+        ${t.usersDesc || ''}
       </span>
-    </div>
+    </button>
     ` : ""}
 
 
@@ -150,59 +125,24 @@ return `
          طلبات الانضمام
          ====================================================== -->
     ${can("requests") ? `
-    <div
+    <button
+      type="button"
       onclick="window.navigateTo('requests')"
-      class="
-        bg-[#1E293B]
-        hover:bg-[#283548]
-        border
-        border-gray-800
-        hover:border-amber-500/40
-        p-4
-        rounded-2xl
-        flex
-        flex-col
-        items-center
-        justify-center
-        text-center
-        cursor-pointer
-        transition-all
-        active:scale-95
-        shadow-md
-        group
-      "
+      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
     >
-      <div class="
-        w-12
-        h-12
-        rounded-xl
-        bg-amber-500/10
-        text-amber-400
-        flex
-        items-center
-        justify-center
-        text-2xl
-        mb-2
-      ">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         ⏳
       </div>
 
-      <span class="
-        font-bold
-        text-xs
-        text-gray-100
-      ">
-        طلبات الانضمام
+      <span class="font-bold text-xs text-gray-100">
+        ${t.requestsTitle || (currentLang === 'en' ? 'Join Requests' : 'طلبات الانضمام')}
       </span>
 
-      <span class="
-        text-[10px]
-        text-gray-400
-        mt-1
-      ">
-        مراجعة المستخدمين الجدد
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+        ${t.requestsDesc || ''}
       </span>
-    </div>
+    </button>
     ` : ""}
 
 
@@ -210,59 +150,24 @@ return `
          الماكينات
          ====================================================== -->
     ${can("machines") ? `
-    <div
+    <button
+      type="button"
       onclick="window.navigateTo('machines')"
-      class="
-        bg-[#1E293B]
-        hover:bg-[#283548]
-        border
-        border-gray-800
-        hover:border-emerald-500/40
-        p-4
-        rounded-2xl
-        flex
-        flex-col
-        items-center
-        justify-center
-        text-center
-        cursor-pointer
-        transition-all
-        active:scale-95
-        shadow-md
-        group
-      "
+      class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden"
     >
-      <div class="
-        w-12
-        h-12
-        rounded-xl
-        bg-emerald-500/10
-        text-emerald-400
-        flex
-        items-center
-        justify-center
-        text-2xl
-        mb-2
-      ">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         🏭
       </div>
 
-      <span class="
-        font-bold
-        text-xs
-        text-gray-100
-      ">
-        الماكينات
+      <span class="font-bold text-xs text-gray-100">
+        ${t.machinesTitle || (currentLang === 'en' ? 'Machines Register' : 'سجل الماكينات')}
       </span>
 
-      <span class="
-        text-[10px]
-        text-gray-400
-        mt-1
-      ">
-        إدارة المعدات و QR
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+        ${t.machinesDesc || ''}
       </span>
-    </div>
+    </button>
     ` : ""}
 
 
@@ -270,59 +175,24 @@ return `
          الإعدادات
          ====================================================== -->
     ${can("settings") ? `
-    <div
+    <button
+      type="button"
       onclick="window.navigateTo('settings')"
-      class="
-        bg-[#1E293B]
-        hover:bg-[#283548]
-        border
-        border-gray-800
-        hover:border-purple-500/40
-        p-4
-        rounded-2xl
-        flex
-        flex-col
-        items-center
-        justify-center
-        text-center
-        cursor-pointer
-        transition-all
-        active:scale-95
-        shadow-md
-        group
-      "
+      class="relative text-start border border-purple-500/40 hover:border-purple-400/70 bg-gradient-to-br from-purple-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-purple-900/30 group overflow-hidden"
     >
-      <div class="
-        w-12
-        h-12
-        rounded-xl
-        bg-purple-500/10
-        text-purple-400
-        flex
-        items-center
-        justify-center
-        text-2xl
-        mb-2
-      ">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         ⚙️
       </div>
 
-      <span class="
-        font-bold
-        text-xs
-        text-gray-100
-      ">
-        الإعدادات
+      <span class="font-bold text-xs text-gray-100">
+        ${t.settingsTitle || (currentLang === 'en' ? 'System Settings' : 'إعدادات النظام')}
       </span>
 
-      <span class="
-        text-[10px]
-        text-gray-400
-        mt-1
-      ">
-        إعدادات النظام
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+        ${t.settingsDesc || ''}
       </span>
-    </div>
+    </button>
     ` : ""}
 
   </div>  
@@ -350,7 +220,7 @@ return `
     <div class="text-3xl mb-2">
       🔒
     </div>
-    ليس لديك صلاحيات لإدارة النظام.
+    ${t.noAccess}
   </div>
   `
   : ""

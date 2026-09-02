@@ -14,8 +14,27 @@ import {
 } from './services/api.js';
 
 import { navigateTo } from './renderCore.js';
-import { setCurrentRole, setCurrentPermissions } from './permissions.js';
-import { DEBUG } from './config.js';
+import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
+import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
+
+// إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
+// ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
+// window.currentLang، وأزرار الدخول/التسجيل بتشارك نفس التسميات
+// الموجودة أصلاً في translations.login / translations.register
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).auth;
+}
+
+function loginLabel() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).login.loginBtn;
+}
+
+function registerLabel() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).register.submitBtn;
+}
 
 // طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات المستخدم
 // كاملة (الاسم/الهاتف/الدور/الصلاحيات) في الكونسول لكل عملية
@@ -53,7 +72,7 @@ const password =
 if (!phone || !password) {  
 
   alert(  
-    "⚠️ يرجى إدخال رقم الموبايل وكلمة السر."  
+    t().fillPhonePassword  
   );  
 
   return;  
@@ -74,7 +93,7 @@ if (button) {
   button.disabled = true;  
 
   button.innerText =  
-    "جاري تسجيل الدخول...";  
+    t().loggingIn;  
 
 }  
 
@@ -105,7 +124,7 @@ if (button) {
   button.disabled = false;  
 
   button.innerText =  
-    "دخول";  
+    loginLabel();  
 
 }  
 
@@ -121,7 +140,7 @@ if (
 
   alert(  
     result?.message ||  
-    "فشل تسجيل الدخول."  
+    t().loginFailed  
   );  
 
   return;  
@@ -171,45 +190,32 @@ localStorage.setItem(
   user.department || ""  
 );  
 
-localStorage.setItem(  
-  "role",  
-  (user.role || "")  
-    .trim()  
-    .toLowerCase()  
-);  
+const userRole = (user.role || "").trim().toLowerCase();
+let userPerms = user.permissions || "";
+if (isAdminRole(userRole)) {
+  userPerms = userPerms ? `all,${userPerms}` : ALL_PERMISSIONS.join(",");
+}
 
-localStorage.setItem(  
-  "permissions",  
-  user.permissions || ""  
-);  
-
+localStorage.setItem("role", userRole);
+localStorage.setItem("permissions", userPerms);
 
 // ========================================================  
 // تحديث حالة التطبيق  
 // ========================================================  
 
-setCurrentRole(  
-  (user.role || "")  
-    .trim()  
-    .toLowerCase()  
-);  
+setCurrentRole(userRole);
+setCurrentPermissions(userPerms);
 
-
-setCurrentPermissions(  
-  (user.permissions || "")  
-    .split(",")  
-    .map(  
-      p =>  
-        p.trim().toLowerCase()  
-    )  
-    .filter(Boolean)  
-);  
-
+// إضافة (إشعارات المتصفح): تفعيل الاشتراك اللحظي في إشعارات
+// المستخدم فور نجاح تسجيل الدخول (بدون انتظار Refresh للصفحة -
+// راجع pushNotifications.js للتفعيل التلقائي عند فتح التطبيق
+// والمستخدم مسجّل دخوله بالفعل)
+if (typeof window.initBrowserNotifications === "function") {
+  window.initBrowserNotifications();
+}
 
 // ========================================================  
 // الانتقال للرئيسية  
-// (navigateTo("home") تُنتج بالضبط نفس تأثير التعيين اليدوي
-// السابق لـ currentPage + history.pushState + render())
 // ========================================================  
 
 navigateTo("home");
@@ -231,13 +237,13 @@ if (button) {
   button.disabled = false;  
 
   button.innerText =  
-    "دخول";  
+    loginLabel();  
 
 }  
 
 
 alert(  
-  "حدث خطأ أثناء تسجيل الدخول."  
+  t().loginErrorGeneric  
 );
 
 }
@@ -321,7 +327,7 @@ if (
 ) {  
 
   alert(  
-    "⚠️ يرجى إدخال جميع البيانات المطلوبة."  
+    t().fillAllFields  
   );  
 
   return;  
@@ -335,7 +341,7 @@ if (
 ) {  
 
   alert(  
-    "⚠️ كلمتا السر غير متطابقتين."  
+    t().passwordMismatch  
   );  
 
   return;  
@@ -374,7 +380,7 @@ if (submitButton) {
     true;  
 
   submitButton.innerText =  
-    "جاري إنشاء الحساب...";  
+    t().creatingAccount;  
 
 }  
 
@@ -391,7 +397,7 @@ if (submitButton) {
     false;  
 
   submitButton.innerText =  
-    "إنشاء الحساب";  
+    registerLabel();  
 
 }  
 
@@ -403,7 +409,7 @@ if (
 
   alert(  
     result.message ||  
-    "حدث خطأ أثناء التسجيل."  
+    t().registerErrorGeneric  
   );  
 
   return;  
@@ -413,7 +419,7 @@ if (
 
 alert(  
   result.message ||  
-  "تم إرسال طلب التسجيل بنجاح."  
+  t().registerSuccessDefault  
 );  
 
 
@@ -428,7 +434,7 @@ console.error(
 
 
 alert(  
-  "حدث خطأ أثناء إنشاء الحساب."  
+  t().registerErrorCatch  
 );
 
 }
@@ -441,6 +447,10 @@ alert(
 
 window.loadUsers =
 async function () {
+
+if (typeof window.loadUsersManagement === "function") {
+  return window.loadUsersManagement();
+}
 
 dlog(
 "DEBUG: Load Users Started..."
@@ -471,7 +481,7 @@ container.innerHTML = `
   "  
 >  
 
-  جاري تحميل المستخدمين...  
+  ${t().loadingUsers}  
 
 </div>
 
@@ -504,8 +514,8 @@ if (
       "  
     >  
 
-      خطأ:  
-      ${result.message || "فشل تحميل المستخدمين"}  
+      ${t().errorPrefix}  
+      ${result.message || t().loadUsersError}  
 
     </div>  
 
@@ -540,7 +550,7 @@ if (!usersList.length) {
       "  
     >  
 
-      لا يوجد مستخدمون مسجلون حالياً  
+      ${t().noUsers}  
 
     </div>  
 
@@ -574,7 +584,7 @@ usersList.forEach(
 
         <div>  
           <b>  
-            ${user.name || "مستخدم بدون اسم"}  
+            ${user.name || t().unnamedUser}  
           </b>  
         </div>  
 
@@ -583,22 +593,22 @@ usersList.forEach(
         </div>  
 
         <div class="text-blue-400">  
-          الدور:  
+          ${t().roleLabel}  
           ${user.role || "pending"}  
         </div>  
 
         <div class="text-gray-400">  
-          الحالة:  
+          ${t().statusLabel}  
           ${user.status || "-"}  
         </div>  
 
         <div class="text-gray-400">  
-          الشيفت:  
+          ${t().shiftLabel}  
           ${user.shift || "-"}  
         </div>  
 
         <div class="text-gray-400">  
-          القسم:  
+          ${t().departmentLabel}  
           ${user.department || "-"}  
         </div>  
 
@@ -631,7 +641,7 @@ container.innerHTML = `
     "  
   >  
 
-    حدث خطأ أثناء تحميل المستخدمين  
+    ${t().loadUsersErrorCatch}  
 
   </div>  
 
@@ -647,6 +657,12 @@ container.innerHTML = `
 
 window.logout =
 function () {
+
+// إضافة (إشعارات المتصفح): إلغاء الاشتراك اللحظي قبل مسح بيانات
+// الجلسة - عشان مايفضلش اشتراك شغال باسم مستخدم سجّل خروجه فعلاً
+if (typeof window.stopBrowserNotifications === "function") {
+  window.stopBrowserNotifications();
+}
 
 localStorage.clear();
 

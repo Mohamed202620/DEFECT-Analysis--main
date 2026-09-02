@@ -1,225 +1,47 @@
-import { saveDefectApi, fetchTicketsApi } from './services/api.js';
-
-// مصفوفة حفظ الصور محلية داخل وحدة العمليات
-export let defectImages = [null, null, null];
-
-// دالة إعادة ضبط حالة الصور والـ DOM
-export function resetDefectForm() {
-  defectImages = [null, null, null];
-
-  // إعادة ضبط العناصر في الواجهة إن وجدت
-  [0, 1, 2].forEach(index => {
-    const img = document.getElementById(`imgPreview${index}`);
-    if (img) {
-      img.src = "";
-      img.classList.add("hidden");
-    }
-  });
-
-  const counterEl = document.getElementById("imgCounter");
-  if (counterEl) counterEl.innerHTML = "رفع 0 من 3 صور";
-
-  const nameEl = document.getElementById("defectName");
-  if (nameEl) nameEl.value = "";
-  
-  const descEl = document.getElementById("defectDesc");
-  if (descEl) descEl.value = "";
-}
-
-// ✅ 5. تحسين الضغط (900 و 0.75 كقيم افتراضية)
-export function compressImage(file, maxWidth = 900, quality = 0.75) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onerror = (err) => reject(err);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onerror = (err) => reject(err);
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
-      };
-    };
-  });
-}
-
-// دالة التعامل مع فتح واختيار ملفات الصور
-export async function handleDefectFile(e, index) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  // ✅ 2. التأكد أن الملف صورة
-  if (!file.type.startsWith("image/")) {
-    alert("⚠️ الملف المختار ليس صورة.");
-    return;
-  }
-
-  // ✅ 1. منع تهنيج التطبيق عند اختيار صور كبيرة جداً
-  if (file.size > 10 * 1024 * 1024) {
-    alert("❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)");
-    return;
-  }
-
-  try {
-    // ✅ 5. تطبيق إعدادات الضغط المحسنة
-    const base64 = await compressImage(file, 900, 0.75);
-    defectImages[index] = base64;
-
-    const img = document.getElementById(`imgPreview${index}`);
-    if (img) {
-      img.src = base64;
-      img.classList.remove("hidden");
-    }
-
-    const count = defectImages.filter(x => x !== null).length;
-    const counterEl = document.getElementById("imgCounter");
-    if (counterEl) {
-      counterEl.innerHTML = count === 3 
-        ? "✅ تم رفع جميع الصور (3/3)" 
-        : `تم رفع ${count} من 3 صور`;
-    }
-  } catch (err) {
-    alert("❌ حدث خطأ أثناء معالجة الصورة: " + err.message);
-  }
-}
-
-// دالة حفظ وإرسال بيانات العيوب
-export async function saveDefectData() {
-  if (defectImages.includes(null)) {
-    alert("⚠️ يرجى رفع ثلاث صور للعيب لتأكيد البلاغ.");
-    return;
-  }
-
-  const nameEl = document.getElementById("defectName");
-  const name = nameEl ? nameEl.value.trim() : "";
-  if (!name) {
-    alert("⚠️ يرجى إدخال اسم العيب");
-    return;
-  }
-
-  const btn = document.getElementById("submitBtn");
-  const originalBtnText = btn ? btn.innerHTML : "✅ حفظ وإرسال";
-
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = "⏳ جاري الحفظ والإرسال...";
-  }
-
-  const line = document.getElementById("lineSelect")?.value || "";
-  const stage = document.getElementById("stageSelect")?.value || "";
-  const location = document.getElementById("defectLocation")?.value.trim() || "";
-  const description = document.getElementById("defectDesc")?.value.trim() || "";
-
-  const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-  const phone = localStorage.getItem("phone") || currentUser.phone || "";
-  const userName = localStorage.getItem("name") || currentUser.name || "";
-  const job = localStorage.getItem("job") || currentUser.job || "";
-  const role = localStorage.getItem("role") || currentUser.role || "";
-
-  // ✅ 8. إضافة رقم البلاغ كمعرف فريد
-  const defectId = "DF-" + Date.now();
-
-  const payload = {
-    // ✅ 4. تم إزالة action: "saveDefect"
-    defectId, // المعرف المضاف حديثاً
-    user: { name: userName, phone, job, role },
-    line,
-    stage,
-    name,
-    location,
-    description,
-    
-    // ✅ 7. ملاحظة: سيتم استبدال هذه الحقول لاحقاً بـ image1Url... بعد تفعيل Firebase Storage
-    image1: defectImages[0],
-    image2: defectImages[1],
-    image3: defectImages[2],
-    
-    date: new Date().toISOString()
-  };
-
-  try {
-    const result = await saveDefectApi(payload);
-    if (result.status === 'success') {
-      alert('✅ تم حفظ العيب بنجاح');
-      resetDefectForm();
-      if (typeof window.navigateTo === 'function') {
-        window.navigateTo('home');
-      }
-    } else {
-      alert('❌ حدث خطأ أثناء الحفظ: ' + (result.message || 'خطأ غير معروف'));
-    }
-  } catch (error) {
-    alert('❌ خطأ في الاتصال: ' + error.message);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalBtnText;
-    }
-  }
-}
-
-// ربط الدوال التفاعلية بـ Window لتسهيل استدعائها من الـ HTML مباشرة
-window.handleDefectFile = handleDefectFile;
-window.saveDefectData = saveDefectData;
-window.resetDefectForm = resetDefectForm;
+import { fetchTicketsApi, fetchTicketCountsApi } from './services/api.js';
+// إصلاح M1: جلب الدور والمستخدم الحالي عشان نمرّرهم لـ fetchTicketsApi
+// في loadDashboardStats() بدل ما تجيب كل التذاكر دايماً بدون فلترة
+import { getCurrentRole } from './permissions.js';
+// إضافة: نفس دوال الحساب المستخدمة في صفحة الإحصائيات (statistics.js)
+// اتعملها export من هناك بدون تغيير منطقها، عشان نعرض نفس الأرقام
+// (MTTR / أكثر ماكينة / أفضل فني) في كارتات الرئيسية الجديدة من
+// غير ما نكرر الكود ومن غير أي استعلام إضافي على قاعدة البيانات
+import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from './statistics.js';
+// إضافة: مفاتيح الترجمة عشان الرسم البياني في الرئيسية (أيام
+// الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
+// نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
+import { translations } from './config.js';
+// إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
+// مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
+// نفس التعريف في statistics.js بالظبط
+import { isClosedStatus, isOverdueTicket, parseTicketDate } from './ticketStatusConstants.js';
+// مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
+// واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
+// مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
+import { initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles, compressImage } from './components/attachmentPicker.js';
+export { compressImage };
 
 // ==========================================
 // منطق معالجة وحفظ بلاغات الأعطال (Issue Logic)
 // ==========================================
+// ملاحظة (تنظيف/Refactor): تمت إزالة نظام "دفعات العيوب" القديم
+// (defectImages / resetDefectForm / compressImage / handleDefectFile /
+// saveDefectData) من هنا - كان يعتمد على عناصر DOM (defectName,
+// imgPreview0-2, imgCounter, submitBtn, lineSelect, stageSelect,
+// defectLocation, defectDesc) غير موجودة في أي View حالي بالمشروع.
+// النظام الحالي الفعلي لتسجيل الأعطال هو "issue" (راجع IssueView.js
+// و window.confirmIssue تحت) وهو المُستخدم من MaintenanceView.js.
 
-let selectedIssueImage = null;
-
-// الاستماع لاختيار الصور من الكاميرا أو المعرض في واجهة البلاغات
-document.addEventListener('change', async (e) => {
-  if (e.target && (e.target.id === 'cameraImage' || e.target.id === 'galleryImage')) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // ✅ 2. التأكد أن الملف صورة
-    if (!file.type.startsWith("image/")) {
-      alert("⚠️ الملف المختار ليس صورة.");
-      return;
-    }
-
-    // ✅ 1. منع تهنيج التطبيق للصور الضخمة
-    if (file.size > 10 * 1024 * 1024) {
-      alert("❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)");
-      return;
-    }
-
-    try {
-      // ✅ 5. تحسين الضغط (900، 0.75)
-      selectedIssueImage = await compressImage(file, 900, 0.75);
-      const preview = document.getElementById('previewImage');
-      const nameTxt = document.getElementById('imageName');
-
-      if (preview) {
-        preview.src = selectedIssueImage;
-        preview.classList.remove('hidden');
-      }
-      if (nameTxt) {
-        nameTxt.textContent = `📷 تم إرفاق الصورة: ${file.name || 'مباشرة'}`;
-        nameTxt.classList.remove('text-gray-400');
-        nameTxt.classList.add('text-emerald-400');
-      }
-    } catch (err) {
-      alert("❌ خطأ أثناء معالجة الصورة: " + err.message);
-    }
-  }
-});
+// تفعيل مكوّن اختيار الصور المتعددة (اختيار أكثر من صورة دفعة واحدة
+// + إضافة صور لاحقًا + حذف مستقل لكل صورة) لفورم تسجيل عطل - يُستدعى
+// من renderCore.js AUTO LOAD بعد إدراج HTML الفورم فعلياً في الصفحة
+export function initIssueAttachments() {
+  initAttachmentPicker("issueImages", {
+    maxFileSizeMB: 10,
+    emptyText: "لا توجد صور مرفقة"
+  });
+}
+window.initIssueAttachments = initIssueAttachments;
 
 // دالة حفظ وإرسال البلاغ المربوطة بزر الحفظ
 window.confirmIssue = async function() {
@@ -259,7 +81,9 @@ window.confirmIssue = async function() {
     description,
     location,
     suggestion,
-    image: selectedIssueImage, // مستقبلاً سيتم رفعها كـ imageUrl
+    // الصور المرفقة (صفر أو أكثر) - مُجمَّعة من مكوّن الاختيار
+    // المتعدد (attachmentPicker.js)، بدل صورة واحدة فقط كالسابق
+    images: getAttachmentFiles("issueImages"),
 
     // اسم/معرّف المُبلّغ بشكل مسطّح (يُستخدم في دورة حياة التذكرة:
     // قواعد الأمان وواجهة "Review & Closure" - راجع ticketsBoard.js)
@@ -291,16 +115,10 @@ window.confirmIssue = async function() {
       );
       
       // ✅ 3. إعادة ضبط حقول البلاغ بعد الحفظ قبل العودة للرئيسية
-      selectedIssueImage = null;
+      resetAttachmentFiles("issueImages");
       if (document.getElementById("issueDescription")) document.getElementById("issueDescription").value = "";
       if (document.getElementById("issueSuggestion")) document.getElementById("issueSuggestion").value = "";
       if (document.getElementById("issueLocation")) document.getElementById("issueLocation").value = "";
-      
-      const preview = document.getElementById("previewImage");
-      if(preview){
-          preview.src = "";
-          preview.classList.add("hidden");
-      }
 
       if (typeof window.navigateTo === 'function') {
         window.navigateTo('home');
@@ -319,71 +137,6 @@ window.confirmIssue = async function() {
 };
 
 // ==========================================
-// رسم بياني للأعطال والأداء (Home Chart)
-// ==========================================
-let chartInstance = null;
-
-export function initMainChart(customData = null) {
-  const canvas = document.getElementById('mainChart');
-  if (!canvas) return;
-
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  // ✅ 6. الهيكل جاهز لاستقبال بيانات (customData) مستوردة من Firestore
-  const defaultData = {
-    labels: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'],
-    open: [4, 2, 5, 1, 3, 2, 0],
-    closed: [3, 4, 4, 3, 5, 4, 1]
-  };
-
-  const data = customData || defaultData;
-
-  chartInstance = new Chart(canvas, {
-    type: 'line',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {
-          label: 'أعطال مفتوحة',
-          data: data.open,
-          borderColor: '#F59E0B',
-          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-          borderWidth: 2,
-          pointRadius: 4,
-          tension: 0.35,
-          fill: true
-        },
-        {
-          label: 'تم إصلاحها',
-          data: data.closed,
-          borderColor: '#10B981',
-          backgroundColor: 'rgba(16, 185, 129, 0.15)',
-          borderWidth: 2,
-          pointRadius: 4,
-          tension: 0.35,
-          fill: true
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { labels: { color: '#9CA3AF', font: { size: 10 } } }
-      },
-      scales: {
-        x: { ticks: { color: '#9CA3AF' }, grid: { color: 'rgba(51, 65, 85, 0.2)' } },
-        y: { ticks: { color: '#9CA3AF', precision: 0 }, grid: { color: 'rgba(51, 65, 85, 0.2)' } }
-      }
-    }
-  });
-}
-
-window.initMainChart = initMainChart;
-
-// ==========================================
 // بيانات لوحة المتابعة الحقيقية (Dashboard Stats)
 // كانت أرقام لوحة المتابعة (open/closed/today/total) ثابتة
 // دائماً على صفر لأن window.dashboardData لم يكن يُملأ من أي
@@ -393,41 +146,69 @@ window.initMainChart = initMainChart;
 
 export async function loadDashboardStats() {
 
-  const result = await fetchTicketsApi();
+  // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
+  // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر
+  // حسب الصلاحيات (Admin/Manager = الكل، وباقي الأدوار = بلاغاتي +
+  // المُسندة إليّ فقط) بدل ما تجيب كل التذاكر لأي مستخدم
+  const role = getCurrentRole();
+  const myUid = localStorage.getItem("userId") || "";
+  const myName = localStorage.getItem("name") || "";
 
-  if (!result || result.status !== 'success') return;
+  const sampleResult = await fetchTicketsApi({ role, myUid, myName, maxCount: 500 });
 
-  const tickets = Array.isArray(result.data) ? result.data : [];
+  if (!sampleResult || sampleResult.status !== 'success') {
+    console.warn("[loadDashboardStats] Failed to fetch tickets:", sampleResult?.message || "Unknown error");
+    return;
+  }
+
+  const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
 
   const todayStr = new Date().toDateString();
 
   let open = 0;
   let closed = 0;
   let today = 0;
-
-  const closedStatuses = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
+  let overdue = 0;
 
   tickets.forEach(ticket => {
-    const status = String(ticket.status || '').trim().toLowerCase();
-
-    if (closedStatuses.includes(status)) {
+    if (isClosedStatus(ticket.status)) {
       closed++;
     } else {
       open++;
     }
 
-    if (ticket.createdAt) {
-      const created = new Date(ticket.createdAt);
-      if (!isNaN(created) && created.toDateString() === todayStr) {
-        today++;
-      }
+    const created = parseTicketDate(ticket);
+    if (created && created.toDateString() === todayStr) {
+      today++;
+    }
+
+    if (isOverdueTicket(ticket)) {
+      overdue++;
     }
   });
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+
+  const thisMonthTickets = tickets.filter(t => {
+    const d = parseTicketDate(t);
+    return d && d >= thirtyDaysAgo;
+  });
+
+  const mttrData = computeMTTR(thisMonthTickets);
+  const topMachines = computeTopMachines(thisMonthTickets, 1);
+  const topTechs = computeTechnicianPerformance(thisMonthTickets, 1);
+
+  const mttrValue = mttrData.avgHours !== null ? `${mttrData.avgHours.toFixed(1)} h` : '-';
+  const topMachineValue = topMachines.length > 0 ? topMachines[0][0] : '-';
+  const topTechValue = topTechs.length > 0 ? topTechs[0][0] : '-';
 
   const stats = {
     open,
     closed,
     today,
+    overdue,
     total: tickets.length
   };
 
@@ -442,6 +223,27 @@ export async function loadDashboardStats() {
   setText('statClosedCount', stats.closed);
   setText('statTodayCount', stats.today);
   setText('statTotalCount', stats.total);
+  setText('statOverdueCount', stats.overdue);
+
+  setText('statMttrValue', mttrValue);
+  setText('statTopMachineName', topMachineValue);
+  setText('statTopTechName', topTechValue);
+
+  // ============================================================
+  // إضافة: تنبيه "بلاغ حرج"
+  // ============================================================
+
+  // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟ (نستخدم tickets المفلترة هنا لأنها تخص المستخدم)
+  const hasCritical = tickets.some(t => {
+    const isOpen = !isClosedStatus(t.status);
+    return isOpen && String(t.priority || '').trim() === 'High';
+  });
+
+  const criticalBadge = document.getElementById('criticalBadge');
+  if (criticalBadge) {
+    criticalBadge.classList.toggle('hidden', !hasCritical);
+    criticalBadge.classList.toggle('flex', hasCritical);
+  }
 }
 
 window.loadDashboardStats = loadDashboardStats;

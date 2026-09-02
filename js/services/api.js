@@ -38,20 +38,29 @@ export { saveDefectApi } from "./defectsApi.js";
 export {
   saveIssueApi,
   fetchTicketsApi,
+  fetchTicketCountsApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,
   fetchResolvedTicketsApi,
+  subscribeToTicketsBoardApi,
   assignTicketApi,
+  reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
+  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
+  fetchTicketsForReportApi,
+  fetchTicketsForSearchApi,
   fetchMyNotificationsApi,
+  subscribeToMyNotificationsApi,
   markNotificationReadApi,
-  syncOfflineTicketsApi
+  markAllNotificationsAsRead,
+  syncOfflineTicketsApi,
+  syncOfflineTicketActionsApi
 } from "./ticketsApi.js";
 
 export { fetchDashboardDataApi } from "./dashboardApi.js";
@@ -66,6 +75,36 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi } from "./pmApi.js";
+export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
 
-export { saveSuggestionApi } from "./suggestionsApi.js";
+export {
+  saveSuggestionApi,
+  subscribeToSuggestionsBoardApi,
+  fetchSuggestionsForReportApi,
+  fetchSuggestionsForSearchApi,
+  reviewSuggestionApi,
+  rejectSuggestionApi,
+  requestSuggestionRevisionApi,
+  returnSuggestionToReviewApi,
+  resubmitSuggestionApi,
+  assignAndApproveSuggestionApi,
+  implementSuggestionApi,
+  fetchSuggestionLogsApi
+} from "./suggestionsApi.js";
+
+export {
+  fetchOfficialHolidaysApi,
+  addOfficialHolidayApi,
+  deleteOfficialHolidayApi
+} from "./holidaysApi.js";
+
+export {
+  fetchMachineTypesApi,
+  addMachineTypeApi,
+  updateMachineTypeApi,
+  setMachineTypeActiveApi,
+  deleteMachineTypeApi,
+  seedDefaultMachineTypesApi
+} from "./machinesApi.js";
+
+

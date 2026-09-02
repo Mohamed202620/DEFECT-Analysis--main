@@ -1,9 +1,8 @@
+import { exportToPdf, PAGE_BREAK_CLASS } from './services/exportUtility.js';
+import { buildPdfStatsCardsHtml } from './branding.js';
 // ============================================================
 // ticketsBoard.js
-// لوحة متابعة دورة حياة التذكرة - تُعرض حسب دور المستخدم الحالي:
-//   - manager/admin  -> تذاكر pending (تصنيف وإسناد)
-//   - technician/engineer -> تذاكر assigned/reopened المُسندة له
-//   - operator        -> تذاكر resolved (فحص وإغلاق/رفض)
+// لوحة متابعة دورة حياة التذكرة - تُعرض ديناميكياً حسب دور المستخدم
 // ============================================================
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
@@ -11,83 +10,146 @@ import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 import {
-  fetchPendingTicketsApi,
-  fetchTicketsForTechnicianApi,
-  fetchResolvedTicketsApi,
-  fetchTicketsApi,
+  subscribeToTicketsBoardApi,
   fetchTechniciansApi,
   assignTicketApi,
+  reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
   closeTicketApi,
+  bulkCloseTicketsApi,
   reopenTicketApi,
   fetchMyNotificationsApi,
-  markNotificationReadApi
+  markNotificationReadApi,
+  fetchTicketsForReportApi
 } from './services/api.js';
+import { translations } from './config.js';
+// إصلاح (تنظيف/Refactor): STATUS_CLASSES بقت مستوردة من ملف ثوابت
+// مشترك (ticketStatusConstants.js) باسم STATUS_CLASSES_BOARD (نسخة
+// "بارزة" مخصصة لشارة الحالة الأكبر هنا في اللوحة، بنفس القيم اللي
+// كانت متعرّفة محلياً هنا بالظبط - بدون أي تغيير في الشكل الظاهري)
+import { STATUS_CLASSES_BOARD, isOverdueTicket, getOverdueThresholdHours } from './ticketStatusConstants.js';
 
-const STATUS_LABELS = {
-  pending: "جديد",
-  assigned: "تم الإسناد",
-  in_progress: "قيد التنفيذ",
-  resolved: "بانتظار تأكيد المُبلغ",
-  closed: "مغلقة",
-  reopened: "قيد التنفيذ" // توافق مع أي بيانات قديمة قبل التحديث
+// إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
+// الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
+// دلوقتي بتتقرأ من translations.ticketsBoard حسب window.currentLang
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).ticketsBoard;
+}
+
+function common() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).common;
+}
+
+function notifT() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).notifications;
+}
+
+const STATUS_BAR_ACCENTS = {
+  pending: "bg-amber-500 shadow-amber-500/40",
+  assigned: "bg-blue-500 shadow-blue-500/40",
+  in_progress: "bg-indigo-500 shadow-indigo-500/40",
+  resolved: "bg-emerald-500 shadow-emerald-500/40",
+  closed: "bg-slate-500 shadow-slate-500/40",
+  reopened: "bg-purple-500 shadow-purple-500/40"
 };
 
-const STATUS_CLASSES = {
-  pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-};
+function getActionButtonStyle(actionKey) {
+  switch (actionKey) {
+    case 'resolve':
+      return 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500';
+    case 'start':
+      return 'bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 border border-blue-500';
+    case 'assign':
+      return 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 border border-indigo-500';
+    case 'reassign':
+      return 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 border border-amber-500';
+    case 'close':
+      return 'bg-slate-700 hover:bg-slate-600 text-slate-100 border border-slate-600';
+    case 'reopen':
+      return 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30 border border-amber-500';
+    default:
+      return 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30';
+  }
+}
 
 function ticketCardHtml(ticket) {
 
   const actions = getTicketActions(ticket);
+  const tr = t();
 
   const actionsHtml = actions.map(a => `
     <button
       onclick="window.handleTicketAction('${ticket.id}', '${a.key}')"
-      class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
+      class="min-h-[40px] text-xs font-black px-4 py-2 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 ${getActionButtonStyle(a.key)}">
       ${a.label}
     </button>
   `).join("");
 
   const status = String(ticket.status || "").trim().toLowerCase();
   const machineName = ticket.machine || ticket.machineName || "-";
+  const accentClass = STATUS_BAR_ACCENTS[status] || "bg-slate-600";
+  // إضافة (تحسين Workflow - إجراءات جماعية): الكارت بيظهر بيه Checkbox
+  // في وضع التحديد الجماعي (بغض النظر عن حالة التذكرة - الإغلاق
+  // الجماعي نفسه بيتجاهل أي تذكرة مش "بانتظار تأكيد" بأمان من ناحية
+  // الـ API، لكن التصدير الجماعي بيشتغل على أي حالة)
+  const bulkCheckboxHtml = bulkSelectMode ? `
+    <label class="flex items-center shrink-0 cursor-pointer">
+      <input type="checkbox" onchange="window.toggleTicketSelection('${ticket.id}')" ${selectedTicketIds.has(ticket.id) ? "checked" : ""}
+        class="w-5 h-5 rounded border-gray-600 bg-slate-800 text-amber-500 focus:ring-amber-500 cursor-pointer">
+    </label>
+  ` : "";
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3">
-      <div class="flex justify-between items-center">
-        <span class="font-bold text-sm text-gray-100">${machineName}</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
-          ${STATUS_LABELS[status] || status}
-        </span>
-      </div>
+    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 mb-3 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all">
+      <!-- شريط الحالة الجانبي عالي التباين لتحديد نوع العطل فورا بالعين -->
+      <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 w-2 ${accentClass} shadow-sm"></div>
 
-      <p class="text-xs text-gray-400">${ticket.description || ""}</p>
-
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        ${ticket.reportedBy ? `<span>👤 بلّغ: ${ticket.reportedBy}</span>` : ""}
-        ${ticket.assignedTo ? `<span>🛠️ مُسندة إلى: ${ticket.assignedTo}</span>` : ""}
-        ${ticket.type ? `<span>🏷️ ${ticket.type}</span>` : ""}
-      </div>
-
-      ${ticket.mechanicNotes ? `
-        <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
-          🔧 ملاحظات الفني: ${ticket.mechanicNotes}
+      <div class="rtl:pr-2.5 ltr:pl-2.5 space-y-2.5">
+        <div class="flex justify-between items-center gap-2">
+          <div class="flex items-center gap-2">
+            ${bulkCheckboxHtml}
+            <span class="font-black text-sm text-slate-100">${machineName}</span>
+            ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
+          </div>
+          <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
+            ${tr.status[status] || status}
+          </span>
         </div>
-      ` : ""}
 
-      ${ticket.operatorFeedback ? `
-        <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
-          ⚠️ ملاحظات المُبلّغ: ${ticket.operatorFeedback}
+        <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+          ${ticket.description || ""}
+        </p>
+
+        <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
+          ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
+          ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
+          ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
+          ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
+            ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+            ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+            'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+          }">⚡ ${ticket.priority}</span>` : ""}
+          ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
         </div>
-      ` : ""}
 
-      ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-1">${actionsHtml}</div>` : ""}
+        ${ticket.mechanicNotes ? `
+          <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
+            🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${ticket.mechanicNotes}
+          </div>
+        ` : ""}
+
+        ${ticket.operatorFeedback ? `
+          <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
+            ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${ticket.operatorFeedback}
+          </div>
+        ` : ""}
+
+        ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">${actionsHtml}</div>` : ""}
+      </div>
     </div>
   `;
 
@@ -109,93 +171,413 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 
 }
 
+// ============================================================
+// تحميل متدرج (Infinite Scroll) بلا حدود للصفحات
+// ============================================================
+const BOARD_CHUNK_SIZE = 20;
+let boardVisibleCount = BOARD_CHUNK_SIZE;
+let boardAllTickets = [];
+
+function renderBoardPage(containerId, emptyMessage) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const tr = t();
+
+  const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
+  const listHtml = visibleItems.length
+    ? visibleItems.map(ticketCardHtml).join("")
+    : `<div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>`;
+
+  const loaderHtml = boardVisibleCount < boardAllTickets.length 
+    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-gray-500 text-[11px] animate-pulse">
+         جاري تحميل المزيد... ( ${boardVisibleCount} من ${boardAllTickets.length} )
+       </div>` 
+    : ``;
+
+  container.innerHTML = listHtml + loaderHtml;
+
+  if (boardVisibleCount < boardAllTickets.length) {
+    setTimeout(() => {
+      const target = document.getElementById('infiniteScrollTarget');
+      if (target) {
+        const observer = new IntersectionObserver((entries) => {
+          if (entries[0].isIntersecting) {
+            observer.disconnect();
+            window.loadMoreTickets(containerId, emptyMessage);
+          }
+        }, { rootMargin: "150px" });
+        observer.observe(target);
+      }
+    }, 150);
+  }
+}
+
+window.loadMoreTickets = function (containerId, emptyMessage) {
+  boardVisibleCount += BOARD_CHUNK_SIZE;
+  renderBoardPage(containerId, emptyMessage);
+};
+
+// ============================================================
+// دالة تحديد التبويبات حسب دور المستخدم
+// ============================================================
+
+function getTabsForRole(role) {
+  const tr = t();
+
+  if (role === 'technician' || role === 'operator' || role === 'engineer') {
+    return [
+      { key: "assigned_to_me", label: tr.tabAssignedToMe },
+      { key: "my_tickets", label: tr.tabMyTickets },
+      { key: "awaiting_confirm", label: tr.tabAwaitingConfirm }
+    ];
+  }
+  // للأدمن والمدير
+  return [
+    { key: "all", label: tr.tabAll },
+    { key: "pending", label: tr.tabPending },
+    { key: "in_progress", label: tr.tabInProgress },
+    { key: "resolved", label: tr.tabResolved },
+    { key: "closed", label: tr.tabClosed }
+  ];
+}
+
+let currentStatusFilter = null;
+let unsubscribeTicketsListener = null;
+
+// ============================================================
+// إضافة (تحسين Workflow - إجراءات جماعية Bulk Actions): تحديد أكتر
+// من تذكرة "بانتظار تأكيد" وتأكيد إغلاقهم مرة واحدة، أو تصدير مجموعة
+// تذاكر محددة كـ PDF واحد - بدل الضغط على كل تذكرة لوحدها. متاحة
+// للأدمن/المدير فقط (نفس صلاحية "إعادة الإسناد")
+// ============================================================
+let bulkSelectMode = false;
+let selectedTicketIds = new Set();
+
+function isBulkActionsRole(role) {
+  return role === "admin" || role === "manager";
+}
+
+function renderBulkSelectToggle() {
+  const container = document.getElementById("bulkSelectToggleContainer");
+  if (!container) return;
+
+  const role = getCurrentRole();
+  if (!isBulkActionsRole(role)) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const tr = t();
+  container.innerHTML = `
+    <button
+      onclick="window.toggleBulkSelectMode()"
+      class="w-full text-xs font-bold py-2 rounded-lg border transition-all active:scale-95 ${
+        bulkSelectMode
+          ? "bg-amber-600 border-amber-500 text-white"
+          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+      }">
+      ${bulkSelectMode ? (tr.bulkSelectExit || "إنهاء وضع التحديد") : (tr.bulkSelectEnter || "☑️ تحديد للإجراءات الجماعية")}
+    </button>
+  `;
+}
+
+function renderBulkActionsBar() {
+  const container = document.getElementById("bulkActionsBar");
+  if (!container) return;
+
+  if (!bulkSelectMode || selectedTicketIds.size === 0) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const tr = t();
+  container.innerHTML = `
+    <div class="flex items-center justify-between gap-2 bg-[#1E293B] border border-amber-500/40 rounded-xl p-2.5">
+      <span class="text-xs font-bold text-amber-300">${(tr.bulkSelectedCount || "{n} محدد").replace("{n}", selectedTicketIds.size)}</span>
+      <div class="flex gap-2">
+        <button onclick="window.bulkCloseSelectedTickets()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white active:scale-95 transition-all">
+          ${tr.bulkCloseBtn || "✔️ تأكيد إغلاق المحدد"}
+        </button>
+        <button onclick="window.bulkExportSelectedTickets()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white active:scale-95 transition-all">
+          ${tr.bulkExportBtn || "📄 تصدير PDF"}
+        </button>
+        <button onclick="window.clearBulkSelection()" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white active:scale-95 transition-all">
+          ${tr.bulkClearBtn || "إلغاء"}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+window.toggleBulkSelectMode = function () {
+  bulkSelectMode = !bulkSelectMode;
+  selectedTicketIds.clear();
+  renderBulkSelectToggle();
+  renderBulkActionsBar();
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
+
+window.toggleTicketSelection = function (ticketId) {
+  if (selectedTicketIds.has(ticketId)) {
+    selectedTicketIds.delete(ticketId);
+  } else {
+    selectedTicketIds.add(ticketId);
+  }
+  renderBulkActionsBar();
+};
+
+window.clearBulkSelection = function () {
+  selectedTicketIds.clear();
+  renderBulkActionsBar();
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
+
+window.bulkCloseSelectedTickets = async function () {
+  const tr = t();
+  if (!selectedTicketIds.size) return;
+
+  if (!confirm((tr.bulkCloseConfirm || "تأكيد إغلاق {n} تذكرة؟").replace("{n}", selectedTicketIds.size))) return;
+
+  const result = await bulkCloseTicketsApi(Array.from(selectedTicketIds));
+
+  if (result.status === "success") {
+    let msg = (tr.bulkCloseSuccess || "تم إغلاق {n} تذكرة بنجاح").replace("{n}", result.closedCount);
+    if (result.skippedCount > 0) {
+      msg += " — " + (tr.bulkCloseSkipped || "تم تجاهل {n} (غير بانتظار تأكيد)").replace("{n}", result.skippedCount);
+    }
+    alert("✅ " + msg);
+    selectedTicketIds.clear();
+    renderBulkActionsBar();
+  } else {
+    alert("❌ " + (result.message || tr.genericActionError));
+  }
+};
+
+window.bulkExportSelectedTickets = async function () {
+  const tr = t();
+  if (!selectedTicketIds.size) return;
+
+  const selectedTickets = boardAllTickets.filter(ticket => selectedTicketIds.has(ticket.id));
+  if (!selectedTickets.length) return;
+
+  try {
+    const isAr = (window.currentLang || "ar") === "ar";
+
+    // إضافة (تحسين Workflow - إجراءات جماعية): نفس Pipeline تصدير
+    // التقرير الشهري بالظبط (buildReportTicketBlockHtml + exportToPdf)
+    // لكن على مجموعة التذاكر المحددة فقط بدل آخر 30 يوم
+    const ticketsWithImages = await Promise.all(selectedTickets.map(async ticket => {
+      const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0)
+                        ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : []);
+      const dataUrls = (
+        await Promise.all(mediaUrls.slice(0, 4).map(url => loadImageAsCompressedDataUrl(url)))
+      ).filter(Boolean);
+      return { ticket, dataUrls };
+    }));
+
+    let blocksHtml = ticketsWithImages.map(({ ticket, dataUrls }) => {
+      let html = buildReportTicketBlockHtml(ticket, dataUrls);
+      return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
+    }).join("");
+
+    const htmlContent = `<div id="mPdfRecordsContainer">${blocksHtml}</div>`;
+    const title = isAr ? "📄 تصدير تذاكر محددة" : "📄 Selected Tickets Export";
+    const filename = `selected-tickets-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const infoRows = [
+      { label: isAr ? "عدد التذاكر" : "Ticket count", value: String(selectedTickets.length) }
+    ];
+
+    await exportToPdf(title, infoRows, htmlContent, filename);
+  } catch (error) {
+    console.error("Error exporting selected tickets:", error);
+    alert("❌ " + (tr.reportGenerateError || "حدث خطأ أثناء تجهيز الملف"));
+  }
+};
+
+
+// إصلاح M2/M3: حالات "افتراضية" بتيجي من كروت لوحة المتابعة بالرئيسية
+// (homeView.js) مش من ضغط تبويب فعلي - 'open' (أعطال مفتوحة) و 'fixed'
+// (تم إصلاحها). دول مش أسماء تبويبات حرفية عند الأدمن/المدير، فمن غير
+// استثناء هيتم استبدالهم صامتاً بأول تبويب (all) في renderStatusTabs
+// تحت. بنستثنيهم هنا عشان الفلتر الحقيقي (زي ما اتحسبت بيه أرقام
+// الكروت عبر STATUS_QUERY_ALIASES في ticketsApi.js) يفضل شغال، وبنربط
+// كل واحد منهم بأقرب تبويب موجود بصرياً بس عشان التظليل (Highlight)
+const HOME_CARD_STATUSES = ['open', 'fixed', 'today', 'overdue'];
+const HOME_CARD_TAB_ALIAS = { open: 'pending', fixed: 'closed', today: 'all', overdue: 'pending' };
+
+function renderStatusTabs(role) {
+
+  const container = document.getElementById("ticketsTabsContainer");
+  if (!container) return;
+
+  const tabs = getTabsForRole(role);
+  const isHomeCardStatus = HOME_CARD_STATUSES.includes(currentStatusFilter);
+
+  // ضبط الفلتر الافتراضي إذا لم يكن محدداً أو إذا كان الفلتر الحالي غير
+  // موجود في التبويبات المتاحة - إلا إذا كان فلتر "كارت رئيسية" صالح
+  // (open/fixed) للأدمن/المدير، فبيفضل زي ما هو من غير استبدال
+  if (!currentStatusFilter || (!tabs.some(tab => tab.key === currentStatusFilter) && !isHomeCardStatus)) {
+    currentStatusFilter = tabs[0].key;
+  }
+
+  // مفتاح التظليل البصري فقط (مش اللي بيتبعت فعلياً للاستعلام) - كارت
+  // "أعطال مفتوحة" (open) بيظلل تبويب "قيد الانتظار"، وكارت "تم
+  // إصلاحها" (fixed) بيظلل تبويب "مغلق"، كأقرب تبويب موجود بصرياً
+  const highlightKey = HOME_CARD_TAB_ALIAS[currentStatusFilter] || currentStatusFilter;
+
+  container.innerHTML = tabs.map(tab => `
+    <button
+      onclick="window.setTicketsStatusFilter('${tab.key}')"
+      class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
+        highlightKey === tab.key
+          ? "bg-blue-600 border-blue-600 text-white"
+          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+      }">
+      ${tab.label}
+    </button>
+  `).join("");
+
+}
+
 /**
- * تحميل لوحة التذاكر حسب دور المستخدم الحالي - مُستدعاة من
- * pageRenderer.js عند فتح صفحة 'tickets' (زي نمط loadUsers()
- * الحالي بالظبط: containerId ثابت + دالة تحميل مرتبطة بـ window)
+ * تحميل لوحة التذاكر حسب دور المستخدم والتبويب الحالي
  */
-window.loadTicketsBoard = async function () {
+window.loadTicketsBoard = function () {
+
+  const role = getCurrentRole();
+  renderStatusTabs(role);
+  renderBulkSelectToggle();
+  renderBulkActionsBar();
+  boardVisibleCount = BOARD_CHUNK_SIZE;
 
   const container = document.getElementById("ticketsBoardContainer");
   if (!container) return;
 
-  container.innerHTML = `
-    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل التذاكر...</div>
-  `;
+  if (typeof unsubscribeTicketsListener === "function") {
+    unsubscribeTicketsListener();
+    unsubscribeTicketsListener = null;
+  }
 
-  const role = getCurrentRole();
-  const myName = localStorage.getItem("name") || "";
   const myUid = localStorage.getItem("userId") || "";
+  const myName = localStorage.getItem("name") || "";
 
-  // تحميل عدد الإشعارات غير المقروءة (لا يوقف عرض التذاكر لو فشل)
   loadNotificationsBadge();
 
-  try {
+  if (!role) {
+    renderTicketsList("ticketsBoardContainer", [], t().noPermission);
+    return;
+  }
 
-    let result;
+  container.innerHTML = `
+    <div class="text-center text-gray-400 text-xs py-8">${t().loadingTickets}</div>
+  `;
 
-    if (role === "admin") {
-      // الأدمن بيشوف كل التذاكر بكل حالاتها (صورة كاملة على النظام)
-      result = await fetchTicketsApi();
+  unsubscribeTicketsListener = subscribeToTicketsBoardApi(
+    { role, myUid, myName, status: currentStatusFilter },
+    (result) => {
 
-    } else if (role === "manager") {
-      result = await fetchPendingTicketsApi();
+      if (!result || result.status !== "success") {
+        console.error("Ticket subscription error:", result?.message);
+        container.innerHTML = `
+          <div class="text-red-400 text-center text-xs py-6">
+            ${t().loadError}
+          </div>
+        `;
+        return;
+      }
 
-    } else if (role === "technician" || role === "engineer") {
-      result = await fetchTicketsForTechnicianApi(myName);
+      // فلترة الصلاحيات اتطبقت بالفعل جوه subscribeToTicketsBoardApi (حسب
+      // role/myUid/myName) - هنا بس بناخد آخر 60 من النتيجة المفلترة والمرتبة
+      // وبعدين نعرضها بشكل متدرج (Infinite Scroll) باستخدام IntersectionObserver
+      const tickets = Array.isArray(result.data) ? result.data : [];
+      boardAllTickets = tickets;
+      renderBoardPage("ticketsBoardContainer", t().empty);
 
-    } else if (role === "operator") {
-      result = await fetchResolvedTicketsApi();
+    }
+  );
 
+};
+
+/**
+ * تغيير تبويب الفلتر
+ */
+window.setTicketsStatusFilter = function (status) {
+
+  if (status === currentStatusFilter) return;
+
+  currentStatusFilter = status;
+  boardVisibleCount = BOARD_CHUNK_SIZE;
+  // إضافة (تحسين Workflow - إجراءات جماعية): تصفير أي تحديد قديم عند
+  // تبديل التبويب - تذاكر التبويب الجديد مختلفة، فالتحديد القديم مالوش
+  // معنى وممكن يبين مضلل (عدد محدد من غير أي Checkbox متعلّم فعلياً)
+  selectedTicketIds.clear();
+  window.loadTicketsBoard();
+
+};
+
+/**
+ * فتح لوحة التذاكر مع تعيين الفلتر المطلوب مباشرة
+ */
+window.openTicketsWithFilter = function (status) {
+  if (status) {
+    const role = getCurrentRole();
+
+    // إصلاح M3: كروت لوحة المتابعة بالرئيسية ('open' / 'all' / 'fixed'
+    // ...إلخ) مبنية على افتراض صلاحية الأدمن/المدير (فلاتر عامة على كل
+    // التذاكر). لغير الأدمن/المدير (فني/مشغل/مهندس) مفيش تبويب بنفس
+    // الاسم أصلاً عندهم، فكان بيتم استبدال الفلتر صامتاً بأول تبويب
+    // متاح (assigned_to_me) جوه renderStatusTabs بغض النظر عن الكارت
+    // اللي ضغط عليه المستخدم فعلياً - يعني كل الكروت كانت بتؤدي لنفس
+    // التبويب. دلوقتي بنحوّل كل كارت لأقرب تبويب متاح فعلياً لصلاحيته:
+    // - "أعطال مفتوحة" (pending/open) -> "المُسندة إليّ" (شغله المفتوح)
+    // - "أعطال اليوم" و"إجمالي البلاغات" (all) -> "بلاغاتي" (my_tickets)
+    // - "تم إصلاحها" (resolved/fixed/closed) -> "بانتظار تأكيدي"
+    if (role === 'technician' || role === 'operator' || role === 'engineer') {
+      const NON_ADMIN_STATUS_MAP = {
+        pending: 'assigned_to_me',
+        open: 'assigned_to_me',
+        all: 'my_tickets',
+        // إصلاح M6: "أعطال اليوم" - مفيش تبويب بتاريخ عندهم أصلاً،
+        // فبنقرّبها لأوسع نظرة متاحة ليهم (بلاغاتي) بدل ما تتفلتر
+        // بالتاريخ فقط عند الأدمن/المدير
+        today: 'my_tickets',
+        // إضافة (تحسين Workflow - "بلاغات متأخرة"): مفيش تبويب SLA
+        // مخصص عندهم أصلاً - أقرب نظرة متاحة ليهم هي "المُسندة إليّ"
+        // (شغلهم المفتوح اللي ممكن يكون متأخر فيه)
+        overdue: 'assigned_to_me',
+        resolved: 'awaiting_confirm',
+        fixed: 'awaiting_confirm',
+        closed: 'awaiting_confirm'
+      };
+      currentStatusFilter = NON_ADMIN_STATUS_MAP[status] || 'assigned_to_me';
     } else {
-      renderTicketsList("ticketsBoardContainer", [], "لا توجد صلاحية لعرض التذاكر لهذا الدور.");
-      return;
+      currentStatusFilter = status;
     }
+  }
+  if (typeof window.navigateTo === "function") {
+    window.navigateTo("tickets");
+  }
+};
 
-    if (!result || result.status !== "success") {
-      // ملحوظة: مبنعرضش result.message هنا عمداً - ممكن تكون رسالة
-      // خطأ خام من Firebase (زي رابط إنشاء Index) مش مناسبة لعرضها
-      // للمستخدم العادي. التفاصيل الحقيقية اتسجلت بالفعل في
-      // Console عبر console.error() جوه دالة الـ API نفسها.
-      console.error("Ticket fetch error:", result?.message);
-      container.innerHTML = `
-        <div class="text-red-400 text-center text-xs py-6">
-          تعذر تحميل التذاكر حالياً. حاول تحديث الصفحة، ولو استمرت المشكلة تواصل مع الأدمن.
-        </div>
-      `;
-      return;
-    }
+/**
+ * إيقاف المستمع عند المغادرة
+ */
+window.cleanupTicketsBoard = function () {
 
-    let tickets = Array.isArray(result.data) ? result.data : [];
-
-    // المُبلّغ (operator) يشوف بس التذاكر اللي هو بلّغ عنها -
-    // فلترة على مستوى العميل (راجع ملاحظة fetchResolvedTicketsApi)
-    if (role === "operator") {
-      tickets = tickets.filter(t => t.reportedByUid === myUid || t.reportedBy === myName);
-    }
-
-    renderTicketsList("ticketsBoardContainer", tickets, "لا توجد تذاكر حالياً في قائمتك.");
-
-  } catch (error) {
-
-    console.error("Error loading tickets board:", error);
-    container.innerHTML = `
-      <div class="text-red-400 text-center text-xs py-6">حدث خطأ أثناء تحميل التذاكر.</div>
-    `;
-
+  if (typeof unsubscribeTicketsListener === "function") {
+    unsubscribeTicketsListener();
+    unsubscribeTicketsListener = null;
   }
 
 };
 
-
 /**
- * تنفيذ إجراء على تذكرة (تصنيف/إسناد، حل، تأكيد، رفض) - بيفتح
- * نافذة صغيرة (ActionModal) لجمع البيانات المطلوبة لكل إجراء
- * ثم يستدعي دالة الـ API المناسبة من ticketsApi.js
+ * تنفيذ الإجراءات على التذكرة
  */
 window.handleTicketAction = async function (ticketId, action) {
 
   let result;
+  const tr = t();
 
   if (action === "details") {
     openTicketDetailsModal(ticketId);
@@ -208,29 +590,29 @@ window.handleTicketAction = async function (ticketId, action) {
     const technicians = techResult.status === "success" ? techResult.data : [];
 
     if (!technicians.length) {
-      alert("⚠️ لا يوجد فنيون/مهندسون نشطون حالياً لإسناد التذكرة لهم.");
+      alert(tr.noTechnicians);
       return;
     }
 
     const values = await openActionModal({
-      title: "🛠️ تصنيف وإسناد التذكرة",
-      submitLabel: "إسناد",
+      title: tr.assignTitle,
+      submitLabel: tr.assignSubmit,
       fields: [
         {
           id: "type",
-          label: "نوع البلاغ",
+          label: tr.typeLabel,
           type: "select",
           options: [
-            { value: "Breakdown", label: "عطل مفاجئ (Breakdown)" },
-            { value: "PM", label: "صيانة وقائية (PM)" },
-            { value: "Other", label: "أخرى" }
+            { value: "Breakdown", label: tr.typeBreakdown },
+            { value: "PM", label: tr.typePM },
+            { value: "Other", label: tr.typeOther }
           ]
         },
         {
           id: "assignedTo",
-          label: "إسناد إلى",
+          label: tr.assignToLabel,
           type: "select",
-          options: technicians.map(t => ({ value: `${t.id}::${t.name}`, label: `${t.name} (${t.role})` }))
+          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
         }
       ]
     });
@@ -242,6 +624,40 @@ window.handleTicketAction = async function (ticketId, action) {
 
     result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
 
+  } else if (action === "reassign") {
+
+    // إضافة (تحسين Workflow - إعادة إسناد): نفس منطق "assign" بالظبط
+    // (اختيار فني من قائمة الفنيين المتاحين)، لكن بيستدعي
+    // reassignTicketApi بدل assignTicketApi - متاحة للتذاكر (تم
+    // الإسناد/قيد التنفيذ) فقط، ومفيدة لو الفني الأصلي بقى غير متاح
+    const techResult = await fetchTechniciansApi();
+    const technicians = techResult.status === "success" ? techResult.data : [];
+
+    if (!technicians.length) {
+      alert(tr.noTechnicians);
+      return;
+    }
+
+    const values = await openActionModal({
+      title: tr.reassignTitle,
+      submitLabel: tr.reassignSubmit,
+      fields: [
+        {
+          id: "assignedTo",
+          label: tr.reassignToLabel,
+          type: "select",
+          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+        }
+      ]
+    });
+
+    if (!values) return;
+
+    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
+    if (!assignedTo) return;
+
+    result = await reassignTicketApi(ticketId, { assignedTo, assignedToUid });
+
   } else if (action === "start") {
 
     result = await startTicketApi(ticketId);
@@ -249,11 +665,11 @@ window.handleTicketAction = async function (ticketId, action) {
   } else if (action === "resolve") {
 
     const values = await openActionModal({
-      title: "✅ تسجيل إتمام الإصلاح",
-      submitLabel: "تم الإصلاح",
+      title: tr.resolveTitle,
+      submitLabel: tr.resolveSubmit,
       fields: [
-        { id: "mechanicNotes", label: "ملاحظات الفني", type: "textarea", placeholder: "وصف الإصلاح الذي تم...", required: true },
-        { id: "afterImages", label: "صور بعد الإصلاح", type: "images", required: true }
+        { id: "mechanicNotes", label: tr.mechanicNotesField, type: "textarea", placeholder: tr.mechanicNotesPlaceholder, required: true },
+        { id: "afterImages", label: tr.afterImagesField, type: "images", required: true }
       ]
     });
 
@@ -268,10 +684,10 @@ window.handleTicketAction = async function (ticketId, action) {
   } else if (action === "reject") {
 
     const values = await openActionModal({
-      title: "❌ رفض الإصلاح",
-      submitLabel: "رفض وإعادة فتح",
+      title: tr.rejectTitle,
+      submitLabel: tr.rejectSubmit,
       fields: [
-        { id: "operatorFeedback", label: "ما المشكلة المتبقية؟", type: "textarea", placeholder: "مثال: لا يزال يوجد تسريب...", required: true }
+        { id: "operatorFeedback", label: tr.operatorFeedbackField, type: "textarea", placeholder: tr.operatorFeedbackPlaceholder, required: true }
       ]
     });
 
@@ -283,13 +699,15 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (result?.status === "success") {
-    window.loadTicketsBoard();
-  } else {
-    // نفس مبدأ حماية المستخدم من رسائل الأخطاء الخام (Firebase/
-    // Firestore بتكون دايماً بالإنجليزي، ورسائل التحقق بتاعتنا
-    // بالعربي) - لو الرسالة عربي بنعرضها زي ما هي، غير كده بنعرض
-    // رسالة عامة ونسجل التفاصيل الحقيقية في الكونسول بس
+  if (result?.status === "queued") {
+    // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "queued"
+    // مش خطأ - الإجراء اتحفظ محلياً وهيتنفذ تلقائياً عند عودة الاتصال
+    // (راجع offlineBanner.js -> syncOfflineTicketActionsApi). بنستخدم
+    // نص الترجمة الجاهز (tr.actionQueuedOffline) بدل رسالة الـ API
+    // الخام (عربي دايماً) عشان يفضل متوافق مع اللغة الحالية للواجهة،
+    // ومن غير علامة "❌" اللي بتوحي بفشل العملية
+    alert("📥 " + tr.actionQueuedOffline);
+  } else if (result?.status !== "success") {
     const msg = result?.message || "";
     const isArabicMessage = /[\u0600-\u06FF]/.test(msg);
 
@@ -297,15 +715,13 @@ window.handleTicketAction = async function (ticketId, action) {
       console.error("Ticket action error:", msg);
     }
 
-    alert("❌ " + (isArabicMessage ? msg : "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى أو تواصل مع الأدمن."));
+    alert("❌ " + (isArabicMessage ? msg : tr.genericActionError));
   }
 
 };
 
-
 // ============================================================
-// إشعارات داخل التطبيق (In-App Notifications) - زر جرس + قائمة
-// منسدلة بسيطة، بتُحمّل مع كل فتح لصفحة التذاكر
+// الإشعارات Inside-App
 // ============================================================
 
 const NOTIFICATION_ICONS = {
@@ -335,9 +751,6 @@ async function loadNotificationsBadge() {
 
 }
 
-/**
- * فتح/تحديث قائمة الإشعارات المنسدلة (زر الجرس في رأس صفحة التذاكر)
- */
 window.toggleNotificationsPanel = async function () {
 
   const panel = document.getElementById("notifPanel");
@@ -351,13 +764,13 @@ window.toggleNotificationsPanel = async function () {
   }
 
   panel.classList.remove("hidden");
-  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">جاري التحميل...</div>`;
+  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${common().loading}</div>`;
 
   const myUid = localStorage.getItem("userId") || "";
   const result = await fetchMyNotificationsApi(myUid);
 
   if (result.status !== "success" || !result.data.length) {
-    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">لا توجد إشعارات.</div>`;
+    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${notifT().empty}</div>`;
     return;
   }
 
@@ -380,4 +793,197 @@ window.handleNotificationClick = async function (notificationId, ticketId) {
     openTicketDetailsModal(ticketId);
   }
 
+};
+
+// ============================================================
+// التقرير الشهري (PDF) - آخر 30 يوم، مع تطبيق نفس صلاحيات
+// المستخدم المُستخدمة في لوحة التذاكر، ويشمل صور البلاغات
+// (مضغوطة) + البيانات الأساسية بشكل منظم
+// ============================================================
+
+const REPORT_DAYS = 30;
+const REPORT_PAGE_WIDTH_PX = 794; // عرض صفحة A4 تقريباً بدقة 96dpi
+
+function formatReportDate(iso) {
+  const currentLang = window.currentLang || "ar";
+  try {
+    return new Date(iso).toLocaleDateString(currentLang === "ar" ? "ar-EG" : "en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+  } catch (error) {
+    return iso || "-";
+  }
+}
+
+function escapeReportHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * تحميل صورة من رابطها وضغطها (تصغير الأبعاد + جودة JPEG منخفضة)
+ * قبل تضمينها في التقرير - عشان الملف النهائي يفضل صغير حتى لو
+ * فيه عدد كبير من الصور. بترجع null لو تعذر تحميل الصورة (مثلاً
+ * بسبب مشكلة اتصال أو CORS) بدل ما توقف التقرير كله.
+ */
+async function loadImageAsCompressedDataUrl(url, maxDim = 480, quality = 0.55) {
+  try {
+    const response = await fetch(url, { mode: "cors" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("تعذر فك ترميز الصورة"));
+      el.src = objectUrl;
+    });
+
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+      const ratio = Math.min(maxDim / width, maxDim / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+    URL.revokeObjectURL(objectUrl);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch (error) {
+    console.warn("تعذر تحميل/ضغط صورة للتقرير:", url, error);
+    return null;
+  }
+}
+
+function buildReportTicketBlockHtml(ticket, imageDataUrls) {
+
+  const tr = t();
+  const status = String(ticket.status || "").trim().toLowerCase();
+  const machineName = ticket.machine || ticket.machineName || "-";
+
+  const imagesHtml = imageDataUrls.length ? `
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      ${imageDataUrls.map(src => `
+        <img src="${src}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
+      `).join("")}
+    </div>
+  ` : "";
+
+  return `
+    <div style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — #${escapeReportHtml(ticket.issueId || ticket.id)}</span>
+        <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
+          ${escapeReportHtml(tr.status[status] || ticket.status || "-")}
+        </span>
+      </div>
+      <div style="font-size:11px; color:#475569; margin-bottom:6px;">
+        📅 ${formatReportDate(ticket.createdAt)} &nbsp;|&nbsp;
+        👤 ${tr.reportedByLabel} ${escapeReportHtml(ticket.reportedBy || "-")} &nbsp;|&nbsp;
+        🛠️ ${tr.assignedToLabel} ${escapeReportHtml(ticket.assignedTo || "-")}
+      </div>
+      ${ticket.description ? `<div style="font-size:11px; color:#1e293b; margin-bottom:6px;"><b>${tr.reportDescLabel}</b> ${escapeReportHtml(ticket.description)}</div>` : ""}
+      ${ticket.mechanicNotes ? `<div style="font-size:11px; color:#065f46; margin-bottom:6px;"><b>${tr.reportMechanicNotesLabel}</b> ${escapeReportHtml(ticket.mechanicNotes)}</div>` : ""}
+      ${imagesHtml}
+    </div>
+  `;
+
+}
+
+window.generateMonthlyReport = async function () {
+  const btn = document.getElementById("monthlyReportBtn");
+  const originalLabel = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "⏳ جاري تجهيز التقرير...";
+  }
+
+  try {
+    const role = getCurrentRole();
+    const myName = localStorage.getItem("name") || "";
+    const myUid = localStorage.getItem("userId") || "";
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    
+    const result = await fetchTicketsForReportApi({
+      role, myName, myUid, sinceISO: since.toISOString()
+    });
+    
+    if (result.status !== "success") {
+      // إصلاح: كان بيستخدم متغير "tr" غير معرّف في هذا الـ scope
+      // (بيرمي ReferenceError يتلقطه الـ catch ويظهر الرسالة العامة
+      // genericActionError بدل الرسالة الصحيحة هنا) - الصح هو t()
+      // زي باقي الدالة بالظبط
+      alert(t().reportGenerateError);
+      return;
+    }
+    
+    const tickets = result.data;
+    if (!tickets.length) {
+      alert(t().reportNoData);
+      return;
+    }
+    
+    const ticketsWithImages = [];
+    for (const ticket of tickets) {
+      const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0) 
+                        ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : []);
+      const dataUrls = [];
+      for (const url of mediaUrls.slice(0, 4)) {
+        const dataUrl = await loadImageAsCompressedDataUrl(url);
+        if (dataUrl) dataUrls.push(dataUrl);
+      }
+      ticketsWithImages.push({ ticket, dataUrls });
+    }
+    
+    const isAr = (window.currentLang || "ar") === "ar";
+    
+    let blocksHtml = ticketsWithImages.map(({ ticket, dataUrls }) => {
+      let html = buildReportTicketBlockHtml(ticket, dataUrls);
+      return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
+    }).join("");
+    
+    const closedCount = tickets.filter(t => t.status === "closed").length;
+    const resolvedCount = tickets.filter(t => t.status === "resolved").length;
+    const inProgressCount = tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length;
+    const pendingCount = tickets.length - closedCount - resolvedCount - inProgressCount;
+
+    const cardsHtml = buildPdfStatsCardsHtml([
+      { label: isAr ? "إجمالي البلاغات" : "Total", value: tickets.length, color: "#2563eb", bg: "#eff6ff" },
+      { label: isAr ? "معلقة / قيد الانتظار" : "Pending", value: pendingCount, color: "#dc2626", bg: "#fef2f2" },
+      { label: isAr ? "جاري العمل" : "In Progress", value: inProgressCount, color: "#d97706", bg: "#fffbeb" },
+      { label: isAr ? "مغلقة / تم الحل" : "Closed", value: closedCount + resolvedCount, color: "#059669", bg: "#ecfdf5" }
+    ]);
+
+    const htmlContent = `
+      ${cardsHtml}
+      <div id="mPdfRecordsContainer">
+        ${blocksHtml}
+      </div>
+    `;
+
+    const title = isAr ? "🗓️ التقرير الشهري لأعطال الصيانة" : "🗓️ Maintenance Monthly Report";
+    const filename = `${t().reportFileName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    const infoRows = [
+      { label: isAr ? "الفترة" : "Period", value: isAr ? "آخر 30 يوم" : "Last 30 days" }
+    ];
+
+    await exportToPdf(title, infoRows, htmlContent, filename);
+
+  } catch (error) {
+    console.error("Error generating monthly report:", error);
+    alert(t().reportGenerateError);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalLabel;
+    }
+  }
 };

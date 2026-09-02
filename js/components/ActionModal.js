@@ -5,7 +5,7 @@
 // في باقي مكوّنات الواجهة (Tailwind + خلفية #1E293B).
 // ============================================================
 
-import { compressImage } from "../workflow.js";
+import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles } from "./attachmentPicker.js";
 
 /**
  * يفتح نافذة صغيرة فوق الصفحة الحالية.
@@ -18,6 +18,18 @@ import { compressImage } from "../workflow.js";
  * @param {string} [options.submitLabel] - نص زر التأكيد
  * @returns {Promise<Object|null>} قيم الحقول ({ [id]: value }) أو null لو أُلغيت
  */
+// تنقية أي نص هيتحط داخل قيمة attribute في الـ HTML (زي value="..."
+// أو placeholder="...") - بدون كده، لو النص (مثلاً عنوان مقترح كايزن
+// قديم) فيه علامة تنصيص "، الـ attribute بيتقفل بدري وبيكسر باقي
+// الـ HTML بتاع الحقل (بيمنع ظهور/تعبئة الحقل صح جوه نافذة التعديل)
+function escapeModalAttr(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function openActionModal({ title, fields = [], submitLabel = "تأكيد" }) {
 
   return new Promise(resolve => {
@@ -50,18 +62,30 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
             <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
             <textarea id="modal_${field.id}" rows="3"
               class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
-              placeholder="${field.placeholder || ""}"></textarea>
+              placeholder="${escapeModalAttr(field.placeholder)}">${escapeModalAttr(field.defaultValue)}</textarea>
           </div>
         `;
       }
 
       if (field.type === "images") {
+        // معرّف مجموعة فريد لكل فتحة نافذة (حتى لو نفس field.id
+        // اتكرر في نافذة تانية لاحقاً) - يمنع أي تداخل في الحالة
+        // بين نافذتين، ويضمن بداية نظيفة (بدون صور قديمة) كل مرة
+        const groupId = `actionModal_${field.id}_${Date.now()}`;
+        field._attachmentGroupId = groupId;
+
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label} (١-٣ صور)</label>
-            <input id="modal_${field.id}" type="file" accept="image/*" multiple capture="environment"
-              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2 text-[11px] text-gray-300 file:mr-2 file:bg-blue-600 file:text-white file:border-0 file:rounded-md file:px-2 file:py-1 file:text-[11px]" />
-            <div id="modal_${field.id}_preview" class="flex gap-2 mt-2"></div>
+            <label class="block text-[11px] text-gray-400 mb-1">${field.label} (حتى 3 صور)</label>
+            ${buildAttachmentPickerHtml(groupId, {
+              cameraLabel: "📷 التقاط",
+              galleryLabel: "🖼️ المعرض",
+              emptyText: "لا توجد صور مرفقة",
+              buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-2",
+              cameraButtonClass: "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2 text-blue-400 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
+              galleryButtonClass: "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2 text-gray-300 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
+              gridClass: "grid grid-cols-4 gap-1.5 mb-1"
+            })}
           </div>
         `;
       }
@@ -71,7 +95,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
           <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
           <input id="modal_${field.id}" type="text"
             class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
-            placeholder="${field.placeholder || ""}" />
+            placeholder="${field.placeholder || ""}" value="${field.defaultValue || ""}" />
         </div>
       `;
 
@@ -101,15 +125,15 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
       overlay.remove();
     };
 
-    // معاينة مصغّرة للصور المختارة (بحد أقصى 3، الباقي بيتجاهل)
+    // تفعيل مكوّن اختيار الصور المتعددة لكل حقل "images" - اختيار
+    // أكثر من صورة دفعة واحدة، إضافة صور لاحقًا بدون فقدان القديمة،
+    // ومعاينة + حذف مستقل لكل صورة (بدل معاينة نصية بأسماء الملفات
+    // فقط بدون إمكانية حذف كانت موجودة سابقاً)
     fields.filter(f => f.type === "images").forEach(field => {
-      const input = overlay.querySelector(`#modal_${field.id}`);
-      const preview = overlay.querySelector(`#modal_${field.id}_preview`);
-      input.addEventListener("change", () => {
-        const files = Array.from(input.files || []).slice(0, 3);
-        preview.innerHTML = files
-          .map(f => `<span class="text-[10px] bg-blue-500/10 text-blue-300 border border-blue-500/20 rounded px-2 py-1">📷 ${f.name}</span>`)
-          .join("");
+      initAttachmentPicker(field._attachmentGroupId, {
+        maxFiles: 3,
+        maxFileSizeMB: 10,
+        emptyText: "لا توجد صور مرفقة"
       });
     });
 
@@ -138,25 +162,16 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
 
         if (field.type === "images") {
 
-          const files = Array.from(el?.files || []).slice(0, 3);
+          const dataUrls = getAttachmentFiles(field._attachmentGroupId);
 
-          if (field.required && !files.length) {
+          if (field.required && !dataUrls.length) {
             showError(`${field.label}: لازم صورة واحدة على الأقل`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
           }
 
-          try {
-            values[field.id] = await Promise.all(
-              files.map(f => compressImage(f, 900, 0.75))
-            );
-          } catch (e) {
-            showError("حدث خطأ أثناء معالجة الصور، حاول تاني");
-            submitBtn.disabled = false;
-            submitBtn.textContent = submitLabel;
-            return;
-          }
+          values[field.id] = dataUrls;
 
         } else {
 

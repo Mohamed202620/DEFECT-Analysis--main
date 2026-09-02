@@ -1,5 +1,17 @@
+import { buildMachineDropdownHtml } from '../machines.js';
+import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles } from '../components/attachmentPicker.js';
+
 export const SuggestionView = () => {
   const isEn = window.currentLang === 'en';
+
+  // تفعيل مكوّن المرفقات المتعددة بعد إدراج الـ HTML فعلياً في
+  // الصفحة (يُستدعى من renderCore.js AUTO LOAD الخاص بصفحة الكايزن)
+  window.initSuggestionAttachments = function () {
+    initAttachmentPicker("suggestionImages", {
+      maxFileSizeMB: 10,
+      emptyText: isEn ? "No photos attached" : "لا توجد صور مرفقة"
+    });
+  };
 
   // معالجة عملية الإرسال - حفظ فعلي في Firestore (مجموعة suggestions)
   window.handleKaizenSubmit = async (event) => {
@@ -26,6 +38,20 @@ export const SuggestionView = () => {
       date: new Date().toISOString()
     };
 
+    // تأكيد إضافي إن قيمة الماكينة اكتملت فعلاً (نوع + رقم الوحدة لو
+    // كانت الماكينة المختارة من النوع اللي له وحدات مرقّمة زي
+    // Bodymaker/Decorator/Spray/STRAP) - الاعتماد على required في
+    // الـ HTML وحده مش موثوق 100% مع الحقل المخفي في كل المتصفحات
+    if (!data.machine) {
+      alert(isEn ? '⚠️ Please select the machine (and unit number if applicable).' : '⚠️ يرجى اختيار الماكينة (ورقم الوحدة إن وُجد).');
+      return;
+    }
+
+    // الصور المرفقة (إن وُجدت) - مجموعة كاملة (واحدة أو أكثر) بدل
+    // صورة واحدة فقط زي السابق؛ الملفات نفسها اتضغطت وتحققنا من
+    // نوعها وحجمها بالفعل داخل attachmentPicker.js وقت اختيارها
+    const attachedImages = getAttachmentFiles("suggestionImages");
+
     const submitBtn = event.target?.querySelector('button[type="submit"]');
     const originalText = submitBtn ? submitBtn.innerHTML : '';
 
@@ -35,6 +61,10 @@ export const SuggestionView = () => {
     }
 
     try {
+      if (attachedImages.length) {
+        data.images = attachedImages;
+      }
+
       const { saveSuggestionApi } = await import('../services/api.js');
       const result = await saveSuggestionApi(data);
 
@@ -48,6 +78,7 @@ export const SuggestionView = () => {
         return;
       }
 
+      resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
       alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
       window.navigateTo('home'); // أو يمكن توجيهه إلى maintenance
     } catch (err) {
@@ -60,7 +91,7 @@ export const SuggestionView = () => {
   };
 
   return `
-  <div class="p-4 max-w-lg mx-auto pb-10">
+  <div class="app-page p-4 max-w-lg mx-auto pb-10">
     <!-- زر الرجوع -->
     <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
@@ -104,24 +135,12 @@ export const SuggestionView = () => {
           <label class="block text-xs font-bold text-gray-300 mb-1">
             ${isEn ? 'Machine' : 'الماكينة'} <span class="text-red-500">*</span>
           </label>
-          <select id="suggestionMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
-            <option value="" disabled selected>${isEn ? 'Select...' : 'اختر...'}</option>
-            <option value="Coil Handling">Coil Handling</option>
-            <option value="Baler">Baler</option>
-            <option value="Cupper">Cupper</option>
-            <option value="Bodymaker">Bodymaker</option>
-            <option value="Trimmer">Trimmer</option>
-            <option value="Washer">Washer</option>
-            <option value="Decorator">Decorator</option>
-            <option value="Spray">Spray</option>
-            <option value="IBO">IBO</option>
-            <option value="Necker">Necker</option>
-            <option value="Palletizer">Palletizer</option>
-            <option value="Depalletizer">Depalletizer</option>
-            <option value="Front End Line Control">Front End Line Control</option>
-            <option value="Mid Line Line Control">Mid Line Line Control</option>
-            <option value="Back End Line Control">Back End Line Control</option>
-          </select>
+          ${buildMachineDropdownHtml("suggestionMachine", {
+            placeholderLabel: isEn ? 'Select...' : 'اختر...',
+            unitPlaceholderLabel: isEn ? 'Select unit...' : 'اختر الرقم...',
+            typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors",
+            unitSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors mt-2"
+          })}
         </div>
       </div>
 
@@ -167,9 +186,13 @@ export const SuggestionView = () => {
       <!-- مرفقات وصور -->
       <div>
         <label class="block text-xs font-bold text-gray-300 mb-1">
-          ${isEn ? 'Attach Photo / File (Optional)' : 'إرفاق صورة أو مستند (قبل / بعد)'}
+          ${isEn ? 'Attach Photos (Optional)' : 'إرفاق صور (قبل / بعد)'}
         </label>
-        <input type="file" id="suggestionFile" accept="image/*,.pdf" class="w-full text-xs text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gray-800 file:text-amber-400 hover:file:bg-gray-700 cursor-pointer transition-colors">
+        ${buildAttachmentPickerHtml("suggestionImages", {
+          cameraLabel: isEn ? "📷 Take Photo" : "📷 التقاط صورة",
+          galleryLabel: isEn ? "🖼️ From Gallery" : "🖼️ من المعرض",
+          emptyText: isEn ? "No photos attached" : "لا توجد صور مرفقة"
+        })}
       </div>
 
       <!-- إرسال مجهول -->

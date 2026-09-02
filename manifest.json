@@ -5,13 +5,13 @@
   "description": "نظام إدارة الصيانة والأعطال",
   "icons": [
     {
-      "src": "1000230635.png",
+      "src": "assets/icons/app-icon.png",
       "type": "image/png",
       "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "1000230635.png",
+      "src": "assets/icons/app-icon.png",
       "type": "image/png",
       "sizes": "512x512",
       "purpose": "any maskable"

@@ -10,7 +10,7 @@
 // أحداث change على document (لأن innerHTML يُعاد رسمه بالكامل عند التنقل)
 // ============================================================
 
-import { compressImage } from './workflow.js';
+import { compressImage } from './components/attachmentPicker.js';
 
 import {
   findMachineErrorByCode,
@@ -20,6 +20,15 @@ import {
   fetchMachineErrorHistoryApi,
   fetchAllMachineErrorsApi
 } from './services/api.js';
+import { translations } from './config.js';
+
+// إصلاح (ترجمة شاملة): كل نصوص هذه الميزة (رسائل الحالة، تنبيهات،
+// عناوين النتائج، النموذج الجديد) كانت ثابتة بالعربي - دلوقتي
+// بتتقرأ من translations.errorScanner حسب window.currentLang
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).errorScanner;
+}
 
 // ============================================================
 // حالة الموديول
@@ -48,7 +57,7 @@ function loadTesseract() {
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
     script.onload = () => resolve(window.Tesseract);
-    script.onerror = () => reject(new Error('تعذر تحميل مكتبة قراءة النص (OCR)'));
+    script.onerror = () => reject(new Error(t().tesseractLoadError));
     document.head.appendChild(script);
   });
 
@@ -83,29 +92,27 @@ function extractErrorCode(rawText) {
 // قوائم الخطوط والماكينات - مطابقة لنفس القوائم المستخدمة في
 // باقي التطبيق (IssueView / SuggestionView) للحفاظ على الاتساق
 // ============================================================
+//
+// إصلاح (بند 1 - توحيد شامل): كانت هذه القائمة نسخة مكررة يدوياً من
+// machines.js (وكانت فعلياً ناقصة نوع "STRAP" منها - دليل عملي على
+// خطر تكرار نفس البيانات في أكتر من مكان). دلوقتي بقت مُشتقّة مباشرة
+// من نفس المصدر الموحّد (machines.js -> Firestore)، فأي تعديل يعمله
+// الأدمن من صفحة "إدارة الماكينات" بينعكس هنا تلقائياً كمان.
+//
+// getErrorScannerMachineOptions() دالة (مش قيمة ثابتة) عشان تفضل
+// دايماً بتاخد أحدث نسخة من الكاش وقت الاستدعاء الفعلي (راجع
+// ErrorScannerView.js) حتى لو الكاش اتحدّث بعد أول تحميل للصفحة
+
+import { getMachineTypeEntries } from './machines.js';
 
 export const LINE_OPTIONS = ['Line 1', 'Line 2'];
 
-export const MACHINE_OPTIONS = [
-  'Coil Handling',
-  'Baler',
-  'Cupper',
-  'Bodymaker',
-  'Trimmer',
-  'Washer',
-  'Decorator',
-  'Spray',
-  'IBO',
-  'Necker',
-  'Palletizer',
-  'Depalletizer',
-  'Front End Line Control',
-  'Mid Line Control',
-  'Back End Line Control'
-];
+export function getErrorScannerMachineOptions() {
+  return getMachineTypeEntries({ includeInactive: false }).map(m => m.key);
+}
 
 function buildOptions(list, selected) {
-  return `<option value="" disabled ${selected ? '' : 'selected'}>اختر...</option>` +
+  return `<option value="" disabled ${selected ? '' : 'selected'}>${t().selectPlaceholder}</option>` +
     list.map(v => `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`).join('');
 }
 
@@ -181,17 +188,17 @@ document.addEventListener('change', async (e) => {
   if (!file) return;
 
   if (!file.type.startsWith('image/')) {
-    alert('⚠️ الملف المختار ليس صورة.');
+    alert(t().notImage);
     return;
   }
 
   if (file.size > 10 * 1024 * 1024) {
-    alert('❌ حجم الصورة كبير جداً (الحد الأقصى 10MB)');
+    alert(t().fileTooLarge);
     return;
   }
 
   try {
-    setStatus('⏳ جاري تجهيز الصورة...');
+    setStatus(t().preparingImage);
 
     scannedImage = await compressImage(file, 900, 0.75);
 
@@ -201,7 +208,7 @@ document.addEventListener('change', async (e) => {
       preview.classList.remove('hidden');
     }
 
-    setStatus('🔍 جاري قراءة النص من الصورة (OCR)...');
+    setStatus(t().readingOcr);
 
     const Tesseract = await loadTesseract();
     const result = await Tesseract.recognize(scannedImage, 'eng');
@@ -217,13 +224,13 @@ document.addEventListener('change', async (e) => {
 
     setStatus(
       suggestedCode
-        ? `✅ تم استخراج كود مقترح: ${suggestedCode} (يمكنك تعديله قبل البحث)`
-        : '⚠️ لم يتم التعرف تلقائياً على كود واضح، يرجى إدخاله يدوياً بعد مراجعة النص المستخرج.'
+        ? t().codeExtracted.replace('{code}', suggestedCode)
+        : t().codeNotFound
     );
 
   } catch (err) {
     console.error('OCR Error:', err);
-    setStatus('❌ حدث خطأ أثناء قراءة النص من الصورة: ' + err.message, true);
+    setStatus(t().ocrError + err.message, true);
   }
 });
 
@@ -240,13 +247,13 @@ window.searchMachineError = async function () {
   const selectedMachineType = String(window.selectedMachineType || '').trim();
 
   if (!code && !manualSearch) {
-    alert('⚠️ يرجى إدخال أو استخراج كود العطل أولاً أو استخدام البحث اليدوي.');
+    alert(t().enterCodeFirst);
     return;
   }
 
   const resultsBox = el('errorScanResults');
   if (resultsBox) {
-    resultsBox.innerHTML = `<div class="text-center text-gray-400 text-xs py-6">🔍 جاري البحث في قاعدة المعرفة...</div>`;
+    resultsBox.innerHTML = `<div class="text-center text-gray-400 text-xs py-6">${t().searchingKb}</div>`;
   }
 
   // أولاً: البحث برقم العطل إن وجد
@@ -255,7 +262,7 @@ window.searchMachineError = async function () {
 
     if (result.status !== 'success') {
       if (resultsBox) {
-        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${result.message || 'حدث خطأ أثناء البحث'}</div>`;
+        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${result.message || t().genericSearchError}</div>`;
       }
       return;
     }
@@ -319,6 +326,7 @@ function renderFoundError(data) {
   const resultsBox = el('errorScanResults');
   if (!resultsBox) return;
 
+  const tr = t();
   const isPending = data.status === 'pending_review';
   const canVerify =
     isPending &&
@@ -329,48 +337,48 @@ function renderFoundError(data) {
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-lg space-y-3">
 
       <div class="flex items-center justify-between">
-        <h3 class="text-base font-bold text-emerald-400">✅ تم العثور على العطل</h3>
+        <h3 class="text-base font-bold text-emerald-400">${tr.foundTitle}</h3>
         <span class="text-[10px] px-2 py-1 rounded-full font-bold ${isPending ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'}">
-          ${isPending ? 'قيد المراجعة' : 'معتمد'}
+          ${isPending ? tr.pendingReviewStatus : tr.verifiedStatus}
         </span>
       </div>
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">كود العطل</div>
+        <div class="text-gray-400 text-[11px]">${tr.errorCodeLabel}</div>
         <div class="font-bold text-blue-400">${data.errorCode || '-'}</div>
       </div>
 
       ${data.machine || data.line ? `
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">الماكينة / الخط</div>
+        <div class="text-gray-400 text-[11px]">${tr.machineLineLabel}</div>
         <div class="text-gray-100">${data.machine || '-'} ${data.line ? '· ' + data.line : ''}</div>
       </div>` : ''}
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">السبب المحتمل</div>
-        <div class="text-gray-100">${data.cause || 'غير محدد'}</div>
+        <div class="text-gray-400 text-[11px]">${tr.causeLabel}</div>
+        <div class="text-gray-100">${data.cause || tr.notSpecified}</div>
       </div>
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">الحل</div>
-        <div class="text-gray-100">${data.solution || 'غير محدد'}</div>
+        <div class="text-gray-400 text-[11px]">${tr.solutionLabel}</div>
+        <div class="text-gray-100">${data.solution || tr.notSpecified}</div>
       </div>
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">خطوات الإصلاح</div>
-        <div class="text-gray-100 whitespace-pre-line">${data.steps || 'غير محدد'}</div>
+        <div class="text-gray-400 text-[11px]">${tr.stepsLabel}</div>
+        <div class="text-gray-100 whitespace-pre-line">${data.steps || tr.notSpecified}</div>
       </div>
 
       <div class="grid grid-cols-1 gap-2 pt-2">
         <button onclick="window.logErrorOccurrence()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
-          📌 تسجيل ظهور هذا العطل الآن
+          ${tr.logOccurrenceBtn}
         </button>
         ${canVerify ? `
         <button onclick="window.verifyMachineError('${data.id}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
-          ✅ اعتماد هذا العطل
+          ${tr.verifyBtn}
         </button>` : ''}
         <button onclick="window.resetErrorScanner()" class="w-full py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xs text-white transition active:scale-95">
-          🔄 فحص عطل آخر
+          ${tr.scanAnotherBtn}
         </button>
       </div>
 
@@ -388,22 +396,25 @@ async function loadErrorHistory(code) {
   const box = el('errorHistoryBox');
   if (!box) return;
 
-  box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">جاري تحميل السجل...</div>`;
+  const tr = t();
+  const currentLang = window.currentLang || "ar";
+
+  box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">${tr.loadingHistory}</div>`;
 
   const result = await fetchMachineErrorHistoryApi(code);
 
   if (result.status !== 'success' || !result.data || !result.data.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">لا يوجد سجل ظهور سابق لهذا العطل بعد.</div>`;
+    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">${tr.noHistory}</div>`;
     return;
   }
 
   box.innerHTML = `
-    <div class="text-[11px] font-bold text-gray-400 mb-1">📋 سجل الأعطال السابق</div>
+    <div class="text-[11px] font-bold text-gray-400 mb-1">${tr.historyTitle}</div>
     <div class="space-y-1.5">
       ${result.data.map(log => `
         <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 text-[11px] text-gray-300 flex items-center justify-between">
           <span>${log.machine || '-'} ${log.line ? '· ' + log.line : ''}</span>
-          <span class="text-gray-500">${log.scannedAt ? new Date(log.scannedAt).toLocaleDateString('ar-EG') : ''}</span>
+          <span class="text-gray-500">${log.scannedAt ? new Date(log.scannedAt).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : ''}</span>
         </div>
       `).join('')}
     </div>
@@ -418,42 +429,44 @@ function renderNotFound(code) {
   const resultsBox = el('errorScanResults');
   if (!resultsBox) return;
 
+  const tr = t();
+
   resultsBox.innerHTML = `
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-red-500/30 shadow-lg space-y-3">
-      <h3 class="text-sm font-bold text-red-400">❌ لم يتم العثور على هذا العطل في قاعدة المعرفة</h3>
-      <p class="text-[11px] text-gray-400">يمكنك إضافته الآن، وسيتم حفظه كـ "قيد المراجعة" حتى تتم مراجعته.</p>
+      <h3 class="text-sm font-bold text-red-400">${tr.notFoundTitle}</h3>
+      <p class="text-[11px] text-gray-400">${tr.notFoundDesc}</p>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">الخط</label>
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.lineLabel}</label>
         <select id="errNewLine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
           ${buildOptions(LINE_OPTIONS)}
         </select>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">الماكينة</label>
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.machineLabelOnly}</label>
         <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
-          ${buildOptions(MACHINE_OPTIONS)}
+          ${buildOptions(getErrorScannerMachineOptions())}
         </select>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">السبب المحتمل</label>
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.causeLabel}</label>
         <textarea id="errNewCause" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">الحل</label>
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.solutionLabel}</label>
         <textarea id="errNewSolution" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">خطوات الإصلاح</label>
+        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.stepsLabel}</label>
         <textarea id="errNewSteps" rows="3" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <button onclick="window.saveNewMachineError('${code.replace(/'/g, "\\'")}')" class="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
-        ➕ إضافة عطل جديد (قيد المراجعة)
+        ${tr.addNewBtn}
       </button>
     </div>
   `;
@@ -473,7 +486,7 @@ window.saveNewMachineError = async function (code) {
   const errorMessage = el('errScanMessage')?.value?.trim() || '';
 
   if (!cause && !solution) {
-    alert('⚠️ يرجى إدخال السبب المحتمل أو الحل على الأقل.');
+    alert(t().causeOrSolutionRequired);
     return;
   }
 
@@ -496,7 +509,7 @@ window.saveNewMachineError = async function (code) {
   const result = await saveMachineErrorApi(payload);
 
   if (result.status !== 'success') {
-    alert('❌ ' + (result.message || 'حدث خطأ أثناء الحفظ'));
+    alert('❌ ' + (result.message || t().genericSaveError));
     if (result.duplicate && result.data) {
       lastFoundError = result.data;
       renderFoundError(result.data);
@@ -531,10 +544,10 @@ window.logErrorOccurrence = async function () {
   const result = await logMachineErrorOccurrenceApi(payload);
 
   if (result.status === 'success') {
-    alert('✅ تم تسجيل ظهور العطل في السجل');
+    alert(t().occurrenceLogged);
     loadErrorHistory(lastFoundError.errorCode);
   } else {
-    alert('❌ ' + (result.message || 'تعذر تسجيل الظهور'));
+    alert('❌ ' + (result.message || t().occurrenceLogFailed));
   }
 
 };
@@ -547,7 +560,7 @@ window.verifyMachineError = async function (errorId) {
 
   const result = await verifyMachineErrorApi(errorId);
 
-  alert(result.message || (result.status === 'success' ? 'تم الاعتماد' : 'حدث خطأ'));
+  alert(result.message || (result.status === 'success' ? t().verifiedSuccess : t().genericError));
 
   if (result.status === 'success') {
     window.searchMachineError();
@@ -579,5 +592,5 @@ window.resetErrorScanner = function () {
   const resultsBox = el('errorScanResults');
   if (resultsBox) resultsBox.innerHTML = '';
 
-  setStatus('جاهز لالتقاط صورة جديدة لشاشة العطل.');
+  setStatus(t().readyStatus);
 };

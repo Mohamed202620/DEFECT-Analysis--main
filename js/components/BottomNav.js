@@ -1,39 +1,66 @@
 import { translations } from '../config.js';
+import { hasPermission } from '../permissions.js';
 
 export const BottomNav = (activeTab) => {
   const currentLang = window.currentLang || 'ar';
-  const t = translations[currentLang] || translations['ar'];
+  const t = translations[currentLang] || translations['ar'] || {};
+
+  // إصلاح: تبويب "النظام" كان ظاهر لكل مستخدم مسجّل دخول بلا أي فحص
+  // صلاحية، فأي فني/مشغّل عادي كان بيدوس عليه ويوصله لشاشة "لا يوجد
+  // صلاحية" فاضية بلا فايدة. دلوقتي بيظهر بس لو معاه صلاحية واحدة
+  // على الأقل من صلاحيات صفحة النظام الأربعة (نفس فحص can() الموجود
+  // جوه SystemView.js نفسها لإخفاء/إظهار كل زرار بداخلها)
+  const canSeeSystemTab =
+    hasPermission("users") ||
+    hasPermission("requests") ||
+    hasPermission("machines") ||
+    hasPermission("settings");
 
   const navItems = [
-    { id: "home", icon: "🏠", label: t.navHome || "الرئيسية" },
-    { id: "maintenance", icon: "🛠️", label: t.navMaintenance || "الصيانة" },
-    { id: "quality", icon: "📦", label: t.navQuality || "الجودة" },
-    { id: "system", icon: "⚙️", label: t.navSystem || "النظام" }
+    { 
+      id: "home", 
+      icon: "🏠", 
+      label: t.navHome || (currentLang === 'en' ? "Home" : "الرئيسية"), 
+      action: "window.navigateTo('home')" 
+    },
+    { 
+      id: "maintenance", 
+      icon: "🛠️", 
+      label: t.navMaintenance || (currentLang === 'en' ? "Maintenance" : "الصيانة"), 
+      action: "window.navigateTo('maintenance')" 
+    },
+    ...(canSeeSystemTab ? [{
+      id: "system", 
+      icon: "⚙️", 
+      label: t.navSystem || (currentLang === 'en' ? "System" : "النظام"), 
+      action: "window.navigateTo('system')" 
+    }] : [])
   ];
 
   return `
-    <div class="fixed bottom-4 left-4 right-4 max-w-md mx-auto
-                dyn-card backdrop-blur-xl border
-                rounded-3xl flex justify-around items-center p-2
-                shadow-2xl z-50 transition-all duration-300">
+    <nav aria-label="Bottom Navigation" class="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto
+                bg-[#0F172A]/95 backdrop-blur-2xl border border-slate-700/60
+                rounded-2xl flex justify-between items-center p-1.5 px-2
+                shadow-2xl shadow-black/60 z-50 transition-all duration-300">
 
       ${navItems.map(item => {
         const isActive = activeTab === item.id;
         return `
           <button
             type="button"
-            onclick="window.navigateTo('${item.id}')"
-            class="flex flex-col items-center justify-center w-14 h-14 rounded-2xl cursor-pointer transition-all duration-200 active:scale-95 ${
+            onclick="${item.action}"
+            class="flex flex-col items-center justify-center flex-1 h-12 py-1 rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-95 ${
               isActive
-                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-500/30 scale-105'
-                : 'dyn-text-muted hover:opacity-100 opacity-70'
+                ? 'bg-gradient-to-b from-blue-600 to-indigo-600 text-white font-black shadow-md shadow-blue-600/40 border border-blue-400/40 relative'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }">
-            <span class="text-xl leading-none">${item.icon}</span>
-            <span class="text-[10px] mt-1 font-medium">${item.label}</span>
+            <span class="text-base leading-none">${item.icon}</span>
+            <span class="text-[10px] mt-0.5 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
+            ${isActive ? '<span class="absolute -bottom-0.5 w-4 h-0.5 bg-blue-300 rounded-full shadow-sm"></span>' : ''}
           </button>
         `;
       }).join("")}
 
-    </div>
+    </nav>
   `;
 };

@@ -1,12 +1,12 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v1.3'; 
+const CACHE_NAME = 'maint-system-v5.5';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './1000230635.png'
+  './assets/icons/app-icon.png'
 ];
 
 // حدث التثبيت (Install Event)
@@ -41,34 +41,84 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
 
-  // نكيّش طلبات GET بس (ملفات الواجهة: HTML/JS/CSS/الصور).
-  // طلبات الكتابة (POST/PUT..) بتاعة Firestore/ImgBB مالهاش لازمة
-  // في الكاش أصلاً، وCache API مش بيدعمها أساساً (كانت بتطلع
-  // خطأ "Request method 'POST' is unsupported" في الكونسول).
+  // نكيّش طلبات GET بس لملفات الواجهة المحلية (HTML/JS/CSS/الصور)
   if (req.method !== 'GET') {
-    return; // سيب الطلب يمشي للشبكة عادي من غير أي تدخل من الـ SW
+    return;
   }
 
-  e.respondWith(
-    caches.match(req).then((cachedRes) => {
-      // استراتيجية (Stale-While-Revalidate)
-      // جلب النسخة الأحدث من الشبكة لتحديث الكاش في الخلفية
-      const fetchPromise = fetch(req).then((networkRes) => {
-        // التأكد من أن الاستجابة صالحة قبل تخزينها
-        // type 'basic' للملفات المحلية، و 'opaque' للملفات الخارجية (CDN)
+  const url = new URL(req.url);
+
+  // هام جداً: تجاهل أي طلب خارجي (Firebase Firestore, Auth, Storage, ImgBB, Google APIs...)
+  // لكي لا يتدخل Service Worker في اتصالات قواعد البيانات والاستعلامات الحية
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // لملفات الجافاسكريبت والـ HTML نستخدم Network-First لضمان أحدث كود دائماً
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.includes('/js/')) {
+    e.respondWith(
+      fetch(req).then((networkRes) => {
         if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
           const clone = networkRes.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
         }
         return networkRes;
       }).catch(() => {
-        // ماذا يحدث لو انقطع الإنترنت والملف غير موجود في الكاش؟
+        return caches.match(req);
+      })
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(req).then((cachedRes) => {
+      const fetchPromise = fetch(req).then((networkRes) => {
+        if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
+          const clone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return networkRes;
+      }).catch(() => {
         console.warn("[SW] Offline, and resource not in cache:", req.url);
       });
 
-      // إذا كان الملف في الكاش، اعرضه للمستخدم فوراً (سرعة عالية).
-      // وإذا لم يكن، انتظر جلب الشبكة.
       return cachedRes || fetchPromise;
     })
   );
+});
+
+// ============================================================
+// حدث الضغط على إشعار (Notification Click) - إضافة (إشعارات
+// المتصفح): راجع js/pushNotifications.js لآلية إظهار الإشعار نفسه
+// (reg.showNotification). الضغط هنا بيقفل الإشعار، وبيحاول يركّز
+// على تبويب مفتوح بالفعل للتطبيق (Focus) بدل ما يفتح تبويب جديد
+// دايماً - ولو مفيش تبويب مفتوح، بيفتح واحد جديد على الصفحة الرئيسية
+// ============================================================
+self.addEventListener('notificationclick', (e) => {
+
+  e.notification.close();
+
+  const data = e.notification.data || {};
+
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsList) => {
+
+      for (const client of clientsList) {
+        if ('focus' in client) {
+          // إرسال تفاصيل الإشعار للتبويب المفتوح عشان الكود بتاع
+          // الواجهة (router.js/renderCore.js) يقرر بنفسه فتح تفاصيل
+          // التذكرة/المقترح المناسب - الـ Service Worker نفسه معندوش
+          // صلاحية التنقل جوه صفحة SPA واحدة
+          client.postMessage({ type: 'NOTIFICATION_CLICK', data });
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('./');
+      }
+
+    })
+  );
+
 });

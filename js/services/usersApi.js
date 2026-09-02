@@ -15,12 +15,10 @@ import {
 import {
   createUserWithEmailAndPassword,
   signOut,
-  deleteUser
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-
-import {
+  deleteUser,
   collection,
   getDocs,
+  getDoc,
   addDoc,
   doc,
   setDoc,
@@ -28,7 +26,28 @@ import {
   deleteDoc,
   query,
   where
-} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+} from "../firebase.js";
+
+// إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
+// قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
+// بشكل ثابت، بغض النظر عن "الوظيفة" اللي اختارها المستخدم في فورم
+// التسجيل (regJob في registerView.js). دلوقتي بيتحدد حسب الوظيفة
+// المُختارة فعلاً - الصلاحيات (permissions) تفضل كما هي
+// (DEFAULT_USER_PERMISSIONS) في كل الحالات؛ الأدمن لسه قادر يعدّل
+// الدور/الصلاحيات يدوياً بعد القبول لو محتاج (updatePermissionsApi)
+const JOB_TO_ROLE = {
+  technician: "technician",
+  operator: "operator",
+  maintainer: "technician",
+  "group leader": "manager",
+  supervisor: "manager",
+  manager: "manager"
+};
+
+function roleFromJob(job) {
+  const key = String(job || "").trim().toLowerCase();
+  return JOB_TO_ROLE[key] || "technician";
+}
 
 
 // ============================================================
@@ -229,29 +248,38 @@ export async function registerUserApi(userData) {
 
     const { password: _pw, ...userDataWithoutPassword } = userData;
 
+    const rawShift = String(userData.shift || "").trim();
+    const shiftLower = rawShift.toLowerCase();
+    const shiftColor = shiftLower.includes("green") || shiftLower.includes("خضراء") ? "green" :
+                       shiftLower.includes("red") || shiftLower.includes("حمراء") ? "red" :
+                       shiftLower.includes("blue") || shiftLower.includes("زرقاء") ? "blue" : "green";
+
     try {
 
       await setDoc(
         doc(db, "users", cred.user.uid),
         {
-
-          ...userDataWithoutPassword,
-
+          name: String(userData.name || "").trim(),
           phone,
-
+          code: String(userData.code || "").trim(),
+          job: String(userData.job || "Technician").trim(),
+          department: String(userData.department || "Production").trim(),
+          shift: rawShift || "Green",
+          shiftColor: userData.shiftColor || shiftColor,
+          // ملحوظة: حقول hourlyRate/monthTargetHours اتشالت من هنا -
+          // بيانات المرتب أصبحت محلية 100% على جهاز كل مستخدم
+          // (راجع payrollLocalStore.js) ولا يجوز تخزينها في Firestore
+          leaveBalance: Number(userData.leaveBalance) || 21,
+          ...userDataWithoutPassword,
           // الحساب الجديد ينتظر الموافقة
           role:
             "pending",
-
           permissions:
             "",
-
           status:
             "pending",
-
           createdAt:
             new Date().toISOString()
-
         }
       );
 
@@ -332,6 +360,16 @@ export async function registerUserApi(userData) {
 // TECHNICIANS (لقائمة اختيار الفني عند تصنيف/إسناد التذكرة)
 // ============================================================
 
+// إضافة (تحسين الأداء): تخزين مؤقت بسيط في الذاكرة لنتيجة
+// fetchTechniciansApi لمدة TECHNICIANS_CACHE_TTL_MS - كانت بتتنادى من
+// جديد (قراءة من Firestore) في كل مرة يتفتح فيها مودال "إسناد" أو
+// "إعادة إسناد" حتى لو نفس المستخدم فتح المودال أكتر من مرة خلال
+// دقايق قليلة. التخزين هنا لمدة الجلسة بس (متغير Module-level، بيتصفر
+// تلقائياً بإعادة تحميل الصفحة) - مفيش أي بيانات حساسة بتتخزن غير
+// اللي أصلاً بترجع من نفس الدالة
+const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let techniciansCache = null; // { data, fetchedAt }
+
 /**
  * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
  * تصنيف وإسناد التذاكر (راجع ticketsApi.js -> assignTicketApi).
@@ -339,7 +377,15 @@ export async function registerUserApi(userData) {
  * عشان يتوافق مع قاعدة الأمان الخاصة بقراءة /users كمجموعة
  * (راجع firestore.rules).
  */
-export async function fetchTechniciansApi() {
+export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    techniciansCache &&
+    (Date.now() - techniciansCache.fetchedAt) < TECHNICIANS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: techniciansCache.data };
+  }
 
   try {
 
@@ -370,6 +416,8 @@ export async function fetchTechniciansApi() {
       });
 
     });
+
+    techniciansCache = { data: technicians, fetchedAt: Date.now() };
 
     return { status: "success", data: technicians };
 
@@ -507,8 +555,13 @@ export async function updateUserStatusApi(
 
     if (status === "active") {
 
+      // إصلاح: الدور بيتحدد حسب "الوظيفة" اللي اختارها المستخدم في
+      // فورم التسجيل (job) بدل ما يبقى "technician" ثابتة للجميع
+      const userSnap = await getDoc(userRef);
+      const job = userSnap.exists() ? userSnap.data().job : "";
+
       updateData.role =
-    "technician"; 
+        roleFromJob(job);
 
 
       // استخدام الصلاحيات الموحدة
