@@ -333,9 +333,6 @@ if (currentPage === "settings") {
     if (typeof window.loadHolidays === "function") {
       window.loadHolidays();
     }
-    if (typeof window.loadGoogleHolidaysDropdown === "function") {
-      window.loadGoogleHolidaysDropdown();
-    }
     if (typeof window.loadAttendancePatternStatus === "function") {
       window.loadAttendancePatternStatus();
     }
@@ -388,6 +385,29 @@ if (currentPage === "kaizenBoard") {
   }, 100);  
 
 }  
+
+
+// ========================================================
+// KAIZEN MANAGEMENT & REVIEW AUTO LOAD
+// (صفحة "متابعة وتقييم مقترحات الكايزن" - مجموعة "kaizens" مستقلة -
+// راجع kaizenManagement.js. تحميل عبر fetchKaizens() وليس Real-time
+// (onSnapshot)، فمفيش أي cleanup مطلوب عند مغادرة الصفحة، بعكس
+// 'tickets'/'kaizenBoard' فوق)
+// ========================================================
+
+if (currentPage === "kaizenManagement") {
+
+  setTimeout(() => {
+
+    if (typeof window.loadKaizenManagement === "function") {
+
+      window.loadKaizenManagement();
+
+    }
+
+  }, 100);
+
+}
 
 
 // ========================================================  

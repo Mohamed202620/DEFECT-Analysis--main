@@ -34,6 +34,12 @@ import './ticketsBoard.js';
 // تماماً عن ticketsBoard.js، بيستخدم بس دوال services/api.js المشتركة
 import './kaizenBoard.js';
 
+// استيراد جانبي (Side-effect) لربط دوال صفحة "متابعة وتقييم مقترحات
+// الكايزن" الجديدة (Kaizen Management & Review - window.loadKaizenManagement
+// وما يتبعها) بـ window - مجموعة Firestore مستقلة تماماً ("kaizens")
+// عن كل من kaizenBoard.js وsuggestionsApi.js (مجموعة "suggestions")
+import './kaizenManagement.js';
+
 // استيراد جانبي (Side-effect) لبانر حالة الاتصال + المزامنة
 // التلقائية عند عودة الإنترنت (Offline-First)
 import './offlineBanner.js';
@@ -71,21 +77,5 @@ import './holidaysManagement.js';
 // من "حاسبة الحضور والمرتبات" (راجع attendanceCard.js وصفحة
 // "settings" في pageRenderer.js)
 import './attendancePatternManagement.js';
-
-// فحص/تشغيل المزامنة التلقائية الشهرية لإجازات مصر الرسمية من
-// Google Calendar (أول يوم بالشهر الساعة 2 صباحًا) - فحص خفيف
-// وغير معطِّل، وآمن تمامًا لو مفيش مستخدم مسجّل دخوله بعد
-try {
-  const isLoggedInForHolidaysSync = localStorage.getItem("phone") || localStorage.getItem("userId");
-  if (isLoggedInForHolidaysSync) {
-    import('./services/googleHolidaysSync.js').then(m =>
-      m.maybeAutoSyncGoogleHolidays().then(result => {
-        // تحديث الكارت تلقائيًا لو المزامنة التلقائية غيّرت قائمة
-        // الإجازات (الساعات المطلوبة للدورة بتُحسب منها مباشرة)
-        if (result && window.refreshAttendanceCard) window.refreshAttendanceCard();
-      })
-    ).catch(() => {});
-  }
-} catch (e) { /* localStorage غير متاح - تجاهل بأمان */ }
 
 export { navigateTo, currentPage, render } from './renderCore.js';

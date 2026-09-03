@@ -34,6 +34,7 @@ import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView, UsersManagementView } from './views/RequestsView.js';
 import { MachinesView } from './views/MachinesView.js';
 import { StatsView } from './views/StatsView.js';
+import { KaizenManagementView } from './views/KaizenManagementView.js';
 
 // ============================================================
 // RENDER PAGES
@@ -185,6 +186,20 @@ case 'kaizenBoard':
           </div>  
         `  
       )  
+    : unauthorizedPage("suggestions");  
+
+
+case 'kaizenManagement':  
+
+  // صفحة "متابعة وتقييم مقترحات الكايزن" (Kaizen Management &
+  // Review) - توثيق رسمي (Kaizen Completion Sheet) مربوط بمجموعة
+  // Firestore مستقلة "kaizens" (راجع kaizenManagement.js وservices/
+  // kaizensApi.js) - مختلفة تماماً عن 'kaizenBoard' (مقترحات الكايزن
+  // اليومية - مجموعة "suggestions"). نفس صلاحية 'kaizenBoard' و
+  // 'suggestions' عمداً (جزء من نفس نظام الكايزن ولا داعي لصلاحية
+  // موازية جديدة)
+  return hasPermission("suggestions")  
+    ? KaizenManagementView()  
     : unauthorizedPage("suggestions");  
 
 
@@ -361,37 +376,31 @@ case 'settings':
               </button>
             </div>
 
-            <!-- مزامنة الإجازات الرسمية المصرية من Google Calendar -->
+            <!-- نموذج إضافة إجازة رسمية جديدة -->
             <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
               <h3 class="text-sm font-bold text-blue-400">🎉 الإجازات الرسمية</h3>
               <p class="text-[11px] text-gray-400">
-                تُستخدم هذه القائمة في كارت الحضور والمرتبات بالصفحة الرئيسية لحساب الساعات المطلوبة للدورة (192 - عدد الإجازات الرسمية داخل الدورة × 8 ساعات). المصدر: تقويم إجازات مصر الرسمية من Google Calendar - يتم مزامنته تلقائيًا أول كل شهر الساعة 2 صباحًا، وتقدر كمان تحدّثه يدويًا في أي وقت.
+                تُستخدم هذه القائمة في كارت حضور الوردية بالصفحة الرئيسية: أي يوم عمل مُجدوَل (من ضمن الـ6 أيام) يقع في إجازة رسمية هنا يُحتسب بالكامل إضافي (×1.5)، وأي يوم راحة دورية للفني لا يتأثر بها.
               </p>
 
-              <div id="googleSyncStatus" class="text-[10px] text-gray-400 bg-[#0F172A] border border-gray-800 rounded-lg px-2.5 py-2">
-                جاري التحقق من آخر مزامنة...
-              </div>
-
-              <button
-                id="btnSyncGoogleHolidays"
-                onclick="window.syncGoogleHolidaysNow()"
-                class="w-full py-2.5 rounded-lg bg-sky-600 hover:bg-sky-500 font-bold text-xs text-white transition active:scale-95">
-                🔄 تحديث من جوجل
-              </button>
-
-              <div>
-                <label class="block text-[11px] text-gray-400 mb-1.5">إضافة إجازة رسمية (من قائمة جوجل فقط)</label>
-                <select
+              <div class="grid grid-cols-2 gap-2">
+                <input
                   id="newHolidayDate"
-                  class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
-                  <option value="">-- جاري تحميل قائمة جوجل... --</option>
-                </select>
+                  type="date"
+                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs"
+                >
+                <input
+                  id="newHolidayLabel"
+                  type="text"
+                  placeholder="اسم الإجازة (مثال: عيد الفطر)"
+                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs"
+                >
               </div>
 
               <button
                 onclick="window.addHoliday()"
                 class="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition active:scale-95">
-                ➕ إضافة إجازة رسمية مُختارة
+                ➕ إضافة إجازة رسمية
               </button>
 
               <button
@@ -399,31 +408,17 @@ case 'settings':
                 class="w-full py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 font-bold text-[11px] text-amber-300 transition active:scale-95">
                 📋 إضافة القائمة الافتراضية لإجازات 2026 دفعة واحدة
               </button>
-
-              <div>
-                <div class="text-[11px] text-gray-400 mb-1.5 font-bold">📅 كل الإجازات المتاحة من Google Calendar</div>
-                <div id="googleHolidaysListContainer" class="space-y-1.5 max-h-48 overflow-y-auto">
-                  <div class="text-center text-gray-500 text-[10px] py-3">جاري التحميل...</div>
-                </div>
-              </div>
             </div>
 
-            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <h3 class="text-sm font-bold text-emerald-400">✅ الإجازات الرسمية المُفعّلة حاليًا</h3>
-                <button
-                  onclick="window.loadHolidays()"
-                  class="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-gray-700 hover:bg-white/10 font-bold text-gray-300 transition">
-                  🔄 تحديث
-                </button>
-              </div>
-              <p class="text-[11px] text-gray-400">
-                هذه هي الإجازات المُفعّلة فعليًا وتؤثر على حساب الساعات المطلوبة لأي مستخدم.
-              </p>
-              <div id="holidaysContainer" class="mt-2 space-y-2">
-                <div class="text-center text-gray-500 text-xs py-6">
-                  جاري تحميل الإجازات الرسمية...
-                </div>
+            <button
+              onclick="window.loadHolidays()"
+              class="w-full bg-[#1E293B] border border-gray-700 hover:border-gray-600 rounded-lg p-2.5 font-bold text-gray-300 text-xs transition">
+              🔄 تحديث القائمة
+            </button>
+
+            <div id="holidaysContainer" class="mt-2 space-y-2">
+              <div class="text-center text-gray-500 text-xs py-6">
+                جاري تحميل الإجازات الرسمية...
               </div>
             </div>
 
