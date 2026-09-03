@@ -92,18 +92,29 @@ function filterByPeriod(tickets, period) {
 // ============================================================
 
 export async function initStatsView() {
-
   const summaryBox = el('statsSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4 col-span-2">${t().loadingStats}</div>`;
   }
 
-  const result = await fetchTicketsApi();
-
-  allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
+  try {
+    const result = await fetchTicketsApi();
+    allTickets = (result && result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
+  } catch (error) {
+    console.error("[Statistics] Error fetching tickets:", error);
+    allTickets = [];
+    if (summaryBox) {
+      summaryBox.innerHTML = `
+        <div class="col-span-4 bg-red-900/50 border border-red-500 rounded-xl p-4 text-center">
+          <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، فشل الاتصال بقاعدة البيانات لجلب التقارير</h3>
+          <p class="text-white text-xs text-opacity-80">${error.message}</p>
+        </div>
+      `;
+    }
+    return;
+  }
 
   isLoaded = true;
-
   window.switchStatsPeriod(currentPeriod);
 }
 
@@ -257,14 +268,27 @@ export function computeTechnicianPerformance(tickets, limitCount = 5) {
 // ============================================================
 
 function renderAll() {
-  const periodTickets = filterByPeriod(allTickets, currentPeriod);
+  try {
+    const periodTickets = filterByPeriod(allTickets, currentPeriod);
 
-  renderSummary(periodTickets);
-  renderMachineChart(periodTickets);
-  renderPriorityChart(periodTickets);
-  renderLineBreakdown(periodTickets);
-  renderMttr(periodTickets);
-  renderTechnicianPerformance(periodTickets);
+    renderSummary(periodTickets);
+    renderMachineChart(periodTickets);
+    renderPriorityChart(periodTickets);
+    renderLineBreakdown(periodTickets);
+    renderMttr(periodTickets);
+    renderTechnicianPerformance(periodTickets);
+  } catch (error) {
+    console.error("[Statistics] Error rendering reports:", error);
+    const box = el('statsSummaryBox');
+    if (box) {
+      box.innerHTML = `
+        <div class="col-span-4 bg-red-900/50 border border-red-500 rounded-xl p-4 text-center">
+          <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، حدث خطأ أثناء تحميل التقارير</h3>
+          <p class="text-white text-xs text-opacity-80">${error.message}</p>
+        </div>
+      `;
+    }
+  }
 }
 
 // ============================================================

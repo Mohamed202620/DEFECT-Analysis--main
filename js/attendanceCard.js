@@ -801,8 +801,8 @@ export function calculateCycle(userId, options = {}) {
     userId, shiftColor: localStorage.getItem("shift") || "جرين",
     shiftStartDate: "2026-01-01", shiftStart: "08:00", shiftEnd: "20:00"
   };
-  const patternTeams = options.patternTeams || getCachedAttendancePattern().teams;
-  const holidays = options.holidays || getCachedOfficialHolidays();
+  const patternTeams = options.patternTeams || (getCachedAttendancePattern && getCachedAttendancePattern() ? getCachedAttendancePattern().teams : null);
+  const holidays = options.holidays || (getCachedOfficialHolidays ? getCachedOfficialHolidays() : []);
   const referenceDate = options.referenceDate || new Date();
 
   const range = getCycleRange(referenceDate);
@@ -877,9 +877,9 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
     userId, shiftColor: localStorage.getItem("shift") || "جرين",
     shiftStartDate: "2026-01-01", shiftStart: "08:00", shiftEnd: "20:00"
   };
-  const rules = options.rules || getCachedPayrollRules();
-  const patternTeams = options.patternTeams || getCachedAttendancePattern().teams;
-  const holidays = options.holidays || getCachedOfficialHolidays();
+  const rules = options.rules || (getCachedPayrollRules ? getCachedPayrollRules() : DEFAULT_PAYROLL_RULES) || DEFAULT_PAYROLL_RULES;
+  const patternTeams = options.patternTeams || (getCachedAttendancePattern && getCachedAttendancePattern() ? getCachedAttendancePattern().teams : null);
+  const holidays = options.holidays || (getCachedOfficialHolidays ? getCachedOfficialHolidays() : []);
 
   const currentYM = yearMonth || getTodayDateString().substring(0, 7);
   const [yStr, mStr] = currentYM.split("-");
@@ -1390,45 +1390,46 @@ function maskMoney(value, unlocked) {
 }
 
 export function renderAttendanceCard(customProfile = null) {
-  const userId = customProfile?.userId || localStorage.getItem("userId") || "local_user";
-  const name = customProfile?.name || localStorage.getItem("name") || "أحمد محمد";
-  const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
-  const shiftColor = customProfile?.shiftColor || localStorage.getItem("shift") || "جرين";
-  const shiftStartDate = customProfile?.shiftStartDate || "2026-01-01";
-  const shiftStart = customProfile?.shiftStart || "08:00";
-  const shiftEnd = customProfile?.shiftEnd || "20:00";
+  try {
+    const userId = customProfile?.userId || localStorage.getItem("userId") || "local_user";
+    const name = customProfile?.name || localStorage.getItem("name") || "أحمد محمد";
+    const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
+    const shiftColor = customProfile?.shiftColor || localStorage.getItem("shift") || "جرين";
+    const shiftStartDate = customProfile?.shiftStartDate || "2026-01-01";
+    const shiftStart = customProfile?.shiftStart || "08:00";
+    const shiftEnd = customProfile?.shiftEnd || "20:00";
 
-  const profile = { userId, name, job, shiftColor, shiftStartDate, shiftStart, shiftEnd };
+    const profile = { userId, name, job, shiftColor, shiftStartDate, shiftStart, shiftEnd };
 
-  const contextDate = getCardContextDate(userId);
-  const dayInfo = getShiftInfoForDate(profile, contextDate);
-  const isHolidayToday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+    const contextDate = getCardContextDate(userId);
+    const dayInfo = getShiftInfoForDate(profile, contextDate);
+    const isHolidayToday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
 
-  const todayRecord = getDailyAttendanceRecord(userId, contextDate) || {
-    checkIn: null, checkOut: null, hoursWorked: 0, status: "idle"
-  };
+    const todayRecord = getDailyAttendanceRecord(userId, contextDate) || {
+      checkIn: null, checkOut: null, hoursWorked: 0, status: "idle"
+    };
 
-  const isCheckedIn = !!todayRecord.checkIn && !todayRecord.checkOut;
-  const isCheckedOut = !!todayRecord.checkIn && !!todayRecord.checkOut;
-  const isExtraDay = !!todayRecord.isExtraDay;
-  const isLeave = !!todayRecord.isLeave;
+    const isCheckedIn = !!todayRecord.checkIn && !todayRecord.checkOut;
+    const isCheckedOut = !!todayRecord.checkIn && !!todayRecord.checkOut;
+    const isExtraDay = !!todayRecord.isExtraDay;
+    const isLeave = !!todayRecord.isLeave;
 
-  // الكارت الحي (المطلوب/Progress Bar) بيستخدم دلوقتي دورة 21 → 20
-  // (calculateCycle) بدل الشهر التقويمي - راجع تعليق الدالة أعلاه.
-  // تصدير الـ PDF لسه بيستخدم الشهر التقويمي (calculateMonth) زي ما هو
-  const rules = getCachedPayrollRules();
-  const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
+    // الكارت الحي (المطلوب/Progress Bar) بيستخدم دلوقتي دورة 21 → 20
+    // (calculateCycle) بدل الشهر التقويمي - راجع تعليق الدالة أعلاه.
+    // تصدير الـ PDF لسه بيستخدم الشهر التقويمي (calculateMonth) زي ما هو
+    const rules = getCachedPayrollRules ? getCachedPayrollRules() : DEFAULT_PAYROLL_RULES;
+    const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
 
-  const localConfig = getPayrollLocalConfig(userId);
-  const unlocked = isPayrollUnlocked();
-  const financials = computeFinancials(cycleData, localConfig, rules);
+    const localConfig = getPayrollLocalConfig(userId);
+    const unlocked = isPayrollUnlocked();
+    const financials = computeFinancials(cycleData, localConfig, rules);
 
-  const dateOptions = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
-  const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString("ar-EG", dateOptions);
+    const dateOptions = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
+    const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString("ar-EG", dateOptions);
 
-  // هل اليوم إجازة رسمية حسب Google Calendar تحديدًا (القائمة
-  // المتزامَنة محليًا) - لتلوين كارت اليوم بالأزرق الفاتح
-  const isGoogleHolidayToday = getLocalEgyptianHolidays().some(h => h.date === contextDate);
+    // هل اليوم إجازة رسمية حسب Google Calendar تحديدًا (القائمة
+    // المتزامَنة محليًا) - لتلوين كارت اليوم بالأزرق الفاتح
+    const isGoogleHolidayToday = (getLocalEgyptianHolidays && getLocalEgyptianHolidays() || []).some(h => h.date === contextDate);
   const todayRowClasses = isGoogleHolidayToday
     ? "bg-sky-400/10 p-2.5 rounded-xl border border-sky-300/40"
     : "bg-slate-950/40 p-2.5 rounded-xl border border-white/10";
@@ -1588,6 +1589,16 @@ export function renderAttendanceCard(customProfile = null) {
     </div>
   </div>
   `;
+  } catch (error) {
+    console.error("[AttendanceCard] Error rendering:", error);
+    return `
+      <div id="attendanceShiftCard" class="w-full bg-red-900/50 border border-red-500 rounded-xl p-4 text-center">
+        <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، حدث خطأ أثناء تحميل كارت الحضور</h3>
+        <p class="text-white text-xs text-opacity-80 mb-3">${error.message}</p>
+        <button onclick="window.refreshAttendanceCard()" class="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-700 border border-red-600 transition shadow-md">إعادة المحاولة</button>
+      </div>
+    `;
+  }
 }
 
 // ============================================================
@@ -1616,9 +1627,20 @@ export function toggleAttendanceCard() {
 export async function refreshAttendanceCard() {
   const container = document.getElementById("attendanceCardContainer");
   if (container) {
-    const profile = await getTechnicianProfile();
-    await loadAttendanceSettingsCaches();
-    container.innerHTML = renderAttendanceCard(profile);
+    try {
+      const profile = await getTechnicianProfile();
+      await loadAttendanceSettingsCaches();
+      container.innerHTML = renderAttendanceCard(profile);
+    } catch (error) {
+      console.error("[AttendanceCard] Error refreshing:", error);
+      container.innerHTML = `
+        <div class="w-full bg-red-900/50 border border-red-500 rounded-xl p-4 text-center shadow-lg">
+          <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، فشل تحديث كارت الحضور</h3>
+          <p class="text-white text-xs text-opacity-80 mb-3">${error.message}</p>
+          <button onclick="window.refreshAttendanceCard()" class="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-700 border border-red-600 transition shadow-md">إعادة المحاولة</button>
+        </div>
+      `;
+    }
   }
 }
 
