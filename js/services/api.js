@@ -28,7 +28,6 @@ export {
   fetchUsers,
   registerUserApi,
   updatePermissionsApi,
-  updateUserMachineDepartmentApi,
   updateUserStatusApi,
   deleteUserApi,
   fetchTechniciansApi
@@ -98,6 +97,16 @@ export {
   addOfficialHolidayApi,
   deleteOfficialHolidayApi
 } from "./holidaysApi.js";
+
+// مقترحات الكايزن الموثّقة (Kaizen Completion Sheet) - مجموعة
+// "kaizens" مستقلة تماماً عن "suggestions" (راجع kaizensApi.js)
+export {
+  KAIZEN_MGMT_STATUSES,
+  fetchKaizensApi,
+  fetchKaizenByIdApi,
+  addKaizenApi,
+  updateKaizenStatusApi
+} from "./kaizensApi.js";
 
 export {
   fetchMachineTypesApi,
