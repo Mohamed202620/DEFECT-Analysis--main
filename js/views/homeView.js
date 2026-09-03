@@ -188,40 +188,6 @@ export const HomeView = () => {
           </div>
           <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
         </button>
-
-        ${hasPermission("kb") ? `
-        <button
-          onclick="window.navigateTo('kb')"
-          class="relative group dyn-card border border-cyan-500/30 hover:border-cyan-400/60 bg-gradient-to-br from-cyan-950/40 via-cyan-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 text-cyan-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.kbQuick}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.kbQuickDesc}</div>
-          </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-        </button>
-        ` : ''}
-
-        ${hasPermission("statistics") ? `
-        <button
-          onclick="window.navigateTo('stats')"
-          class="relative group dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-950/40 via-emerald-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.statsQuick}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.statsQuickDesc}</div>
-          </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-        </button>
-        ` : ''}
       </div>
     </div>
 

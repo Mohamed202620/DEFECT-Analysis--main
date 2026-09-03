@@ -967,12 +967,12 @@ export function renderDailyTipCard() {
 // - يظهر مرتين يومياً فقط
 // - المرة 1: بعد 5 ثوانٍ من فتح النظام
 // - المرة 2: بعد 4 ساعات من فتح النظام
-// - يختفي تلقائياً بعد 7 ثوانٍ
+// - يختفي تلقائياً بعد 15 ثانية مع إمكانية الإغلاق اليدوي
 // - لا يظهر مرة أخرى إذا ظهر بالفعل في نفس اليوم
 // ============================================================
 
 const TOAST_STORAGE_KEY = 'mscanco_daily_tip_toast_v2';
-const TOAST_DURATION_MS = 7000; // 7 ثوانٍ
+const TOAST_DURATION_MS = 15000; // 15 ثانية لمنح المستخدم وقتاً كافياً ومريحاً للقراءة
 
 /**
  * الحصول على تاريخ اليوم بنسق YYYY-MM-DD
@@ -1066,7 +1066,7 @@ export function showDailyTipToast(tipIndex = null) {
       ${tip.text}
     </div>
 
-    <!-- شريط التناقص التلقائي للوقت (7 ثوانٍ) -->
+    <!-- شريط التناقص التلقائي للوقت (15 ثانية) -->
     <div class="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden border border-slate-700/50">
       <div id="mscanco-toast-progress" class="bg-gradient-to-r from-amber-500 to-amber-300 h-full w-full rounded-full transition-all linear" style="transition-duration: ${TOAST_DURATION_MS}ms; width: 0%;"></div>
     </div>
@@ -1093,7 +1093,7 @@ export function showDailyTipToast(tipIndex = null) {
     }
   });
 
-  // الاختفاء التلقائي بعد 7 ثوانٍ
+  // الاختفاء التلقائي بعد 15 ثانية
   const autoHideTimer = setTimeout(() => {
     dismissToast(toast);
   }, TOAST_DURATION_MS);

@@ -1391,164 +1391,151 @@ export function renderAttendanceCard(customProfile = null) {
 
   let actionButtonHtml = "";
   if (isExtraDay) {
-    actionButtonHtml = `<div class="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-1"><span>⭐</span><span>يوم إضافي مسجل</span></div>`;
+    actionButtonHtml = `<div class="px-2 py-1 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[10.5px] flex items-center justify-center gap-1"><span>⭐</span><span>إضافي مسجل</span></div>`;
   } else if (isLeave) {
-    actionButtonHtml = `<div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة من الرصيد</span></div>`;
+    actionButtonHtml = `<div class="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[10.5px] flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة رصيد</span></div>`;
   } else if (isCheckedIn) {
     // زر واحد واضح "تسجيل حضور" - نفس المُعالِج (handleAttendanceButton)
     // بيحدد تلقائيًا إنها ضغطة تسجيل خروج طالما فيه دخول بدون خروج
     actionButtonHtml = `
       <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-md shadow-red-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-sm">🚪</span>
+        class="group relative px-2.5 py-1 rounded-lg font-black text-[11px] text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow shadow-red-950/40 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-xs">🚪</span>
       </button>`;
   } else if (isCheckedOut) {
     actionButtonHtml = `
-      <div class="flex items-center gap-1.5">
-        <div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1"><span>✅</span><span>تم إتمام الوردية</span></div>
-        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] transition">🔄</button>
+      <div class="flex items-center gap-1">
+        <div class="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[10.5px] flex items-center justify-center gap-1"><span>✅</span><span>تمت الوردية</span></div>
+        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[9px] transition">🔄</button>
       </div>`;
   } else {
     actionButtonHtml = `
       <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-md shadow-emerald-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-sm">📲</span>
+        class="group relative px-2.5 py-1 rounded-lg font-black text-[11px] text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow shadow-emerald-950/40 active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-xs">📲</span>
       </button>`;
   }
 
   const dayStatusText = !dayInfo.isWorkDay
-    ? (isHolidayToday ? "🏖️ راحة مُجدوَلة (تصادف إجازة رسمية)" : "🏖️ يوم راحة")
+    ? (isHolidayToday ? "🏖️ راحة مُجدوَلة (إجازة رسمية)" : "🏖️ يوم راحة")
     : (isHolidayToday ? "🎉 يوم عمل يصادف إجازة رسمية" : "✅ يوم عمل");
 
   return `
-  <!-- حاسبة الحضور والمرتبات - MSCANCO EGYPT -->
-  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border-2 border-[#D4AF37] shadow-xl shadow-blue-950/40 rounded-2xl p-4 text-white relative overflow-hidden transition-all duration-300">
+  <!-- حاسبة الحضور والمرتبات - MSCANCO EGYPT (تصميم فائق الانضغاط Micro-Compact) -->
+  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border border-[#D4AF37]/60 shadow-md shadow-blue-950/30 rounded-xl p-2 text-white relative overflow-hidden transition-all duration-300">
 
-    <div class="absolute -left-10 -bottom-10 w-36 h-36 bg-[#D4AF37]/10 rounded-full blur-2xl pointer-events-none"></div>
-    <div class="absolute -right-10 -top-10 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+    <div class="absolute -left-10 -bottom-10 w-24 h-24 bg-[#D4AF37]/10 rounded-full blur-2xl pointer-events-none"></div>
+    <div class="absolute -right-10 -top-10 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-    <div class="relative z-10 space-y-3.5">
+    <div class="relative z-10 space-y-1.5">
 
-      <div id="attendanceRow1" class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] font-black text-sm shrink-0 shadow-inner">🧮</div>
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5">
-              <span class="font-black text-sm text-white truncate max-w-[140px] sm:max-w-[200px]">حاسبة الحضور والمرتبات</span>
-              <span class="text-[9px] text-[#D4AF37] font-bold px-1.5 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
-            </div>
-            <div class="text-[11px] text-slate-300 font-medium truncate max-w-[150px] sm:max-w-[220px]">${name} · ${job}</div>
+      <!-- هيدر مدمج في سطر واحد بارتفاع مصغر جداً -->
+      <div id="attendanceRow1" class="flex items-center justify-between gap-1 pb-1.5 border-b border-white/10">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <div class="w-6 h-6 rounded-md bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] font-black text-[11px] shrink-0">🧮</div>
+          <div class="min-w-0 flex items-center gap-1.5">
+            <span class="font-black text-[11.5px] text-white truncate">حضور الوردية</span>
+            <span class="text-[9.5px] text-slate-300 font-medium truncate max-w-[90px] sm:max-w-[140px] opacity-90">${name}</span>
           </div>
         </div>
 
-        <div class="flex items-center gap-1.5 shrink-0">
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${dayInfo.colorBadge.text}">
-            <span class="w-1.5 h-1.5 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${dayInfo.colorBadge.label}</span>
+        <div class="flex items-center gap-1 shrink-0">
+          <span class="px-1.5 py-0.2 rounded text-[9px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${dayInfo.colorBadge.text}">
+            <span class="w-1 h-1 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${dayInfo.colorBadge.label}</span>
           </span>
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold border ${dayInfo.badgeColorClass}">
+          <span class="px-1.5 py-0.2 rounded text-[9px] font-bold border ${dayInfo.badgeColorClass}">
             ${dayInfo.shiftType === "ليلي" ? "🌙 ليلي" : (dayInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
           </span>
           <button type="button" id="attendanceToggleBtn" onclick="window.toggleAttendanceCard()" aria-expanded="${attendanceCardExpanded ? "true" : "false"}" aria-controls="attendanceExpandableContent"
             title="${attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل"}"
-            class="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
-            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            class="w-5 h-5 rounded bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
         </div>
       </div>
 
-      <div id="attendanceRow3" class="flex items-center justify-between gap-2 ${todayRowClasses}">
-        <div class="flex items-center gap-3 text-xs">
-          <div><span class="text-[10px] text-slate-400 block font-medium">الدخول:</span><span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
-          <div class="h-6 w-px bg-white/10"></div>
-          <div><span class="text-[10px] text-slate-400 block font-medium">الخروج:</span><span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
+      <!-- صف تسجيل الحضور وساعات الدخول/الخروج المدمج -->
+      <div id="attendanceRow3" class="flex items-center justify-between gap-1.5 ${todayRowClasses} py-1 px-2">
+        <div class="flex items-center gap-2 text-xs">
+          <div><span class="text-[8.5px] text-slate-400 block font-medium leading-none">الدخول</span><span class="font-black text-emerald-400 text-[11px] dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
+          <div class="h-3.5 w-px bg-white/10"></div>
+          <div><span class="text-[8.5px] text-slate-400 block font-medium leading-none">الخروج</span><span class="font-black text-amber-400 text-[11px] dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
+          ${todayRecord.hoursWorked ? `
+          <div class="h-3.5 w-px bg-white/10"></div>
+          <div><span class="text-[8.5px] text-slate-400 block font-medium leading-none">الساعات</span><span class="font-black text-cyan-300 text-[11px] dir-ltr">${todayRecord.hoursWorked}س</span></div>
+          ` : ''}
         </div>
         <div>${actionButtonHtml}</div>
       </div>
 
-      <div id="attendanceExpandableContent" class="overflow-hidden transition-all duration-300 ease-in-out space-y-3.5"
+      <!-- الحاوية الموسعة بالتفاصيل -->
+      <div id="attendanceExpandableContent" class="overflow-hidden transition-all duration-300 ease-in-out space-y-2.5"
         style="max-height: ${attendanceCardExpanded ? "2400px" : "0px"}; opacity: ${attendanceCardExpanded ? "1" : "0"};"
         aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
 
-      <div id="attendanceRow2" class="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-white/5 text-center items-center">
-        <div><div class="text-[9px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-xs font-black text-[#D4AF37] mt-0.5">${dayInfo.dayInCycleText}</div></div>
-        <div class="border-x border-white/10 px-1"><div class="text-[9px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[11px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
-        <div><div class="text-[9px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[11px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
+      <div id="attendanceRow2" class="grid grid-cols-3 gap-1.5 bg-slate-900/60 p-2 rounded-lg border border-white/5 text-center items-center">
+        <div><div class="text-[8.5px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-[11px] font-black text-[#D4AF37] mt-0.5">${dayInfo.dayInCycleText}</div></div>
+        <div class="border-x border-white/10 px-1"><div class="text-[8.5px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[10px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
+        <div><div class="text-[8.5px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[10px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
       </div>
 
-      <div id="attendanceDayStatus" class="flex items-center gap-2 bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-slate-200 font-bold">
+      <div id="attendanceDayStatus" class="flex items-center gap-1.5 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10.5px] text-slate-200 font-bold">
         <span>${dayStatusText}</span>
-        ${dayInfo.source === "cycle" ? '<span class="text-[9px] text-slate-500 font-normal">(محسوبة تلقائياً - لا يوجد Pattern مرفوع لهذا التاريخ)</span>' : ""}
+        ${dayInfo.source === "cycle" ? '<span class="text-[8.5px] text-slate-500 font-normal">(محسوبة تلقائياً)</span>' : ""}
       </div>
 
       ${isHolidayToday ? `
-        <div id="attendanceHolidayBadge" class="flex items-center gap-2 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2 text-[11px] text-amber-200 font-bold">
+        <div id="attendanceHolidayBadge" class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5 text-[10.5px] text-amber-200 font-bold">
           <span>🎉</span>
-          <span>${!dayInfo.isWorkDay ? "اليوم إجازة رسمية (يوم راحتك الدورية أصلاً - بدون أي تأثير على حسابك)" : "اليوم إجازة رسمية وهو يوم عملك المُجدوَل - أي ساعات هتشتغلها هتتحسب ضمن فئة العمل بالإجازة الرسمية"}</span>
+          <span>${!dayInfo.isWorkDay ? "اليوم إجازة رسمية (راحة دورية)" : "اليوم إجازة رسمية وهو يوم عملك"}</span>
         </div>` : ""}
 
-      <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-3 py-2 rounded-xl border border-blue-400/20 text-xs">
-        <div class="flex items-center gap-2"><span class="text-blue-300 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
-      </div>
-
-      <div id="attendanceRow5" class="space-y-1.5 bg-slate-900/80 p-3 rounded-xl border border-white/10">
-        <div class="text-[9px] text-slate-500 font-medium text-center">دورة الحضور والمرتبات الحالية: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
-        <div class="grid grid-cols-2 gap-1.5 text-[11px] font-bold text-slate-200">
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عادي</div><div class="text-emerald-400 text-sm">${cycleData.regularHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">إضافي عادي</div><div class="text-amber-400 text-sm">${cycleData.normalOvertimeHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل OFF</div><div class="text-rose-400 text-sm">${cycleData.offWorkHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-sm">${cycleData.holidayWorkHours}س</div></div>
+      <div id="attendanceRow5" class="space-y-1.5 bg-slate-900/80 p-2.5 rounded-xl border border-white/10">
+        <div class="text-[8.5px] text-slate-400 font-medium text-center">دورة المرتب: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
+        <div class="grid grid-cols-4 gap-1 text-center">
+          <div class="bg-slate-950/50 rounded-lg p-1 border border-white/5"><div class="text-slate-400 text-[8.5px]">عادي</div><div class="text-emerald-400 text-xs font-bold">${cycleData.regularHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1 border border-white/5"><div class="text-slate-400 text-[8.5px]">إضافي</div><div class="text-amber-400 text-xs font-bold">${cycleData.normalOvertimeHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1 border border-white/5"><div class="text-slate-400 text-[8.5px]">عمل OFF</div><div class="text-rose-400 text-xs font-bold">${cycleData.offWorkHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1 border border-white/5"><div class="text-slate-400 text-[8.5px]">إجازة رسمية</div><div class="text-cyan-300 text-xs font-bold">${cycleData.holidayWorkHours}س</div></div>
         </div>
 
-        <div class="grid grid-cols-2 gap-1.5 pt-1">
-          <div>
-            <label class="text-[9px] text-slate-400 font-medium block mb-0.5">الساعات المطلوبة (تلقائي)</label>
-            <input type="text" readonly value="${cycleData.requiredHours} ساعة" title="192 - (${cycleData.holidayCountInCycle} إجازة رسمية × 8 ساعات)"
-              class="w-full text-center text-xs font-black text-white bg-slate-950/70 border border-white/10 rounded-lg py-1.5 cursor-not-allowed" />
-          </div>
-          <div>
-            <label class="text-[9px] text-slate-400 font-medium block mb-0.5">الساعات المسجّلة (تلقائي)</label>
-            <input type="text" readonly value="${cycleData.registeredHours} ساعة"
-              class="w-full text-center text-xs font-black text-cyan-300 bg-slate-950/70 border border-white/10 rounded-lg py-1.5 cursor-not-allowed" />
-          </div>
-        </div>
-
-        <div class="space-y-1 pt-1">
-          <div class="flex justify-between text-[10px] text-slate-400 font-medium">
-            <span>المطلوب: ${cycleData.requiredHours} ساعة ${cycleData.holidayCountInCycle > 0 ? `(بعد خصم ${cycleData.holidayCountInCycle} إجازة رسمية × 8 س)` : ""}</span>
+        <div class="space-y-1 pt-0.5">
+          <div class="flex justify-between text-[9.5px] text-slate-400 font-medium">
+            <span>المطلوب: <b class="text-white">${cycleData.requiredHours}س</b> (المسجل: ${cycleData.registeredHours}س)</span>
             <span class="text-cyan-300 font-bold">${cycleData.progressPercent}% مُنجز</span>
           </div>
-          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
             <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${cycleData.progressPercent}%"></div>
           </div>
         </div>
       </div>
 
-      <!-- الملخص المالي - مخفي دايماً خلف PIN -->
-      <div id="attendancePayrollBox" class="space-y-1.5 bg-gradient-to-br from-slate-900 to-slate-950 p-3 rounded-xl border border-[#D4AF37]/30">
+      <!-- الملخص المالي - محمي بـ PIN -->
+      <div id="attendancePayrollBox" class="space-y-1 bg-gradient-to-br from-slate-900 to-slate-950 p-2.5 rounded-xl border border-[#D4AF37]/30">
         <div class="flex items-center justify-between">
-          <span class="text-[11px] font-black text-[#D4AF37] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
-          <div class="flex items-center gap-1.5">
-            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[10px] px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">⚙️ بيانات المرتب</button>
+          <span class="text-[10.5px] font-black text-[#D4AF37] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[9px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">⚙️ بيانات المرتب</button>
             ${unlocked
-              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[10px] px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">🙈 إخفاء</button>`
-              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[10px] px-2 py-1 rounded-lg bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#D4AF37] font-bold">🔓 إظهار المرتب</button>`}
+              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">🙈 إخفاء</button>`
+              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#D4AF37] font-bold">🔓 إظهار</button>`}
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">المرتب الأساسي</span><span class="font-bold text-white">${maskMoney(financials.baseSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">قيمة الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">صافي المرتب المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+        <div class="grid grid-cols-2 gap-1 text-[10px]">
+          <div class="flex justify-between bg-slate-950/60 rounded px-2 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.baseSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded px-2 py-1"><span class="text-slate-400">الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded px-2 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded px-2 py-1"><span class="text-slate-400">صافي المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
-      <div id="attendanceRow6" class="grid grid-cols-2 gap-2 pt-1">
-        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
-        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>إضافة حضور سابق</span></button>
-        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
-        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
+      <div id="attendanceRow6" class="grid grid-cols-4 gap-1.5 pt-0.5">
+        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-1 py-1.5 rounded-lg text-[10px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex flex-col items-center justify-center gap-0.5 shadow-sm cursor-pointer"><span>➕</span><span>إضافي</span></button>
+        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-1 py-1.5 rounded-lg text-[10px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex flex-col items-center justify-center gap-0.5 shadow-sm cursor-pointer"><span>🗓️</span><span>سابق</span></button>
+        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-1 py-1.5 rounded-lg text-[10px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex flex-col items-center justify-center gap-0.5 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة</span></button>
+        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-1 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex flex-col items-center justify-center gap-0.5 shadow-sm cursor-pointer"><span>📄</span><span>PDF</span></button>
       </div>
 
       </div>
