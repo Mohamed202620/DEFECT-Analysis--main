@@ -1038,98 +1038,140 @@ export async function exportPDF(customUserId = null, customYM = null) {
     `;
   });
 
-  const printContainer = document.createElement("div");
-  printContainer.id = "attendance-pdf-print-container";
-  printContainer.dir = "rtl";
-  printContainer.style.width = "794px";
-  printContainer.style.background = "#ffffff";
-  printContainer.style.color = "#0f172a";
-  printContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
-  printContainer.style.padding = "24px";
-  printContainer.style.boxSizing = "border-box";
-  printContainer.style.position = "absolute";
-  printContainer.style.left = "-9999px";
-  printContainer.style.top = "0";
+  const printWrapper = document.createElement("div");
+  // السر الجذري لحل مشكلة القص: جعل الحاوية الأساسية LTR لإجبار html2canvas على حساب الإحداثيات من 0 
+  printWrapper.dir = "ltr";
+  printWrapper.style.position = "absolute";
+  printWrapper.style.top = "0px";
+  printWrapper.style.left = "0px";
+  printWrapper.style.width = "794px"; // العرض الدقيق لورقة A4 لعدم التأثر بشاشة الموبايل
+  printWrapper.style.zIndex = "999999"; 
+  printWrapper.style.backgroundColor = "#ffffff";
+  printWrapper.style.pointerEvents = "none";
 
-  printContainer.innerHTML = `
-    <div style="border-bottom: 2px solid #d4af37; padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
-      <div style="text-align: right;">
-        <h1 style="margin: 0; font-size: 16px; font-weight: 900; color: #1e3a8a;">${COMPANY_NAME_AR}</h1>
-        <h2 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
-        <div style="margin-top: 4px; font-size: 10px; color: #b45309; font-weight: bold;">تقرير حاسبة الحضور والمرتبات الشهري</div>
+  printWrapper.innerHTML = `
+    <div dir="rtl" style="width: 100%; padding: 24px; box-sizing: border-box; background: #ffffff; color: #0f172a; font-family: system-ui, -apple-system, sans-serif;">
+      <div style="border-bottom: 2px solid #d4af37; padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="text-align: right;">
+          <h1 style="margin: 0; font-size: 16px; font-weight: 900; color: #1e3a8a;">${COMPANY_NAME_AR}</h1>
+          <h2 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
+          <div style="margin-top: 4px; font-size: 10px; color: #b45309; font-weight: bold;">تقرير حاسبة الحضور والمرتبات الشهري</div>
+        </div>
+        <div style="text-align: left;">
+          ${logoDataUrl ? `<img src="${logoDataUrl}" style="height: 50px; max-width: 140px; object-fit: contain;" />` : `<span style="font-size: 20px; font-weight: 900; color: #1e3a8a;">${COMPANY_SHORT}</span>`}
+        </div>
       </div>
-      <div style="text-align: left;">
-        ${logoDataUrl ? `<img src="${logoDataUrl}" style="height: 50px; max-width: 140px; object-fit: contain;" />` : `<span style="font-size: 20px; font-weight: 900; color: #1e3a8a;">${COMPANY_SHORT}</span>`}
-      </div>
-    </div>
 
-    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 11px;">
-      <div><span style="color: #64748b; font-size: 10px; display: block;">اسم الموظف:</span><strong>${profile.name}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الوظيفة:</span><strong>${profile.job}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الفريق:</span><strong style="color:#1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الشهر:</span><strong>${monthArabic} ${yearStr}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المستهدفة الأصلية:</span><strong>${monthData.targetHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">خصم إجازات رسمية:</span><strong>${monthData.holidayDeductionDays} يوم × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المطلوبة الفعلية:</span><strong style="color:#047857;">${monthData.requiredHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">تاريخ الطباعة:</span><strong>${new Date().toLocaleDateString("ar-EG")}</strong></div>
-    </div>
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 11px;">
+        <table style="width: 100%; border: none; text-align: right;">
+          <tr>
+            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">اسم الموظف:</span><strong>${profile.name}</strong></td>
+            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الوظيفة:</span><strong>${profile.job}</strong></td>
+            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الفريق:</span><strong style="color:#1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong></td>
+            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الشهر:</span><strong>${monthArabic} ${yearStr}</strong></td>
+          </tr>
+          <tr>
+            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">الساعات المستهدفة:</span><strong>${monthData.targetHours} س</strong></td>
+            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">خصم إجازات رسمية:</span><strong>${monthData.holidayDeductionDays} يوم × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س</strong></td>
+            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">المطلوب الفعلي:</span><strong style="color:#047857;">${monthData.requiredHours} س</strong></td>
+            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">تاريخ الطباعة:</span><strong>${new Date().toLocaleDateString("ar-EG")}</strong></td>
+          </tr>
+        </table>
+      </div>
 
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
-      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #1e40af; font-weight: bold;">عادي</div>
-        <div style="font-size: 14px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
+      <div style="width: 100%; overflow: hidden; margin-bottom: 12px;">
+        <div style="float: right; width: 23.5%; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
+          <div style="font-size: 9px; color: #1e40af; font-weight: bold;">عادي</div>
+          <div style="font-size: 14px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
+        </div>
+        <div style="float: right; width: 23.5%; margin-right: 2%; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
+          <div style="font-size: 9px; color: #92400e; font-weight: bold;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
+          <div style="font-size: 14px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
+        </div>
+        <div style="float: right; width: 23.5%; margin-right: 2%; background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
+          <div style="font-size: 9px; color: #9d174d; font-weight: bold;">عمل OFF ×${rules.offWorkMultiplier}</div>
+          <div style="font-size: 14px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
+        </div>
+        <div style="float: right; width: 23.5%; margin-right: 2%; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
+          <div style="font-size: 9px; color: #166534; font-weight: bold;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
+          <div style="font-size: 14px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
+        </div>
       </div>
-      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #92400e; font-weight: bold;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
-      </div>
-      <div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #9d174d; font-weight: bold;">عمل OFF ×${rules.offWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
-      </div>
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #166534; font-weight: bold;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
-      </div>
-    </div>
 
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1;">
-      <thead>
-        <tr style="background: #1e3a8a; color: #ffffff; font-size: 10px;">
-          <th style="padding: 6px; border: 1px solid #3b82f6;">م</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">التاريخ</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">Pattern</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">الحالة</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">دخول</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">خروج</th>
-          <th style="padding: 6px; border: 1px solid #3b82f6;">ساعات اليوم</th>
-        </tr>
-      </thead>
-      <tbody>${tableRowsHtml}</tbody>
-    </table>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1;">
+        <thead>
+          <tr style="background: #1e3a8a; color: #ffffff; font-size: 10px;">
+            <th style="padding: 6px; border: 1px solid #3b82f6;">م</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">التاريخ</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">Pattern</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">الحالة</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">دخول</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">خروج</th>
+            <th style="padding: 6px; border: 1px solid #3b82f6;">ساعات اليوم</th>
+          </tr>
+        </thead>
+        <tbody>${tableRowsHtml}</tbody>
+      </table>
 
-    <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
-      <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 11px;">
-        <div>المرتب الأساسي: <strong>${financials.baseSalary.toLocaleString()} ج.م</strong></div>
-        <div>سعر ساعة الإضافي: <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
-        <div>قيمة الإضافي العادي: <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-        <div>قيمة عمل OFF: <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
-        <div>قيمة عمل الإجازة الرسمية: <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong></div>
-        <div>إجمالي الإضافي: <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-        <div>التأمينات (${financials.insurancePercent}%): <strong style="color:#f87171;">-${financials.insuranceAmount.toLocaleString()} ج.م</strong></div>
-        <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
+      <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
+        <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
+        <div style="width: 100%; overflow: hidden; font-size: 11px;">
+          <div style="float: right; width: 48%; margin-bottom: 6px;">المرتب الأساسي: <strong>${financials.baseSalary.toLocaleString()} ج.م</strong></div>
+          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">سعر ساعة الإضافي: <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
+          
+          <div style="float: right; width: 48%; margin-bottom: 6px;">قيمة الإضافي العادي: <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
+          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">قيمة عمل OFF: <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
+          
+          <div style="float: right; width: 48%; margin-bottom: 6px;">قيمة عمل الإجازة الرسمية: <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong></div>
+          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">إجمالي الإضافي: <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong></div>
+          
+          <div style="float: right; width: 48%; margin-bottom: 6px;">التأمينات (${financials.insurancePercent}%): <strong style="color:#f87171;">-${financials.insuranceAmount.toLocaleString()} ج.م</strong></div>
+          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;"><span style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</span></div>
+        </div>
       </div>
-    </div>
 
-    <div style="border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; font-size: 11px;">
-      <div><div style="font-weight: bold; margin-bottom: 30px;">توقيع الفني</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div><div style="margin-top: 4px; color: #64748b; font-size: 10px;">${profile.name}</div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مهندس الوردية</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مدير المصنع</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
+      <div style="border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: 16px; overflow: hidden; text-align: center; font-size: 11px;">
+        <div style="float: right; width: 33%;">
+          <div style="font-weight: bold; margin-bottom: 30px;">توقيع الفني</div>
+          <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
+          <div style="margin-top: 4px; color: #64748b; font-size: 10px;">${profile.name}</div>
+        </div>
+        <div style="float: right; width: 33%;">
+          <div style="font-weight: bold; margin-bottom: 30px;">اعتماد مهندس الوردية</div>
+          <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
+        </div>
+        <div style="float: right; width: 33%;">
+          <div style="font-weight: bold; margin-bottom: 30px;">اعتماد مدير المصنع</div>
+          <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
+        </div>
+      </div>
     </div>
   `;
 
-  document.body.appendChild(printContainer);
+  // حفظ التمرير الحالي والصعود للأعلى فوراً لتجنب أي قص من الكاميرا
+  const currentScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
+  // شاشة تحميل ضبابية تغطي التقرير العائم ريثما ينتهي التصوير
+  const loadingOverlay = document.createElement("div");
+  loadingOverlay.style.position = "fixed";
+  loadingOverlay.style.top = "0";
+  loadingOverlay.style.left = "0";
+  loadingOverlay.style.width = "100vw";
+  loadingOverlay.style.height = "100vh";
+  loadingOverlay.style.background = "rgba(255,255,255,0.95)";
+  loadingOverlay.style.zIndex = "9999999";
+  loadingOverlay.style.display = "flex";
+  loadingOverlay.style.flexDirection = "column";
+  loadingOverlay.style.alignItems = "center";
+  loadingOverlay.style.justifyContent = "center";
+  loadingOverlay.innerHTML = '<div style="width:40px;height:40px;border:4px solid #0891b2;border-bottom-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></div><style>@keyframes spin{100%{transform:rotate(360deg)}}</style><div style="margin-top:16px;color:#0891b2;font-weight:bold;">جاري تجهيز وتصدير التقرير...</div>';
+
+  document.body.appendChild(printWrapper);
+  document.body.appendChild(loadingOverlay);
+
+  // إعطاء المتصفح فرصة صغيرة (300 مللي ثانية) لمعالجة الـ DOM وعرض الحاوية قبل تصويرها
+  await new Promise(resolve => setTimeout(resolve, 300));
 
   try {
     const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${yearMonth}.pdf`;
@@ -1138,10 +1180,10 @@ export async function exportPDF(customUserId = null, customYM = null) {
         margin: [10, 10, 10, 10],
         filename,
         image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth: 794, width: 794, scrollX: 0, scrollY: 0 },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
       };
-      await window.html2pdf().set(opt).from(printContainer).save();
+      await window.html2pdf().set(opt).from(printWrapper).save();
     } else {
       window.print();
     }
@@ -1150,7 +1192,9 @@ export async function exportPDF(customUserId = null, customYM = null) {
     alert("تعذر توليد ملف الـ PDF حالياً، سيتم فتح نافذة الطباعة بدلاً من ذلك.");
     window.print();
   } finally {
-    if (printContainer.parentNode) printContainer.parentNode.removeChild(printContainer);
+    if (printWrapper.parentNode) printWrapper.parentNode.removeChild(printWrapper);
+    if (loadingOverlay.parentNode) loadingOverlay.parentNode.removeChild(loadingOverlay);
+    window.scrollTo(0, currentScrollY);
   }
 }
 
