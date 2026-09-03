@@ -12,8 +12,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "firebase": "^12.18.0",
-    "jsdom": "^30.0.1",
-    "puppeteer": "^25.9.0"
+    "jsdom": "^30.0.1"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

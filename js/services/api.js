@@ -29,6 +29,7 @@ export {
   registerUserApi,
   updatePermissionsApi,
   updateUserStatusApi,
+  updateUserMachineDepartmentApi,
   deleteUserApi,
   fetchTechniciansApi
 } from "./usersApi.js";
