@@ -72,4 +72,20 @@ import './holidaysManagement.js';
 // "settings" في pageRenderer.js)
 import './attendancePatternManagement.js';
 
+// فحص/تشغيل المزامنة التلقائية الشهرية لإجازات مصر الرسمية من
+// Google Calendar (أول يوم بالشهر الساعة 2 صباحًا) - فحص خفيف
+// وغير معطِّل، وآمن تمامًا لو مفيش مستخدم مسجّل دخوله بعد
+try {
+  const isLoggedInForHolidaysSync = localStorage.getItem("phone") || localStorage.getItem("userId");
+  if (isLoggedInForHolidaysSync) {
+    import('./services/googleHolidaysSync.js').then(m =>
+      m.maybeAutoSyncGoogleHolidays().then(result => {
+        // تحديث الكارت تلقائيًا لو المزامنة التلقائية غيّرت قائمة
+        // الإجازات (الساعات المطلوبة للدورة بتُحسب منها مباشرة)
+        if (result && window.refreshAttendanceCard) window.refreshAttendanceCard();
+      })
+    ).catch(() => {});
+  }
+} catch (e) { /* localStorage غير متاح - تجاهل بأمان */ }
+
 export { navigateTo, currentPage, render } from './renderCore.js';

@@ -44,6 +44,11 @@ import {
   isPayrollUnlocked,
   setPayrollUnlocked
 } from "./payrollLocalStore.js";
+import {
+  getLocalEgyptianHolidays,
+  getEgyptianHolidaysUpdatedAt,
+  syncEgyptianHolidaysFromGoogle
+} from "./services/googleHolidaysSync.js";
 
 // ============================================================
 // 0. الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
@@ -413,7 +418,22 @@ export async function checkIn() {
   refreshAttendanceCard();
 }
 
-export async function checkOut() {
+// معيار طول الوردية القياسي (12 ساعة) المستخدَم لتحديد هل الوقت
+// المنقضي منذ الدخول تجاوز الوردية العادية ويحتاج إدخال ساعات
+// إضافية يدوي أو لأ
+const STANDARD_SHIFT_LENGTH_HOURS = 12;
+
+/**
+ * تسجيل الخروج - بيحسب الساعات المنقضية من الدخول، ولو تجاوزت
+ * طول الوردية القياسي (12 ساعة) ومفيش قيمة إضافي يدوية اتبعتت،
+ * بيرجع { needsManualOvertime: true } عشان الكود اللي بينادي الدالة
+ * (window.handleAttendanceButton) يفتح مودال إدخال الساعات
+ * الإضافية يدويًا، ثم يعيد نداء checkOut() تاني مع القيمة المُدخلة.
+ * البيانات بتتحفظ بالشكل الجديد {normalHours, overtimeHours, type}
+ * مع الإبقاء على حقل hoursWorked القديم كمان للتوافق العكسي مع أي
+ * كود لسه بيقرأه (calculateMonth/calculateCycle بيدعموا الشكلين)
+ */
+export async function checkOut(manualOvertimeHours = null) {
   const profile = await getTechnicianProfile();
   const contextDate = getCardContextDate(profile.userId);
   const now = new Date();
@@ -426,19 +446,45 @@ export async function checkOut() {
   if (diffHours < 0.1) diffHours = 12; // خروج فوري تجريبي: قيمة افتراضية آمنة
   diffHours = Number(diffHours.toFixed(2));
 
+  let normalHours = Math.min(diffHours, STANDARD_SHIFT_LENGTH_HOURS);
+  let overtimeHours = 0;
+
+  if (diffHours > STANDARD_SHIFT_LENGTH_HOURS) {
+    if (manualOvertimeHours === null || manualOvertimeHours === undefined) {
+      return {
+        needsManualOvertime: true,
+        elapsedHours: diffHours,
+        shiftLengthHours: STANDARD_SHIFT_LENGTH_HOURS,
+        contextDate
+      };
+    }
+    overtimeHours = Math.max(0, Number(manualOvertimeHours) || 0);
+  }
+
+  const dayInfo = getShiftInfoForDate(profile, contextDate);
+  const isHoliday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+  const type = !dayInfo.isWorkDay ? "off" : (isHoliday ? "holiday" : "normal");
+
+  normalHours = Number(normalHours.toFixed(2));
+  overtimeHours = Number(overtimeHours.toFixed(2));
+
   saveDailyAttendanceRecord(profile.userId, contextDate, {
     ...currentRecord,
     checkIn: currentRecord.checkIn || "08:00",
     checkInTimestamp,
     checkOut: timeStr,
     checkOutTimestamp: now.getTime(),
-    hoursWorked: diffHours,
+    normalHours,
+    overtimeHours,
+    hoursWorked: Number((normalHours + overtimeHours).toFixed(2)), // توافق عكسي
+    type,
     status: "checked_out",
     isExtraDay: false,
     isLeave: false
   });
 
   refreshAttendanceCard();
+  return { needsManualOvertime: false };
 }
 
 /**
@@ -490,15 +536,342 @@ export async function takeLeave() {
   refreshAttendanceCard();
 }
 
+/**
+ * زر تسجيل الحضور الواحد: أول ضغطة = تسجيل دخول، والضغطة التانية
+ * (بوجود دخول وعدم وجود خروج) = تسجيل خروج + حساب الساعات. لو
+ * الساعات المنقضية تجاوزت طول الوردية القياسي، بيفتح مودال إدخال
+ * الساعات الإضافية يدويًا قبل حفظ الخروج نهائيًا
+ */
+window.handleAttendanceButton = async function () {
+  const profile = await getTechnicianProfile();
+  const contextDate = getCardContextDate(profile.userId);
+  const record = getDailyAttendanceRecord(profile.userId, contextDate);
+
+  if (!record || !record.checkIn) {
+    await checkIn();
+    return;
+  }
+
+  if (record.checkIn && !record.checkOut) {
+    const result = await checkOut();
+    if (result && result.needsManualOvertime) {
+      const manualValue = await requestManualOvertimeInput(result.elapsedHours, result.shiftLengthHours);
+      if (manualValue === null) return; // المستخدم لغى الإدخال - يفضل الحضور مفتوح لحد ما يضغط تاني
+      await checkOut(manualValue);
+    }
+    return;
+  }
+
+  alert("✅ تم تسجيل حضورك وانصرافك لهذا اليوم بالفعل.");
+};
+
+// إبقاء الأسماء القديمة شغالة لأي كود/أزرار سابقة لسه بتستخدمها
+window.checkInShift = checkIn;
+window.checkOutShift = checkOut;
+
+/**
+ * مودال إدخال الساعات الإضافية يدويًا عند تجاوز الساعات المنقضية
+ * لطول الوردية القياسي - بيرجع Promise<number|null> (null لو
+ * المستخدم لغى العملية)
+ */
+function requestManualOvertimeInput(elapsedHours, shiftLengthHours) {
+  return new Promise(resolve => {
+    closeAnyPayrollModal();
+    const suggestedOt = Math.max(0, Number((elapsedHours - shiftLengthHours).toFixed(2)));
+
+    const overlay = document.createElement("div");
+    overlay.id = "payrollModalOverlay";
+    overlay.dir = "rtl";
+    overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+    overlay.innerHTML = `
+      <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-amber-400/40 rounded-2xl p-5 shadow-2xl">
+        <div class="text-center mb-3">
+          <div class="text-2xl mb-1">⏱️</div>
+          <div class="text-white font-black text-sm">تجاوزت ساعات الوردية القياسية</div>
+          <div class="text-[10px] text-slate-400 mt-1">الساعات المنقضية: ${elapsedHours} س (الوردية: ${shiftLengthHours} س) - أدخل عدد ساعات الإضافي المستحقة فعليًا</div>
+        </div>
+        <input id="manualOtInput" type="number" min="0" step="0.25" value="${suggestedOt}"
+          class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3" />
+        <div class="grid grid-cols-2 gap-2">
+          <button id="manualOtCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="manualOtSave" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 text-xs font-black">✅ تأكيد وتسجيل الخروج</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#manualOtInput").focus();
+
+    overlay.querySelector("#manualOtCancel").onclick = () => { overlay.remove(); resolve(null); };
+    overlay.querySelector("#manualOtSave").onclick = () => {
+      const val = Math.max(0, Number(overlay.querySelector("#manualOtInput").value) || 0);
+      overlay.remove();
+      resolve(val);
+    };
+  });
+}
+
+/**
+ * مودال "إضافة حضور سابق": تاريخ (بدون السماح بتواريخ مستقبلية) +
+ * ساعات عادية + ساعات إضافية + نوع اليوم (عادي/OFF/إجازة رسمية) -
+ * بيحفظ بنفس شكل البيانات الجديد ({normalHours, overtimeHours, type})
+ * مع البقاء متوافق تمامًا مع السجلات القديمة (مفيش أي حذف/تعديل لها)
+ */
+window.openPastAttendanceModal = async function () {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const todayStr = getTodayDateString();
+
+  const overlay = document.createElement("div");
+  overlay.id = "payrollModalOverlay";
+  overlay.dir = "rtl";
+  overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+  overlay.innerHTML = `
+    <div class="w-full max-w-sm bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-cyan-400/40 rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>🗓️</span><span>إضافة حضور سابق</span></div>
+
+      <label class="block text-[11px] text-slate-300 mb-1">التاريخ</label>
+      <input id="pastAttDate" type="date" max="${todayStr}" value="${todayStr}"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">الساعات العادية</label>
+      <input id="pastAttNormal" type="number" min="0" step="0.25" value="12"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">الساعات الإضافية</label>
+      <input id="pastAttOvertime" type="number" min="0" step="0.25" value="0"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">نوع اليوم</label>
+      <select id="pastAttType" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4">
+        <option value="normal">عادي</option>
+        <option value="off">OFF (يوم راحة)</option>
+        <option value="holiday">إجازة رسمية</option>
+      </select>
+
+      <div id="pastAttError" class="text-[11px] text-rose-400 text-center mb-2 hidden"></div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button id="pastAttCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+        <button id="pastAttSave" class="py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-slate-900 text-xs font-black">💾 حفظ</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector("#pastAttCancel").onclick = () => overlay.remove();
+
+  overlay.querySelector("#pastAttSave").onclick = () => {
+    const errBox = overlay.querySelector("#pastAttError");
+    const dateVal = overlay.querySelector("#pastAttDate").value;
+    const normalHours = Math.max(0, Number(overlay.querySelector("#pastAttNormal").value) || 0);
+    const overtimeHours = Math.max(0, Number(overlay.querySelector("#pastAttOvertime").value) || 0);
+    const type = overlay.querySelector("#pastAttType").value;
+
+    if (!dateVal) {
+      errBox.textContent = "⚠️ يرجى اختيار التاريخ";
+      errBox.classList.remove("hidden");
+      return;
+    }
+    if (dateVal > todayStr) {
+      errBox.textContent = "⚠️ غير مسموح باختيار تاريخ مستقبلي";
+      errBox.classList.remove("hidden");
+      return;
+    }
+
+    const existing = getDailyAttendanceRecord(profile.userId, dateVal) || {};
+    saveDailyAttendanceRecord(profile.userId, dateVal, {
+      ...existing,
+      checkIn: existing.checkIn || "—",
+      checkOut: existing.checkOut || "—",
+      normalHours,
+      overtimeHours,
+      hoursWorked: Number((normalHours + overtimeHours).toFixed(2)),
+      type,
+      isExtraDay: type === "off",
+      isLeave: false,
+      status: "manual_past_entry"
+    });
+
+    overlay.remove();
+    refreshAttendanceCard();
+  };
+};
+
 // ============================================================
-// 5. حساب إجماليات الشهر: calculateMonth
-// إعادة حساب كاملة لكل يوم من أيام الشهر (مش بس الأيام المسجَّلة)
-// عشان تقرير الـ PDF يعرض "كل أيام الشهر" فعلاً، ولضمان تصنيف
-// دقيق لأي يوم كـ Regular / Normal OT / OFF Work / Holiday Work
-// بدون أي تطبيق مزدوج للمعامل على نفس الساعات (كل يوم بيقع في
-// فئة واحدة بالظبط)
+// 5. تصنيف يوم واحد (Shared Helper) + حساب إجماليات الشهر التقويمي
+// (calculateMonth - يُستخدم في تصدير PDF) + حساب إجماليات دورة
+// 21 → 20 (calculateCycle - يُستخدم في عرض الكارت الحي، بالصيغة
+// المطلوبة: requiredHours = 192 - (officialHolidayCount * 8))
 // ============================================================
 
+/**
+ * تصنيف يوم واحد لأي مستخدم: بيرجع الوردية (Pattern/Fallback)،
+ * هل هو إجازة رسمية، سجل الحضور (لو موجود)، عدد الساعات، والفئة
+ * (bucket) اللي بيقع فيها اليوم. بيدعم شكلي البيانات: القديم
+ * (record.hoursWorked) والجديد (record.normalHours/overtimeHours)
+ * بالإضافة لحقل record.type الصريح (من التسجيل التلقائي أو من
+ * مودال "إضافة حضور سابق") لو موجود، وإلا بيرجع للاشتقاق التلقائي
+ * من الـ Pattern + الإجازات الرسمية (بالظبط زي السلوك القديم)
+ */
+function classifyDay(userId, dateStr, profile, patternTeams, holidays) {
+  const dayInfo = getShiftInfoForDate(profile, dateStr, patternTeams);
+  const isHoliday = isOfficialHolidayDate(dateStr, holidays);
+  const record = getDailyAttendanceRecord(userId, dateStr);
+
+  const hasNewFields = !!(record && (record.normalHours != null || record.overtimeHours != null));
+  const hoursWorked = record
+    ? (hasNewFields
+        ? Number(record.normalHours || 0) + Number(record.overtimeHours || 0)
+        : Number(record.hoursWorked || 0))
+    : 0;
+
+  const isLeave = !!(record && record.isLeave);
+  const isExtraDay = !!(record && record.isExtraDay);
+  const explicitType = record && record.type; // 'normal' | 'off' | 'holiday'
+
+  let bucket = "none";
+  if (isLeave) {
+    bucket = "leave";
+  } else if (isExtraDay) {
+    bucket = "off";
+  } else if (explicitType === "holiday") {
+    bucket = hoursWorked > 0 ? "holiday" : "none";
+  } else if (explicitType === "off") {
+    bucket = hoursWorked > 0 ? "off" : "none";
+  } else if (explicitType === "normal") {
+    bucket = hoursWorked > 0 ? "work" : "none";
+  } else if (dayInfo.isWorkDay && isHoliday) {
+    bucket = hoursWorked > 0 ? "holiday" : "none";
+  } else if (!dayInfo.isWorkDay && hoursWorked > 0) {
+    bucket = "off";
+  } else if (dayInfo.isWorkDay && hoursWorked > 0) {
+    bucket = "work";
+  }
+
+  return { date: dateStr, dayInfo, isHoliday, record, hoursWorked, bucket };
+}
+
+/**
+ * حساب مدى دورة الحضور والمرتبات: من يوم 21 في الشهر لحد يوم 20 في
+ * الشهر التالي (بالظبط كما هو مطلوب) - باستخدام dayjs (محمّلة عبر
+ * CDN في index.html) لضمان دقة حساب نهايات الشهور المختلفة الطول
+ * وتغيّر السنة عند دورة ديسمبر/يناير. لو dayjs مش متاحة لأي سبب
+ * (فشل تحميل الـ CDN) فيه احتياطي بديل بنفس المنطق بالظبط بـ
+ * Date الأصلية في JS، فالنظام يفضل شغال في الحالتين
+ */
+export function getCycleRange(referenceDate = new Date()) {
+  const hasDayjs = typeof window !== "undefined" && typeof window.dayjs === "function";
+
+  if (hasDayjs) {
+    const ref = window.dayjs(referenceDate);
+    const start = ref.date() >= 21 ? ref.date(21) : ref.subtract(1, "month").date(21);
+    const end = start.add(1, "month").date(20);
+    return {
+      startStr: start.format("YYYY-MM-DD"),
+      endStr: end.format("YYYY-MM-DD"),
+      label: `${start.format("D MMM")} – ${end.format("D MMM YYYY")}`
+    };
+  }
+
+  // احتياطي بدون dayjs (نفس منطق الحساب بالظبط)
+  const ref = new Date(referenceDate);
+  let startY = ref.getFullYear(), startM = ref.getMonth();
+  if (ref.getDate() < 21) {
+    startM -= 1;
+    if (startM < 0) { startM = 11; startY -= 1; }
+  }
+  const start = new Date(startY, startM, 21);
+  let endM = startM + 1, endY = startY;
+  if (endM > 11) { endM = 0; endY += 1; }
+  const end = new Date(endY, endM, 20);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { startStr: fmt(start), endStr: fmt(end), label: `${fmt(start)} – ${fmt(end)}` };
+}
+
+/**
+ * حساب إجماليات دورة 21 → 20 الحالية (أو أي دورة تحتوي على
+ * referenceDate) - هذا هو المصدر الحي لعرض الكارت (المطلوب/المُنجز
+ * وProgress Bar). الصيغة بالظبط كما هو مطلوب:
+ * requiredHours = 192 - (officialHolidayCount * 8)
+ * حيث officialHolidayCount = أي إجازة رسمية تقع داخل الدورة، بغض
+ * النظر عن كونها يوم عمل مُجدوَل للفني أو لأ (خصم غير مشروط)
+ */
+export function calculateCycle(userId, options = {}) {
+  const profile = options.profile || {
+    userId, shiftColor: localStorage.getItem("shift") || "جرين",
+    shiftStartDate: "2026-01-01", shiftStart: "08:00", shiftEnd: "20:00"
+  };
+  const patternTeams = options.patternTeams || getCachedAttendancePattern().teams;
+  const holidays = options.holidays || getCachedOfficialHolidays();
+  const referenceDate = options.referenceDate || new Date();
+
+  const range = getCycleRange(referenceDate);
+
+  let poolHours = 0, offWorkHours = 0, holidayWorkHours = 0, holidayCountInCycle = 0;
+  let totalWorkDays = 0, totalLeaves = 0, totalExtraDays = 0, totalHolidayWorkDays = 0, totalOffWorkDays = 0;
+  const daysList = [];
+
+  let cursor = new Date(`${range.startStr}T00:00:00`);
+  const endDate = new Date(`${range.endStr}T00:00:00`);
+
+  while (cursor.getTime() <= endDate.getTime()) {
+    const dateStr = getTodayDateString(cursor);
+    const info = classifyDay(userId, dateStr, profile, patternTeams, holidays);
+
+    if (info.isHoliday) holidayCountInCycle++;
+
+    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
+    else if (info.bucket === "off") {
+      offWorkHours += info.hoursWorked;
+      totalOffWorkDays++;
+      if (info.record?.isExtraDay) totalExtraDays++;
+    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
+    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
+
+    daysList.push(info);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const targetHours = 192;
+  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * 8);
+
+  const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
+  const normalOvertimeHours = Number(Math.max(0, poolHours - requiredHours).toFixed(2));
+  offWorkHours = Number(offWorkHours.toFixed(2));
+  holidayWorkHours = Number(holidayWorkHours.toFixed(2));
+
+  const registeredHours = Number((regularHours + normalOvertimeHours + offWorkHours + holidayWorkHours).toFixed(2));
+  const progressPercent = requiredHours > 0 ? Math.min(100, Math.round((registeredHours / requiredHours) * 100)) : 100;
+
+  return {
+    cycleStart: range.startStr,
+    cycleEnd: range.endStr,
+    cycleLabel: range.label,
+    targetHours,
+    requiredHours,
+    holidayCountInCycle,
+    regularHours,
+    normalOvertimeHours,
+    offWorkHours,
+    holidayWorkHours,
+    registeredHours,
+    progressPercent,
+    totalWorkDays,
+    totalLeaves,
+    totalExtraDays,
+    totalOffWorkDays,
+    totalHolidayWorkDays,
+    daysList
+  };
+}
+
+/**
+ * حساب إجماليات الشهر التقويمي (1 → آخر يوم بالشهر) - يُستخدم حصرياً
+ * في تصدير تقرير الـ PDF الشهري (لم يتغيّر نطاقه أو صيغته بناءً على
+ * طلب هذا التعديل، للحفاظ على تقرير PDF كما هو تمامًا). الكارت الحي
+ * (المطلوب/Progress Bar) بيستخدم دلوقتي calculateCycle بدل هذه
+ * الدالة - راجع أعلاه
+ */
 export function calculateMonth(userId, yearMonth = null, options = {}) {
   const profile = options.profile || {
     userId, shiftColor: localStorage.getItem("shift") || "جرين",
@@ -523,42 +896,19 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const dayInfo = getShiftInfoForDate(profile, dateStr, patternTeams);
-    const isHoliday = isOfficialHolidayDate(dateStr, holidays);
-    const record = getDailyAttendanceRecord(userId, dateStr);
-    const hoursWorked = record ? (Number(record.hoursWorked) || 0) : 0;
-    const isLeave = !!(record && record.isLeave);
-    const isExtraDay = !!(record && record.isExtraDay);
+    const info = classifyDay(userId, dateStr, profile, patternTeams, holidays);
 
-    let bucket = "none";
+    if (info.dayInfo.isWorkDay && info.isHoliday) holidayDeductionDays++;
 
-    if (isLeave) {
-      poolHours += hoursWorked;
-      totalLeaves++;
-      bucket = "leave";
-    } else if (isExtraDay) {
-      offWorkHours += hoursWorked;
-      totalExtraDays++;
+    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
+    else if (info.bucket === "off") {
+      offWorkHours += info.hoursWorked;
       totalOffWorkDays++;
-      bucket = "off";
-    } else if (dayInfo.isWorkDay && isHoliday) {
-      holidayDeductionDays++;
-      if (hoursWorked > 0) {
-        holidayWorkHours += hoursWorked;
-        totalHolidayWorkDays++;
-        bucket = "holiday";
-      }
-    } else if (!dayInfo.isWorkDay && hoursWorked > 0) {
-      offWorkHours += hoursWorked;
-      totalOffWorkDays++;
-      bucket = "off";
-    } else if (dayInfo.isWorkDay && hoursWorked > 0) {
-      poolHours += hoursWorked;
-      totalWorkDays++;
-      bucket = "work";
-    }
+      if (info.record?.isExtraDay) totalExtraDays++;
+    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
+    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
 
-    daysList.push({ date: dateStr, dayInfo, isHoliday, record, hoursWorked, bucket });
+    daysList.push(info);
   }
 
   const targetHours = Number(rules.monthlyTargetHours) || DEFAULT_PAYROLL_RULES.monthlyTargetHours;
@@ -1019,16 +1369,25 @@ export function renderAttendanceCard(customProfile = null) {
   const isExtraDay = !!todayRecord.isExtraDay;
   const isLeave = !!todayRecord.isLeave;
 
-  const currentYM = contextDate.substring(0, 7);
+  // الكارت الحي (المطلوب/Progress Bar) بيستخدم دلوقتي دورة 21 → 20
+  // (calculateCycle) بدل الشهر التقويمي - راجع تعليق الدالة أعلاه.
+  // تصدير الـ PDF لسه بيستخدم الشهر التقويمي (calculateMonth) زي ما هو
   const rules = getCachedPayrollRules();
-  const monthData = calculateMonth(userId, currentYM, { profile, rules });
+  const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
 
   const localConfig = getPayrollLocalConfig(userId);
   const unlocked = isPayrollUnlocked();
-  const financials = computeFinancials(monthData, localConfig, rules);
+  const financials = computeFinancials(cycleData, localConfig, rules);
 
   const dateOptions = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
   const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString("ar-EG", dateOptions);
+
+  // هل اليوم إجازة رسمية حسب Google Calendar تحديدًا (القائمة
+  // المتزامَنة محليًا) - لتلوين كارت اليوم بالأزرق الفاتح
+  const isGoogleHolidayToday = getLocalEgyptianHolidays().some(h => h.date === contextDate);
+  const todayRowClasses = isGoogleHolidayToday
+    ? "bg-sky-400/10 p-2.5 rounded-xl border border-sky-300/40"
+    : "bg-slate-950/40 p-2.5 rounded-xl border border-white/10";
 
   let actionButtonHtml = "";
   if (isExtraDay) {
@@ -1036,10 +1395,12 @@ export function renderAttendanceCard(customProfile = null) {
   } else if (isLeave) {
     actionButtonHtml = `<div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة من الرصيد</span></div>`;
   } else if (isCheckedIn) {
+    // زر واحد واضح "تسجيل حضور" - نفس المُعالِج (handleAttendanceButton)
+    // بيحدد تلقائيًا إنها ضغطة تسجيل خروج طالما فيه دخول بدون خروج
     actionButtonHtml = `
-      <button type="button" id="btnShiftCheckOut" onclick="window.checkOutShift()"
+      <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
         class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-md shadow-red-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span><span>تسجيل خروج</span><span class="rtl:rotate-180 text-sm">🚪</span>
+        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-sm">🚪</span>
       </button>`;
   } else if (isCheckedOut) {
     actionButtonHtml = `
@@ -1049,9 +1410,9 @@ export function renderAttendanceCard(customProfile = null) {
       </div>`;
   } else {
     actionButtonHtml = `
-      <button type="button" id="btnShiftCheckIn" onclick="window.checkInShift()"
+      <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
         class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-md shadow-emerald-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل دخول</span><span class="rtl:rotate-180 text-sm">📲</span>
+        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-sm">📲</span>
       </button>`;
   }
 
@@ -1097,7 +1458,7 @@ export function renderAttendanceCard(customProfile = null) {
         </div>
       </div>
 
-      <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
+      <div id="attendanceRow3" class="flex items-center justify-between gap-2 ${todayRowClasses}">
         <div class="flex items-center gap-3 text-xs">
           <div><span class="text-[10px] text-slate-400 block font-medium">الدخول:</span><span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
           <div class="h-6 w-px bg-white/10"></div>
@@ -1132,19 +1493,34 @@ export function renderAttendanceCard(customProfile = null) {
       </div>
 
       <div id="attendanceRow5" class="space-y-1.5 bg-slate-900/80 p-3 rounded-xl border border-white/10">
+        <div class="text-[9px] text-slate-500 font-medium text-center">دورة الحضور والمرتبات الحالية: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
         <div class="grid grid-cols-2 gap-1.5 text-[11px] font-bold text-slate-200">
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عادي</div><div class="text-emerald-400 text-sm">${monthData.regularHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">إضافي عادي</div><div class="text-amber-400 text-sm">${monthData.normalOvertimeHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل OFF</div><div class="text-rose-400 text-sm">${monthData.offWorkHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-sm">${monthData.holidayWorkHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عادي</div><div class="text-emerald-400 text-sm">${cycleData.regularHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">إضافي عادي</div><div class="text-amber-400 text-sm">${cycleData.normalOvertimeHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل OFF</div><div class="text-rose-400 text-sm">${cycleData.offWorkHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-sm">${cycleData.holidayWorkHours}س</div></div>
         </div>
+
+        <div class="grid grid-cols-2 gap-1.5 pt-1">
+          <div>
+            <label class="text-[9px] text-slate-400 font-medium block mb-0.5">الساعات المطلوبة (تلقائي)</label>
+            <input type="text" readonly value="${cycleData.requiredHours} ساعة" title="192 - (${cycleData.holidayCountInCycle} إجازة رسمية × 8 ساعات)"
+              class="w-full text-center text-xs font-black text-white bg-slate-950/70 border border-white/10 rounded-lg py-1.5 cursor-not-allowed" />
+          </div>
+          <div>
+            <label class="text-[9px] text-slate-400 font-medium block mb-0.5">الساعات المسجّلة (تلقائي)</label>
+            <input type="text" readonly value="${cycleData.registeredHours} ساعة"
+              class="w-full text-center text-xs font-black text-cyan-300 bg-slate-950/70 border border-white/10 rounded-lg py-1.5 cursor-not-allowed" />
+          </div>
+        </div>
+
         <div class="space-y-1 pt-1">
           <div class="flex justify-between text-[10px] text-slate-400 font-medium">
-            <span>المطلوب: ${monthData.requiredHours} ساعة ${monthData.holidayDeductionDays > 0 ? `(بعد خصم ${monthData.holidayDeductionDays} يوم إجازة رسمية)` : ""}</span>
-            <span class="text-cyan-300 font-bold">${monthData.progressPercent}% مُنجز</span>
+            <span>المطلوب: ${cycleData.requiredHours} ساعة ${cycleData.holidayCountInCycle > 0 ? `(بعد خصم ${cycleData.holidayCountInCycle} إجازة رسمية × 8 س)` : ""}</span>
+            <span class="text-cyan-300 font-bold">${cycleData.progressPercent}% مُنجز</span>
           </div>
           <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
-            <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${monthData.progressPercent}%"></div>
+            <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${cycleData.progressPercent}%"></div>
           </div>
         </div>
       </div>
@@ -1168,8 +1544,9 @@ export function renderAttendanceCard(customProfile = null) {
         </div>
       </div>
 
-      <div id="attendanceRow6" class="grid grid-cols-3 gap-2 pt-1">
+      <div id="attendanceRow6" class="grid grid-cols-2 gap-2 pt-1">
         <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
+        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>إضافة حضور سابق</span></button>
         <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
         <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
       </div>
@@ -1224,6 +1601,7 @@ if (typeof window !== "undefined") {
   window.toggleAttendanceCard = toggleAttendanceCard;
   window.getMyShiftInfo = getMyShiftInfo;
   window.calculateAttendanceMonth = calculateMonth;
+  window.calculateAttendanceCycle = calculateCycle;
   window.renderAttendanceCard = renderAttendanceCard;
 
   // تحميل مبدئي غير معطِّل للإعدادات (Pattern/قواعد الإضافي) عشان

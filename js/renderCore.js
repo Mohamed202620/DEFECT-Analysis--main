@@ -333,6 +333,9 @@ if (currentPage === "settings") {
     if (typeof window.loadHolidays === "function") {
       window.loadHolidays();
     }
+    if (typeof window.loadGoogleHolidaysDropdown === "function") {
+      window.loadGoogleHolidaysDropdown();
+    }
     if (typeof window.loadAttendancePatternStatus === "function") {
       window.loadAttendancePatternStatus();
     }
