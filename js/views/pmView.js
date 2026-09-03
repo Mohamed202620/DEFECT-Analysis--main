@@ -75,7 +75,7 @@ export const PMView = () => {
 
       if (result.status === 'success') {
         alert(isEn ? 'PM form saved successfully ✅' : 'تم حفظ نموذج الصيانة الوقائية بنجاح ✅');
-        window.navigateTo('maintenance');
+        window.goBack('maintenance');
       } else {
         alert((isEn ? 'Error: ' : 'خطأ: ') + (result.message || (isEn ? 'Failed to save' : 'فشل الحفظ')));
       }
@@ -92,7 +92,7 @@ export const PMView = () => {
   return `
   <div class="app-page p-4 max-w-md mx-auto pb-10">
     <!-- زر الرجوع -->
-    <button onclick="window.navigateTo('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
+    <button onclick="window.goBack('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
     </button>
     

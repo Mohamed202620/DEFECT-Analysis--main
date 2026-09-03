@@ -15,7 +15,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     <div class="app-page p-4 max-w-md mx-auto pb-12">
         <!-- زر الرجوع -->
         <button
-            onclick="window.navigateTo('${backTarget}')"
+            onclick="window.goBack('${backTarget}')"
             class="mb-5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2">
             <span>${backLabel}</span>
         </button>

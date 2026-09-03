@@ -387,27 +387,7 @@ if (currentPage === "kaizenBoard") {
 }  
 
 
-// ========================================================
-// KAIZEN MANAGEMENT & REVIEW AUTO LOAD
-// (صفحة "متابعة وتقييم مقترحات الكايزن" - مجموعة "kaizens" مستقلة -
-// راجع kaizenManagement.js. تحميل عبر fetchKaizens() وليس Real-time
-// (onSnapshot)، فمفيش أي cleanup مطلوب عند مغادرة الصفحة، بعكس
-// 'tickets'/'kaizenBoard' فوق)
-// ========================================================
 
-if (currentPage === "kaizenManagement") {
-
-  setTimeout(() => {
-
-    if (typeof window.loadKaizenManagement === "function") {
-
-      window.loadKaizenManagement();
-
-    }
-
-  }, 100);
-
-}
 
 
 // ========================================================  
@@ -460,6 +440,18 @@ render();
 
 window.navigateTo =
 navigateTo;
+
+
+export function goBack(fallbackPage = 'home') {
+  if (history.state && history.state.page) {
+    history.back();
+  } else if (history.length > 2) {
+    history.back();
+  } else {
+    navigateTo(fallbackPage, true);
+  }
+}
+window.goBack = goBack;
 
 window.render =
 render;
@@ -564,3 +556,18 @@ render();
 
 }
 );
+
+window.addEventListener("popstate", (e) => {
+  if (e.state && e.state.page) {
+    if (e.state.page !== currentPage) {
+      currentPage = e.state.page;
+      render();
+    }
+  } else {
+    const hash = window.location.hash.replace("#", "");
+    if (hash && hash !== currentPage) {
+      currentPage = hash;
+      render();
+    }
+  }
+});

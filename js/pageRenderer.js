@@ -34,7 +34,7 @@ import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView, UsersManagementView } from './views/RequestsView.js';
 import { MachinesView } from './views/MachinesView.js';
 import { StatsView } from './views/StatsView.js';
-import { KaizenManagementView } from './views/KaizenManagementView.js';
+
 
 // ============================================================
 // RENDER PAGES
@@ -189,18 +189,7 @@ case 'kaizenBoard':
     : unauthorizedPage("suggestions");  
 
 
-case 'kaizenManagement':  
 
-  // صفحة "متابعة وتقييم مقترحات الكايزن" (Kaizen Management &
-  // Review) - توثيق رسمي (Kaizen Completion Sheet) مربوط بمجموعة
-  // Firestore مستقلة "kaizens" (راجع kaizenManagement.js وservices/
-  // kaizensApi.js) - مختلفة تماماً عن 'kaizenBoard' (مقترحات الكايزن
-  // اليومية - مجموعة "suggestions"). نفس صلاحية 'kaizenBoard' و
-  // 'suggestions' عمداً (جزء من نفس نظام الكايزن ولا داعي لصلاحية
-  // موازية جديدة)
-  return hasPermission("suggestions")  
-    ? KaizenManagementView()  
-    : unauthorizedPage("suggestions");  
 
 
 case 'errorScanner':  

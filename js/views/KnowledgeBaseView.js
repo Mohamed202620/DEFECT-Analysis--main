@@ -13,7 +13,7 @@ export const KnowledgeBaseView = () => {
     <div class="flex items-center gap-3">
       <button
         type="button"
-        onclick="window.navigateTo('home')"
+        onclick="window.goBack('home')"
         class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
         <span class="text-base rtl:rotate-180">‹</span>
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>

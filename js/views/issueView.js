@@ -87,7 +87,7 @@ export const IssueView = () => {
     <div class="flex items-center justify-between">
       <button
         type="button"
-        onclick="window.navigateTo('home')"
+        onclick="window.goBack('home')"
         class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 rounded-xl text-white font-bold text-sm transition active:scale-95 shadow-md flex items-center gap-2">
         <span>${isAr ? "←" : "→"}</span>
         <span>${t.back || "رجوع"}</span>

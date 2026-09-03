@@ -89,22 +89,7 @@ export const MaintenanceView = () => {
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
     </button>
 
-    <!-- متابعة وتقييم مقترحات الكايزن (توثيق رسمي - Kaizen Completion Sheet) -->
-    <button 
-      type="button"
-      onclick="window.navigateTo('kaizenManagement')" 
-      class="col-span-2 relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
-          📑
-        </div>
-        <div>
-          <span class="font-bold text-xs text-gray-100 block">${currentLang === 'en' ? 'Kaizen Management & Review' : 'متابعة وتقييم مقترحات الكايزن'}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${currentLang === 'en' ? 'Official Kaizen Completion Sheets & KPI tracking' : 'توثيق رسمي لمقترحات الكايزن ومؤشرات الأثر'}</span>
-        </div>
-      </div>
-      <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180 shrink-0">›</span>
-    </button>
+
     ` : ''}
 
     ${hasPermission("maintenance") ? `

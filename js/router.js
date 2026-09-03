@@ -34,11 +34,7 @@ import './ticketsBoard.js';
 // تماماً عن ticketsBoard.js، بيستخدم بس دوال services/api.js المشتركة
 import './kaizenBoard.js';
 
-// استيراد جانبي (Side-effect) لربط دوال صفحة "متابعة وتقييم مقترحات
-// الكايزن" الجديدة (Kaizen Management & Review - window.loadKaizenManagement
-// وما يتبعها) بـ window - مجموعة Firestore مستقلة تماماً ("kaizens")
-// عن كل من kaizenBoard.js وsuggestionsApi.js (مجموعة "suggestions")
-import './kaizenManagement.js';
+
 
 // استيراد جانبي (Side-effect) لبانر حالة الاتصال + المزامنة
 // التلقائية عند عودة الإنترنت (Offline-First)
@@ -78,4 +74,4 @@ import './holidaysManagement.js';
 // "settings" في pageRenderer.js)
 import './attendancePatternManagement.js';
 
-export { navigateTo, currentPage, render } from './renderCore.js';
+export { navigateTo, goBack, currentPage, render } from './renderCore.js';

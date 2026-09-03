@@ -177,7 +177,7 @@ export const RegisterView = () => {
 
       <button
         type="button"
-        onclick="window.navigateTo('login')"
+        onclick="window.goBack('login')"
         class="w-full py-3 bg-slate-700 hover:bg-slate-600 active:scale-95 rounded-xl font-bold text-white transition-all shadow-md"
       >
         ${t.backBtn}

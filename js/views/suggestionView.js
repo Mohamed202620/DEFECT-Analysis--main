@@ -80,7 +80,7 @@ export const SuggestionView = () => {
 
       resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
       alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
-      window.navigateTo('home'); // أو يمكن توجيهه إلى maintenance
+      window.goBack('home'); // أو يمكن توجيهه إلى maintenance
     } catch (err) {
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -93,7 +93,7 @@ export const SuggestionView = () => {
   return `
   <div class="app-page p-4 max-w-lg mx-auto pb-10">
     <!-- زر الرجوع -->
-    <button onclick="window.navigateTo('home')" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
+    <button onclick="window.goBack('home')" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
     </button>
     
