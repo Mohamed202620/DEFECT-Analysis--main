@@ -1,4 +1,5 @@
 import { translations } from "../config.js";
+import { LOGO_ICON_PATH } from "../branding.js";
 
 export const RegisterView = () => {
   const currentLang = window.currentLang || "ar";
@@ -15,7 +16,7 @@ export const RegisterView = () => {
     <!-- Logo -->
     <div class="flex justify-center mb-2">
       <div class="w-20 h-20 bg-[#0F172A] rounded-2xl p-2 border border-gray-700 flex items-center justify-center shadow-inner">
-        <img src="assets/icons/app-icon.png" alt="شعار الشركة" class="max-h-full max-w-full object-contain" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1063/1063376.png'"/>
+        <img src="${LOGO_ICON_PATH}" alt="شعار الشركة" class="max-h-full max-w-full object-contain" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1063/1063376.png'"/>
       </div>
     </div>
 
