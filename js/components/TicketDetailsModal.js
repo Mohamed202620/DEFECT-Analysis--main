@@ -244,6 +244,11 @@ export async function openTicketDetailsModal(ticketId) {
     const afterImages = Array.isArray(ticket.afterImages) ? ticket.afterImages : [];
     const priority = PRIORITY_BADGES[ticket.priority] || null;
     const typeLabel = TYPE_LABELS[ticket.type] || ticket.type || null;
+    // إضافة: تصنيف العمل اللي اختاره المسؤول وقت الإسناد (workType) -
+    // منفصل تمامًا عن typeLabel الأصلي اللي اختاره العامل المُبلّغ
+    const workTypeLabel = ticket.workType
+      ? (TYPE_LABELS[ticket.workType] || ticket.workType)
+      : null;
     const categoryLabel = ticket.category
       ? `${CATEGORY_ICONS[ticket.category] || "🏷️"} ${ticket.category}`
       : null;
@@ -269,6 +274,7 @@ export async function openTicketDetailsModal(ticketId) {
           ${infoRowHtml("الخط", escapeHtml(ticket.line || "-"))}
           ${priority ? infoRowHtml("درجة الأولوية", `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${priority.label}</span>`) : ""}
           ${typeLabel ? infoRowHtml("نوع البلاغ", escapeHtml(typeLabel)) : ""}
+          ${workTypeLabel ? infoRowHtml("تصنيف العمل (عند الإسناد)", escapeHtml(workTypeLabel)) : ""}
           ${categoryLabel ? infoRowHtml("نوع العطل", escapeHtml(categoryLabel)) : ""}
           ${infoRowHtml("مكان العطل", ticket.location ? escapeHtml(ticket.location) : "")}
           ${infoRowHtml("المُبلّغ", ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}
