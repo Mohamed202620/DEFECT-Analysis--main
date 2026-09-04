@@ -21,6 +21,38 @@
 //    تطبيق مزدوج للمعامل على نفس الساعات.
 // 7. ملخص مالي كامل بعد فتح PIN.
 // 8. تصدير PDF شهري يغطي كل أيام الشهر (Pattern + حضور فعلي).
+//
+// ============================================================
+// 🔧 سجل الإصلاحات في هذه النسخة (بدون أي تغيير في هيكل الملف أو
+// التصديرات العامة - نفس الأسماء ونفس الاستخدام تمامًا):
+//
+// 1) calculateCycle() كانت بتستخدم 192 و 8 كأرقام ثابتة (Hardcoded)
+//    بدل قراءة إعدادات الأدمن الفعلية (rules.monthlyTargetHours /
+//    rules.holidayHoursDeduction) - ده كان بيسبب اختلاف بين "المطلوب"
+//    المعروض في الكارت الحي و"المطلوب" في تقرير الـ PDF. تم التوحيد.
+// 2) توحيد شرط عدّ "يوم الإجازة الرسمية المخصوم" بين calculateCycle
+//    و calculateMonth (خصم فقط لو الإجازة الرسمية صادفت يوم عمل
+//    مُجدوَل فعليًا للفني - مش أي إجازة رسمية في مدى الفترة).
+// 3) حذف كود اختباري (Debug) في checkOut() كان بيفرض 12 ساعة تلقائيًا
+//    عند خروج فوري (diffHours < 0.1) - كان بيسبب تسجيل ساعات عمل
+//    وهمية بالغلط عند خطأ توقيت أو ضغط الزرار بسرعة.
+// 4) زر "🔄 تعديل الدخول" (بعد تسجيل الخروج) كان بيمسح سجل اليوم
+//    كاملاً بدون أي تأكيد - تمت إضافة confirm() قبل التنفيذ.
+// 5) تصحيح عرض "خصم إجازات رسمية" في تقرير الـ PDF ليعرض القيمة
+//    الفعلية من إعدادات الأدمن بدل القيمة الافتراضية الثابتة دايمًا.
+// 6) getCardContextDate() كانت بتحصر البحث عن وردية ليلية مفتوحة
+//    فقط لو الوقت الحالي قبل 12 ظهرًا - لو الفني اتأخر في تسجيل
+//    الخروج بعد الظهر، الوردية المفتوحة كانت بتتفقد وتتحسب غلط.
+// 7) addExtraDay() كانت بتفرض أوقات وردية ليلية ثابتة (20:00-08:00)
+//    حتى لو الفني من فريق نهاري - دلوقتي بتستخدم أوقات وردية الفني
+//    الفعلية كقيمة افتراضية.
+// 8) openPastAttendanceModal() كانت بتمسح isLeave لأي يوم كان مسجل
+//    كإجازة رصيد بدون تنبيه المستخدم - تمت إضافة تأكيد صريح.
+// 9) إضافة دالة escapeHtml() وتطبيقها على أي نص قادم من بيانات
+//    المستخدم/Firestore (الاسم/الوظيفة) قبل حقنه في innerHTML، لسد
+//    ثغرة XSS محتملة.
+// 10) إزالة تسجيل مكرر لنفس الدوال على window (checkInShift/
+//     checkOutShift) في نهاية الملف.
 // ============================================================
 
 import { db } from "./config.js";
@@ -51,7 +83,26 @@ import {
 } from "./services/googleHolidaysSync.js";
 
 // ============================================================
-// 0. الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
+// 0. أدوات مساعدة عامة
+// ============================================================
+
+/**
+ * (إصلاح #9) تفادي حقن HTML (XSS) عند عرض أي نص قادم من بيانات
+ * المستخدم/Firestore (مثل الاسم والوظيفة) داخل innerHTML. بتحوّل
+ * الحروف الخاصة لكيانات HTML آمنة بدل تنفيذها كأكواد فعلية.
+ */
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]));
+}
+
+// ============================================================
+// 0.1 الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
 // (بدون أي تعديل عن النسخة السابقة - نفس السلوك بالظبط)
 // ============================================================
 
@@ -373,19 +424,31 @@ export function saveDailyAttendanceRecord(userId, dateStr, data) {
 
 /**
  * تحديد "تاريخ السياق" الحالي للكارت: عادةً النهارده، إلا لو فيه
- * وردية ليلية بدأت إمبارح ولسه مفتوحة (فيها دخول بدون خروج) والوقت
- * الحالي قبل الظهر - عشان دعم الوردية الليلية العابرة لمنتصف الليل
- * (تسجيل الخروج والساعات المحسوبة تفضل مرتبطة بيوم الوردية الصح،
- * مش باليوم التقويمي اللي بيحصل فيه الخروج فعلياً)
+ * وردية ليلية بدأت إمبارح ولسه مفتوحة (فيها دخول بدون خروج) - عشان
+ * دعم الوردية الليلية العابرة لمنتصف الليل (تسجيل الخروج والساعات
+ * المحسوبة تفضل مرتبطة بيوم الوردية الصح، مش باليوم التقويمي اللي
+ * بيحصل فيه الخروج فعلياً).
+ *
+ * (إصلاح #6) الكود القديم كان بيحصر البحث عن وردية إمبارح مفتوحة
+ * فقط لو الوقت الحالي قبل الساعة 12 ظهرًا. لو الفني اتأخر في تسجيل
+ * الخروج (بعد الظهر)، الوردية المفتوحة كانت "بتضيع" ويبدأ سياق يوم
+ * جديد بالغلط، فتفضل الوردية القديمة مفتوحة للأبد. دلوقتي بنفحص
+ * سجل إمبارح دايمًا، وبنقبله كسياق لليوم الحالي طالما إن الوردية
+ * اتفتحت خلال آخر 30 ساعة تقريبًا (حد منطقي أقصى لأي وردية، حتى مع
+ * إضافي)، بغض النظر عن الساعة دلوقتي
  */
 export function getCardContextDate(userId, now = new Date()) {
   const todayStr = getTodayDateString(now);
-  if (now.getHours() < 12) {
-    const y = new Date(now);
-    y.setDate(y.getDate() - 1);
-    const yStr = getTodayDateString(y);
-    const yRecord = getDailyAttendanceRecord(userId, yStr);
-    if (yRecord && yRecord.checkIn && !yRecord.checkOut) {
+
+  const y = new Date(now);
+  y.setDate(y.getDate() - 1);
+  const yStr = getTodayDateString(y);
+  const yRecord = getDailyAttendanceRecord(userId, yStr);
+
+  if (yRecord && yRecord.checkIn && !yRecord.checkOut) {
+    const checkInTs = yRecord.checkInTimestamp;
+    const hoursSinceCheckIn = checkInTs ? (now.getTime() - checkInTs) / (1000 * 60 * 60) : 0;
+    if (!checkInTs || hoursSinceCheckIn <= 30) {
       return yStr;
     }
   }
@@ -443,8 +506,11 @@ export async function checkOut(manualOvertimeHours = null) {
   const checkInTimestamp = currentRecord.checkInTimestamp || (now.getTime() - 12 * 60 * 60 * 1000);
 
   let diffHours = (now.getTime() - checkInTimestamp) / (1000 * 60 * 60);
-  if (diffHours < 0.1) diffHours = 12; // خروج فوري تجريبي: قيمة افتراضية آمنة
-  diffHours = Number(diffHours.toFixed(2));
+  // (إصلاح #3) تم حذف كود اختباري (Debug) كان بيفرض 12 ساعة تلقائياً
+  // عند خروج فوري (diffHours < 0.1)، وكان بيسبب تسجيل ساعات عمل وهمية
+  // بالغلط لو حصل خطأ توقيت أو ضغط الزرار بسرعة. دلوقتي بنعتمد على
+  // الفرق الحقيقي فقط (بحد أدنى صفر لتفادي أي قيمة سالبة)
+  diffHours = Math.max(0, Number(diffHours.toFixed(2)));
 
   let normalHours = Math.min(diffHours, STANDARD_SHIFT_LENGTH_HOURS);
   let overtimeHours = 0;
@@ -499,10 +565,13 @@ export async function addExtraDay() {
   const todayStr = getTodayDateString();
   const currentRecord = getDailyAttendanceRecord(profile.userId, todayStr) || {};
 
+  // (إصلاح #7) كانت الأوقات الافتراضية ثابتة (20:00-08:00) وكأنها
+  // دايماً وردية ليلية، حتى لو الفني من فريق نهاري. دلوقتي بنستخدم
+  // أوقات وردية الفني الفعلية (shiftStart/shiftEnd) كقيمة افتراضية أدق
   saveDailyAttendanceRecord(profile.userId, todayStr, {
     ...currentRecord,
-    checkIn: currentRecord.checkIn || "20:00",
-    checkOut: currentRecord.checkOut || "08:00",
+    checkIn: currentRecord.checkIn || profile.shiftStart || "08:00",
+    checkOut: currentRecord.checkOut || profile.shiftEnd || "20:00",
     hoursWorked: 12,
     isExtraDay: true,
     isLeave: false,
@@ -679,6 +748,15 @@ window.openPastAttendanceModal = async function () {
     }
 
     const existing = getDailyAttendanceRecord(profile.userId, dateVal) || {};
+
+    // (إصلاح #8) لو اليوم ده كان مسجَّل قبل كده كـ "إجازة رصيد"
+    // (isLeave) وهيتم الكتابة فوقه ببيانات حضور يدوية، بنطلب تأكيد
+    // صريح قبل الإلغاء عشان منمسحش بيانات إجازة مسجلة بدون علم المستخدم
+    if (existing.isLeave) {
+      const confirmOverwrite = confirm("هذا اليوم مسجَّل حالياً كإجازة رصيد. هل تريد استبداله ببيانات الحضور المُدخلة يدويًا؟");
+      if (!confirmOverwrite) return;
+    }
+
     saveDailyAttendanceRecord(profile.userId, dateVal, {
       ...existing,
       checkIn: existing.checkIn || "—",
@@ -701,7 +779,7 @@ window.openPastAttendanceModal = async function () {
 // 5. تصنيف يوم واحد (Shared Helper) + حساب إجماليات الشهر التقويمي
 // (calculateMonth - يُستخدم في تصدير PDF) + حساب إجماليات دورة
 // 21 → 20 (calculateCycle - يُستخدم في عرض الكارت الحي، بالصيغة
-// المطلوبة: requiredHours = 192 - (officialHolidayCount * 8))
+// المطلوبة: requiredHours = targetHours - (holidayCountInCycle × خصم))
 // ============================================================
 
 /**
@@ -791,10 +869,16 @@ export function getCycleRange(referenceDate = new Date()) {
 /**
  * حساب إجماليات دورة 21 → 20 الحالية (أو أي دورة تحتوي على
  * referenceDate) - هذا هو المصدر الحي لعرض الكارت (المطلوب/المُنجز
- * وProgress Bar). الصيغة بالظبط كما هو مطلوب:
- * requiredHours = 192 - (officialHolidayCount * 8)
- * حيث officialHolidayCount = أي إجازة رسمية تقع داخل الدورة، بغض
- * النظر عن كونها يوم عمل مُجدوَل للفني أو لأ (خصم غير مشروط)
+ * وProgress Bar).
+ *
+ * (إصلاح #1 و #2) الصيغة القديمة كانت بتستخدم 192 و 8 كأرقام ثابتة
+ * (Hardcoded) بدل قراءة إعدادات الأدمن الفعلية (rules.monthlyTargetHours
+ * / rules.holidayHoursDeduction)، وكمان كانت بتخصم أي إجازة رسمية تقع
+ * في مدى الدورة بدون شرط (حتى لو كانت أصلاً يوم راحة مُجدوَل للفني).
+ * دلوقتي:
+ *  requiredHours = rules.monthlyTargetHours - (holidayCountInCycle × rules.holidayHoursDeduction)
+ *  حيث holidayCountInCycle = عدد أيام العمل المُجدوَلة فعليًا للفني
+ *  واللي صادفت إجازة رسمية (نفس منطق calculateMonth بالظبط - موحَّد الآن)
  */
 export function calculateCycle(userId, options = {}) {
   const profile = options.profile || {
@@ -804,6 +888,7 @@ export function calculateCycle(userId, options = {}) {
   const patternTeams = options.patternTeams || (getCachedAttendancePattern && getCachedAttendancePattern() ? getCachedAttendancePattern().teams : null);
   const holidays = options.holidays || (getCachedOfficialHolidays ? getCachedOfficialHolidays() : []);
   const referenceDate = options.referenceDate || new Date();
+  const rules = options.rules || (getCachedPayrollRules ? getCachedPayrollRules() : DEFAULT_PAYROLL_RULES) || DEFAULT_PAYROLL_RULES;
 
   const range = getCycleRange(referenceDate);
 
@@ -818,7 +903,9 @@ export function calculateCycle(userId, options = {}) {
     const dateStr = getTodayDateString(cursor);
     const info = classifyDay(userId, dateStr, profile, patternTeams, holidays);
 
-    if (info.isHoliday) holidayCountInCycle++;
+    // (إصلاح #2) خصم فقط لو الإجازة الرسمية صادفت يوم عمل مُجدوَل
+    // فعليًا للفني - موحَّد مع نفس شرط calculateMonth بالضبط
+    if (info.dayInfo.isWorkDay && info.isHoliday) holidayCountInCycle++;
 
     if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
     else if (info.bucket === "off") {
@@ -832,8 +919,10 @@ export function calculateCycle(userId, options = {}) {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const targetHours = 192;
-  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * 8);
+  // (إصلاح #1) استخدام قيم rules الفعلية بدل الأرقام الثابتة 192 / 8
+  const targetHours = Number(rules.monthlyTargetHours) || DEFAULT_PAYROLL_RULES.monthlyTargetHours;
+  const holidayDeductionPerDay = Number(rules.holidayHoursDeduction) || DEFAULT_PAYROLL_RULES.holidayHoursDeduction;
+  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * holidayDeductionPerDay);
 
   const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
   const normalOvertimeHours = Number(Math.max(0, poolHours - requiredHours).toFixed(2));
@@ -929,6 +1018,7 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
     targetHours,
     requiredHours,
     holidayDeductionDays,
+    holidayDeductionPerDay,
     regularHours,
     normalOvertimeHours,
     offWorkHours,
@@ -1012,28 +1102,33 @@ export async function exportPDF(customUserId = null, customYM = null) {
   const [yearStr, monthStr] = yearMonth.split("-");
   const monthArabic = MONTH_NAMES_AR[parseInt(monthStr, 10) - 1] || monthStr;
 
+  // (إصلاح #9) الاسم والوظيفة قادمين من Firestore/localStorage، فبيتم
+  // تنظيفهم (escapeHtml) قبل حقنهم في innerHTML لسد أي ثغرة XSS محتملة
+  const safeName = escapeHtml(profile.name);
+  const safeJob = escapeHtml(profile.job);
+
   let tableRowsHtml = "";
   monthData.daysList.forEach((row, idx) => {
-    const rowBg = idx % 2 === 0 ? "bg-white" : "bg-slate-50";
+    const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
     const statusBadge = row.bucket === "holiday"
-      ? '<span style="color:#b45309;font-weight:bold;">🎉 عمل بإجازة رسمية</span>'
+      ? '<span style="color:#b45309;font-weight:bold;background:#fef3c7;padding:2px 6px;border-radius:4px;">🎉 عمل إجازة رسمية</span>'
       : row.bucket === "off"
-      ? '<span style="color:#b45309;font-weight:bold;">عمل في يوم OFF</span>'
+      ? '<span style="color:#9d174d;font-weight:bold;background:#fce7f3;padding:2px 6px;border-radius:4px;">عمل في يوم OFF</span>'
       : row.bucket === "leave"
-      ? '<span style="color:#047857;font-weight:bold;">إجازة رصيد</span>'
+      ? '<span style="color:#047857;font-weight:bold;background:#d1fae5;padding:2px 6px;border-radius:4px;">إجازة رصيد</span>'
       : row.bucket === "work"
-      ? '<span style="color:#1e3a8a;font-weight:bold;">حضور عادي</span>'
-      : (row.isHoliday ? '<span style="color:#9d174d;">إجازة رسمية (راحة أصلاً)</span>' : '<span style="color:#94a3b8;">—</span>');
+      ? '<span style="color:#1e3a8a;font-weight:bold;background:#dbeafe;padding:2px 6px;border-radius:4px;">حضور عادي</span>'
+      : (row.isHoliday ? '<span style="color:#e11d48;font-weight:bold;">إجازة رسمية (راحة أصلاً)</span>' : '<span style="color:#94a3b8;">—</span>');
 
     tableRowsHtml += `
-      <tr class="${rowBg}" style="border-bottom: 1px solid #e2e8f0; font-size: 10px;">
-        <td style="padding: 5px 6px; text-align: center; font-weight: bold;">${idx + 1}</td>
-        <td style="padding: 5px 6px; text-align: center; direction: ltr;">${row.date}</td>
-        <td style="padding: 5px 6px; text-align: center;">${codeLabel(row.dayInfo.code)}</td>
-        <td style="padding: 5px 6px; text-align: center;">${statusBadge}</td>
-        <td style="padding: 5px 6px; text-align: center; direction: ltr;">${row.record?.checkIn || "—"}</td>
-        <td style="padding: 5px 6px; text-align: center; direction: ltr;">${row.record?.checkOut || "—"}</td>
-        <td style="padding: 5px 6px; text-align: center; font-weight: bold;">${row.hoursWorked || 0} س</td>
+      <tr style="background-color: ${rowBg}; border-bottom: 1px solid #e2e8f0; font-size: 11.5px;">
+        <td style="padding: 8px 6px; text-align: center; font-weight: bold; border-left: 1px solid #e2e8f0;">${idx + 1}</td>
+        <td style="padding: 8px 6px; text-align: center; direction: ltr; unicode-bidi: embed; border-left: 1px solid #e2e8f0;">${row.date}</td>
+        <td style="padding: 8px 6px; text-align: center; border-left: 1px solid #e2e8f0;">${codeLabel(row.dayInfo.code)}</td>
+        <td style="padding: 8px 6px; text-align: center; border-left: 1px solid #e2e8f0;">${statusBadge}</td>
+        <td style="padding: 8px 6px; text-align: center; direction: ltr; unicode-bidi: embed; border-left: 1px solid #e2e8f0; color: #334155;">${row.record?.checkIn || "—"}</td>
+        <td style="padding: 8px 6px; text-align: center; direction: ltr; unicode-bidi: embed; border-left: 1px solid #e2e8f0; color: #334155;">${row.record?.checkOut || "—"}</td>
+        <td style="padding: 8px 6px; text-align: center; font-weight: 900; color: #0f172a;">${row.hoursWorked || 0} س</td>
       </tr>
     `;
   });
@@ -1044,104 +1139,146 @@ export async function exportPDF(customUserId = null, customYM = null) {
   printWrapper.style.position = "absolute";
   printWrapper.style.top = "0px";
   printWrapper.style.left = "0px";
-  printWrapper.style.width = "794px"; // العرض الدقيق لورقة A4 لعدم التأثر بشاشة الموبايل
-  printWrapper.style.zIndex = "999999"; 
+  // عرض ديناميكي مرجعي عالي الدقة يتم تحجيمه تلقائياً داخل ورق A4 بواسطة html2pdf
+  printWrapper.style.width = "850px"; 
+  printWrapper.style.padding = "24px";
+  printWrapper.style.zIndex = "-9999"; 
   printWrapper.style.backgroundColor = "#ffffff";
   printWrapper.style.pointerEvents = "none";
 
   printWrapper.innerHTML = `
-    <div dir="rtl" style="width: 100%; padding: 24px; box-sizing: border-box; background: #ffffff; color: #0f172a; font-family: system-ui, -apple-system, sans-serif;">
-      <div style="border-bottom: 2px solid #d4af37; padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="text-align: right;">
-          <h1 style="margin: 0; font-size: 16px; font-weight: 900; color: #1e3a8a;">${COMPANY_NAME_AR}</h1>
-          <h2 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
-          <div style="margin-top: 4px; font-size: 10px; color: #b45309; font-weight: bold;">تقرير حاسبة الحضور والمرتبات الشهري</div>
+    <div dir="rtl" style="width: 100%; padding: 0; box-sizing: border-box; background: #ffffff; color: #0f172a; font-family: 'Cairo', system-ui, -apple-system, sans-serif;">
+      
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 16px; margin-bottom: 24px;">
+        <div style="flex: 1; text-align: right;">
+          <h1 style="margin: 0 0 4px 0; font-size: 24px; font-weight: 900; color: #1e3a8a;">${COMPANY_NAME_AR}</h1>
+          <h2 style="margin: 0 0 8px 0; font-size: 13px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
+          <div style="display: inline-block; padding: 4px 12px; background: #fef3c7; color: #92400e; font-size: 12px; font-weight: bold; border-radius: 4px;">تقرير حاسبة الحضور والمرتبات الشهري</div>
         </div>
-        <div style="text-align: left;">
-          ${logoDataUrl ? `<img src="${logoDataUrl}" style="height: 50px; max-width: 140px; object-fit: contain;" />` : `<span style="font-size: 20px; font-weight: 900; color: #1e3a8a;">${COMPANY_SHORT}</span>`}
-        </div>
-      </div>
-
-      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-size: 11px;">
-        <table style="width: 100%; border: none; text-align: right;">
-          <tr>
-            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">اسم الموظف:</span><strong>${profile.name}</strong></td>
-            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الوظيفة:</span><strong>${profile.job}</strong></td>
-            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الفريق:</span><strong style="color:#1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong></td>
-            <td style="width: 25%; padding-bottom: 8px;"><span style="color: #64748b; font-size: 10px; display: block;">الشهر:</span><strong>${monthArabic} ${yearStr}</strong></td>
-          </tr>
-          <tr>
-            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">الساعات المستهدفة:</span><strong>${monthData.targetHours} س</strong></td>
-            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">خصم إجازات رسمية:</span><strong>${monthData.holidayDeductionDays} يوم × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س</strong></td>
-            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">المطلوب الفعلي:</span><strong style="color:#047857;">${monthData.requiredHours} س</strong></td>
-            <td style="width: 25%;"><span style="color: #64748b; font-size: 10px; display: block;">تاريخ الطباعة:</span><strong>${new Date().toLocaleDateString("ar-EG")}</strong></td>
-          </tr>
-        </table>
-      </div>
-
-      <div style="width: 100%; overflow: hidden; margin-bottom: 12px;">
-        <div style="float: right; width: 23.5%; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
-          <div style="font-size: 9px; color: #1e40af; font-weight: bold;">عادي</div>
-          <div style="font-size: 14px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
-        </div>
-        <div style="float: right; width: 23.5%; margin-right: 2%; background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
-          <div style="font-size: 9px; color: #92400e; font-weight: bold;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
-          <div style="font-size: 14px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
-        </div>
-        <div style="float: right; width: 23.5%; margin-right: 2%; background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
-          <div style="font-size: 9px; color: #9d174d; font-weight: bold;">عمل OFF ×${rules.offWorkMultiplier}</div>
-          <div style="font-size: 14px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
-        </div>
-        <div style="float: right; width: 23.5%; margin-right: 2%; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; text-align: center; box-sizing: border-box;">
-          <div style="font-size: 9px; color: #166534; font-weight: bold;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
-          <div style="font-size: 14px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
+        <div style="flex: 0 0 auto; text-align: left;">
+          ${logoDataUrl ? `<img src="${logoDataUrl}" style="height: 60px; max-width: 160px; object-fit: contain;" />` : `<span style="font-size: 24px; font-weight: 900; color: #1e3a8a;">${COMPANY_SHORT}</span>`}
         </div>
       </div>
 
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1;">
+      <!-- Employee Info -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">اسم الموظف</span>
+          <strong style="font-size: 14px; color: #0f172a;">${safeName}</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">الوظيفة</span>
+          <strong style="font-size: 14px; color: #0f172a;">${safeJob}</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">الفريق</span>
+          <strong style="font-size: 14px; color: #1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">الشهر</span>
+          <strong style="font-size: 14px; color: #0f172a;">${monthArabic} ${yearStr}</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">الساعات المستهدفة</span>
+          <strong style="font-size: 14px; color: #0f172a;">${monthData.targetHours} س</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">خصم الإجازات الرسمية</span>
+          <strong style="font-size: 14px; color: #0f172a;">${monthData.holidayDeductionDays} يوم × ${monthData.holidayDeductionPerDay}س</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">المطلوب الفعلي</span>
+          <strong style="font-size: 14px; color: #047857;">${monthData.requiredHours} س</strong>
+        </div>
+        <div>
+          <span style="color: #64748b; font-size: 11px; display: block; margin-bottom: 4px;">تاريخ الطباعة</span>
+          <strong style="font-size: 14px; color: #0f172a; direction: ltr; unicode-bidi: embed;">${new Date().toLocaleDateString("en-GB")}</strong>
+        </div>
+      </div>
+
+      <!-- Hours Summary -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #1e40af; font-weight: bold; margin-bottom: 4px;">ساعات عادية</div>
+          <div style="font-size: 18px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
+        </div>
+        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #92400e; font-weight: bold; margin-bottom: 4px;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
+          <div style="font-size: 18px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
+        </div>
+        <div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #9d174d; font-weight: bold; margin-bottom: 4px;">عمل OFF ×${rules.offWorkMultiplier}</div>
+          <div style="font-size: 18px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
+        </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; text-align: center;">
+          <div style="font-size: 11px; color: #166534; font-weight: bold; margin-bottom: 4px;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
+          <div style="font-size: 18px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px; border: 1px solid #cbd5e1;">
         <thead>
-          <tr style="background: #1e3a8a; color: #ffffff; font-size: 10px;">
-            <th style="padding: 6px; border: 1px solid #3b82f6;">م</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">التاريخ</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">Pattern</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">الحالة</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">دخول</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">خروج</th>
-            <th style="padding: 6px; border: 1px solid #3b82f6;">ساعات اليوم</th>
+          <tr style="background: #1e3a8a; color: #ffffff; font-size: 12px;">
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 5%;">م</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 14%;">التاريخ</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 13%;">النمط</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 22%;">الحالة</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 18%;">دخول</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 18%;">خروج</th>
+            <th style="padding: 10px 6px; border: 1px solid #3b82f6; width: 10%;">الساعات</th>
           </tr>
         </thead>
         <tbody>${tableRowsHtml}</tbody>
       </table>
 
-      <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
-        <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
-        <div style="width: 100%; overflow: hidden; font-size: 11px;">
-          <div style="float: right; width: 48%; margin-bottom: 6px;">المرتب الأساسي: <strong>${financials.baseSalary.toLocaleString()} ج.م</strong></div>
-          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">سعر ساعة الإضافي: <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
-          
-          <div style="float: right; width: 48%; margin-bottom: 6px;">قيمة الإضافي العادي: <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">قيمة عمل OFF: <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
-          
-          <div style="float: right; width: 48%; margin-bottom: 6px;">قيمة عمل الإجازة الرسمية: <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong></div>
-          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;">إجمالي الإضافي: <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-          
-          <div style="float: right; width: 48%; margin-bottom: 6px;">التأمينات (${financials.insurancePercent}%): <strong style="color:#f87171;">-${financials.insuranceAmount.toLocaleString()} ج.م</strong></div>
-          <div style="float: right; width: 48%; margin-right: 4%; margin-bottom: 6px;"><span style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</span></div>
+      <!-- Financials -->
+      <div style="background: #0f172a; color: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid #334155; page-break-inside: avoid;">
+        <div style="font-size: 15px; font-weight: 900; color: #fbbf24; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span>💰</span> ملخص الحساب المالي
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 24px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">المرتب الأساسي:</span> <strong>${financials.baseSalary.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">سعر ساعة الإضافي:</span> <strong>${financials.otHourRate.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">قيمة الإضافي العادي:</span> <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">قيمة عمل OFF:</span> <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">قيمة عمل الإجازة الرسمية:</span> <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">إجمالي الإضافي:</span> <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px;">
+            <span style="color: #94a3b8;">التأمينات (${financials.insurancePercent}%):</span> <strong style="color: #f87171; direction: ltr;">- ${financials.insuranceAmount.toLocaleString()} ج.م</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; padding-bottom: 6px; background: rgba(251,191,36,0.1); border-radius: 4px; padding: 6px 10px;">
+            <span style="color: #fbbf24; font-weight: bold;">صافي المرتب المتوقع:</span> <strong style="color: #fbbf24; font-size: 15px;">${financials.netExpectedSalary.toLocaleString()} ج.م</strong>
+          </div>
         </div>
       </div>
 
-      <div style="border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: 16px; overflow: hidden; text-align: center; font-size: 11px;">
-        <div style="float: right; width: 33%;">
-          <div style="font-weight: bold; margin-bottom: 30px;">توقيع الفني</div>
+      <!-- Signatures -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; text-align: center; margin-top: 40px; padding-top: 24px; border-top: 1px solid #cbd5e1; page-break-inside: avoid;">
+        <div>
+          <div style="font-weight: bold; color: #475569; margin-bottom: 40px; font-size: 13px;">توقيع الفني</div>
           <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
-          <div style="margin-top: 4px; color: #64748b; font-size: 10px;">${profile.name}</div>
+          <div style="margin-top: 8px; color: #0f172a; font-size: 12px; font-weight: bold;">${safeName}</div>
         </div>
-        <div style="float: right; width: 33%;">
-          <div style="font-weight: bold; margin-bottom: 30px;">اعتماد مهندس الوردية</div>
+        <div>
+          <div style="font-weight: bold; color: #475569; margin-bottom: 40px; font-size: 13px;">اعتماد مهندس الوردية</div>
           <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
         </div>
-        <div style="float: right; width: 33%;">
-          <div style="font-weight: bold; margin-bottom: 30px;">اعتماد مدير المصنع</div>
+        <div>
+          <div style="font-weight: bold; color: #475569; margin-bottom: 40px; font-size: 13px;">اعتماد مدير المصنع</div>
           <div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div>
         </div>
       </div>
@@ -1170,23 +1307,56 @@ export async function exportPDF(customUserId = null, customYM = null) {
   document.body.appendChild(printWrapper);
   document.body.appendChild(loadingOverlay);
 
-  // إعطاء المتصفح فرصة صغيرة (300 مللي ثانية) لمعالجة الـ DOM وعرض الحاوية قبل تصويرها
+  // إعطاء المتصفح فرصة كافية لمعالجة الـ DOM (خصوصاً الـ Grid والـ Flex)
   await new Promise(resolve => setTimeout(resolve, 300));
 
   try {
     const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${yearMonth}.pdf`;
-    if (window.html2pdf) {
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth: 794, width: 794, scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-      };
-      await window.html2pdf().set(opt).from(printWrapper).save();
-    } else {
-      window.print();
+    
+    // استخدام html2canvas الحديث (1.4.1) المرفق عالمياً لدعم Grid و Gap بشكل كامل
+    const canvas = await window.html2canvas(printWrapper, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: 850,
+      logging: false
+    });
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF("p", "pt", "a4");
+    
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20; 
+    const contentWidth = pdfWidth - (margin * 2);
+    
+    const imgWidth = canvas.width;
+    const imgHeight = canvas.height;
+    
+    const ratio = contentWidth / imgWidth;
+    const printHeight = imgHeight * ratio;
+    const pageContentHeight = pdfHeight - (margin * 2);
+    
+    const imgData = canvas.toDataURL("image/jpeg", 1.0);
+    
+    let heightLeft = printHeight;
+    let position = margin;
+    let page = 1;
+    
+    const totalPages = Math.ceil(printHeight / pageContentHeight);
+    
+    pdf.addImage(imgData, "JPEG", margin, position, contentWidth, printHeight);
+    heightLeft -= pageContentHeight;
+    
+    while (heightLeft > 0) {
+      position -= pageContentHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", margin, position, contentWidth, printHeight);
+      heightLeft -= pageContentHeight;
     }
+    
+    pdf.save(filename);
+    
   } catch (err) {
     console.error("[Attendance] Error generating PDF:", err);
     alert("تعذر توليد ملف الـ PDF حالياً، سيتم فتح نافذة الطباعة بدلاً من ذلك.");
@@ -1392,8 +1562,9 @@ function maskMoney(value, unlocked) {
 export function renderAttendanceCard(customProfile = null) {
   try {
     const userId = customProfile?.userId || localStorage.getItem("userId") || "local_user";
-    const name = customProfile?.name || localStorage.getItem("name") || "أحمد محمد";
-    const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
+    // (إصلاح #9) escapeHtml على الاسم والوظيفة قبل الحقن في innerHTML
+    const name = escapeHtml(customProfile?.name || localStorage.getItem("name") || "أحمد محمد");
+    const job = escapeHtml(customProfile?.job || localStorage.getItem("job") || "فني صيانة");
     const shiftColor = customProfile?.shiftColor || localStorage.getItem("shift") || "جرين";
     const shiftStartDate = customProfile?.shiftStartDate || "2026-01-01";
     const shiftStart = customProfile?.shiftStart || "08:00";
@@ -1418,7 +1589,9 @@ export function renderAttendanceCard(customProfile = null) {
     // (calculateCycle) بدل الشهر التقويمي - راجع تعليق الدالة أعلاه.
     // تصدير الـ PDF لسه بيستخدم الشهر التقويمي (calculateMonth) زي ما هو
     const rules = getCachedPayrollRules ? getCachedPayrollRules() : DEFAULT_PAYROLL_RULES;
-    const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
+    // (إصلاح #1) تمرير rules صراحةً لـ calculateCycle عشان تستخدم
+    // إعدادات الأدمن الفعلية بدل الأرقام الثابتة القديمة
+    const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`), rules });
 
     const localConfig = getPayrollLocalConfig(userId);
     const unlocked = isPayrollUnlocked();
@@ -1451,7 +1624,7 @@ export function renderAttendanceCard(customProfile = null) {
     actionButtonHtml = `
       <div class="flex items-center gap-1">
         <div class="px-2 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[10.5px] flex items-center justify-center gap-1"><span>✅</span><span>تمت الوردية</span></div>
-        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[9px] transition">🔄</button>
+        <button type="button" title="تعديل الدخول" onclick="window.editCheckInWithConfirm()" class="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[9px] transition">🔄</button>
       </div>`;
   } else {
     actionButtonHtml = `
@@ -1594,7 +1767,7 @@ export function renderAttendanceCard(customProfile = null) {
     return `
       <div id="attendanceShiftCard" class="w-full bg-red-900/50 border border-red-500 rounded-xl p-4 text-center">
         <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، حدث خطأ أثناء تحميل كارت الحضور</h3>
-        <p class="text-white text-xs text-opacity-80 mb-3">${error.message}</p>
+        <p class="text-white text-xs text-opacity-80 mb-3">${escapeHtml(error.message)}</p>
         <button onclick="window.refreshAttendanceCard()" class="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-700 border border-red-600 transition shadow-md">إعادة المحاولة</button>
       </div>
     `;
@@ -1624,6 +1797,18 @@ export function toggleAttendanceCard() {
   }
 }
 
+/**
+ * (إصلاح #4) زر "🔄 تعديل الدخول" كان بينادي checkInShift() مباشرة،
+ * واللي بتعمل Overwrite كامل لسجل اليوم (بيمسح checkOut والساعات
+ * المحسوبة فورًا) بدون أي تأكيد من المستخدم - على عكس باقي العمليات
+ * الحساسة (addExtraDay/takeLeave) اللي كلها محمية بـ confirm(). دلوقتي
+ * تمت إضافة تأكيد صريح قبل مسح بيانات الوردية المسجلة بالفعل
+ */
+window.editCheckInWithConfirm = async function () {
+  if (!confirm("سيتم إلغاء تسجيل الخروج والساعات المحسوبة لهذا اليوم وإعادة فتح تسجيل الدخول من جديد. هل أنت متأكد؟")) return;
+  await checkIn();
+};
+
 export async function refreshAttendanceCard() {
   const container = document.getElementById("attendanceCardContainer");
   if (container) {
@@ -1636,7 +1821,7 @@ export async function refreshAttendanceCard() {
       container.innerHTML = `
         <div class="w-full bg-red-900/50 border border-red-500 rounded-xl p-4 text-center shadow-lg">
           <h3 class="text-red-400 font-bold mb-2 text-sm">⚠️ عذراً، فشل تحديث كارت الحضور</h3>
-          <p class="text-white text-xs text-opacity-80 mb-3">${error.message}</p>
+          <p class="text-white text-xs text-opacity-80 mb-3">${escapeHtml(error.message)}</p>
           <button onclick="window.refreshAttendanceCard()" class="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-700 border border-red-600 transition shadow-md">إعادة المحاولة</button>
         </div>
       `;
@@ -1645,8 +1830,8 @@ export async function refreshAttendanceCard() {
 }
 
 if (typeof window !== "undefined") {
-  window.checkInShift = checkIn;
-  window.checkOutShift = checkOut;
+  // (إصلاح #10) تم حذف إعادة تسجيل checkInShift/checkOutShift هنا
+  // لأنها متسجلة بالفعل فوق مباشرة بعد تعريف الدوال - نفس المرجع بالظبط
   window.addExtraDayShift = addExtraDay;
   window.takeLeaveShift = takeLeave;
   window.exportAttendancePDF = exportPDF;

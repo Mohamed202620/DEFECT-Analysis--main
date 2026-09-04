@@ -26,6 +26,10 @@ export const StatsView = () => {
         <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
+    <button type="button" onclick="window.exportStatsPdf && window.exportStatsPdf(event)" class="bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
+      <span>📄</span>
+      <span>${currentLang === 'en' ? 'Export PDF' : 'تصدير PDF'}</span>
+    </button>
   </div>
 
   <!-- تبويبات الفترة الزمنية -->
