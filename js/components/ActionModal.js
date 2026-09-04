@@ -42,7 +42,10 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
 
       if (field.type === "select") {
         const optionsHtml = (field.options || [])
-          .map(opt => `<option value="${opt.value}">${opt.label}</option>`)
+          .map(opt => {
+             const selected = (field.defaultValue && field.defaultValue === opt.value) ? "selected" : "";
+             return `<option value="${opt.value}" ${selected}>${opt.label}</option>`;
+          })
           .join("");
 
         return `

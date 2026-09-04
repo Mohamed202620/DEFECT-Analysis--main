@@ -392,7 +392,7 @@ export async function returnSuggestionToReviewApi(suggestionId) {
  * إرساله للمراجعة" - ملاحظات الأدمن (revisionNotes) بتفضل محفوظة
  * كسجل تاريخي، وبيتسجل من عدّل ومتى في الـlogs
  */
-export async function resubmitSuggestionApi(suggestionId, { title, problem, solution } = {}) {
+export async function resubmitSuggestionApi(suggestionId, { title, line, machine, category, problem, solution, impact, images } = {}) {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
   try {
@@ -411,8 +411,14 @@ export async function resubmitSuggestionApi(suggestionId, { title, problem, solu
     if (!isOwner) {
       return { status: "error", message: "إعادة الإرسال متاحة فقط لصاحب المقترح نفسه" };
     }
-    if (!title?.trim() || !problem?.trim() || !solution?.trim()) {
-      return { status: "error", message: "لازم تعبئة العنوان والمشكلة والحل قبل إعادة الإرسال" };
+    if (!title?.trim() || !problem?.trim() || !solution?.trim() || !line?.trim() || !machine?.trim() || !category?.trim()) {
+      return { status: "error", message: "لازم تعبئة جميع الحقول الأساسية قبل إعادة الإرسال" };
+    }
+
+    // Upload new images if provided. If not, we keep the existing imageUrls.
+    let finalImageUrls = suggestion.imageUrls || [];
+    if (images && images.length > 0) {
+      finalImageUrls = await uploadBase64Images(images, "suggestion_resubmit_" + Date.now());
     }
 
     await updateDoc(
@@ -420,8 +426,13 @@ export async function resubmitSuggestionApi(suggestionId, { title, problem, solu
       stampSuggestionUpdate({
         status: "under_review",
         title: title.trim(),
+        line: line.trim(),
+        machine: machine.trim(),
+        category: category.trim(),
         problem: problem.trim(),
         solution: solution.trim(),
+        ...(impact && impact.trim() && { impact: impact.trim() }),
+        ...(finalImageUrls.length > 0 && { imageUrls: finalImageUrls }),
 
         // تصحيح ذاتي لسجل قديم مفيهوش submittedByUid: بنثبّته دلوقتي
         // على معرّف المستخدم الحالي (صاحب المقترح الفعلي حسب الاسم)
