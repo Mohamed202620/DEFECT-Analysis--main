@@ -8,7 +8,7 @@
 import {
   db,
   auth,
-  DEFAULT_USER_PERMISSIONS,
+  getPermissionsForRole,
   phoneToAuthEmail
 } from "../config.js";
 
@@ -32,13 +32,21 @@ import {
 // قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
 // بشكل ثابت، بغض النظر عن "الوظيفة" اللي اختارها المستخدم في فورم
 // التسجيل (regJob في registerView.js). دلوقتي بيتحدد حسب الوظيفة
-// المُختارة فعلاً - الصلاحيات (permissions) تفضل كما هي
-// (DEFAULT_USER_PERMISSIONS) في كل الحالات؛ الأدمن لسه قادر يعدّل
+// المُختارة فعلاً - والصلاحيات (permissions) بقت كمان مبنية على
+// نفس الدور ده (راجع getPermissionsForRole/ROLE_PERMISSIONS_TEMPLATE
+// في config.js) بدل صلاحيات موحّدة واحدة للجميع؛ الأدمن لسه قادر يعدّل
 // الدور/الصلاحيات يدوياً بعد القبول لو محتاج (updatePermissionsApi)
 const JOB_TO_ROLE = {
   technician: "technician",
   operator: "operator",
   maintainer: "technician",
+  // إضافة (تصحيح Workflow - قبل الإنتاج): كانت "Engineer" مش موجودة
+  // كخيار في فورم التسجيل أصلاً، فالسطر ده كان بيتحل تلقائيًا لـ
+  // "technician" (القيمة الافتراضية في roleFromJob تحت). دلوقتي
+  // ليها Mapping صريح لدور "engineer" - نفس الدور اللي عنده وصول
+  // كامل للبيانات (hasFullDataAccess في permissions.js) وقابل
+  // للإسناد كفني (fetchTechniciansApi)
+  engineer: "engineer",
   "group leader": "manager",
   supervisor: "manager",
   manager: "manager"
@@ -614,9 +622,13 @@ export async function updateUserStatusApi(
         roleFromJob(job);
 
 
-      // استخدام الصلاحيات الموحدة
+      // إصلاح (تصحيح Workflow - قبل الإنتاج): كانت DEFAULT_USER_PERMISSIONS
+      // (نفس الصلاحيات الواسعة) بتتطبّق على أي دور. دلوقتي كل دور
+      // ياخد قالب الصلاحيات المناسب لمسؤولياته الفعلية (راجع
+      // ROLE_PERMISSIONS_TEMPLATE في config.js) - الأدمن لسه قادر
+      // يعدّل يدوياً بعد كده لأي مستخدم لو محتاج
       updateData.permissions =
-        DEFAULT_USER_PERMISSIONS;
+        getPermissionsForRole(updateData.role);
 
 
       updateData.approvedAt =

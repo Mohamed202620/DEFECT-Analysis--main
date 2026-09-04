@@ -800,16 +800,25 @@ export async function markAllNotificationsAsRead(uid) {
   }
 }
 
-export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUid }) {
-  if (!type || !assignedTo) {
-    return { status: "error", message: "type و assignedTo مطلوبين" };
+export async function assignTicketApi(ticketId, { workType, assignedTo, assignedToUid }) {
+  // إصلاح (تصحيح Workflow - سلامة بيانات التصنيف): كان الباراميتر اسمه
+  // "type" وبيتخزن في نفس حقل `type` اللي العامل المُبلّغ يختاره وقت
+  // التسجيل (Breakdown/Observation - راجع workflow.js) - فبمجرد ما
+  // المسؤول عن الإسناد يختار تصنيفه الخاص (Breakdown/PM/Other)، تصنيف
+  // العامل الأصلي كان بيتمسح ويتستبدل بالكامل، ولو كان "Observation"
+  // كان بيختفي نهائيًا لأنها مش موجودة في قائمة اختيار الإسناد أصلًا.
+  // دلوقتي بيتخزن في حقل منفصل `workType` (تصنيف عمل داخلي من
+  // المسؤول عن الإسناد)، و`type` الأصلي بيفضل زي ما هو من غير أي
+  // تعديل طول عمر التذكرة.
+  if (!workType || !assignedTo) {
+    return { status: "error", message: "workType و assignedTo مطلوبين" };
   }
   try {
     await updateDoc(
       doc(db, "tickets", ticketId),
       stampUpdate({
         status: "assigned",
-        type,
+        workType,
         assignedTo,
         ...(assignedToUid && { assignedToUid })
       })
