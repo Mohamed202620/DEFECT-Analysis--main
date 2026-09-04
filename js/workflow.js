@@ -14,7 +14,7 @@ import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
 // نفس التعريف في statistics.js بالظبط
-import { isClosedStatus, isOverdueTicket, parseTicketDate } from './ticketStatusConstants.js';
+import { isClosedStatus, isFullyClosedStatus, isOverdueTicket, parseTicketDate } from './ticketStatusConstants.js';
 // مكوّن اختيار المرفقات المتعددة الموحّد (اختيار أكثر من صورة دفعة
 // واحدة + إضافة صور لاحقًا بدون فقدان القديمة + حذف مستقل لكل صورة) -
 // مُستخدم هنا لفورم "تسجيل عطل" (راجع initIssueAttachments تحت)
@@ -171,7 +171,12 @@ export async function loadDashboardStats() {
   let overdue = 0;
 
   tickets.forEach(ticket => {
-    if (isClosedStatus(ticket.status)) {
+    // إصلاح (تصحيح Workflow - دقة تقارير الإدارة): كانت isClosedStatus
+    // (بتشمل "resolved") فبلاغ لسه بانتظار تأكيد المُبلغ كان بيتحسب
+    // "مغلقة" في كارت الرئيسية. isFullyClosedStatus بس هي اللي بتحسب
+    // الإغلاق النهائي المؤكد (closed/done/مغلق) - راجع
+    // ticketStatusConstants.js لتفاصيل السبب
+    if (isFullyClosedStatus(ticket.status)) {
       closed++;
     } else {
       open++;
@@ -234,6 +239,9 @@ export async function loadDashboardStats() {
   // ============================================================
 
   // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟ (نستخدم tickets المفلترة هنا لأنها تخص المستخدم)
+  // ملحوظة: هنا isClosedStatus (الواسعة، بتشمل resolved) مقصودة عمداً -
+  // بمجرد ما بلاغ حرج يتصلح فعلياً (resolved) الموقف الطارئ انتهى ولو
+  // لسه بانتظار تأكيد المُبلغ، فمنطقي إن شارة "حرج" الوامضة تختفي
   const hasCritical = tickets.some(t => {
     const isOpen = !isClosedStatus(t.status);
     return isOpen && String(t.priority || '').trim() === 'High';

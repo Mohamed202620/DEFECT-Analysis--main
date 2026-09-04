@@ -9,16 +9,35 @@
 // ملف على حدة ومخاطرة نسيان أحدهم (تعارض/عدم تطابق مستقبلي).
 // ============================================================
 
-// نفس تصنيف "الحالات المغلقة" المستخدم في:
-// - كارتات لوحة المتابعة بالرئيسية (isClosedStatus في workflow.js)
-// - صفحة الإحصائيات (statistics.js)
-// - فلتر "تم إصلاحها" في البحث والفلترة المتقدمة وكارت الرئيسية
-//   المقابل له (STATUS_QUERY_ALIASES.fixed في services/ticketsApi.js)
+// ⚠️ ملحوظة مهمة (تصحيح Workflow): CLOSED_STATUSES بتشمل "resolved" -
+// وده مقصود بس لسياقات "هل الشغل خلص فعليًا؟" بغض النظر عن تأكيد
+// المُبلغ (MTTR / أداء الفنيين والماكينات / فلتر "تم إصلاحها" في
+// البحث المتقدم / حساب مدة التوقف). "resolved" فعليًا معناها
+// "بانتظار تأكيد المُبلغ" مش "مغلقة نهائيًا" (راجع STATUS_LABELS
+// تحت) - فاستخدامها هنا في أي سياق بيمثّل "هل البلاغ خلص كل مراحله
+// وانقفل فعليًا؟" (عداد "مغلقة" بالرئيسية/الإحصائيات، واستثناء
+// "التأخير") غلط ومضلّل للإدارة. لده استخدم isFullyClosedStatus/
+// FULLY_CLOSED_STATUSES تحت بدلاً منها.
 export const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
 
-// نفس فحص "هل الحالة دي مغلقة؟" المستخدم في workflow.js بالظبط
+// نفس فحص "هل الشغل خلص فعليًا (بغض النظر عن تأكيد المُبلغ)؟"
 export function isClosedStatus(status) {
   return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
+}
+
+// ============================================================
+// إصلاح (تصحيح Workflow - دقة تقارير الإدارة): حالات "الإغلاق
+// النهائي المؤكد" فقط - status "resolved" (بانتظار تأكيد المُبلغ)
+// مُستبعدة عمداً هنا، لأنها مرحلة لسه مفتوحة من منظور دورة حياة
+// التذكرة الكاملة (لسه محتاجة فعل من حد - المُبلغ يأكد أو يرفض).
+// تُستخدم في: عداد "مفتوحة/مغلقة" بلوحة الرئيسية وصفحة الإحصائيات،
+// وفي isOverdueTicket (عشان بلاغ عالق في "resolved" أيام من غير
+// تأكيد يقدر يظهر "متأخر" برضه، بدل ما يختفي من رادار المتابعة
+// بمجرد ما يوصل resolved وكأنه خلص خالص)
+export const FULLY_CLOSED_STATUSES = ['closed', 'done', 'مغلق'];
+
+export function isFullyClosedStatus(status) {
+  return FULLY_CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
 }
 
 // تسميات حالات البلاغ بالعربي - نفس النصوص المستخدمة في كروت نتائج
@@ -129,7 +148,11 @@ export function parseTicketDate(ticketOrRaw) {
 // من حد التأخير المناسب لأولويته (getOverdueThresholdHours) من وقت
 // الإبلاغ (createdAt)
 export function isOverdueTicket(ticket, now = new Date()) {
-  if (!ticket || isClosedStatus(ticket.status)) return false;
+  // إصلاح: كانت isClosedStatus (بتشمل resolved) - أي بلاغ وصل resolved
+  // كان بيستبعد فورًا من فحص التأخير حتى لو فضل بانتظار تأكيد المُبلغ
+  // أيام كتير. دلوقتي isFullyClosedStatus بس (closed/done/مغلق) هي
+  // اللي بتستبعد البلاغ من فحص التأخير
+  if (!ticket || isFullyClosedStatus(ticket.status)) return false;
   const created = parseTicketDate(ticket);
   if (!created) return false;
   const hoursOpen = (now - created) / (1000 * 60 * 60);
