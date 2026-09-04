@@ -20,13 +20,15 @@
 //    Official Holiday Work × معامل قابل للتعديل من الأدمن) بدون أي
 //    تطبيق مزدوج للمعامل على نفس الساعات.
 // 7. ملخص مالي كامل بعد فتح PIN.
-// 8. تصدير PDF شهري يغطي كل أيام الشهر (Pattern + حضور فعلي).
+// 8. تصدير PDF يغطي كل أيام دورة الحضور والمرتبات الحالية (21 → 20،
+//    Pattern + حضور فعلي) - نفس الدورة المعروضة في الكارت الحي بالظبط.
 // ============================================================
 
 import { db } from "./config.js";
 import { doc, getDoc } from "./firebase.js";
-import { buildCompanyHeaderHtml, wrapHtmlForRepeatingPrintHeader } from "./components/headerComponent.js";
 import { fetchOfficialHolidaysApi } from "./services/api.js";
+import { exportToPdf } from "./services/exportUtility.js";
+import { buildPdfStatsCardsHtml } from "./branding.js";
 import {
   fetchAttendancePatternApi,
   fetchPayrollRulesApi,
@@ -698,10 +700,12 @@ window.openPastAttendanceModal = async function () {
 };
 
 // ============================================================
-// 5. تصنيف يوم واحد (Shared Helper) + حساب إجماليات الشهر التقويمي
-// (calculateMonth - يُستخدم في تصدير PDF) + حساب إجماليات دورة
-// 21 → 20 (calculateCycle - يُستخدم في عرض الكارت الحي، بالصيغة
-// المطلوبة: requiredHours = 192 - (officialHolidayCount * 8))
+// 5. تصنيف يوم واحد (Shared Helper) + حساب إجماليات دورة 21 → 20
+// (calculateCycle - يُستخدم في عرض الكارت الحي وفي تصدير تقرير الـ
+// PDF، بالصيغة المطلوبة: requiredHours = 192 - (officialHolidayCount
+// * 8)) + حساب إجماليات الشهر التقويمي (calculateMonth) كدالة قديمة
+// (Legacy) لم تعد مستخدمة في أي تقرير حاليًا - أُبقي عليها فقط
+// لتوافقية أي كود خارجي قديم قد ينادي window.calculateAttendanceMonth
 // ============================================================
 
 /**
@@ -866,11 +870,11 @@ export function calculateCycle(userId, options = {}) {
 }
 
 /**
- * حساب إجماليات الشهر التقويمي (1 → آخر يوم بالشهر) - يُستخدم حصرياً
- * في تصدير تقرير الـ PDF الشهري (لم يتغيّر نطاقه أو صيغته بناءً على
- * طلب هذا التعديل، للحفاظ على تقرير PDF كما هو تمامًا). الكارت الحي
- * (المطلوب/Progress Bar) بيستخدم دلوقتي calculateCycle بدل هذه
- * الدالة - راجع أعلاه
+ * حساب إجماليات الشهر التقويمي (1 → آخر يوم بالشهر) - دالة قديمة
+ * (Legacy) لم تعد مستخدمة في تصدير تقرير الـ PDF (بقى بيستخدم
+ * calculateCycle بدل منها عشان يطابق دورة 21 → 20 المعروضة في الكارت
+ * الحي). أُبقي عليها هنا فقط لعدم كسر أي كود خارجي قديم قد ينادي
+ * window.calculateAttendanceMonth مباشرة.
  */
 export function calculateMonth(userId, yearMonth = null, options = {}) {
   const profile = options.profile || {
@@ -978,11 +982,18 @@ export function computeFinancials(monthData, localConfig, rules = getCachedPayro
 }
 
 // ============================================================
-// 6. تصدير PDF الشهري (يغطي كل أيام الشهر + الملخص المالي) -
-// يتطلب فتح PIN أولاً (نفس قاعدة إخفاء البيانات المالية)
+// 6. تصدير PDF لتقرير دورة الحضور والمرتبات (21 → 20) - يغطي كل
+// أيام الدورة الحالية (وليس الشهر التقويمي) + الملخص المالي.
+// يتطلب فتح PIN أولاً (نفس قاعدة إخفاء البيانات المالية).
+//
+// ⚠️ مُوحَّد الآن مع نفس آلية exportToPdf() المستخدمة والمُجرَّبة في
+// باقي تقارير النظام (الأعطال/التذاكر/الصيانة) بدل الاعتماد على
+// html2pdf.bundle بشكل منفصل - وده اللي كان بيسبب ظهور صفحة بيضاء
+// (غياب تحديد windowWidth لالتقاط html2canvas بعرض التقرير الحقيقي
+// 794px بدل عرض شاشة الجهاز الفعلي، وغياب فترة الانتظار القصيرة قبل
+// الالتقاط اللي بتضمن اكتمال تحميل الخط وتشكيل النص العربي).
+// كل تقارير PDF في النظام دلوقتي بتمر من نفس المسار الموحّد.
 // ============================================================
-
-const MONTH_NAMES_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 
 function codeLabel(code) {
   if (code === "M") return "☀️ صباحي";
@@ -991,7 +1002,7 @@ function codeLabel(code) {
   return "—";
 }
 
-export async function exportPDF(customUserId = null, customYM = null) {
+export async function exportPDF(customUserId = null, customReferenceDate = null) {
   const profile = await getTechnicianProfile(customUserId);
 
   if (!isPayrollUnlocked()) {
@@ -999,20 +1010,43 @@ export async function exportPDF(customUserId = null, customYM = null) {
     if (!unlocked) return;
   }
 
-  const yearMonth = customYM || getTodayDateString().substring(0, 7);
+  const referenceDate = customReferenceDate
+    ? new Date(`${customReferenceDate}T00:00:00`)
+    : new Date();
+
   await loadAttendanceSettingsCaches();
 
   const rules = getCachedPayrollRules();
-  const monthData = calculateMonth(profile.userId, yearMonth, { profile, rules });
+  // الدالة نفسها المستخدمة فعلاً في عرض الكارت الحي (21 → 20) - التقرير
+  // بقى بيطابق تمامًا نفس دورة الحضور والمرتبات المعروضة للفني، بدل
+  // الشهر التقويمي القديم.
+  const cycleData = calculateCycle(profile.userId, { profile, rules, referenceDate });
   const localConfig = getPayrollLocalConfig(profile.userId);
-  const financials = computeFinancials(monthData, localConfig, rules);
+  const financials = computeFinancials(cycleData, localConfig, rules);
 
-  const [yearStr, monthStr] = yearMonth.split("-");
-  const monthArabic = MONTH_NAMES_AR[parseInt(monthStr, 10) - 1] || monthStr;
+  const title = `📄 تقرير حاسبة الحضور والمرتبات — دورة ${cycleData.cycleLabel}`;
+  const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${cycleData.cycleStart}_${cycleData.cycleEnd}.pdf`;
+
+  const infoRows = [
+    { label: "اسم الموظف", value: profile.name },
+    { label: "الوظيفة", value: profile.job },
+    { label: "الفريق", value: getColorBadge(profile.shiftColor).label },
+    { label: "دورة الحضور والمرتبات", value: cycleData.cycleLabel },
+    { label: "الساعات المستهدفة الأصلية", value: `${cycleData.targetHours} س` },
+    { label: "خصم إجازات رسمية", value: `${cycleData.holidayCountInCycle} إجازة × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س` },
+    { label: "الساعات المطلوبة الفعلية", value: `${cycleData.requiredHours} س` }
+  ];
+
+  const statsCardsHtml = buildPdfStatsCardsHtml([
+    { label: "عادي", value: `${cycleData.regularHours} س`, color: "#1e3a8a", bg: "#eff6ff" },
+    { label: `إضافي عادي ×${rules.normalOvertimeMultiplier}`, value: `${cycleData.normalOvertimeHours} س`, color: "#b45309", bg: "#fffbeb" },
+    { label: `عمل OFF ×${rules.offWorkMultiplier}`, value: `${cycleData.offWorkHours} س`, color: "#9d174d", bg: "#fdf2f8" },
+    { label: `عمل إجازة رسمية ×${rules.holidayWorkMultiplier}`, value: `${cycleData.holidayWorkHours} س`, color: "#047857", bg: "#f0fdf4" }
+  ]);
 
   let tableRowsHtml = "";
-  monthData.daysList.forEach((row, idx) => {
-    const rowBg = idx % 2 === 0 ? "bg-white" : "bg-slate-50";
+  cycleData.daysList.forEach((row, idx) => {
+    const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
     const statusBadge = row.bucket === "holiday"
       ? '<span style="color:#b45309;font-weight:bold;">🎉 عمل بإجازة رسمية</span>'
       : row.bucket === "off"
@@ -1024,7 +1058,7 @@ export async function exportPDF(customUserId = null, customYM = null) {
       : (row.isHoliday ? '<span style="color:#9d174d;">إجازة رسمية (راحة أصلاً)</span>' : '<span style="color:#94a3b8;">—</span>');
 
     tableRowsHtml += `
-      <tr class="${rowBg}" style="border-bottom: 1px solid #e2e8f0; font-size: 10px;">
+      <tr style="background:${rowBg}; border-bottom: 1px solid #e2e8f0; font-size: 10px;">
         <td style="padding: 5px 6px; text-align: center; font-weight: bold;">${idx + 1}</td>
         <td style="padding: 5px 6px; text-align: center; direction: ltr;">${row.date}</td>
         <td style="padding: 5px 6px; text-align: center;">${codeLabel(row.dayInfo.code)}</td>
@@ -1036,55 +1070,7 @@ export async function exportPDF(customUserId = null, customYM = null) {
     `;
   });
 
-  const printContainer = document.createElement("div");
-  printContainer.id = "attendance-pdf-print-container";
-  printContainer.dir = "rtl";
-  printContainer.style.width = "794px";
-  printContainer.style.background = "#ffffff";
-  printContainer.style.color = "#0f172a";
-  printContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
-  printContainer.style.padding = "24px";
-  printContainer.style.boxSizing = "border-box";
-  printContainer.style.position = "absolute";
-  printContainer.style.left = "-9999px";
-  printContainer.style.top = "0";
-
-  const bodyContentHtml = `
-    <div style="text-align:center; margin: 10px 0 16px 0;">
-      <h2 style="margin: 0; font-size: 12px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
-      <div style="margin-top: 4px; font-size: 10px; color: #b45309; font-weight: bold;">تقرير حاسبة الحضور والمرتبات الشهري</div>
-    </div>
-
-    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 11px;">
-      <div><span style="color: #64748b; font-size: 10px; display: block;">اسم الموظف:</span><strong>${profile.name}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الوظيفة:</span><strong>${profile.job}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الفريق:</span><strong style="color:#1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الشهر:</span><strong>${monthArabic} ${yearStr}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المستهدفة الأصلية:</span><strong>${monthData.targetHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">خصم إجازات رسمية:</span><strong>${monthData.holidayDeductionDays} يوم × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المطلوبة الفعلية:</span><strong style="color:#047857;">${monthData.requiredHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">تاريخ الطباعة:</span><strong>${new Date().toLocaleDateString("ar-EG")}</strong></div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
-      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #1e40af; font-weight: bold;">عادي</div>
-        <div style="font-size: 14px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
-      </div>
-      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #92400e; font-weight: bold;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
-      </div>
-      <div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #9d174d; font-weight: bold;">عمل OFF ×${rules.offWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
-      </div>
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #166534; font-weight: bold;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
-      </div>
-    </div>
-
+  const tableHtml = `
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1;">
       <thead>
         <tr style="background: #1e3a8a; color: #ffffff; font-size: 10px;">
@@ -1099,7 +1085,9 @@ export async function exportPDF(customUserId = null, customYM = null) {
       </thead>
       <tbody>${tableRowsHtml}</tbody>
     </table>
+  `;
 
+  const financialHtml = `
     <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
       <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 11px;">
@@ -1113,78 +1101,15 @@ export async function exportPDF(customUserId = null, customYM = null) {
         <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
       </div>
     </div>
-
-    <div style="border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; font-size: 11px;">
-      <div><div style="font-weight: bold; margin-bottom: 30px;">توقيع الفني</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div><div style="margin-top: 4px; color: #64748b; font-size: 10px;">${profile.name}</div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مهندس الوردية</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مدير المصنع</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
-    </div>
   `;
 
-  printContainer.innerHTML = `
-    ${buildCompanyHeaderHtml({ variant: "pdf", lang: "ar" })}
-    ${bodyContentHtml}
-  `;
+  const htmlContent = `${statsCardsHtml}${tableHtml}${financialHtml}`;
 
-  document.body.appendChild(printContainer);
-
-  // نافذة الطباعة المباشرة (Fallback لو html2pdf مش متاحة): بما إن
-  // printContainer نفسه بيفضل مخفي خارج الشاشة (left:-9999px) عشان
-  // html2pdf/html2canvas يقدروا يلتقطوه، مينفعش نستخدمه هو نفسه مباشرة مع
-  // window.print() لأنه هيطبع فاضي. بننشئ بدل منه عنصر منفصل "مرئي وقت
-  // الطباعة بس" (Print-Only) يحتوي نفس محتوى الجسم لكن ملفوف بجدول
-  // Header/Body متكرر (نفس تقنية wrapHtmlForRepeatingPrintHeader) عشان
-  // يضمن ظهور الهيدر الرسمي أعلى كل صفحة ورقية تتطبع، حتى لو التقرير طلع
-  // أكتر من صفحة واحدة.
-  const printFallback = () => {
-    const printOnlyRoot = document.createElement("div");
-    printOnlyRoot.id = "attendance-window-print-fallback";
-    printOnlyRoot.style.position = "fixed";
-    printOnlyRoot.style.inset = "0";
-    printOnlyRoot.style.background = "#ffffff";
-    printOnlyRoot.style.zIndex = "999999";
-    printOnlyRoot.style.overflow = "auto";
-    printOnlyRoot.innerHTML = wrapHtmlForRepeatingPrintHeader(bodyContentHtml, { lang: "ar" });
-
-    // إخفاء باقي عناصر الصفحة وقت الطباعة بس (Idempotent)، وإظهار الجذر ده فقط
-    const hideRestStyleId = "attendance-print-fallback-style";
-    if (!document.getElementById(hideRestStyleId)) {
-      const styleEl = document.createElement("style");
-      styleEl.id = hideRestStyleId;
-      styleEl.textContent = `
-        @media print {
-          body > *:not(#attendance-window-print-fallback) { display: none !important; }
-        }
-      `;
-      document.head.appendChild(styleEl);
-    }
-
-    document.body.appendChild(printOnlyRoot);
-    window.print();
-    if (printOnlyRoot.parentNode) printOnlyRoot.parentNode.removeChild(printOnlyRoot);
-  };
-
-  try {
-    const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${yearMonth}.pdf`;
-    if (window.html2pdf) {
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-      };
-      await window.html2pdf().set(opt).from(printContainer).save();
-    } else {
-      printFallback();
-    }
-  } catch (err) {
-    console.error("[Attendance] Error generating PDF:", err);
-    alert("تعذر توليد ملف الـ PDF حالياً، سيتم فتح نافذة الطباعة بدلاً من ذلك.");
-    printFallback();
-  } finally {
-    if (printContainer.parentNode) printContainer.parentNode.removeChild(printContainer);
-  }
+  await exportToPdf(title, infoRows, htmlContent, filename, {
+    first: "توقيع الفني",
+    second: "اعتماد مهندس الوردية",
+    third: "اعتماد مدير المصنع"
+  });
 }
 
 // ============================================================
@@ -1402,9 +1327,9 @@ export function renderAttendanceCard(customProfile = null) {
   const isExtraDay = !!todayRecord.isExtraDay;
   const isLeave = !!todayRecord.isLeave;
 
-  // الكارت الحي (المطلوب/Progress Bar) بيستخدم دلوقتي دورة 21 → 20
-  // (calculateCycle) بدل الشهر التقويمي - راجع تعليق الدالة أعلاه.
-  // تصدير الـ PDF لسه بيستخدم الشهر التقويمي (calculateMonth) زي ما هو
+  // الكارت الحي (المطلوب/Progress Bar) وتصدير تقرير الـ PDF بيستخدموا
+  // دلوقتي نفس الدالة (calculateCycle) ونفس دورة 21 → 20 - راجع تعليق
+  // الدالة أعلاه وتعليق exportPDF بالأسفل.
   const rules = getCachedPayrollRules();
   const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
 
