@@ -133,6 +133,15 @@ export const RegisterView = () => {
         <option value="Technician" class="bg-[#0F172A] text-white">Technician</option>
         <option value="Operator" class="bg-[#0F172A] text-white">Operator</option>
         <option value="Maintainer" class="bg-[#0F172A] text-white">Maintainer</option>
+        <!-- إضافة (تصحيح Workflow - قبل الإنتاج): "Engineer" مكنش موجود
+             كخيار وظيفة هنا أصلاً، رغم إن دور "engineer" موجود فعليًا
+             في منطق الصلاحيات (hasFullDataAccess في permissions.js)
+             وفي استعلام الفنيين القابلين للإسناد (fetchTechniciansApi) -
+             يعني أي مهندس بيسجّل كان بيتصنّف "فني" تلقائيًا عند القبول،
+             والأدمن لازم يفتكر بنفسه يغيّر دوره يدويًا من شاشة النظام.
+             دلوقتي بقى مسار طبيعي من التسجيل مباشرة (راجع JOB_TO_ROLE
+             في services/usersApi.js) -->
+        <option value="Engineer" class="bg-[#0F172A] text-white">Engineer</option>
         <option value="Group Leader" class="bg-[#0F172A] text-white">Group Leader</option>
         <option value="Supervisor" class="bg-[#0F172A] text-white">Supervisor</option>
         <option value="Manager" class="bg-[#0F172A] text-white">Manager</option>

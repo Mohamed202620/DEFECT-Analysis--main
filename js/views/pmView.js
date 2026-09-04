@@ -1,13 +1,24 @@
+import { buildMachineDropdownHtml } from '../machines.js';
+
+// إصلاح (تصحيح Workflow - قبل الإنتاج): الماكينة كانت Dropdown ثابت
+// بخيارين وهميين ("line1"/"machine2") منفصل تمامًا عن قائمة الماكينات
+// الحقيقية القابلة للإدارة (machines.js) المستخدمة في كل باقي الشاشات
+// (تسجيل عطل، كايزن، فاحص الأعطال) - يعني سجلات الصيانة الوقائية
+// كانت عمليًا غير مرتبطة بأي معدة حقيقية في المصنع. دلوقتي بتستخدم
+// نفس buildMachineDropdownHtml (نوع + وحدة) بالظبط زي issueView.js -
+// والقيمة النهائية لسه بتتخزن في حقل مخفي بنفس الـ id القديم
+// ("pmMachine")، فـ handlePMSubmit تحت مبيحتاجش أي تعديل في القراءة.
 export const PMFormFields = (isEn) => `
   <div>
     <label class="block text-xs font-bold mb-1 opacity-70 text-gray-300">
       ${isEn ? 'Machine Name' : 'اسم الماكينة'} <span class="text-red-400">*</span>
     </label>
-    <select id="pmMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
-      <option value="" disabled selected>${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
-      <option value="line1">${isEn ? 'Coating Line 1' : 'خط الدهان 1'}</option>
-      <option value="machine2">${isEn ? 'Machine 2' : 'ماكينة 2'}</option>
-    </select>
+    ${buildMachineDropdownHtml("pmMachine", {
+      placeholderLabel: isEn ? 'Select machine type...' : 'اختر نوع الماكينة...',
+      unitPlaceholderLabel: isEn ? 'Select unit number...' : 'اختر الرقم...',
+      typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors",
+      unitSelectClass: "w-full p-2.5 mt-2 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+    })}
   </div>
   
   <div>
