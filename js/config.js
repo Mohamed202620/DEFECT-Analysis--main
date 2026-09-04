@@ -110,9 +110,65 @@ export const DEBUG = (() => {
 //
 // ============================================================
 
-// الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
+// الصلاحيات الافتراضية للمستخدم الجديد بعد القبول - تُستخدم الآن
+// كـ "احتياطي" (Fallback) فقط لأي دور غير موجود في
+// ROLE_PERMISSIONS_TEMPLATE تحت (مثلاً دور قديم/غير متوقع) - راجع
+// roleFromJob في services/usersApi.js
 export const DEFAULT_USER_PERMISSIONS =
   "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export";
+
+// ============================================================
+// إصلاح (تصحيح Workflow - قبل الإنتاج): قوالب صلاحيات حسب الدور
+// ============================================================
+// المشكلة سابقاً: DEFAULT_USER_PERMISSIONS كانت بتتطبّق على أي
+// مستخدم جديد بعد القبول بغض النظر عن دوره الفعلي (Operator أو
+// Technician أو Manager) - يعني عامل إنتاج (Operator) كان يقدر
+// افتراضياً يفتح شاشة "الإحصائيات والأداء" (statistics) وشاشة
+// "مركز تقارير وتصدير البيانات" (reports - بيانات وتصدير Excel
+// بشعار الشركة) من أول يوم، وده أوسع بكتير من احتياجه الفعلي.
+// الأدمن كان مضطر يدخل يدوياً لكل مستخدم جديد يقلل صلاحياته بنفسه.
+//
+// دلوقتي كل دور ليه قالب مناسب لمسؤولياته الفعلية، بيتطبّق تلقائياً
+// وقت القبول (راجع updateUserStatusApi في services/usersApi.js).
+// الأدمن لسه قادر يعدّل صلاحيات أي مستخدم يدوياً بعد كده وقت ما يحب
+// (من شاشة "طلبات الانضمام" / "المستخدمين") - القالب ده بس نقطة
+// بداية أذكى بدل نفس الصلاحيات الواسعة للجميع.
+export const ROLE_PERMISSIONS_TEMPLATE = {
+  // Operator: مهمته الأساسية تسجيل الأعطال ومتابعة حالتها، مش
+  // الوصول لبيانات أداء المصنع الكاملة أو تصدير تقارير رسمية.
+  // استُبعدت: pm (مهمة فنية مش من مسؤولية العامل عادة)، log (بحث/
+  // سجل شامل عبر كل البلاغات)، reports وstatistics وexport
+  // (تقارير وإحصائيات على مستوى المصنع بالكامل)
+  operator:
+    "home,maintenance,issue,suggestions,kb,errorScanner,qr,ai",
+
+  // Technician/Maintainer: يحتاج أدوات الصيانة والصيانة الوقائية
+  // وسجل البحث الشامل عشان يشوف تاريخ الماكينة اللي بيشتغل عليها،
+  // لكن مش بالضرورة تقارير/إحصائيات الأداء الإداري
+  technician:
+    "home,maintenance,issue,suggestions,pm,log,kb,errorScanner,qr,ai",
+
+  // Manager/Engineer (Group Leader وSupervisor بيتحولوا لـ manager
+  // في roleFromJob): وصول كامل للأدوات التشغيلية + التقارير
+  // والإحصائيات وتصدير البيانات - نفس النطاق اللي كانت
+  // DEFAULT_USER_PERMISSIONS بتغطيه، لكن مقصور على الأدوار
+  // الإشرافية فعلاً بدل الجميع
+  manager:
+    "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export",
+  engineer:
+    "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export"
+};
+
+/**
+ * إرجاع الصلاحيات المناسبة لدور معين وقت القبول - أو
+ * DEFAULT_USER_PERMISSIONS كاحتياطي لو الدور مش موجود في القالب
+ * (مثلاً "admin" بيتحدد يدوياً دايماً ومش بيمر من هنا أصلاً، أو أي
+ * دور مستقبلي غير متوقع)
+ */
+export function getPermissionsForRole(role) {
+  const key = String(role || "").trim().toLowerCase();
+  return ROLE_PERMISSIONS_TEMPLATE[key] || DEFAULT_USER_PERMISSIONS;
+}
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [

@@ -128,6 +128,7 @@ function ticketCardHtml(ticket) {
           ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
           ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
           ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
+          ${ticket.workType ? `<span class="px-2 py-0.5 rounded bg-indigo-900/40 border border-indigo-700/50 text-[10px] font-bold text-indigo-300">🗂️ ${ticket.workType}</span>` : ""}
           ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
             ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
             ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
@@ -599,7 +600,9 @@ window.handleTicketAction = async function (ticketId, action) {
       submitLabel: tr.assignSubmit,
       fields: [
         {
-          id: "type",
+          // إصلاح: الحقل كان اسمه "type" وكان بيدرس تصنيف العامل
+          // الأصلي وقت الحفظ - دلوقتي "workType" حقل مستقل تمامًا
+          id: "workType",
           label: tr.typeLabel,
           type: "select",
           options: [
@@ -622,7 +625,7 @@ window.handleTicketAction = async function (ticketId, action) {
     const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
     if (!assignedTo) return;
 
-    result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
+    result = await assignTicketApi(ticketId, { workType: values.workType, assignedTo, assignedToUid });
 
   } else if (action === "reassign") {
 

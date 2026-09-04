@@ -22,7 +22,6 @@ import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
 import { HomeView } from './views/homeView.js';
 import { PMView } from './views/pmView.js';
-import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
 import { IssueView } from './views/issueView.js';
@@ -217,13 +216,17 @@ case 'stats':
     : unauthorizedPage("statistics");  
 
 
-case 'report':  
-
-  return hasPermission("reports")  
-    ? ReportView()  
-    : unauthorizedPage("reports");  
-
-
+// إزالة (تنظيف Workflow - قبل الإنتاج): كان فيه راوت "report" (مفرد)
+// بيعرض ReportView.js - ملف كودة تجريبية/بروتوتايب قديمة: الفورم
+// مكنش بيحفظ أي بيانات حقيقية (window.handleReportSubmit كانت بس
+// بتعمل alert() برقم بلاغ وهمي ثابت "#1024" وترجع للخلف من غير أي
+// نداء Firestore)، حقول الفورم مالهاش IDs أصلاً، والصفحة مكنتش
+// مربوطة بأي زرار/رابط في كل التطبيق (navigateTo('report') مش
+// موجودة في أي مكان تاني). تم حذف الملف نهائياً لتفادي خطر إن حد
+// يربطها بزرار مستقبلاً ظناً إنها شغالة، فيضيع بلاغات المستخدمين
+// بصمت. صفحة "تسجيل عطل" الحقيقية والوحيدة هي issueView.js (مربوطة
+// فعلياً وبتحفظ في Firestore)، وصفحة "reports" (جمع) تحت دي منفصلة
+// تماماً وهي مركز التقارير/تصدير Excel الحقيقي (ReportsView.js)
 case 'reports':  
 
   return hasPermission("reports")  
