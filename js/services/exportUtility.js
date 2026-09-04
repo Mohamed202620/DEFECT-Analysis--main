@@ -141,10 +141,9 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
     cleanupContainers();
 
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "pt", "a4");
-
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+    // الأبعاد القياسية لعرض ورقة A4 بالنقط (pt)
+    const pdfWidth = 595.28;
     const margin = 20;
     const contentWidth = pdfWidth - (margin * 2);
 
@@ -160,6 +159,26 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
 
     // مسافة فاصلة بسيطة بين أسفل الهيدر وأول سطر من محتوى الجسم
     const gapAfterHeader = 10;
+    
+    // خيار دمج التقرير في صفحة واحدة أو تقسيمه
+    const isSinglePage = window.confirm(
+      isAr 
+        ? "هل تفضل دمج التقرير بالكامل في صفحة PDF واحدة طويلة؟\n\n- [موافق]: صفحة واحدة (أفضل للعرض على الشاشات والموبايل).\n- [إلغاء]: مقسّم لصفحات A4 (أفضل للطباعة الورقية)."
+        : "Do you want to merge the entire report into a single long PDF page?\n\n- [OK]: Single page (best for digital viewing).\n- [Cancel]: Split into A4 pages (best for printing)."
+    );
+
+    let pdf, pdfHeight;
+    
+    if (isSinglePage) {
+      // ارتفاع مخصص يتسع لكل المحتوى في صفحة واحدة
+      pdfHeight = margin * 2 + headerPrintHeight + gapAfterHeader + bodyPrintHeight;
+      pdf = new jsPDF("p", "pt", [pdfWidth, pdfHeight]);
+    } else {
+      // ارتفاع ورقة A4 القياسية
+      pdf = new jsPDF("p", "pt", "a4");
+      pdfHeight = pdf.internal.pageSize.getHeight();
+    }
+
     // الارتفاع المتاح فعليًا لمحتوى الجسم في كل صفحة (بعد خصم مساحة الهيدر المتكرر)
     const availableBodyHeightPerPage = pdfHeight - (margin * 2) - headerPrintHeight - gapAfterHeader;
 
@@ -173,15 +192,22 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
       p.text(text, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
     };
 
+    const bodyStartY = margin + headerPrintHeight + gapAfterHeader;
+
     // يرسم الهيدر الثابت + رقم الصفحة أعلى/أسفل الصفحة الحالية. بيترسم
     // "بعد" صورة الجسم قصدًا عشان يغطي أي تراكب بسيط في حدود التقريب
     // ويضمن ظهور الهيدر نظيفًا فوق أي حاجة تانية دايمًا.
     const drawHeaderAndFooter = (p, current, total) => {
+      // Clear the top area to prevent body image from bleeding into margins and gap
+      p.setFillColor(255, 255, 255);
+      p.rect(0, 0, pdfWidth, bodyStartY, 'F');
+      
+      // Clear the bottom margin to prevent body image from bleeding into the footer area
+      p.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
+
       p.addImage(headerImgData, "JPEG", margin, margin, contentWidth, headerPrintHeight);
       addFooter(p, current, total);
     };
-
-    const bodyStartY = margin + headerPrintHeight + gapAfterHeader;
 
     let heightLeft = bodyPrintHeight;
     let bodyPosition = bodyStartY;
