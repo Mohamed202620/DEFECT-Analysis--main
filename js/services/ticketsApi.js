@@ -12,7 +12,7 @@ import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.j
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
-import { CLOSED_STATUSES, isOverdueTicket } from "../ticketStatusConstants.js";
+import { CLOSED_STATUSES, FULLY_CLOSED_STATUSES, isFullyClosedStatus, isOverdueTicket } from "../ticketStatusConstants.js";
 
 // إضافة (تحسين الأداء - نطاق افتراضي للوحة التذاكر): حد أقصى لعدد
 // التذاكر اللي بتترجع لتبويب "الكل"/"أعطال اليوم"/"بلاغات متأخرة" عند
@@ -239,7 +239,11 @@ export async function fetchTicketCountsApi() {
     let overdue = 0;
 
     tickets.forEach(ticket => {
-      if (isClosedStatus(ticket.status)) {
+      // إصلاح (تصحيح Workflow - دقة تقارير الإدارة + إصلاح خطأ سابق):
+      // كانت isClosedStatus مش متستوردة أصلاً في هذا الملف (خطأ كان
+      // هيسبب Exception لو الدالة دي اتنادت)، وكانت بتحسب "resolved"
+      // كمغلقة برضه. isFullyClosedStatus بس (closed/done/مغلق)
+      if (isFullyClosedStatus(ticket.status)) {
         closed++;
       } else {
         open++;
@@ -431,11 +435,16 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       if (!status || status === "all" || status === "today" || status === "overdue") return [];
       if (status === "open") {
         // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
-        // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
-        // محددة سلفاً - فبدل تخمين قائمة "مفتوحة" ممكن تفوّت حالة جديدة
-        // غير متوقعة، بنستخدم عكس بالظبط نفس قائمة الحالات المغلقة
-        // (CLOSED_STATUSES) عشان الفلتر يطابق الرقم تماماً
-        return [where("status", "not-in", CLOSED_STATUSES)];
+        // مغلقة نهائيًا" (isFullyClosedStatus === false) مش قائمة حالات
+        // مفتوحة محددة سلفاً - فبدل تخمين قائمة "مفتوحة" ممكن تفوّت حالة
+        // جديدة غير متوقعة، بنستخدم عكس بالظبط نفس قائمة الحالات
+        // المغلقة نهائيًا (FULLY_CLOSED_STATUSES) عشان الفلتر يطابق الرقم
+        // تماماً.
+        // إصلاح (تصحيح Workflow - دقة تقارير الإدارة): كانت CLOSED_STATUSES
+        // (بتشمل "resolved") فبلاغ بانتظار تأكيد المُبلغ كان يختفي من
+        // تبويب "مفتوحة" رغم إنه لسه محتاج فعل (تأكيد/رفض) من حد -
+        // دلوقتي بيفضل ظاهر في "مفتوحة" لحد ما يتقفل نهائيًا فعلاً
+        return [where("status", "not-in", FULLY_CLOSED_STATUSES)];
       }
       const values = STATUS_QUERY_ALIASES[status];
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
