@@ -1,0 +1,686 @@
+// ============================================================
+// authHandlers.js
+// معالجات تسجيل الدخول / إنشاء حساب / تسجيل الخروج / تحميل
+// المستخدمين (صفحة users المبسطة)
+// (تم استخراجه من router.js دون أي تغيير في السلوك الظاهر -
+// نفس التحقق من البيانات، ونفس رسائل الأخطاء بالضبط)
+// ============================================================
+
+import { login } from './auth/login.js';
+
+import {
+  fetchUsers,
+  registerUserApi
+} from './services/api.js';
+
+import { navigateTo } from './renderCore.js';
+import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
+import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
+
+// إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
+// ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
+// window.currentLang، وأزرار الدخول/التسجيل بتشارك نفس التسميات
+// الموجودة أصلاً في translations.login / translations.register
+function t() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).auth;
+}
+
+function loginLabel() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).login.loginBtn;
+}
+
+function registerLabel() {
+  const currentLang = window.currentLang || "ar";
+  return (translations[currentLang] || translations.ar).register.submitBtn;
+}
+
+// طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات المستخدم
+// كاملة (الاسم/الهاتف/الدور/الصلاحيات) في الكونسول لكل عملية
+// دخول أو تحميل مستخدمين، حتى لو مش في وضع تطوير
+function dlog(...args) {
+  if (DEBUG) console.log(...args);
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+
+window.doLogin = async function () {
+
+try {
+
+const phoneInput =  
+  document.getElementById("loginPhone");  
+
+const passwordInput =  
+  document.getElementById("loginPass");  
+
+
+const phone =  
+  phoneInput?.value?.trim() || "";  
+
+const password =  
+  passwordInput?.value?.trim() || "";  
+
+
+// ========================================================  
+// التحقق من البيانات  
+// ========================================================  
+
+if (!phone || !password) {  
+
+  alert(  
+    t().fillPhonePassword  
+  );  
+
+  return;  
+
+}  
+
+
+// ========================================================  
+// زر الدخول  
+// ========================================================  
+
+const button =  
+  document.getElementById("loginBtn");  
+
+
+if (button) {  
+
+  button.disabled = true;  
+
+  button.innerText =  
+    t().loggingIn;  
+
+}  
+
+
+// ========================================================  
+// Firebase Login  
+// ========================================================  
+
+const result =  
+  await login(  
+    phone,  
+    password  
+  );  
+
+
+dlog(  
+  "LOGIN RESULT:",  
+  result  
+);  
+
+
+// ========================================================  
+// إعادة الزر  
+// ========================================================  
+
+if (button) {  
+
+  button.disabled = false;  
+
+  button.innerText =  
+    loginLabel();  
+
+}  
+
+
+// ========================================================  
+// فشل تسجيل الدخول  
+// ========================================================  
+
+if (  
+  !result ||  
+  result.status !== "success"  
+) {  
+
+  alert(  
+    result?.message ||  
+    t().loginFailed  
+  );  
+
+  return;  
+
+}  
+
+
+// ========================================================  
+// بيانات المستخدم  
+// ========================================================  
+
+const user =  
+  result.user || {};  
+
+
+// ========================================================  
+// حفظ بيانات المستخدم  
+// ========================================================  
+
+localStorage.setItem(  
+  "userId",  
+  user.id || user.uid || ""  
+);  
+
+localStorage.setItem(  
+  "name",  
+  user.name || ""  
+);  
+
+localStorage.setItem(  
+  "phone",  
+  user.phone || phone  
+);  
+
+localStorage.setItem(  
+  "job",  
+  user.job || ""  
+);  
+
+localStorage.setItem(  
+  "shift",  
+  user.shift || ""  
+);  
+
+localStorage.setItem(  
+  "department",  
+  user.department || ""  
+);  
+
+// تصنيف Backend/Frontend المستخدم في فلترة قائمة الماكينات حسب
+// القسم (راجع getMachinesForUser في machines.js) - حقل مستقل عن
+// "department" العام فوق (راجع ملحوظة updateUserMachineDepartmentApi
+// في services/usersApi.js)
+localStorage.setItem(  
+  "machineDepartment",  
+  user.machineDepartment || ""  
+);  
+
+const userRole = (user.role || "").trim().toLowerCase();
+let userPerms = user.permissions || "";
+if (isAdminRole(userRole)) {
+  userPerms = userPerms ? `all,${userPerms}` : ALL_PERMISSIONS.join(",");
+}
+
+localStorage.setItem("role", userRole);
+localStorage.setItem("permissions", userPerms);
+
+// ========================================================  
+// تحديث حالة التطبيق  
+// ========================================================  
+
+setCurrentRole(userRole);
+setCurrentPermissions(userPerms);
+
+// إضافة (إشعارات المتصفح): تفعيل الاشتراك اللحظي في إشعارات
+// المستخدم فور نجاح تسجيل الدخول (بدون انتظار Refresh للصفحة -
+// راجع pushNotifications.js للتفعيل التلقائي عند فتح التطبيق
+// والمستخدم مسجّل دخوله بالفعل)
+if (typeof window.initBrowserNotifications === "function") {
+  window.initBrowserNotifications();
+}
+
+// ========================================================  
+// الانتقال للرئيسية  
+// ========================================================  
+
+navigateTo("home");
+
+} catch (error) {
+
+console.error(  
+  "LOGIN ERROR:",  
+  error  
+);  
+
+
+const button =  
+  document.getElementById("loginBtn");  
+
+
+if (button) {  
+
+  button.disabled = false;  
+
+  button.innerText =  
+    loginLabel();  
+
+}  
+
+
+alert(  
+  t().loginErrorGeneric  
+);
+
+}
+
+};
+
+// ============================================================
+// REGISTER USER
+// ============================================================
+
+window.registerUser =
+async function () {
+
+try {
+
+const name =  
+  document  
+    .getElementById("regName")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const phone =  
+  document  
+    .getElementById("regPhone")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const password =  
+  document  
+    .getElementById("regPass")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const confirmPassword =  
+  document  
+    .getElementById("regPass2")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const shift =  
+  document  
+    .getElementById("regShift")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const job =  
+  document  
+    .getElementById("regJob")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const department =  
+  document  
+    .getElementById("regDepartment")  
+    ?.value  
+    ?.trim() || "";  
+
+
+const code =  
+  document  
+    .getElementById("regCode")  
+    ?.value  
+    ?.trim() || "";  
+
+
+if (  
+  !name ||  
+  !phone ||  
+  !password ||  
+  !confirmPassword ||  
+  !shift ||  
+  !job ||  
+  !department ||  
+  !code  
+) {  
+
+  alert(  
+    t().fillAllFields  
+  );  
+
+  return;  
+
+}  
+
+
+if (  
+  password !==  
+  confirmPassword  
+) {  
+
+  alert(  
+    t().passwordMismatch  
+  );  
+
+  return;  
+
+}  
+
+
+const userData = {  
+
+  name,  
+
+  phone,  
+
+  password,  
+
+  shift,  
+
+  job,  
+
+  department,  
+
+  code  
+
+};  
+
+
+const submitButton =  
+  document.querySelector(  
+    'form button[type="submit"]'  
+  );  
+
+
+if (submitButton) {  
+
+  submitButton.disabled =  
+    true;  
+
+  submitButton.innerText =  
+    t().creatingAccount;  
+
+}  
+
+
+const result =  
+  await registerUserApi(  
+    userData  
+  );  
+
+
+if (submitButton) {  
+
+  submitButton.disabled =  
+    false;  
+
+  submitButton.innerText =  
+    registerLabel();  
+
+}  
+
+
+if (  
+  result.status !==  
+  "success"  
+) {  
+
+  alert(  
+    result.message ||  
+    t().registerErrorGeneric  
+  );  
+
+  return;  
+
+}  
+
+
+alert(  
+  result.message ||  
+  t().registerSuccessDefault  
+);  
+
+
+navigateTo("login");
+
+} catch (error) {
+
+console.error(  
+  "REGISTER ERROR:",  
+  error  
+);  
+
+
+alert(  
+  t().registerErrorCatch  
+);
+
+}
+
+};
+
+// ============================================================
+// LOAD USERS
+// ============================================================
+
+window.loadUsers =
+async function () {
+
+if (typeof window.loadUsersManagement === "function") {
+  return window.loadUsersManagement();
+}
+
+dlog(
+"DEBUG: Load Users Started..."
+);
+
+const container =
+document.getElementById(
+"usersContainer"
+);
+
+if (!container) {
+
+console.warn(  
+  "usersContainer غير موجود"  
+);  
+
+return;
+
+}
+
+container.innerHTML = `
+
+<div  
+  class="  
+    text-center  
+    py-8  
+    text-gray-400  
+  "  
+>  
+
+  ${t().loadingUsers}  
+
+</div>
+
+`;
+
+try {
+
+const result =  
+  await fetchUsers();  
+
+
+dlog(  
+  "DEBUG: API Result:",  
+  result  
+);  
+
+
+if (  
+  result.status !==  
+  "success"  
+) {  
+
+  container.innerHTML = `  
+
+    <div  
+      class="  
+        text-red-400  
+        text-center  
+        py-6  
+      "  
+    >  
+
+      ${t().errorPrefix}  
+      ${result.message || t().loadUsersError}  
+
+    </div>  
+
+  `;  
+
+  return;  
+
+}  
+
+
+const usersList =  
+  Array.isArray(result.data)  
+    ? result.data  
+    : [];  
+
+
+dlog(  
+  "DEBUG: Users Count:",  
+  usersList.length  
+);  
+
+
+if (!usersList.length) {  
+
+  container.innerHTML = `  
+
+    <div  
+      class="  
+        text-center  
+        text-gray-500  
+        py-6  
+      "  
+    >  
+
+      ${t().noUsers}  
+
+    </div>  
+
+  `;  
+
+  return;  
+
+}  
+
+
+let html = "";  
+
+
+usersList.forEach(  
+  user => {  
+
+    html += `  
+
+      <div  
+        class="  
+          bg-[#1E293B]  
+          rounded-xl  
+          p-3  
+          mb-3  
+          text-white  
+          text-xs  
+          border  
+          border-gray-700  
+        "  
+      >  
+
+        <div>  
+          <b>  
+            ${user.name || t().unnamedUser}  
+          </b>  
+        </div>  
+
+        <div class="text-gray-400">  
+          📱 ${user.phone || ""}  
+        </div>  
+
+        <div class="text-blue-400">  
+          ${t().roleLabel}  
+          ${user.role || "pending"}  
+        </div>  
+
+        <div class="text-gray-400">  
+          ${t().statusLabel}  
+          ${user.status || "-"}  
+        </div>  
+
+        <div class="text-gray-400">  
+          ${t().shiftLabel}  
+          ${user.shift || "-"}  
+        </div>  
+
+        <div class="text-gray-400">  
+          ${t().departmentLabel}  
+          ${user.department || "-"}  
+        </div>  
+
+      </div>  
+
+    `;  
+
+  }  
+);  
+
+
+container.innerHTML =  
+  html;
+
+} catch (error) {
+
+console.error(  
+  "LOAD USERS ERROR:",  
+  error  
+);  
+
+
+container.innerHTML = `  
+
+  <div  
+    class="  
+      text-red-400  
+      text-center  
+      py-6  
+    "  
+  >  
+
+    ${t().loadUsersErrorCatch}  
+
+  </div>  
+
+`;
+
+}
+
+};
+
+// ============================================================
+// LOGOUT
+// ============================================================
+
+window.logout =
+function () {
+
+// إضافة (إشعارات المتصفح): إلغاء الاشتراك اللحظي قبل مسح بيانات
+// الجلسة - عشان مايفضلش اشتراك شغال باسم مستخدم سجّل خروجه فعلاً
+if (typeof window.stopBrowserNotifications === "function") {
+  window.stopBrowserNotifications();
+}
+
+localStorage.clear();
+
+setCurrentRole("");
+
+setCurrentPermissions([]);
+
+navigateTo(
+"login"
+);
+
+};
