@@ -12,7 +12,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     }[backTarget] || (isEn ? "← Back" : "← رجوع");
 
     return `
-    <div class="app-page p-4 max-w-md mx-auto pb-12">
+    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-16">
         <!-- زر الرجوع -->
         <button
             onclick="window.goBack('${backTarget}')"

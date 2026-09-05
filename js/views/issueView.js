@@ -83,7 +83,7 @@ export const IssueView = () => {
   const isAr = currentLang === 'ar';
 
   return `
-  <div class="app-page p-2.5 sm:p-4 max-w-xl mx-auto space-y-2.5 pb-20 text-white">
+  <div class="app-page p-2.5 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl lg:max-w-4xl mx-auto space-y-2.5 pb-20 text-white">
 
     <!-- زر الرجوع وشارة البلاغ السريع -->
     <div class="flex items-center justify-between">

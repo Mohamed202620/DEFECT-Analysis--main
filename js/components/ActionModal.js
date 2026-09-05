@@ -105,7 +105,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
     }).join("");
 
     overlay.innerHTML = `
-      <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm p-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm sm:max-w-md p-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <h3 class="text-sm font-bold text-blue-400 mb-3">${title}</h3>
         <div>${fieldsHtml}</div>
         <div id="modal_error" class="hidden text-[11px] text-red-400 mb-2"></div>

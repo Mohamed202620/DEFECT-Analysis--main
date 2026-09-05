@@ -45,7 +45,7 @@ const t = (translations[currentLang] || translations.ar).system;
 
 return `
 
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">  
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-white">  
   <!-- ========================================================
        الهيدر الرئيسي
        ======================================================== -->  
@@ -95,7 +95,7 @@ return `
   <!-- ========================================================
        شبكة خيارات النظام
        ======================================================== -->  
-  <div class="grid grid-cols-2 gap-3.5">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
     
     <!-- ======================================================
          المستخدمون

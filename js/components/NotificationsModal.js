@@ -119,7 +119,7 @@ export function openNotificationsModal() {
   const tr = t();
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md p-4 shadow-2xl max-h-[80vh] flex flex-col">
+    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md sm:max-w-lg p-4 shadow-2xl max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between mb-3 shrink-0">
         <h3 class="text-sm font-bold text-blue-400">${tr.title}</h3>
         <div class="flex items-center gap-3">

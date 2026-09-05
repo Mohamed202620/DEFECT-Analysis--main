@@ -86,7 +86,7 @@ function renderUsersManagementPage({
 
 return `
 
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
 
     <!-- Header & Back Button -->
     <div class="flex items-center justify-between border-b border-gray-800 pb-3">

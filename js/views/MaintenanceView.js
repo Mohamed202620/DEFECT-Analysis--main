@@ -11,7 +11,7 @@ export const MaintenanceView = () => {
   const t = (translations[currentLang] || translations.ar).maintenance;
 
   return `
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-5 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-white">
 
   <!-- الهيدر الرئيسي -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -27,7 +27,7 @@ export const MaintenanceView = () => {
   </div>
 
   <!-- شبكة الإجراءات السريعة -->
-  <div class="grid grid-cols-2 gap-3.5">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
 
     ${hasPermission("maintenance") ? `
     <!-- تسجيل عطل - تصميم الطوارئ البارز -->
@@ -139,7 +139,7 @@ export const MaintenanceView = () => {
       id="maintenanceCardSearch"
       onclick="window.navigateTo('maintenanceSearch')" 
       aria-label="${t.searchTitle || (currentLang === 'en' ? 'Advanced Search' : 'البحث والفلترة المتقدمة')}"
-      class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-blue-500/30 hover:border-blue-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+      class="col-span-2 md:col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-blue-500/30 hover:border-blue-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
           🔎
@@ -165,7 +165,7 @@ export const MaintenanceView = () => {
       id="maintenanceCardErrorScanner"
       onclick="window.navigateTo('errorScanner')" 
       aria-label="${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
-      class="col-span-2 relative text-start bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+      class="col-span-2 md:col-span-2 relative text-start bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
           📷

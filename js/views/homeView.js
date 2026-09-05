@@ -20,7 +20,7 @@ export const HomeView = () => {
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
   return `
-  <div class="app-page p-3 max-w-lg mx-auto pb-20 space-y-3">
+  <div class="app-page p-3 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-20 space-y-3">
 
     <!-- كارت حضور الوردية الذكي للفنيين (MSCANCO EGYPT) -->
     <div id="attendanceCardContainer">
