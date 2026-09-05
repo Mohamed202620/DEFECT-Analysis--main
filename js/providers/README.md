@@ -42,3 +42,22 @@
 - `config.js` نفسه لسه مسؤول عن تهيئة Firebase App (`initializeApp`,
   `firebaseConfig`) - ده جزء من "تفاصيل التنفيذ" الطبيعية لأي مزود،
   ومش محتاج يتلف لمكان تاني في هذه المرحلة.
+
+## نقل IMGBB_API_KEY لسيرفر وسيط (آخر بند من F - جاهز، غير مُفعّل)
+
+تم تجهيز الحل الكامل بدون تفعيله فعلياً (بنفس مبدأ عدم عمل Migration
+فعلي الآن):
+
+- `functions/index.js` → `uploadImageViaImgbb`: Cloud Function بتخزن
+  المفتاح كـ Secret على السيرفر وترفع الصورة نيابة عن العميل.
+- `js/providers/storage/serverProxyStorageProvider.js`: تنفيذ بديل
+  لواجهة StorageProvider بينادي الـ Function دي بدل ImgBB مباشرة.
+- `src-firebase.js`: تم إضافة تصدير `getFunctions`/`httpsCallable`
+  (يحتاج `npm run build` لينعكس في `js/firebase.js` الفعلي).
+
+**للتفعيل الكامل (بالترتيب):** `npm run build` → نشر الـ Function
+(`functions/README.md`) → تغيير سطر واحد في
+`providers/storage/index.js` ليشاور على `serverProxyStorageProvider`
+بدل `imgbbStorageProvider` → حذف `IMGBB_API_KEY` من `config.js`
+نهائياً بعد التأكد إن كل الرفع بيعدي عبر السيرفر.
+
