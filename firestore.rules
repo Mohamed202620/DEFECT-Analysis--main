@@ -86,13 +86,20 @@ service cloud.firestore {
       allow get: if isSignedIn()
                  && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
 
-      // قراءة قائمة (list) - ثلاث حالات:
+      // قراءة قائمة (list) - أربع حالات:
       //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
       //  ٢) أي مستخدم مفعّل: يقدر يجيب المستخدمين اللي دورهم فني/مهندس
       //     فقط (لازم الاستعلام يتصفّى بـ where("role","in",[...])
       //     زي fetchTechniciansApi - راجع usersApi.js) عشان تُستخدم
       //     في قائمة إسناد التذاكر
-      //  ٣) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
+      //  ٣) إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): أي
+      //     مستخدم مفعّل يقدر كمان يجيب المستخدمين اللي دورهم مدير/
+      //     أدمن فقط (نفس مستوى الكشف الممنوح فعلاً لفني/مهندس فوق -
+      //     مجرد اسم+دور، مفيش أي بيانات حساسة) - مطلوب عشان
+      //     fetchManagersAndAdminsApi (usersApi.js) يقدر يبعت إشعار
+      //     "بلاغ جديد" لكل مدير/أدمن نشط من جهاز أي مستخدم بيسجل بلاغ،
+      //     مش بس من جهاز أدمن/مدير
+      //  ٤) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
       //     (limit(1)) - ضروري لآلية الترحيل التلقائي من النظام
       //     القديم في js/auth/login.js: قبل ما يبقى للمستخدم حساب
       //     Firebase Auth، محتاج نستعلم على بياناته القديمة برقم
@@ -104,7 +111,7 @@ service cloud.firestore {
       //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
       allow list: if (isSignedIn()
                       && (myRole() in ["admin", "manager"]
-                          || resource.data.role in ["technician", "engineer"]))
+                          || resource.data.role in ["technician", "engineer", "admin", "manager"]))
                   || (!isSignedIn() && request.query.limit <= 1);
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
@@ -180,27 +187,20 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // notifications - إشعارات داخل التطبيق (In-App) لكل مستخدم
+    // ملاحظة (إصلاح أمني - بند حرج): كان هنا بلوك قديم مكرر لنفس
+    // المسار match /notifications/{notificationId} يستخدم حقل
+    // "userId" (غير مستخدم فعلياً في أي مكان بالكود الحالي - راجع
+    // ticketsApi.js اللي بيستخدم "forUid" فقط) مع allow create: if
+    // isActive() بدون أي تحقق على محتوى المستند. بما إن Firestore
+    // بيجمع كل الـ match blocks المطابقة لنفس المسار بمنطق OR، فكان
+    // البلوك القديم ده فعلياً بيُلغي كل التشديد المكتوب في البلوك
+    // الصحيح تحت (النتيجة الفعلية = أي مستخدم نشط يقدر ينشئ إشعار
+    // بأي محتوى لأي مستخدم، رغم إن نية الكود الظاهرة في تعليقات
+    // البلوك الثاني كانت منع ده بالضبط). تم حذف البلوك القديم بالكامل
+    // - البلوك الوحيد المعتمد الآن هو الأحدث (forUid) الموجود تحت في
+    // قسم "notifications" الثاني.
     // ==========================================================
-    match /notifications/{notificationId} {
 
-      // كل مستخدم يشوف إشعاراته هو بس - القاعدة بتتطبق على كل
-      // مستند في نتيجة الاستعلام، فلو حد حاول يجيب إشعارات غيره
-      // هيترفض الاستعلام كامل (نفس أسلوب قاعدة list في users)
-      allow read, list: if isActive() && resource.data.userId == request.auth.uid;
-
-      // أي مستخدم مفعّل يقدر ينشئ إشعار لمستخدم تاني (لازم يحصل
-      // ده تلقائياً مع كل انتقال حالة تذكرة - راجع ticketsApi.js)
-      allow create: if isActive();
-
-      // المستخدم يقدر يعلّم إشعاره هو بس كمقروء، من غير ما يغيّر
-      // أي حقل تاني في المستند
-      allow update: if isActive()
-                    && resource.data.userId == request.auth.uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["read"]);
-
-      allow delete: if false;
-    }
 
 
     // ==========================================================
@@ -405,10 +405,79 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // باقي المجموعات (machineErrors, machineErrorLogs, pmRecords,
-    // defects ...) - أي مستخدم مفعّل (status == active) يقدر
-    // يقرأ/يكتب. لو احتجتوا تقييد أدق لمجموعة معينة مستقبلاً، ضيفوا
-    // match block خاص بيها فوق match /{document=**} ده.
+    // machineErrors / machineErrorLogs / pmRecords - إصلاح (بند حرج -
+    // حماية سيرفرية لقيود القسم Backend/Frontend): كانت المجموعات دي
+    // الثلاثة واقعة بالكامل تحت match /{document=**} العام تحت (أي
+    // مستخدم مفعّل يقدر يقرأ/يكتب/يعدّل/يحذف أي مستند فيها بلا أي
+    // قيد)، رغم إن الواجهة (machines.js/errorScanner.js) دلوقتي
+    // بتفلتر الماكينات المعروضة حسب قسم المستخدم - الفلترة دي وحدها
+    // مش كافية لأنها قابلة للتجاوز الكامل من أي مستخدم عبر DevTools/
+    // استدعاء الـ SDK مباشرة.
+    //
+    // القراءة تُركت مفتوحة لأي مستخدم مفعّل (نفس مبدأ الشفافية
+    // المُطبَّق أصلاً على /tickets فوق - كل الأقسام تقدر تشوف حالة
+    // الأعطال/الصيانة في المصنع ككل)، لكن الإنشاء بقى مقيّد: حقل
+    // "department" (بيتحفظ تلقائياً مع كل مستند جديد - راجع
+    // getDepartmentForMachineValue في machines.js المُستخدمة في
+    // machineErrorsApi.js/pmApi.js) لازم يكون قيمة صحيحة (backend/
+    // frontend) ويطابق قسم المستخدم المُبلِّغ نفسه، إلا لو كان
+    // صاحب صلاحية وصول كامل (admin/manager/engineer) وقتها يقدر
+    // يسجّل بالنيابة عن أي قسم.
+    //
+    // ⚠️ ملحوظة أمانة: التحقق هنا بيتأكد إن قيمة "department" المُرسلة
+    // تطابق قسم المستخدم نفسه، مش إنها فعلاً القسم الصحيح لاسم
+    // الماكينة المكتوب - التحقق الكامل (ربط اسم الماكينة بقسمها عبر
+    // get() على machineTypes) مش ممكن حالياً لأن مستندات machineTypes
+    // بتُنشأ بـ addDoc (معرّف تلقائي)، مش بمعرّف = مفتاح الماكينة نفسه،
+    // فمفيش مسار مباشر نقدر نعمله get() بيه من جوه الـ Rule. الضمانة
+    // الفعلية لصحة الربط اسم/قسم فعلاً موجودة على مستوى الواجهة
+    // (Dropdown مفلتر مسبقاً) - القاعدة هنا بتمنع أي محاولة تلاعب
+    // مباشرة (كتابة بقسم مش بتاعك) حتى لو الواجهة اتلاعب بيها.
+    //
+    // التعديل (update) والحذف (delete) - كانا برضه مفتوحين لأي
+    // مستخدم مفعّل تحت الـ catch-all (حتى الإجراءات الإدارية زي
+    // "اعتماد عطل" - verifyMachineErrorApi - ما كانش ليها أي حماية
+    // سيرفرية رغم إنها مقيّدة في الواجهة فقط بصلاحية "machines").
+    // بقت مقصورة على أدمن/مدير.
+    // ==========================================================
+    match /machineErrors/{errorId} {
+      allow read: if isActive();
+      allow create: if isActive()
+                    && request.resource.data.department in ["backend", "frontend"]
+                    && (myRole() in ["admin", "manager", "engineer"]
+                        || request.resource.data.department == myProfile().machineDepartment);
+      allow update: if isActive() && myRole() in ["admin", "manager"];
+      allow delete: if myRole() == "admin";
+    }
+
+    match /machineErrorLogs/{logId} {
+      allow read: if isActive();
+      allow create: if isActive()
+                    && request.resource.data.department in ["backend", "frontend"]
+                    && (myRole() in ["admin", "manager", "engineer"]
+                        || request.resource.data.department == myProfile().machineDepartment);
+      // سجل تكرار تلقائي فقط (Append-Only) - بلا تعديل أو حذف، بنفس
+      // مبدأ /tickets/{ticketId}/logs فوق
+      allow update, delete: if false;
+    }
+
+    match /pmRecords/{pmId} {
+      allow read: if isActive();
+      allow create: if isActive()
+                    && request.resource.data.department in ["backend", "frontend"]
+                    && (myRole() in ["admin", "manager", "engineer"]
+                        || request.resource.data.department == myProfile().machineDepartment);
+      allow update, delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // باقي المجموعات (defects ...) - أي مستخدم مفعّل (status ==
+    // active) يقدر يقرأ/يكتب. ملحوظة: مجموعة "defects" (defectsApi.js
+    // -> saveDefectApi) غير مستخدمة فعلياً من أي شاشة في الواجهة حالياً
+    // (كود موجود لكن مفيش أي استدعاء له - راجع ملاحظة منفصلة في
+    // تقرير المراجعة)، فتُركت هنا مؤقتاً تحت الحماية العامة. لو
+    // احتجتوا تفعيلها مستقبلاً، ضيفوا لها match block مخصص بنفس
+    // أسلوب الثلاث مجموعات فوق قبل ربطها بأي شاشة فعلية.
     // ==========================================================
     match /{document=**} {
       allow read, write: if isActive();

@@ -5,6 +5,7 @@
 // ============================================================
 
 import { db } from "../config.js";
+import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
 
 import {
   collection,
@@ -28,10 +29,19 @@ export async function savePmApi(payload) {
 
   try {
 
+    // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نفس منطق
+    // machineErrorsApi.js بالظبط - نحفظ قسم الماكينة الفعلي مع كل
+    // سجل صيانة وقائية جديد
+    const department =
+      getDepartmentForMachineValue(payload?.machine) ||
+      getCurrentUserMachineContext().machineDepartment ||
+      "backend";
+
     const docRef = await addDoc(
       collection(db, "pmRecords"),
       {
         ...payload,
+        department,
         createdAt: new Date().toISOString()
       }
     );

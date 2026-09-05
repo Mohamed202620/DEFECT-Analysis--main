@@ -31,7 +31,8 @@ export {
   updateUserStatusApi,
   updateUserMachineDepartmentApi,
   deleteUserApi,
-  fetchTechniciansApi
+  fetchTechniciansApi,
+  fetchManagersAndAdminsApi
 } from "./usersApi.js";
 
 export { saveDefectApi } from "./defectsApi.js";

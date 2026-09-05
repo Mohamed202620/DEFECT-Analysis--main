@@ -217,11 +217,28 @@ case 'stats':
     : unauthorizedPage("statistics");  
 
 
-case 'report':  
+case 'report':
 
-  return hasPermission("reports")  
-    ? ReportView()  
-    : unauthorizedPage("reports");  
+  // إصلاح (بند حرج اكتُشف أثناء التنفيذ - فقدان بيانات صامت): كان
+  // هذا المسار بيعرض ReportView() (js/views/reportView.js) - فورم
+  // منفصل تماماً وغير متصل، بـ Dropdown ماكينات وهمي، وزرار "إرسال"
+  // (window.handleReportSubmit) ما كانش بيحفظ أي حاجة في Firestore
+  // إطلاقاً - بس بيعرض alert نجاح وهمي ثابت ("#1024") ويرجع للرئيسية.
+  // بما إن صلاحية "reports" ممنوحة افتراضياً لكل مستخدم جديد
+  // (DEFAULT_USER_PERMISSIONS في config.js)، وبما إن التوجيه بالكامل
+  // مبني على window.location.hash، كان أي مستخدم يقدر يوصل للصفحة
+  // دي بمجرد كتابة #report في الرابط ويصدّق إن بلاغه اتسجل رغم إنه
+  // ضاع بالكامل - في بيئة مصنع ده ممكن يعني عطل حرج محدش عرف عنه.
+  //
+  // بدل ما نحافظ على نسختين متوازيتين من نفس الميزة (تسجيل بلاغ
+  // عطل)، هذا المسار بقى بيعرض نفس IssueView() الحقيقية الشغالة
+  // فعلياً (نفس تعريف case 'issue' فوق بالظبط) - فمفيش أي بيانات
+  // ممكن تضيع تاني، ومفيش إلا نسخة واحدة حقيقية نحافظ عليها مستقبلاً.
+  // ملف reportView.js نفسه سيب زي ما هو (مش محذوف) لكنه بقى غير
+  // مُستخدَم من أي Route.
+  return hasPermission("issue")
+    ? IssueView()
+    : unauthorizedPage("issue");
 
 
 case 'reports':  

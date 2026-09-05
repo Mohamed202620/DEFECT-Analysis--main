@@ -23,6 +23,10 @@ import { CLOSED_STATUSES, isOverdueTicket } from "../ticketStatusConstants.js";
 // (تذاكر مفتوحة حالياً، مش الأرشيف كله)
 const TICKETS_BOARD_DEFAULT_LIMIT = 300;
 import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction } from "./offlineQueue.js";
+// إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): استيراد مباشر من
+// usersApi.js (مش من services/api.js) عشان نتجنب Circular Import، بما
+// إن api.js نفسه بيعمل Re-export من ticketsApi.js
+import { fetchManagersAndAdminsApi } from "./usersApi.js";
 
 import {
   collection,
@@ -74,6 +78,17 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       ...(imageUrls.length && { imageUrls }),
       status: payload?.status || "pending",
       createdAt: payload?.createdAt || new Date().toISOString()
+    });
+
+    // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): قبل هذا
+    // التحديث ما كانش فيه أي إشعار بيتبعت عند إنشاء بلاغ جديد (pending)-
+    // المدير/الأدمن كان لازم يفتح لوحة البلاغات يدوياً عشان يعرف إن
+    // فيه عطل جديد، وده بيتعارض مع هدف "استجابة سريعة" في بيئة مصنع.
+    // هنا بنبعت إشعار لكل مدير/أدمن نشط فور نجاح إنشاء التذكرة. أي
+    // فشل في الإرسال (مثلاً مشكلة شبكة مؤقتة) ما ينفعش يفشّل عملية
+    // تسجيل البلاغ نفسها، فبنكتفي بتسجيله في الـ Console فقط
+    notifyManagersOfNewTicket(docRef.id, restPayload).catch(error => {
+      console.error("Error notifying managers of new ticket:", error);
     });
 
     return { status: "success", id: docRef.id };
@@ -698,6 +713,35 @@ async function createNotification(forUid, { type, message, ticketId }) {
   } catch (error) {
     console.error("Error creating notification:", error);
   }
+}
+
+// إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): يبعت إشعار "بلاغ
+// جديد" لكل مدير/أدمن نشط في المصنع - راجع الاستدعاء في saveIssueApi
+// فوق. بيتجاهل بأمان (من غير ما يرمي Exception) لو قايمة المدراء
+// فاضية أو فشل الجلب، عشان أي مشكلة هنا ما تأثرش على نجاح تسجيل
+// البلاغ نفسه اللي أصلاً خلص قبل ما الدالة دي تتنادى
+async function notifyManagersOfNewTicket(ticketId, ticketData) {
+  const machineLabel = ticketData?.machine || "";
+  const reporterName = ticketData?.reportedBy || "";
+
+  const message = machineLabel
+    ? `بلاغ عطل جديد على "${machineLabel}"${reporterName ? ` من ${reporterName}` : ""}`
+    : `تم تسجيل بلاغ عطل جديد${reporterName ? ` من ${reporterName}` : ""}`;
+
+  const result = await fetchManagersAndAdminsApi();
+  if (result.status !== "success" || !result.data.length) {
+    return;
+  }
+
+  await Promise.all(
+    result.data.map(manager =>
+      createNotification(manager.id, {
+        type: "new_ticket",
+        message,
+        ticketId
+      })
+    )
+  );
 }
 
 // ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index

@@ -7,6 +7,7 @@
 
 import { db } from "../config.js";
 import { uploadBase64Image } from "./imageUpload.js";
+import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
 
 import {
   collection,
@@ -121,11 +122,23 @@ export async function saveMachineErrorApi(payload) {
       `machineError_${normalized}`
     );
 
+    // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نحفظ قسم الماكينة
+    // الفعلي مع كل مستند جديد (وليس قسم المستخدم المُبلِّغ نفسه، عشان
+    // الأدمن يقدر يسجل بالنيابة عن أي قسم بشكل صحيح) - ده اللي
+    // firestore.rules هتتحقق منه بعدين لمنع أي مستخدم من كتابة/قراءة
+    // أعطال قسم مختلف عن قسمه مباشرة عبر الـ API، بغض النظر عن فلترة
+    // الواجهة (اللي ممكن تتلاعب بيها من DevTools)
+    const department =
+      getDepartmentForMachineValue(restPayload.machine) ||
+      getCurrentUserMachineContext().machineDepartment ||
+      "backend";
+
     const docRef = await addDoc(
       collection(db, "machineErrors"),
       {
         ...restPayload,
         errorCode: normalized,
+        department,
         ...(imageUrl && { imageUrl }),
         status: payload?.status || "pending_review",
         createdAt: new Date().toISOString()
@@ -202,11 +215,19 @@ export async function logMachineErrorOccurrenceApi(payload) {
       `machineErrorLog_${normalized}`
     );
 
+    // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نفس منطق
+    // saveMachineErrorApi فوق بالظبط
+    const department =
+      getDepartmentForMachineValue(restPayload.machine) ||
+      getCurrentUserMachineContext().machineDepartment ||
+      "backend";
+
     const docRef = await addDoc(
       collection(db, "machineErrorLogs"),
       {
         ...restPayload,
         errorCode: normalized,
+        department,
         ...(imageUrl && { imageUrl }),
         scannedAt: new Date().toISOString()
       }

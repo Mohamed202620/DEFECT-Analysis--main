@@ -9,12 +9,24 @@ export const ErrorScannerView = () => {
   const t = (translations[currentLang] || translations.ar).errorScanner;
   const common = (translations[currentLang] || translations.ar).common;
 
-  const machineOptionsHtml = [
-    `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>${t.selectMachine || (currentLang === 'en' ? 'Select machine type...' : 'اختر نوع الماكينة...')}</option>`,
-    ...getErrorScannerMachineOptions().map((machine) =>
-      `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
-    )
-  ].join('');
+  // إصلاح (بند حرج - Machine Access حسب Role/Work Area): القائمة دلوقتي
+  // مفلترة حسب قسم المستخدم من مصدرها (getErrorScannerMachineOptions ->
+  // getMachineTypeEntries في machines.js) - لو رجعت فاضية (مفيش ماكينة
+  // ضمن قسم المستخدم)، نعرض رسالة واضحة بدل قائمة فاضية تماماً
+  const scannerMachineOptions = getErrorScannerMachineOptions();
+
+  const machineOptionsHtml = scannerMachineOptions.length === 0
+    ? `<option value="" selected disabled>${
+        currentLang === 'en'
+          ? 'No machines available for your work area'
+          : 'لا توجد ماكينات متاحة ضمن قسمك الحالي'
+      }</option>`
+    : [
+        `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>${t.selectMachine || (currentLang === 'en' ? 'Select machine type...' : 'اختر نوع الماكينة...')}</option>`,
+        ...scannerMachineOptions.map((machine) =>
+          `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
+        )
+      ].join('');
 
   return `
 <div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">

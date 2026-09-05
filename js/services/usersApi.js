@@ -370,6 +370,74 @@ export async function registerUserApi(userData) {
 const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 let techniciansCache = null; // { data, fetchedAt }
 
+// إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): نفس فكرة الكاش
+// فوق بالظبط لكن لقائمة المدراء/الأدمن - تُستخدم في saveIssueApi
+// (ticketsApi.js) عشان نبعت إشعار لكل مدير/أدمن نشط فور تسجيل بلاغ
+// عطل جديد، بدل ما يفضل معتمد على فتحهم اليدوي للوحة البلاغات
+const MANAGERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let managersAndAdminsCache = null; // { data, fetchedAt }
+
+/**
+ * جلب المستخدمين اللي دورهم مدير/أدمن فقط (نشطين) - تُستخدم لإرسال
+ * إشعار جماعي عند إنشاء بلاغ عطل جديد (راجع saveIssueApi في
+ * ticketsApi.js). ملحوظة: firestore.rules -> match /users/{userId}
+ * -> allow list لازم يسمح صراحة بـ role in ["admin","manager"] لأي
+ * مستخدم نشط (مش بس للأدمن/المدير نفسه) عشان الاستعلام ده يشتغل من
+ * جهاز أي مستخدم عادي بيسجل بلاغ - راجع تعليق الإصلاح المقابل في
+ * firestore.rules
+ */
+export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    managersAndAdminsCache &&
+    (Date.now() - managersAndAdminsCache.fetchedAt) < MANAGERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: managersAndAdminsCache.data };
+  }
+
+  try {
+
+    const q =
+      query(
+        collection(db, "users"),
+        where("role", "in", ["admin", "manager"])
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const managers = [];
+
+    querySnapshot.forEach(docSnap => {
+
+      const data = docSnap.data();
+
+      if ((data.status || "").trim().toLowerCase() !== "active") {
+        return;
+      }
+
+      managers.push({
+        id: docSnap.id,
+        name: data.name || "",
+        role: data.role || ""
+      });
+
+    });
+
+    managersAndAdminsCache = { data: managers, fetchedAt: Date.now() };
+
+    return { status: "success", data: managers };
+
+  } catch (error) {
+
+    console.error("Error fetching managers/admins:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
 /**
  * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
  * تصنيف وإسناد التذاكر (راجع ticketsApi.js -> assignTicketApi).

@@ -32,7 +32,7 @@ import {
   seedDefaultMachineTypesApi
 } from "./services/machinesApi.js";
 
-import { isAdminRole } from "./permissions.js";
+import { isAdminRole, getCurrentRole } from "./permissions.js";
 
 // توليد "01".."NN" (ترقيم بخانتين دايماً)
 function padNumbers(count) {
@@ -143,11 +143,28 @@ export function isMachineTypesLoaded() {
  * @param {Object} [opts]
  * @param {boolean} [opts.includeInactive=true] - لو false، بيرجّع
  *   الأنواع المفعّلة بس (تُستخدم لفورمات الإنشاء الجديدة)
+ * @param {boolean} [opts.filterByUserDepartment=true] - إصلاح (بند
+ *   حرج - Machine Access حسب Role/Work Area): بشكل افتراضي، القائمة
+ *   المُرجَعة بتتفلتر حسب قسم المستخدم الحالي (machineDepartment)
+ *   بنفس منطق getMachinesForUser المستخدم أصلاً في شاشة "إدارة
+ *   الماكينات" - مستخدم Backend يشوف ماكينات Backend بس، Frontend
+ *   كذلك، والأدمن يشوف الكل. هذه الدالة هي نقطة الاستدعاء المركزية
+ *   لكل شاشات الاستخدام الفعلي (buildMachineDropdownHtml المستخدمة في
+ *   تسجيل عطل/كايزن، وerrorScanner.js/MaintenanceSearchView.js
+ *   مباشرة) - فتطبيق الفلترة هنا يغطيها كلها من مصدر واحد. تمرير
+ *   false صراحة يرجّع القائمة الكاملة بدون فلترة (غير مُستخدم حالياً
+ *   في أي شاشة، متاح فقط كمخرج طوارئ مستقبلي)
  */
-export function getMachineTypeEntries({ includeInactive = true } = {}) {
-  return includeInactive
+export function getMachineTypeEntries({ includeInactive = true, filterByUserDepartment = true } = {}) {
+  const base = includeInactive
     ? machineTypesCache
     : machineTypesCache.filter(m => m.active !== false);
+
+  if (!filterByUserDepartment) {
+    return base;
+  }
+
+  return getMachinesForUser(getCurrentUserMachineContext(), base);
 }
 
 // ============================================================
@@ -184,6 +201,24 @@ function normalizeDepartment(value) {
  * @param {Array} allMachines - قائمة كل الماكينات (id/key/.../department)
  * @returns {Array}
  */
+/**
+ * سياق المستخدم الحالي (role + machineDepartment) من localStorage -
+ * إصلاح (بند حرج - فلترة الماكينات حسب Role/Work Area): نفس البيانات
+ * اللي كانت شاشة "إدارة الماكينات" فقط بتقرأها لنفسها
+ * (getCurrentUserForMachines في MachinesView.js) - دلوقتي بقت دالة
+ * مُصدَّرة مركزية من هنا عشان أي شاشة تانية محتاجة تفلتر الماكينات
+ * (تسجيل عطل / كايزن / فاحص الأعطال / بحث الصيانة) تستخدم نفس
+ * المصدر الموحّد بدل ما كل شاشة تقرأ localStorage بنفسها بطريقة مختلفة
+ */
+export function getCurrentUserMachineContext() {
+  return {
+    role: getCurrentRole(),
+    machineDepartment: localStorage.getItem("machineDepartment") || ""
+  };
+}
+
+window.getCurrentUserMachineContext = getCurrentUserMachineContext;
+
 export function getMachinesForUser(user, allMachines) {
   const list = Array.isArray(allMachines) ? allMachines : [];
 
@@ -245,6 +280,29 @@ export function parseMachineValue(fullValue) {
   return { type: fullValue, unit: "" };
 }
 
+/**
+ * تحديد قسم (department) ماكينة معينة من قيمتها الكاملة المحفوظة
+ * (مثلاً "Bodymaker 01") - بيدوّر على النوع في الكتالوج (machineTypesCache)
+ * ويرجّع قسمه الفعلي (backend/frontend)، بدل الاعتماد على قسم
+ * المستخدم المُبلِّغ نفسه (اللي ممكن يكون أدمن بيسجل بالنيابة عن
+ * قسم تاني). تُستخدم في نقطة الكتابة (الإصلاح الأمني للبند الحرج
+ * الخاص بحماية machineErrors/machineErrorLogs/pmRecords على مستوى
+ * Firestore Rules) عشان نحفظ "department" صحيح مع كل مستند جديد،
+ * فيبقى ممكن للـ Rules تتحقق منه سيرفرياً بدل الاعتماد الكامل على
+ * فلترة الواجهة فقط (اللي قابلة للتجاوز من الـ DevTools).
+ *
+ * لو الماكينة مش موجودة في الكتالوج (قيمة قديمة/غير معروفة)، بترجع
+ * "" بدل ما تفترض قسم افتراضي غلط - الاستدعاء المسؤول عن الكتابة هو
+ * اللي يقرر إزاي يتعامل مع الحالة دي (عادة: يرجع لقسم المستخدم الحالي
+ * كـ fallback أخير فقط)
+ */
+export function getDepartmentForMachineValue(fullValue) {
+  if (!fullValue) return "";
+  const { type } = parseMachineValue(fullValue);
+  const entry = machineTypesCache.find(m => m.key === type);
+  return entry ? normalizeDepartment(entry.department) : "";
+}
+
 const DEFAULT_SELECT_CLASS =
   "w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm";
 
@@ -304,6 +362,24 @@ export function buildMachineDropdownHtml(baseId, {
     : "";
 
   const visibleTypes = getMachineTypeEntries({ includeInactive: includeInactiveTypes });
+
+  // إصلاح (بند حرج - Machine Access): لو المستخدم مالوش أي ماكينة
+  // متاحة ضمن قسمه بعد الفلترة (مثلاً حساب اتعمله machineDepartment
+  // غلط، أو لسه محددش)، بنعرض رسالة واضحة بدل Dropdown فاضي بيوهم
+  // المستخدم إن مفيش ماكينات في المصنع أصلاً
+  if (visibleTypes.length === 0) {
+    const noMachinesLabel = (window.currentLang || "ar") === "en"
+      ? "No machines available for your work area. Contact your administrator."
+      : "لا توجد ماكينات متاحة ضمن قسمك الحالي - برجاء التواصل مع مسؤول النظام.";
+
+    return `
+      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+        <option value="" selected>${noMachinesLabel}</option>
+      </select>
+      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${baseId}" value="">
+    `;
+  }
 
   const typesHtml = visibleTypes.map(m =>
     `<option value="${m.key}" ${m.key === selectedType ? "selected" : ""}>${m.key}${m.active === false ? " (معطّل)" : ""}</option>`

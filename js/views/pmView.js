@@ -1,15 +1,17 @@
+import { buildMachineDropdownHtml } from '../machines.js';
+
 export const PMFormFields = (isEn) => `
   <div>
     <label class="block text-xs font-bold mb-1 opacity-70 text-gray-300">
       ${isEn ? 'Machine Name' : 'اسم الماكينة'} <span class="text-red-400">*</span>
     </label>
-    <select id="pmMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
-      <option value="" disabled selected>${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
-      <option value="line1">${isEn ? 'Coating Line 1' : 'خط الدهان 1'}</option>
-      <option value="machine2">${isEn ? 'Machine 2' : 'ماكينة 2'}</option>
-    </select>
+    ${buildMachineDropdownHtml("pmMachine", {
+      placeholderLabel: isEn ? 'Select Machine...' : 'اختر الماكينة...',
+      typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors",
+      unitSelectClass: "w-full p-2.5 mt-2 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+    })}
   </div>
-  
+
   <div>
     <label class="block text-xs font-bold mb-2 opacity-70 text-gray-300">
       ${isEn ? 'Inspection & Verification Checklist' : 'قائمة الفحص والتأكيد'} <span class="text-red-400">*</span>
