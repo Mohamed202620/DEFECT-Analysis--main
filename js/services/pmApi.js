@@ -4,7 +4,7 @@
 // services/api.js بدون أي تغيير في المنطق أو الأسماء المُصدَّرة.
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
 import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
 
 import {
@@ -14,7 +14,7 @@ import {
   orderBy,
   query,
   where
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 
 // ============================================================

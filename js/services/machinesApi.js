@@ -19,7 +19,7 @@
 // التانية (تسجيل عطل / كايزن / فاحص الأعطال / بحث الصيانة).
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
 
 import {
   collection,
@@ -30,7 +30,7 @@ import {
   deleteDoc,
   query,
   orderBy
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 import { getCurrentRole, isAdminRole } from "../permissions.js";
 

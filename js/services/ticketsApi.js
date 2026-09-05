@@ -6,7 +6,7 @@
 //                                     resolved -> in_progress (رفض مع سبب)
 // ============================================================
 
-import { db, ensureAuthReady } from "../config.js";
+import { ensureAuthReady } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
@@ -29,6 +29,7 @@ import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineA
 import { fetchManagersAndAdminsApi } from "./usersApi.js";
 
 import {
+  db,
   collection,
   addDoc,
   getDocs,
@@ -42,7 +43,7 @@ import {
   onSnapshot,
   writeBatch,
   getCountFromServer
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 // ============================================================
 // ISSUES / TICKETS (بلاغات الأعطال)

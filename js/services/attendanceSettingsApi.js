@@ -12,8 +12,7 @@
 // Offline-First)
 // ============================================================
 
-import { db } from "../config.js";
-import { doc, getDoc, setDoc } from "../firebase.js";
+import { db, doc, getDoc, setDoc } from "../providers/backend/index.js";
 
 const PATTERN_DOC_PATH = ["settings", "attendancePattern"];
 const RULES_DOC_PATH = ["settings", "payrollRules"];

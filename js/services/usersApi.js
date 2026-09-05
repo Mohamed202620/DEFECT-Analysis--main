@@ -6,13 +6,13 @@
 // ============================================================
 
 import {
-  db,
-  auth,
   DEFAULT_USER_PERMISSIONS,
   phoneToAuthEmail
 } from "../config.js";
 
 import {
+  db,
+  auth,
   createUserWithEmailAndPassword,
   signOut,
   deleteUser,
@@ -26,7 +26,8 @@ import {
   deleteDoc,
   query,
   where
-} from "../firebase.js";
+} from "../providers/backend/index.js";
+import { isAdminRole } from "../permissions.js";
 
 // إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
 // قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
@@ -53,6 +54,36 @@ function roleFromJob(job) {
 // ============================================================
 // USERS
 // ============================================================
+
+/**
+ * عدد طلبات الانضمام المعلّقة (status == "pending") - استعلام خفيف
+ * (بدون تحميل كل بيانات المستخدمين) لعرضه كشارة/Badge سريعة في
+ * صفحة النظام (بند C1 في تقرير المراجعة)، بدل ما يضطر الأدمن يدخل
+ * صفحة "طلبات الانضمام" كل مرة عشان يعرف هل فيه طلبات جديدة أصلاً.
+ *
+ * @returns {Promise<number>}
+ */
+export async function countPendingUsersApi() {
+
+  try {
+
+    const pendingQuery = query(
+      collection(db, "users"),
+      where("status", "==", "pending")
+    );
+
+    const snap = await getDocs(pendingQuery);
+
+    return snap.size;
+
+  } catch (error) {
+
+    console.error("Error counting pending users:", error);
+    return 0;
+
+  }
+
+}
 
 /**
  * جلب المستخدمين
@@ -501,6 +532,38 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
 
 
 // ============================================================
+// حماية آخر Admin في النظام (بند A1 في تقرير المراجعة)
+// ============================================================
+
+/**
+ * عدد المستخدمين الذين دورهم "admin" وحالتهم "active" حالياً، مع
+ * إمكانية استثناء مستخدم واحد (المستخدم المستهدف بالتعديل/الحذف)
+ * من العد - عشان نعرف هل هيفضل أدمن نشط تاني بعد العملية ولا لأ.
+ *
+ * @param {string} [excludeUserId]
+ * @returns {Promise<number>}
+ */
+async function countOtherActiveAdmins(excludeUserId) {
+
+  const adminsQuery = query(
+    collection(db, "users"),
+    where("role", "==", "admin"),
+    where("status", "==", "active")
+  );
+
+  const snap = await getDocs(adminsQuery);
+
+  let count = 0;
+  snap.forEach((docSnap) => {
+    if (docSnap.id !== excludeUserId) count++;
+  });
+
+  return count;
+
+}
+
+
+// ============================================================
 // UPDATE USER PERMISSIONS
 // ============================================================
 
@@ -522,6 +585,35 @@ export async function updatePermissionsApi(
         "users",
         userId
       );
+
+
+    // حماية آخر Admin: لو المستخدم ده حالياً "admin" نشط، ومطلوب
+    // تغيير دوره لأي دور تاني، لازم يفضل أدمن نشط واحد على الأقل
+    // غيره بعد العملية - وإلا هيتقفل النظام بالكامل بلا أي أدمن.
+    if (role !== "admin") {
+
+      const currentSnap = await getDoc(userRef);
+      const currentData = currentSnap.exists() ? currentSnap.data() : null;
+      const wasActiveAdmin =
+        currentData &&
+        currentData.role === "admin" &&
+        currentData.status === "active";
+
+      if (wasActiveAdmin) {
+
+        const remaining = await countOtherActiveAdmins(userId);
+
+        if (remaining === 0) {
+          return {
+            status: "error",
+            message:
+              "لا يمكن تغيير دور هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل تغيير هذا الدور."
+          };
+        }
+
+      }
+
+    }
 
 
     await updateDoc(
@@ -790,6 +882,30 @@ export async function deleteUserApi(userId) {
         "users",
         userId
       );
+
+    // حماية آخر Admin (بند A1): نفس منطق updatePermissionsApi - لو
+    // المستخدم المطلوب حذفه هو آخر أدمن نشط، امنع الحذف بدل ما
+    // يتقفل النظام بالكامل.
+    const currentSnap = await getDoc(userRef);
+    const currentData = currentSnap.exists() ? currentSnap.data() : null;
+    const isActiveAdmin =
+      currentData &&
+      currentData.role === "admin" &&
+      currentData.status === "active";
+
+    if (isActiveAdmin) {
+
+      const remaining = await countOtherActiveAdmins(userId);
+
+      if (remaining === 0) {
+        return {
+          status: "error",
+          message:
+            "لا يمكن حذف هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل حذف هذا الحساب."
+        };
+      }
+
+    }
 
     await deleteDoc(userRef);
 

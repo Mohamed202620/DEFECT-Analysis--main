@@ -30,11 +30,11 @@
 //     الواجهة - راجع match /suggestions/{suggestionId} هناك)
 // ============================================================
 
-import { db } from "../config.js";
 import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
 
 import {
+  db,
   collection,
   addDoc,
   getDocs,
@@ -45,7 +45,7 @@ import {
   where,
   orderBy,
   onSnapshot
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 
 // ============================================================

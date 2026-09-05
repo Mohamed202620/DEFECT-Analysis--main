@@ -4,12 +4,12 @@
 // بدون أي تغيير في المنطق أو الأسماء المُصدَّرة.
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
 
 import {
   collection,
   getDocs
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 
 // ============================================================
