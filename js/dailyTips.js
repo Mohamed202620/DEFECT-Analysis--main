@@ -897,17 +897,27 @@ function getCategoryIcon(category) {
 }
 
 /**
- * توليد كود HTML لكارت معلومة على الماشي في صفحة النظام (SystemView)
- * تصميم Dark بحدود ذهبية وهوية صناعية أنيقة
+ * متغير لتتبع الفهرس المعروض حالياً في الكارت الثابت
  */
-export function renderDailyTipCard() {
+let currentCardTipIndex = null;
+
+/**
+ * توليد كود HTML لكارت معلومة على الماشي في صفحة النظام (SystemView)
+ * تصميم Dark بحدود ذهبية وهوية صناعية أنيقة مع زر للتنقل اليدوي
+ */
+export function renderDailyTipCard(overrideIndex = null) {
   const isEn = (window.currentLang || localStorage.getItem('lang') || 'ar') === 'en';
-  const tip = getDailyTip(isEn ? 'en' : 'ar');
+  if (overrideIndex !== null) {
+    currentCardTipIndex = overrideIndex;
+  } else if (currentCardTipIndex === null) {
+    currentCardTipIndex = getDailyTipIndex();
+  }
+  const tip = getDailyTip(isEn ? 'en' : 'ar', currentCardTipIndex);
   const icon = getCategoryIcon(tip.category);
 
   return `
   <!-- ========================================================
-       كارت ثابت: «معلومة على الماشي» (يتغير يومياً الساعة 12 ظهراً)
+       كارت ثابت: «معلومة على الماشي» (يتغير يومياً ويسمح بالتصفح)
        ======================================================== -->
   <div id="mscanco-daily-tip-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#0B1120] border-2 border-amber-500/50 shadow-xl shadow-amber-950/20 p-4 transition-all duration-300 hover:border-amber-400 group">
     
@@ -933,9 +943,20 @@ export function renderDailyTipCard() {
         </div>
       </div>
 
-      <div class="text-[9px] font-medium text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 flex items-center gap-1">
-        <span>⏰</span>
-        <span>${isEn ? '12:00 PM Daily' : 'تتجدد 12 ظهراً'}</span>
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          onclick="window.cycleDailyTipCard()"
+          class="text-[9.5px] font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 px-2 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm"
+          title="${isEn ? 'Show another tip' : 'عرض معلومة أخرى'}"
+        >
+          <span>🔄</span>
+          <span>${isEn ? 'Next Tip' : 'معلومة أخرى'}</span>
+        </button>
+        <div class="text-[9px] font-medium text-amber-400/80 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 hidden sm:flex items-center gap-1">
+          <span>⏰</span>
+          <span>${isEn ? '12:00 PM' : 'تتجدد 12 ظهراً'}</span>
+        </div>
       </div>
     </div>
 
@@ -956,23 +977,77 @@ export function renderDailyTipCard() {
         <span>🏭</span>
         <span>${isEn ? 'CMMS Excellence Tip' : 'إرشادات التميز والجودة'}</span>
       </span>
-      <span class="text-amber-500/80 font-mono">MSCANCO</span>
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          onclick="window.showDailyTipToast()"
+          class="text-amber-400/90 hover:text-amber-300 underline underline-offset-2 transition-colors cursor-pointer"
+        >
+          ${isEn ? 'Popup preview' : 'معاينة منبثقة'}
+        </button>
+        <span class="text-amber-500/80 font-mono">MSCANCO</span>
+      </div>
     </div>
   </div>
   `;
 }
 
+/**
+ * التنقل للمعلومة التالية داخل الكارت الثابت
+ */
+export function cycleDailyTipCard() {
+  if (currentCardTipIndex === null) {
+    currentCardTipIndex = getDailyTipIndex();
+  }
+  currentCardTipIndex = (currentCardTipIndex + 1) % TIPS_AR.length;
+
+  const card = document.getElementById('mscanco-daily-tip-card');
+  if (card) {
+    card.classList.add('opacity-40', 'scale-[0.99]');
+    setTimeout(() => {
+      card.outerHTML = renderDailyTipCard(currentCardTipIndex);
+    }, 150);
+  }
+}
+
 // ============================================================
 // منطق الـ Toast المنبثق
-// - يظهر مرتين يومياً فقط
-// - المرة 1: بعد 5 ثوانٍ من فتح النظام
-// - المرة 2: بعد 4 ساعات من فتح النظام
-// - يختفي تلقائياً بعد 7 ثوانٍ
-// - لا يظهر مرة أخرى إذا ظهر بالفعل في نفس اليوم
+// - مدة العرض: 25 ثانية (تبقى فترة أطول تكفي للقراءة والتدبر)
+// - ميزة الإيقاف المؤقت عند التمرير بالماوس أو اللمس (Pause on Hover)
+// - يتكرر أكثر من مرة في اليوم (كل 60 دقيقة طوال ورديات العمل، حتى 8 مرات يومياً)
+// - ينتقل تلقائياً إلى معلومة جديدة في كل ظهور خلال اليوم
+// - يحتوي على زر للانتقال الفوري للمعلومة التالية وزر للإغلاق السريع
 // ============================================================
 
-const TOAST_STORAGE_KEY = 'mscanco_daily_tip_toast_v2';
-const TOAST_DURATION_MS = 7000; // 7 ثوانٍ
+const TOAST_STORAGE_KEY = 'mscanco_daily_tip_toast_v3';
+export const TOAST_DURATION_MS = 25000;         // 25 ثانية (تبقى فترة أطول بكثير)
+export const MIN_INTERVAL_MS = 60 * 60 * 1000;  // تكرار كل 60 دقيقة على الأقل
+export const MAX_TIPS_PER_DAY = 8;              // إمكانية الظهور حتى 8 مرات يومياً
+const FIRST_CHECK_DELAY_MS = 5000;              // أول ظهور بعد 5 ثوانٍ من فتح التطبيق
+
+/**
+ * حقن أنماط شريط التقدم والإيقاف المؤقت
+ */
+function ensureTipToastStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('mscanco-tip-toast-styles')) return;
+
+  const style = document.createElement('style');
+  style.id = 'mscanco-tip-toast-styles';
+  style.textContent = `
+    @keyframes mscancoToastProgressAnim {
+      0% { width: 100%; }
+      100% { width: 0%; }
+    }
+    .mscanco-toast-progress-bar {
+      animation: mscancoToastProgressAnim ${TOAST_DURATION_MS}ms linear forwards;
+    }
+    .mscanco-toast-paused .mscanco-toast-progress-bar {
+      animation-play-state: paused !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 /**
  * الحصول على تاريخ اليوم بنسق YYYY-MM-DD
@@ -986,19 +1061,31 @@ function getTodayDateString() {
  * قراءة حالة إشعارات اليوم من الـ localStorage
  */
 function getToastState() {
+  const today = getTodayDateString();
+  const defaultState = {
+    date: today,
+    shownCount: 0,
+    lastShownTime: 0,
+    lastTipIndex: getDailyTipIndex()
+  };
+
   try {
     const raw = localStorage.getItem(TOAST_STORAGE_KEY);
-    const today = getTodayDateString();
-    if (!raw) {
-      return { date: today, slot1: false, slot2: false, sessionStart: Date.now() };
-    }
+    if (!raw) return defaultState;
+
     const parsed = JSON.parse(raw);
     if (parsed.date !== today) {
-      return { date: today, slot1: false, slot2: false, sessionStart: Date.now() };
+      // يوم جديد، تصفير العداد وتحديث التاريخ
+      return defaultState;
     }
-    return parsed;
+    return {
+      date: today,
+      shownCount: Number(parsed.shownCount) || 0,
+      lastShownTime: Number(parsed.lastShownTime) || 0,
+      lastTipIndex: parsed.lastTipIndex !== undefined ? Number(parsed.lastTipIndex) : getDailyTipIndex()
+    };
   } catch {
-    return { date: getTodayDateString(), slot1: false, slot2: false, sessionStart: Date.now() };
+    return defaultState;
   }
 }
 
@@ -1015,143 +1102,280 @@ function saveToastState(state) {
 
 /**
  * إظهار الـ Toast المنبثق
+ * @param {number|null} tipIndex مؤشر معلومة محددة أو اختيار متسلسل تلقائي
+ * @param {boolean} isManualTrigger إذا كان الاستدعاء يدوياً (لا يخضع لقيود الفاصل الزمني)
  */
-export function showDailyTipToast(tipIndex = null) {
+export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
+  ensureTipToastStyles();
+
   // إزالة أي Toast معروض مسبقاً
   const existing = document.getElementById('mscanco-daily-tip-toast');
   if (existing) {
+    if (existing._autoHideTimer) clearTimeout(existing._autoHideTimer);
     existing.remove();
   }
 
   const isEn = (window.currentLang || localStorage.getItem('lang') || 'ar') === 'en';
-  const tip = getDailyTip(isEn ? 'en' : 'ar', tipIndex);
+  const state = getToastState();
+
+  // تحديد رقم المعلومة
+  let resolvedIndex;
+  if (tipIndex !== null && !isNaN(tipIndex)) {
+    resolvedIndex = Math.abs(tipIndex) % TIPS_AR.length;
+  } else {
+    // اختيار المعلومة التالية بشكل دوري للتنويع طوال اليوم
+    resolvedIndex = (state.lastTipIndex + 1) % TIPS_AR.length;
+  }
+
+  const tip = getDailyTip(isEn ? 'en' : 'ar', resolvedIndex);
   const icon = getCategoryIcon(tip.category);
+
+  // تحديث الحالة وحفظها
+  state.shownCount = (state.shownCount || 0) + 1;
+  state.lastShownTime = Date.now();
+  state.lastTipIndex = resolvedIndex;
+  saveToastState(state);
 
   const toast = document.createElement('div');
   toast.id = 'mscanco-daily-tip-toast';
   toast.dir = isEn ? 'ltr' : 'rtl';
-  toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[999999] max-w-md w-[92%] sm:w-[440px] bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#0A0F1D] border-2 border-amber-500 shadow-2xl shadow-amber-900/40 rounded-2xl p-4 text-white transition-all duration-500 transform translate-y-0 opacity-100';
+  toast.className = 'fixed top-4 left-1/2 -translate-x-1/2 z-[999999] max-w-lg w-[94%] sm:w-[480px] bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#0A0F1D] border-2 border-amber-500 shadow-2xl shadow-amber-900/50 rounded-2xl p-4 text-white transition-all duration-500 transform translate-y-0 opacity-100 cursor-default select-text';
 
   toast.innerHTML = `
     <!-- رأس الـ Toast -->
     <div class="flex items-center justify-between gap-2 border-b border-amber-500/30 pb-2 mb-2.5">
       <div class="flex items-center gap-2">
-        <span class="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-sm">
+        <span class="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center text-sm shadow-inner">
           ✨
         </span>
         <div>
           <div class="text-xs font-black text-amber-400 flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.2 rounded border border-amber-500/30">#${tip.id}</span>
+            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${tip.id}</span>
+            <span id="tipPauseIndicator" class="hidden text-[8.5px] font-bold text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
+              ⏸️ ${isEn ? 'Reading paused' : 'المؤقت متوقف للقراءة'}
+            </span>
           </div>
-          <div class="text-[9.5px] text-gray-400 flex items-center gap-1">
+          <div class="text-[10px] text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
             <span>${tip.categoryTitle}</span>
           </div>
         </div>
       </div>
-      <button type="button" id="closeDailyTipToastBtn" class="text-gray-400 hover:text-white text-xs px-2 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg transition-all cursor-pointer border border-slate-700" title="${isEn ? 'Close' : 'إغلاق'}">
-        ✕
-      </button>
+
+      <div class="flex items-center gap-1.5">
+        <!-- زر المعلومة التالية داخل التوست -->
+        <button
+          type="button"
+          id="nextDailyTipToastBtn"
+          class="text-amber-300 hover:text-white text-[10px] font-bold px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 rounded-lg transition-all cursor-pointer border border-amber-500/30 flex items-center gap-1"
+          title="${isEn ? 'Show next tip' : 'عرض المعلومة التالية'}"
+        >
+          <span>↻</span>
+          <span class="hidden sm:inline">${isEn ? 'Next' : 'التالية'}</span>
+        </button>
+
+        <!-- زر الإغلاق -->
+        <button
+          type="button"
+          id="closeDailyTipToastBtn"
+          class="text-gray-400 hover:text-white text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg transition-all cursor-pointer border border-slate-700"
+          title="${isEn ? 'Close' : 'إغلاق'}"
+        >
+          ✕
+        </button>
+      </div>
     </div>
 
     <!-- العنوان -->
-    <div class="text-xs font-bold text-amber-300 mb-1 flex items-center gap-1">
+    <div class="text-xs font-bold text-amber-300 mb-1.5 flex items-center gap-1.5">
       <span>💡</span>
       <span>${tip.title}</span>
     </div>
 
-    <!-- نص المعلومة -->
-    <div class="text-[11px] leading-relaxed text-slate-100 mb-3">
+    <!-- نص المعلومة (مريح للقراءة وواضح) -->
+    <div class="text-xs sm:text-[12.5px] leading-relaxed text-slate-100 mb-3 select-text font-normal">
       ${tip.text}
     </div>
 
-    <!-- شريط التناقص التلقائي للوقت (7 ثوانٍ) -->
-    <div class="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden border border-slate-700/50">
-      <div id="mscanco-toast-progress" class="bg-gradient-to-r from-amber-500 to-amber-300 h-full w-full rounded-full transition-all linear" style="transition-duration: ${TOAST_DURATION_MS}ms; width: 0%;"></div>
+    <!-- معلومات الشريط السفلي -->
+    <div class="flex items-center justify-between text-[9px] text-slate-400 mb-2">
+      <span class="flex items-center gap-1 text-amber-400/80">
+        <span>⏱️</span>
+        <span>${isEn ? 'Stays for 25s (hover to pause)' : 'تبقى 25 ثانية (ثبت المؤشر للقراءة)'}</span>
+      </span>
+      <span class="text-slate-400">
+        ${isEn ? `Today's view: ${state.shownCount}/${MAX_TIPS_PER_DAY}` : `مرات اليوم: ${state.shownCount} من ${MAX_TIPS_PER_DAY}`}
+      </span>
+    </div>
+
+    <!-- شريط التناقص التلقائي للوقت (25 ثانية مع دعم الإيقاف المؤقت) -->
+    <div class="w-full bg-slate-800/90 h-1.5 rounded-full overflow-hidden border border-slate-700/60 relative">
+      <div id="mscanco-toast-progress" class="mscanco-toast-progress-bar bg-gradient-to-r from-amber-500 via-amber-400 to-amber-300 h-full w-full rounded-full"></div>
     </div>
   `;
 
   document.body.appendChild(toast);
 
+  // إعداد مؤقت الإغلاق التلقائي مع دعم الإيقاف المؤقت عند التمرير بالماوس أو اللمس
+  let remainingMs = TOAST_DURATION_MS;
+  let timerStart = Date.now();
+  let autoHideTimer = null;
+  let isPaused = false;
+
+  const pauseIndicator = toast.querySelector('#tipPauseIndicator');
+
+  function startTimer(duration) {
+    timerStart = Date.now();
+    remainingMs = duration;
+    autoHideTimer = setTimeout(() => {
+      dismissToast(toast);
+    }, duration);
+    toast._autoHideTimer = autoHideTimer;
+  }
+
+  function pauseToast() {
+    if (isPaused) return;
+    isPaused = true;
+    if (autoHideTimer) {
+      clearTimeout(autoHideTimer);
+      autoHideTimer = null;
+    }
+    const elapsed = Date.now() - timerStart;
+    remainingMs = Math.max(1000, remainingMs - elapsed);
+    toast.classList.add('mscanco-toast-paused');
+    if (pauseIndicator) {
+      pauseIndicator.classList.remove('hidden');
+      pauseIndicator.classList.add('inline-flex');
+    }
+  }
+
+  function resumeToast() {
+    if (!isPaused) return;
+    isPaused = false;
+    toast.classList.remove('mscanco-toast-paused');
+    if (pauseIndicator) {
+      pauseIndicator.classList.add('hidden');
+      pauseIndicator.classList.remove('inline-flex');
+    }
+    startTimer(remainingMs);
+  }
+
+  // تفعيل مؤقت الإغلاق التلقائي الأولي
+  startTimer(TOAST_DURATION_MS);
+
+  // أحداث التمرير بالماوس (Pause on Hover)
+  toast.addEventListener('mouseenter', pauseToast);
+  toast.addEventListener('mouseleave', resumeToast);
+
+  // أحداث شاشات اللمس والموبايل
+  toast.addEventListener('touchstart', pauseToast, { passive: true });
+  toast.addEventListener('touchend', () => {
+    // ترك مهلة بسيطة قبل الاستئناف بعد اللمس
+    setTimeout(resumeToast, 1200);
+  });
+
   // زر الإغلاق اليدوي
   const closeBtn = toast.querySelector('#closeDailyTipToastBtn');
   if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       dismissToast(toast);
     });
   }
 
-  // تفعيل شريط التقدم فور الإضافة
-  requestAnimationFrame(() => {
-    const progress = document.getElementById('mscanco-toast-progress');
-    if (progress) {
-      progress.style.width = '100%';
-      setTimeout(() => {
-        if (progress) progress.style.width = '0%';
-      }, 50);
-    }
-  });
-
-  // الاختفاء التلقائي بعد 7 ثوانٍ
-  const autoHideTimer = setTimeout(() => {
-    dismissToast(toast);
-  }, TOAST_DURATION_MS);
-
-  // إيقاف المؤقت إذا أغلق المستخدم يدوياً
-  toast._autoHideTimer = autoHideTimer;
+  // زر الانتقال للمعلومة التالية
+  const nextBtn = toast.querySelector('#nextDailyTipToastBtn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      dismissToast(toast, () => {
+        showDailyTipToast((resolvedIndex + 1) % TIPS_AR.length, true);
+      });
+    });
+  }
 }
 
-function dismissToast(toast) {
+/**
+ * إخفاء الـ Toast بحركة انسيابية
+ */
+function dismissToast(toast, onDismissed = null) {
   if (!toast || !toast.parentNode) return;
   if (toast._autoHideTimer) {
     clearTimeout(toast._autoHideTimer);
+    toast._autoHideTimer = null;
   }
   toast.classList.add('opacity-0', '-translate-y-4', 'duration-300');
   setTimeout(() => {
     if (toast.parentNode) {
       toast.remove();
     }
-  }, 350);
+    if (typeof onDismissed === 'function') {
+      onDismissed();
+    }
+  }, 320);
 }
 
 /**
- * تهيئة جدولة إظهار الـ Toast مرتين يومياً:
- * 1. المرة الأولى بعد 5 ثوانٍ
- * 2. المرة الثانية بعد 4 ساعات
+ * فحص شروط التكرار وإظهار التوست تلقائياً
  */
-export function initDailyTipsScheduler() {
+function checkAndTriggerTipToast() {
   const state = getToastState();
+  const now = Date.now();
+  const timeSinceLast = now - (state.lastShownTime || 0);
 
-  // 1. فحص المرة الأولى (بعد 5 ثوانٍ)
-  if (!state.slot1) {
-    setTimeout(() => {
-      const currentState = getToastState();
-      if (!currentState.slot1) {
-        currentState.slot1 = true;
-        saveToastState(currentState);
-        showDailyTipToast();
-      }
-    }, 5000);
-  }
+  // الشروط:
+  // 1. لم يتجاوز الحد الأقصى للمرات اليومية (8 مرات)
+  // 2. مر على آخر ظهور 60 دقيقة على الأقل (أو أول ظهور في اليوم)
+  const isFirstOfToday = !state.lastShownTime || state.shownCount === 0;
+  const isIntervalElapsed = timeSinceLast >= MIN_INTERVAL_MS;
 
-  // 2. فحص المرة الثانية (بعد 4 ساعات من فتح النظام = 4 * 60 * 60 * 1000 = 14,400,000 ms)
-  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-  if (!state.slot2) {
-    setTimeout(() => {
-      const currentState = getToastState();
-      if (!currentState.slot2) {
-        currentState.slot2 = true;
-        saveToastState(currentState);
-        showDailyTipToast();
-      }
-    }, FOUR_HOURS_MS);
+  if (state.shownCount < MAX_TIPS_PER_DAY && (isFirstOfToday || isIntervalElapsed)) {
+    showDailyTipToast();
   }
 }
 
-// تهيئة تلقائية فورية عند تحميل الملف في المتصفح
+let schedulerInterval = null;
+
+/**
+ * تهيئة جدولة إظهار الـ Toast المتكرر خلال اليوم:
+ * 1. فحص أول مرة بعد 5 ثوانٍ من فتح التطبيق
+ * 2. فحص دوري مستمر كل دقيقة طوال فترة تشغيل التطبيق (يتكرر كل 60 دقيقة حتى 8 مرات يومياً)
+ * 3. فحص تلقائي عند العودة لتبويب التطبيق بعد فترة غياب
+ */
+export function initDailyTipsScheduler() {
+  ensureTipToastStyles();
+
+  // 1. الفحص الأولي بعد 5 ثوانٍ
+  setTimeout(() => {
+    checkAndTriggerTipToast();
+  }, FIRST_CHECK_DELAY_MS);
+
+  // 2. فحص دوري مستمر في الخلفية كل 60 ثانية
+  if (schedulerInterval) {
+    clearInterval(schedulerInterval);
+  }
+  schedulerInterval = setInterval(() => {
+    checkAndTriggerTipToast();
+  }, 60 * 1000);
+
+  // 3. فحص عند استئناف واستعادة نشاط الشاشة
+  if (typeof document !== 'undefined' && !window._mscancoTipVisibilityBound) {
+    window._mscancoTipVisibilityBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        setTimeout(() => {
+          checkAndTriggerTipToast();
+        }, 3000);
+      }
+    });
+  }
+}
+
+// تهيئة تلقائية فورية وتصدير الدوال لـ window
 if (typeof window !== 'undefined') {
   window.renderDailyTipCard = renderDailyTipCard;
+  window.cycleDailyTipCard = cycleDailyTipCard;
   window.showDailyTipToast = showDailyTipToast;
   window.getDailyTip = getDailyTip;
 
@@ -1168,6 +1392,10 @@ export default {
   getDailyTipIndex,
   getDailyTip,
   renderDailyTipCard,
+  cycleDailyTipCard,
   showDailyTipToast,
-  initDailyTipsScheduler
+  initDailyTipsScheduler,
+  TOAST_DURATION_MS,
+  MIN_INTERVAL_MS,
+  MAX_TIPS_PER_DAY
 };
