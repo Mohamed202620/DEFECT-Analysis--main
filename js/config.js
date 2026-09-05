@@ -484,7 +484,11 @@ export const translations = {
       scannerBtn: "مسح 📷",
       qrTitle: "مسح QR الماكينات",
       qrDesc: "وصول سريع لبيانات المعدة بالكاميرا",
-      qrBtn: "مسح 📷"
+      qrBtn: "مسح 📷",
+      statsTitle: "الإحصائيات والأداء",
+      statsDesc: "مؤشرات الأعطال ومعدل الإصلاح MTTR",
+      kbTitle: "قاعدة المعرفة",
+      kbDesc: "دليل الإصلاح وحلول المشاكل"
     },
 
     // مفاتيح خاصة بصفحة "إدارة النظام" (SystemView.js)
@@ -1123,7 +1127,11 @@ export const translations = {
       scannerBtn: "Scan 📷",
       qrTitle: "Scan Machine QR",
       qrDesc: "Quick equipment access via camera",
-      qrBtn: "Scan 📷"
+      qrBtn: "Scan 📷",
+      statsTitle: "Analytics & Performance",
+      statsDesc: "Breakdown KPIs and MTTR metrics",
+      kbTitle: "Knowledge Base",
+      kbDesc: "Repair guides and troubleshooting"
     },
 
     system: {

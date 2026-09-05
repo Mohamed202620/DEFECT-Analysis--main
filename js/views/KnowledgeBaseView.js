@@ -1,3 +1,4 @@
+import { BottomNav } from "../components/BottomNav.js";
 import { translations } from "../config.js";
 
 export const KnowledgeBaseView = () => {
@@ -13,7 +14,8 @@ export const KnowledgeBaseView = () => {
     <div class="flex items-center gap-3">
       <button
         type="button"
-        onclick="window.goBack('home')"
+        id="kbViewBackBtn"
+        onclick="window.goBack('maintenance')"
         class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
         <span class="text-base rtl:rotate-180">‹</span>
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
@@ -40,19 +42,19 @@ export const KnowledgeBaseView = () => {
 
     <!-- تبويبات الفترة الزمنية (يومي / أسبوعي / شهري / الكل) -->
     <div class="grid grid-cols-4 gap-2" id="kbPeriodTabs">
-      <button type="button" onclick="window.switchKbPeriod('day')" data-period="day"
+      <button type="button" id="kbPeriodDay" onclick="window.switchKbPeriod('day')" data-period="day"
         class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.day || (currentLang === 'en' ? 'Day' : 'اليوم')}
       </button>
-      <button type="button" onclick="window.switchKbPeriod('week')" data-period="week"
+      <button type="button" id="kbPeriodWeek" onclick="window.switchKbPeriod('week')" data-period="week"
         class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.week || (currentLang === 'en' ? 'Week' : 'الأسبوع')}
       </button>
-      <button type="button" onclick="window.switchKbPeriod('month')" data-period="month"
+      <button type="button" id="kbPeriodMonth" onclick="window.switchKbPeriod('month')" data-period="month"
         class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.month || (currentLang === 'en' ? 'Month' : 'الشهر')}
       </button>
-      <button type="button" onclick="window.switchKbPeriod('all')" data-period="all"
+      <button type="button" id="kbPeriodAll" onclick="window.switchKbPeriod('all')" data-period="all"
         class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.all || (currentLang === 'en' ? 'All' : 'الكل')}
       </button>
@@ -66,5 +68,7 @@ export const KnowledgeBaseView = () => {
 
   </div>
 </div>
+
+${BottomNav("maintenance")}
 `;
 };

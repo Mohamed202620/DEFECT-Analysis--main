@@ -33,12 +33,14 @@ export const MaintenanceView = () => {
     <!-- تسجيل عطل - تصميم الطوارئ البارز -->
     <button 
       type="button"
+      id="maintenanceCardIssue"
       onclick="window.navigateTo('issue')" 
+      aria-label="${t.issueTitle || (currentLang === 'en' ? 'Report Breakdown' : 'تسجيل عطل')}"
       class="relative text-start border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-lg shadow-red-950/50 hover:shadow-red-600/30 group overflow-hidden">
       <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       
-      <div class="w-12 h-12 rounded-xl bg-red-600/30 border border-red-400/50 text-red-200 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <div class="w-12 h-12 rounded-xl bg-red-600/30 border border-red-400/50 text-red-200 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         🚨
       </div>
       <span class="font-black text-xs text-red-100 flex items-center gap-1">
@@ -51,10 +53,12 @@ export const MaintenanceView = () => {
     <!-- متابعة البلاغات (دورة حياة التذكرة) -->
     <button 
       type="button"
+      id="maintenanceCardTickets"
       onclick="window.navigateTo('tickets')" 
+      aria-label="${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}"
       class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📋
       </div>
       <span class="font-bold text-xs text-gray-100">${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}</span>
@@ -66,10 +70,12 @@ export const MaintenanceView = () => {
     <!-- نظام كايزن -->
     <button 
       type="button"
+      id="maintenanceCardKaizen"
       onclick="window.navigateTo('suggestions')" 
+      aria-label="${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}"
       class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         💡
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}</span>
@@ -79,10 +85,12 @@ export const MaintenanceView = () => {
     <!-- متابعة الكايزن (مراجعة واعتماد المقترحات) -->
     <button 
       type="button"
+      id="maintenanceCardKaizenBoard"
       onclick="window.navigateTo('kaizenBoard')" 
+      aria-label="${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}"
       class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         🏆
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
@@ -94,14 +102,16 @@ export const MaintenanceView = () => {
     <!-- قاعدة المعرفة -->
     <button 
       type="button"
+      id="maintenanceCardKb"
       onclick="window.navigateTo('kb')" 
+      aria-label="${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}"
       class="relative text-start border border-cyan-500/40 hover:border-cyan-400/70 bg-gradient-to-br from-cyan-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-cyan-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📚
       </div>
-      <span class="font-bold text-xs text-gray-100">${(translations[currentLang] || translations.ar).home.kbQuick || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${(translations[currentLang] || translations.ar).home.kbQuickDesc || ''}</span>
+      <span class="font-bold text-xs text-gray-100">${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kbDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -109,14 +119,16 @@ export const MaintenanceView = () => {
     <!-- الإحصائيات -->
     <button 
       type="button"
+      id="maintenanceCardStats"
       onclick="window.navigateTo('stats')" 
+      aria-label="${t.statsTitle || (currentLang === 'en' ? 'Analytics & Performance' : 'الإحصائيات والأداء')}"
       class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📈
       </div>
-      <span class="font-bold text-xs text-gray-100">${(translations[currentLang] || translations.ar).home.statsQuick || (currentLang === 'en' ? 'Statistics' : 'الإحصائيات')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${(translations[currentLang] || translations.ar).home.statsQuickDesc || ''}</span>
+      <span class="font-bold text-xs text-gray-100">${t.statsTitle || (currentLang === 'en' ? 'Statistics' : 'الإحصائيات')}</span>
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
     </button>
     ` : ''}
 

@@ -14,7 +14,8 @@ export const StatsView = () => {
     <div class="flex items-center gap-3">
       <button
         type="button"
-        onclick="window.goBack('home')"
+        id="statsViewBackBtn"
+        onclick="window.goBack('maintenance')"
         class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
         <span class="text-base rtl:rotate-180">‹</span>
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
@@ -30,19 +31,19 @@ export const StatsView = () => {
 
   <!-- تبويبات الفترة الزمنية -->
   <div class="grid grid-cols-4 gap-2">
-    <button data-period="day" onclick="window.switchStatsPeriod('day')"
+    <button id="statsPeriodDay" data-period="day" onclick="window.switchStatsPeriod('day')"
       class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       🔴 ${t.day || (currentLang === 'en' ? 'Day' : 'اليوم')}
     </button>
-    <button data-period="week" onclick="window.switchStatsPeriod('week')"
+    <button id="statsPeriodWeek" data-period="week" onclick="window.switchStatsPeriod('week')"
       class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-amber-500/15 border-amber-500/50 text-amber-300 shadow-sm cursor-pointer">
       🟠 ${t.week || (currentLang === 'en' ? 'Week' : 'الأسبوع')}
     </button>
-    <button data-period="month" onclick="window.switchStatsPeriod('month')"
+    <button id="statsPeriodMonth" data-period="month" onclick="window.switchStatsPeriod('month')"
       class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       🟡 ${t.month || (currentLang === 'en' ? 'Month' : 'الشهر')}
     </button>
-    <button data-period="all" onclick="window.switchStatsPeriod('all')"
+    <button id="statsPeriodAll" data-period="all" onclick="window.switchStatsPeriod('all')"
       class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       📚 ${t.all || (currentLang === 'en' ? 'All' : 'الكل')}
     </button>
@@ -121,6 +122,6 @@ export const StatsView = () => {
 
 </div>
 
-${BottomNav("home")}
+${BottomNav("maintenance")}
 `;
 };
