@@ -116,18 +116,18 @@ export const MaintenanceView = () => {
     ` : ''}
 
     ${hasPermission("statistics") ? `
-    <!-- الإحصائيات -->
+    <!-- داشبورد الصيانة والتحليلات -->
     <button 
       type="button"
       id="maintenanceCardStats"
       onclick="window.navigateTo('stats')" 
-      aria-label="${t.statsTitle || (currentLang === 'en' ? 'Analytics & Performance' : 'الإحصائيات والأداء')}"
-      class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
+      aria-label="${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}"
+      class="relative text-start border border-indigo-500/40 hover:border-indigo-400/80 bg-gradient-to-br from-indigo-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-indigo-900/40 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
-      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
-        📈
+      <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
+        📊
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.statsTitle || (currentLang === 'en' ? 'Statistics' : 'الإحصائيات')}</span>
+      <span class="font-bold text-xs text-gray-100">${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}</span>
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
     </button>
     ` : ''}
