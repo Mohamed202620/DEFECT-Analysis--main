@@ -155,115 +155,89 @@ export const HomeView = () => {
         <!-- زر الإبلاغ عن عطل - تصميم مميز بأسلوب الطوارئ والبروز البصري الفوري -->
         <button
           onclick="window.navigateTo('issue')"
-          class="relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
+          class="${hasPermission('suggestions') ? 'col-span-1' : 'col-span-2'} relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
           <div class="absolute -right-4 -bottom-4 w-12 h-12 bg-red-500/20 rounded-full blur-lg pointer-events-none"></div>
           <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
 
           <span class="w-8 h-8 rounded-lg bg-red-600/30 border border-red-400/50 text-red-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-8.25 3h.008v.008h-.008v-.008Z"/>
             </svg>
           </span>
           <div class="flex-1 min-w-0">
             <div class="font-black text-[11px] text-red-100 flex items-center gap-1">
-              <span>${t.reportIssue}</span>
-              <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
+              <span class="truncate">${t.reportIssue}</span>
+              ${hasPermission('suggestions') ? '' : '<span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>'}
             </div>
             <div class="text-[9px] text-red-300/80 font-medium truncate">${t.reportIssueDesc}</div>
           </div>
           <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
         </button>
 
-        <button
-          onclick="window.navigateTo('ai')"
-          class="relative group dyn-card border border-indigo-500/30 hover:border-indigo-400/60 bg-gradient-to-br from-indigo-950/40 via-indigo-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.aiScan}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.aiScanDesc}</div>
-          </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-        </button>
-
-        ${hasPermission("kb") ? `
-        <button
-          onclick="window.navigateTo('kb')"
-          class="relative group dyn-card border border-cyan-500/30 hover:border-cyan-400/60 bg-gradient-to-br from-cyan-950/40 via-cyan-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-400/30 text-cyan-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.kbQuick}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.kbQuickDesc}</div>
-          </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-        </button>
-        ` : ''}
-
-        ${hasPermission("statistics") ? `
-        <button
-          onclick="window.navigateTo('stats')"
-          class="relative group dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-950/40 via-emerald-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.statsQuick}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.statsQuickDesc}</div>
-          </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-        </button>
-        ` : ''}
-      </div>
-    </div>
-
-    <!-- الوصول السريع لنظام الكايزن -->
-    ${hasPermission("suggestions") ? `
-    <div class="space-y-1.5">
-      <h3 class="text-[11px] font-bold dyn-text-muted opacity-80 px-0.5">${t.kaizenTitle}</h3>
-      <div class="grid grid-cols-2 gap-2">
+        <!-- زر الكايزن -->
+        ${hasPermission("suggestions") ? `
         <button
           onclick="window.navigateTo('suggestions')"
-          class="relative group dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-950/40 via-amber-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
+          class="col-span-1 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
           <span class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/>
             </svg>
           </span>
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.kaizenSubmit}</div>
+            <div class="font-bold text-[11px] dyn-text-muted truncate">${t.kaizenSubmit}</div>
             <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc}</div>
           </div>
           <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
         </button>
+        ` : ""}
 
-        <button
-          onclick="window.navigateTo('kaizenBoard')"
-          class="relative group dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-950/40 via-amber-900/20 to-transparent p-2.5 rounded-xl flex items-center gap-2 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-          <span id="kaizenNeedsEditBadge" class="hidden absolute -top-1 rtl:-right-1 ltr:-left-1 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-[8px] font-bold text-white flex items-center justify-center shadow-md"></span>
-          <span class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3-6.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008V15Zm0 3h.008v.008h-.008V18ZM6 5.25V18a2.25 2.25 0 0 0 2.25 2.25h7.5A2.25 2.25 0 0 0 18 18V5.25m-12 0h12m-12 0-.375-.75h12.75l-.375.75M9 3.75h6"/>
-            </svg>
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="font-bold text-[11px] dyn-text-muted">${t.kaizenTrack}</div>
-            <div class="text-[9px] dyn-text-muted opacity-60 truncate">${t.kaizenTrackDesc}</div>
+        ${hasPermission("maintenance") ? `
+        <!-- Machine Error Scanner -->
+        <button 
+          type="button"
+          onclick="window.navigateTo('errorScanner')" 
+          class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
+              📷
+            </div>
+            <div>
+              <span class="font-bold text-xs text-gray-100 block">${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
+              <span class="text-[10px] text-gray-400 mt-0.5 block">${(translations[currentLang] || translations.ar).maintenance.scannerDesc || ''}</span>
+            </div>
           </div>
-          <span class="text-amber-400 text-sm font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-xs text-indigo-400 font-bold bg-indigo-500/15 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
+              ${(translations[currentLang] || translations.ar).maintenance.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
+            </span>
+            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+          </div>
         </button>
-      </div>
-    </div>
-    ` : ""}
 
+        <!-- QR الماكينة -->
+        <button 
+          type="button"
+          onclick="window.navigateTo('qr')" 
+          class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
+              📱
+            </div>
+            <div>
+              <span class="font-bold text-xs text-gray-100 block">${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}</span>
+              <span class="text-[10px] text-gray-400 mt-0.5 block">${(translations[currentLang] || translations.ar).maintenance.qrDesc || ''}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <span class="text-xs text-emerald-400 font-bold bg-emerald-500/15 px-3 py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
+              ${(translations[currentLang] || translations.ar).maintenance.qrBtn || (currentLang === 'en' ? 'Open' : 'فتح')}
+            </span>
+            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+          </div>
+        </button>
+        ` : ''}
+      </div>
     </div>
 
     <!-- حقوق الملكية والتواصل عبر واتساب والوصول السريع -->

@@ -48,8 +48,7 @@ const PERMISSIONS = [
   { value: "qr", label: "📱 QR الماكينات" },
   { value: "errorScanner", label: "🔎 فاحص أعطال الماكينات (OCR)" },
 
-  // الذكاء والمعرفة
-  { value: "ai", label: "🤖 فحص AI" },
+  // المعرفة
   { value: "kb", label: "📚 قاعدة المعرفة" },
 
   // الإحصائيات والتصدير

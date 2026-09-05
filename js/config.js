@@ -112,7 +112,7 @@ export const DEBUG = (() => {
 
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
 export const DEFAULT_USER_PERMISSIONS =
-  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export";
+  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,kb,statistics,export";
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
@@ -128,8 +128,7 @@ export const ALL_PERMISSIONS = [
   "qr",
   "errorScanner",
 
-  // الذكاء الاصطناعي والمعرفة
-  "ai",
+  // المعرفة
   "kb",
 
   // الإحصائيات والتقارير
@@ -279,9 +278,6 @@ export const translations = {
     d1:
       "تصوير عيب",
 
-    d2:
-      "فحص AI",
-
     d3:
       "قاعدة المعرفة",
 
@@ -426,8 +422,6 @@ export const translations = {
       quickAccess: "الوصول السريع",
       reportIssue: "إبلاغ عن عطل",
       reportIssueDesc: "تسجيل بلاغ جديد",
-      aiScan: "فحص الذكاء الاصطناعي",
-      aiScanDesc: "تحليل عيوب الإنتاج",
 
       kbQuick: "قاعدة المعرفة",
       kbQuickDesc: "دليل الإصلاح والحلول",
@@ -934,9 +928,6 @@ export const translations = {
     d1:
       "Capture Defect",
 
-    d2:
-      "AI Inspect",
-
     d3:
       "Knowledge Base",
 
@@ -1077,8 +1068,6 @@ export const translations = {
       quickAccess: "Quick Access",
       reportIssue: "Report Breakdown",
       reportIssueDesc: "Submit a new ticket",
-      aiScan: "AI Inspection",
-      aiScanDesc: "Production defect analysis",
 
       kbQuick: "Knowledge Base",
       kbQuickDesc: "Repair guide and solutions",

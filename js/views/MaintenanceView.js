@@ -88,8 +88,36 @@ export const MaintenanceView = () => {
       <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
     </button>
+    ` : ''}
 
+    ${hasPermission("kb") ? `
+    <!-- قاعدة المعرفة -->
+    <button 
+      type="button"
+      onclick="window.navigateTo('kb')" 
+      class="relative text-start border border-cyan-500/40 hover:border-cyan-400/70 bg-gradient-to-br from-cyan-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-cyan-900/30 group overflow-hidden">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+        📚
+      </div>
+      <span class="font-bold text-xs text-gray-100">${(translations[currentLang] || translations.ar).home.kbQuick || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${(translations[currentLang] || translations.ar).home.kbQuickDesc || ''}</span>
+    </button>
+    ` : ''}
 
+    ${hasPermission("statistics") ? `
+    <!-- الإحصائيات -->
+    <button 
+      type="button"
+      onclick="window.navigateTo('stats')" 
+      class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+        📈
+      </div>
+      <span class="font-bold text-xs text-gray-100">${(translations[currentLang] || translations.ar).home.statsQuick || (currentLang === 'en' ? 'Statistics' : 'الإحصائيات')}</span>
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${(translations[currentLang] || translations.ar).home.statsQuickDesc || ''}</span>
+    </button>
     ` : ''}
 
     ${hasPermission("maintenance") ? `
@@ -110,50 +138,6 @@ export const MaintenanceView = () => {
       <div class="flex items-center gap-2 shrink-0">
         <span class="text-xs text-blue-400 font-bold bg-blue-500/15 px-3 py-1.5 rounded-lg border border-blue-500/30 shadow-sm">
           ${t.searchOpen || (currentLang === 'en' ? 'Search' : 'بحث')}
-        </span>
-        <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      </div>
-    </button>
-
-    <!-- Machine Error Scanner (زر عريض بارز) -->
-    <button 
-      type="button"
-      onclick="window.navigateTo('errorScanner')" 
-      class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
-          📷
-        </div>
-        <div>
-          <span class="font-bold text-xs text-gray-100 block">${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.scannerDesc || ''}</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-indigo-400 font-bold bg-indigo-500/15 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
-          ${t.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
-        </span>
-        <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
-      </div>
-    </button>
-
-    <!-- QR الماكينة (زر عريض بارز) -->
-    <button 
-      type="button"
-      onclick="window.navigateTo('qr')" 
-      class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
-          📱
-        </div>
-        <div>
-          <span class="font-bold text-xs text-gray-100 block">${t.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينة')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.qrDesc || ''}</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-emerald-400 font-bold bg-emerald-500/15 px-3 py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
-          ${t.qrBtn || (currentLang === 'en' ? 'Open' : 'فتح')}
         </span>
         <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       </div>
