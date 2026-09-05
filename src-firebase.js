@@ -38,3 +38,13 @@ export {
 export {
   getStorage
 } from 'firebase/storage';
+
+// ⚠️ إضافة مرجعية غير مُفعّلة بعد (بند F/الأمان في تقرير المراجعة -
+// نقل IMGBB_API_KEY لسيرفر وسيط بدل كشفه في كود العميل). لازم
+// npm run build بعد إضافة السطر ده عشان ينعكس في js/firebase.js
+// الفعلي، وبعدين تفعيل js/providers/storage/serverProxyStorageProvider.js
+// (راجع الملف نفسه وfunctions/README.md قبل أي تفعيل).
+export {
+  getFunctions,
+  httpsCallable
+} from 'firebase/functions';
