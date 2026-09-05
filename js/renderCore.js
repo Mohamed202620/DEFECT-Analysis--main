@@ -321,6 +321,26 @@ if (currentPage === "users") {
 
 
 // ========================================================
+// SYSTEM HUB BADGES AUTO LOAD
+// (شارة عدد طلبات الانضمام المعلّقة على بطاقة "طلبات الانضمام" -
+// بند C1 في تقرير المراجعة - راجع loadSystemHubBadges في
+// SystemView.js)
+// ========================================================
+
+if (currentPage === "system") {
+
+  setTimeout(() => {
+
+    if (typeof window.loadSystemHubBadges === "function") {
+      window.loadSystemHubBadges();
+    }
+
+  }, 100);
+
+}
+
+
+// ========================================================
 // SETTINGS AUTO LOAD
 // (الإجازات الرسمية + Pattern الورديات + معاملات الإضافي - راجع
 // holidaysManagement.js / attendancePatternManagement.js)
