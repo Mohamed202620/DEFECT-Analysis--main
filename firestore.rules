@@ -45,6 +45,17 @@ service cloud.firestore {
       return profile == null ? "" : profile.role;
     }
 
+    // إصلاح (بند A2 في تقرير المراجعة): "Supervisor" كان دور بلا أي
+    // تأثير فعلي على مستوى القاعدة - الأدمن يقدر يعيّنه لمستخدم من
+    // RequestsView.js لكن كل الحمايات هنا كانت بتتحقق من "manager"
+    // فقط، فيفضل المستخدم عملياً بلا أي صلاحية مدير رغم تعيينه.
+    // isManagerRole() هي نفس نقطة التحقق الموحدة المُضافة في
+    // permissions.js (isManagerRole) على مستوى الواجهة - أي تعديل
+    // هنا لازم يتطابق مع التعديل هناك.
+    function isManagerRole() {
+      return myRole() == "manager" || myRole() == "supervisor";
+    }
+
     // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
     function isActive() {
       let profile = myProfile();
@@ -84,7 +95,7 @@ service cloud.firestore {
 
       // قراءة مستند واحد: صاحبه، أو أدمن/مدير
       allow get: if isSignedIn()
-                 && (request.auth.uid == userId || myRole() in ["admin", "manager"]);
+                 && (request.auth.uid == userId || myRole() == "admin" || isManagerRole());
 
       // قراءة قائمة (list) - أربع حالات:
       //  ١) أدمن/مدير: بيقدروا يجيبوا كل المستخدمين (صفحة users/requests)
@@ -110,8 +121,8 @@ service cloud.firestore {
       //     القدامى دخلوا مرة واحدة على الأقل بعد التحديث (وبالتالي
       //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
       allow list: if (isSignedIn()
-                      && (myRole() in ["admin", "manager"]
-                          || resource.data.role in ["technician", "engineer", "admin", "manager"]))
+                      && (myRole() == "admin" || isManagerRole()
+                          || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]))
                   || (!isSignedIn() && request.query.limit <= 1);
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
@@ -150,7 +161,7 @@ service cloud.firestore {
                     && request.resource.data.reportedByUid == request.auth.uid;
 
       // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
-      allow update: if isActive() && myRole() in ["manager", "admin"]
+      allow update: if isActive() && (myRole() == "admin" || isManagerRole())
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned";
 
@@ -384,7 +395,7 @@ service cloud.firestore {
       // للمتابعة العامة عند الحاجة
       allow read: if isActive()
                   && (resource.data.forUid == request.auth.uid
-                      || myRole() in ["admin", "manager"]);
+                      || myRole() == "admin" || isManagerRole());
 
       // إنشاء: أي مستخدم مفعّل يقدر يبعت إشعار لمستخدم تاني (زي
       // إسناد تذكرة/مقترح لفني - createNotification بتتنفذ من جهاز
@@ -444,9 +455,9 @@ service cloud.firestore {
       allow read: if isActive();
       allow create: if isActive()
                     && request.resource.data.department in ["backend", "frontend"]
-                    && (myRole() in ["admin", "manager", "engineer"]
+                    && (myRole() == "admin" || isManagerRole() || myRole() == "engineer"
                         || request.resource.data.department == myProfile().machineDepartment);
-      allow update: if isActive() && myRole() in ["admin", "manager"];
+      allow update: if isActive() && (myRole() == "admin" || isManagerRole());
       allow delete: if myRole() == "admin";
     }
 
