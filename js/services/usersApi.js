@@ -25,7 +25,8 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where
+  where,
+  limit
 } from "../providers/backend/index.js";
 import { isAdminRole } from "../permissions.js";
 
@@ -85,19 +86,68 @@ export async function countPendingUsersApi() {
 
 }
 
+// إصلاح (بند A3 في تقرير المراجعة - Production Readiness): fetchUsers()
+// كانت بتجيب كل مستند users بدون أي limit ولا أي Cache، فكل تنقل
+// بين تابي "المستخدمون"/"طلبات الانضمام" (وكلاهما بينادي
+// loadUsersManagement() تلقائياً عند كل دخول للصفحة - راجع
+// renderCore.js) كان بيعمل قراءة كاملة لكل الكولكشن من جديد. مع
+// مئات الموظفين، ده استهلاك غير ضروري لقراءات Firestore.
+//
+// الحل هنا (بدون تغيير أي منطق فلترة/بحث موجود في RequestsView.js،
+// وهو منطق Client-side بيحتاج المجموعة كاملة أصلاً - Pagination
+// حقيقي بـ Cursor هيحتاج إعادة بناء شاشة البحث والفلاتر نفسها،
+// ومش ضروري بحجم "مئات" الموظفين المذكور):
+//   ١) Cache قصير المدة (نفس نمط fetchManagersAndAdminsApi/
+//      fetchTechniciansApi تحت) - يمنع إعادة القراءة الكاملة مع كل
+//      تنقل سريع بين التابين لمدة USERS_CACHE_TTL_MS.
+//   ٢) limit() صريح كسقف أمان (لا يوجد حالياً أي سقف إطلاقاً) -
+//      لو اتضرب، بيظهر تحذير في الـ Console لتنبيه المطور إن العدد
+//      قرّب من الحد ومحتاج نراجع الموضوع فعلياً وقتها (Pagination
+//      حقيقي أو بحث Server-side).
+//   ٣) invalidateUsersCache() بتتنادى بعد أي عملية تعديل فعلية
+//      (قبول/رفض/تغيير دور/حذف) عشان أول تحديث للشاشة بعد أي
+//      إجراء يعرض البيانات الفعلية فوراً بدل الكاش القديم.
+const USERS_CACHE_TTL_MS = 60 * 1000; // دقيقة واحدة
+const USERS_SAFETY_LIMIT = 1000; // سقف أمان مؤقت - راجع الملاحظة فوق
+let usersCache = null; // { data, fetchedAt }
+
+function invalidateUsersCache() {
+  usersCache = null;
+}
+
 /**
  * جلب المستخدمين
+ * @param {{ forceRefresh?: boolean }} [options]
  */
-export async function fetchUsers() {
+export async function fetchUsers({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    usersCache &&
+    (Date.now() - usersCache.fetchedAt) < USERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: usersCache.data };
+  }
 
   try {
 
-    const usersRef =
-      collection(db, "users");
+    const usersQuery =
+      query(
+        collection(db, "users"),
+        limit(USERS_SAFETY_LIMIT)
+      );
 
-    // جلب كل المستندات مباشرة لتفادي مشاكل الفهارس أو نقص حقل الترتيب
+    // جلب كل المستندات (حتى سقف الأمان) مباشرة لتفادي مشاكل الفهارس
+    // أو نقص حقل الترتيب
     const querySnapshot =
-      await getDocs(usersRef);
+      await getDocs(usersQuery);
+
+    if (querySnapshot.size >= USERS_SAFETY_LIMIT) {
+      console.warn(
+        `⚠️ fetchUsers() وصل لسقف الأمان (${USERS_SAFETY_LIMIT} مستخدم). ` +
+        `قائمة المستخدمين قد تكون غير مكتملة - محتاجين نراجع Pagination حقيقي.`
+      );
+    }
 
 
     const users = [];
@@ -150,6 +200,8 @@ export async function fetchUsers() {
       if (!b.createdAt) return -1;
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
+
+    usersCache = { data: users, fetchedAt: Date.now() };
 
 
     return {
@@ -349,6 +401,8 @@ export async function registerUserApi(userData) {
       console.warn('Warning: failed to signOut after registration:', err?.message || err);
     }
 
+
+    invalidateUsersCache();
 
     return {
 
@@ -634,6 +688,8 @@ export async function updatePermissionsApi(
       }
     );
 
+    invalidateUsersCache();
+
 
     return {
 
@@ -705,6 +761,8 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
         updatedBy: localStorage.getItem("name") || "Admin"
       }
     );
+
+    invalidateUsersCache();
 
     return { status: "success", message: "تم تحديث تصنيف القسم (Backend/Frontend)" };
 
@@ -811,6 +869,8 @@ export async function updateUserStatusApi(
       updateData
     );
 
+    invalidateUsersCache();
+
 
     return {
 
@@ -908,6 +968,8 @@ export async function deleteUserApi(userId) {
     }
 
     await deleteDoc(userRef);
+
+    invalidateUsersCache();
 
     return {
 
