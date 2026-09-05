@@ -30,6 +30,8 @@ export {
   updatePermissionsApi,
   updateUserStatusApi,
   updateUserMachineDepartmentApi,
+  fetchCurrentUserProfileApi,
+  clearCurrentUserProfileCache,
   deleteUserApi,
   fetchTechniciansApi,
   fetchManagersAndAdminsApi

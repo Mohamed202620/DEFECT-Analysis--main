@@ -29,18 +29,15 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy
 } from "../providers/backend/index.js";
 
 import { getCurrentRole, isAdminRole } from "../permissions.js";
-
-// تطبيع قيمة القسم (Backend/Frontend) - أي قيمة غير "frontend" بالظبط
-// (فاضية، غير موجودة، أو ماكينة قديمة اتسجلت قبل إضافة الحقل ده)
-// تتعامل تلقائياً كـ "backend" (القيمة الافتراضية المطلوبة للتوافق
-// مع البيانات القديمة)
-function normalizeDepartment(value) {
-  return String(value || "").trim().toLowerCase() === "frontend" ? "frontend" : "backend";
-}
+import {
+  normalizeDepartment,
+  extractMachineDepartment
+} from "../utils/departmentUtils.js";
 
 
 // ============================================================
@@ -48,33 +45,51 @@ function normalizeDepartment(value) {
 // ============================================================
 
 /**
- * جلب كل أنواع الماكينات (مفعّلة ومعطّلة) مرتبة حسب order - تُستخدم
- * في شاشة إدارة الماكينات وفي machines.js لتغذية كل فورمات التطبيق
+ * جلب أنواع الماكينات من Firestore
+ * إذا تم تمرير filterDept (backend أو frontend)، يتم الاستعلام بـ where("department", "==", cleanDept)
+ * وإلا يتم جلب كل الماكينات مرتبة حسب order.
+ *
+ * @param {string|null} [filterDept=null]
+ * @returns {Promise<{ status: string, data: Array, message?: string }>}
  */
-export async function fetchMachineTypesApi() {
+export async function fetchMachineTypesApi(filterDept = null) {
 
   try {
 
     const ref = collection(db, "machineTypes");
-    const q = query(ref, orderBy("order", "asc"));
-    const snapshot = await getDocs(q);
+    const cleanFilter = normalizeDepartment(filterDept);
+
+    let snapshot;
+    if (cleanFilter) {
+      // استعلام Firestore مباشر ومفلتر للقسم المخصص
+      const q = query(ref, where("department", "==", cleanFilter));
+      snapshot = await getDocs(q);
+    } else {
+      const q = query(ref, orderBy("order", "asc"));
+      snapshot = await getDocs(q);
+    }
 
     const types = [];
 
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
+      const mDept = extractMachineDepartment(data);
+
+      if (cleanFilter && mDept !== cleanFilter) {
+        return;
+      }
+
       types.push({
         id: docSnap.id,
         key: String(data.key || "").trim(),
         units: Array.isArray(data.units) ? data.units : [],
         active: data.active !== false,
         order: typeof data.order === "number" ? data.order : 0,
-        // ربط الماكينات بالقسم (backend/frontend) - الماكينات القديمة
-        // اللي اتسجلت قبل إضافة هذا الحقل (مفيش عندها department خالص
-        // في Firestore) تُعامل تلقائياً كـ "backend"
-        department: normalizeDepartment(data.department)
+        department: mDept
       });
     });
+
+    types.sort((a, b) => (a.order || 0) - (b.order || 0));
 
     return { status: "success", data: types };
 

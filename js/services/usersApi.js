@@ -9,6 +9,10 @@ import {
   DEFAULT_USER_PERMISSIONS,
   phoneToAuthEmail
 } from "../config.js";
+import {
+  normalizeDepartment,
+  extractUserDepartment
+} from "../utils/departmentUtils.js";
 
 import {
   db,
@@ -740,6 +744,71 @@ export async function updatePermissionsApi(
  * الحقل الموجود يمنع أي كسر لأي شاشة تانية بتعرض/تعتمد على القيمة
  * التنظيمية الحالية.
  */
+export let cachedCurrentUserProfile = null;
+
+export function clearCurrentUserProfileCache() {
+  cachedCurrentUserProfile = null;
+}
+
+/**
+ * جلب الملف الشخصي الكامل للمستخدم الحالي من Firestore مباشرة (المصدر الحقيقي للبيانات والصلاحيات)
+ * مع مزامنة التخزين المحلي فورياً لضمان عدم وجود بيانات قديمة
+ *
+ * @param {boolean} [forceRefresh=false]
+ * @returns {Promise<{ status: string, user: Object|null, message?: string }>}
+ */
+export async function fetchCurrentUserProfileApi(forceRefresh = false) {
+  try {
+    const authUser = auth?.currentUser;
+    const currentUid = authUser?.uid || localStorage.getItem("userId");
+
+    if (!currentUid) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "لا يوجد مستخدم مسجل حالياً", user: null };
+    }
+
+    if (!forceRefresh && cachedCurrentUserProfile && cachedCurrentUserProfile.id === currentUid) {
+      return { status: "success", user: cachedCurrentUserProfile };
+    }
+
+    const userRef = doc(db, "users", currentUid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "مستند المستخدم غير موجود في Firestore", user: null };
+    }
+
+    const data = snap.data();
+    const userObj = {
+      id: currentUid,
+      ...data
+    };
+
+    // استخراج وتطبيع قسم الماكينات بدقة من الحقول المختلفة
+    const normDept = extractUserDepartment(userObj);
+    userObj.machineDepartment = normDept;
+
+    // مزامنة التخزين المحلي (localStorage) بالبيانات الموثقة من Firestore
+    if (data.name) localStorage.setItem("name", data.name);
+    if (data.phone) localStorage.setItem("phone", data.phone);
+    if (data.role) localStorage.setItem("role", data.role);
+    if (data.department) localStorage.setItem("department", data.department);
+
+    if (normDept) {
+      localStorage.setItem("machineDepartment", normDept);
+    } else {
+      localStorage.removeItem("machineDepartment");
+    }
+
+    cachedCurrentUserProfile = userObj;
+    return { status: "success", user: userObj };
+  } catch (error) {
+    console.error("Error fetching current user profile from Firestore:", error);
+    return { status: "error", message: error.message, user: null };
+  }
+}
+
 export async function updateUserMachineDepartmentApi(userId, machineDepartment) {
 
   try {
@@ -748,10 +817,7 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
       return { status: "error", message: "معرف المستخدم غير موجود" };
     }
 
-    const cleanDept =
-      String(machineDepartment || "").trim().toLowerCase() === "frontend"
-        ? "frontend"
-        : "backend";
+    const cleanDept = normalizeDepartment(machineDepartment);
 
     await updateDoc(
       doc(db, "users", userId),
@@ -762,7 +828,17 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
       }
     );
 
+    const currentUid = auth?.currentUser?.uid || localStorage.getItem("userId") || "";
+    if (userId === currentUid) {
+      if (cleanDept) {
+        localStorage.setItem("machineDepartment", cleanDept);
+      } else {
+        localStorage.removeItem("machineDepartment");
+      }
+    }
+
     invalidateUsersCache();
+    clearCurrentUserProfileCache();
 
     return { status: "success", message: "تم تحديث تصنيف القسم (Backend/Frontend)" };
 

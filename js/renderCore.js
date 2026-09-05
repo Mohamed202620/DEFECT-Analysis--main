@@ -13,12 +13,16 @@ import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
 import { auth, onAuthStateChanged } from './providers/backend/index.js';
+import { ensureUserAndMachinesLoaded } from './machines.js';
 
-// إعادة تحميل بيانات لوحة المتابعة تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
+// إعادة تحميل بيانات لوحة المتابعة وتزامن الماكينات تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
 if (auth) {
   onAuthStateChanged(auth, (user) => {
-    if (user && currentPage === 'home' && typeof loadDashboardStats === 'function') {
-      loadDashboardStats();
+    if (user) {
+      ensureUserAndMachinesLoaded().catch(e => console.warn("Sync machines error:", e));
+      if (currentPage === 'home' && typeof loadDashboardStats === 'function') {
+        loadDashboardStats();
+      }
     }
   });
 }

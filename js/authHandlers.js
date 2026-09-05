@@ -16,6 +16,10 @@ import {
 import { navigateTo } from './renderCore.js';
 import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
 import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
+import { auth, signOut } from './providers/backend/index.js';
+import { extractUserDepartment } from './utils/departmentUtils.js';
+import { clearUserAndMachinesCache, ensureUserAndMachinesLoaded } from './machines.js';
+import { clearCurrentUserProfileCache } from './services/usersApi.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
 // ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
@@ -191,13 +195,13 @@ localStorage.setItem(
 );  
 
 // تصنيف Backend/Frontend المستخدم في فلترة قائمة الماكينات حسب
-// القسم (راجع getMachinesForUser في machines.js) - حقل مستقل عن
-// "department" العام فوق (راجع ملحوظة updateUserMachineDepartmentApi
-// في services/usersApi.js)
-localStorage.setItem(  
-  "machineDepartment",  
-  user.machineDepartment || ""  
-);  
+// القسم (راجع getMachinesForUser في machines.js)
+const userDept = extractUserDepartment(user);
+if (userDept) {
+  localStorage.setItem("machineDepartment", userDept);
+} else {
+  localStorage.removeItem("machineDepartment");
+}
 
 const userRole = (user.role || "").trim().toLowerCase();
 let userPerms = user.permissions || "";
@@ -214,6 +218,9 @@ localStorage.setItem("permissions", userPerms);
 
 setCurrentRole(userRole);
 setCurrentPermissions(userPerms);
+
+// تحميل ماكينات القسم المخصص فوراً بعد تسجيل الدخول
+ensureUserAndMachinesLoaded(true).catch(e => console.warn("Failed to load machines on login:", e));
 
 // إضافة (إشعارات المتصفح): تفعيل الاشتراك اللحظي في إشعارات
 // المستخدم فور نجاح تسجيل الدخول (بدون انتظار Refresh للصفحة -
@@ -665,7 +672,7 @@ container.innerHTML = `
 // ============================================================
 
 window.logout =
-function () {
+async function () {
 
 // إضافة (إشعارات المتصفح): إلغاء الاشتراك اللحظي قبل مسح بيانات
 // الجلسة - عشان مايفضلش اشتراك شغال باسم مستخدم سجّل خروجه فعلاً
@@ -673,7 +680,17 @@ if (typeof window.stopBrowserNotifications === "function") {
   window.stopBrowserNotifications();
 }
 
+try {
+  if (auth) {
+    await signOut(auth);
+  }
+} catch (err) {
+  console.warn("SignOut error:", err);
+}
+
 localStorage.clear();
+clearUserAndMachinesCache();
+clearCurrentUserProfileCache();
 
 setCurrentRole("");
 

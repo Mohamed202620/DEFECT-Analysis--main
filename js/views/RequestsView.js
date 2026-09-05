@@ -17,6 +17,13 @@ import {
   deleteUserApi
 } from "../services/api.js";
 
+import {
+  extractUserDepartment,
+  normalizeDepartment
+} from "../utils/departmentUtils.js";
+
+import { ensureUserAndMachinesLoaded } from "../machines.js";
+
 
 // ======================================
 // المتغيرات
@@ -526,8 +533,16 @@ function renderUsers(users) {
                         ">
 
                         <option
+                            value=""
+                            ${!extractUserDepartment(user) ? "selected" : ""}>
+
+                            ⚠️ غير محدد / Not Specified
+
+                        </option>
+
+                        <option
                             value="backend"
-                            ${user.machineDepartment !== "frontend" ? "selected" : ""}>
+                            ${extractUserDepartment(user) === "backend" ? "selected" : ""}>
 
                             🛠️ Backend
 
@@ -535,7 +550,7 @@ function renderUsers(users) {
 
                         <option
                             value="frontend"
-                            ${user.machineDepartment === "frontend" ? "selected" : ""}>
+                            ${extractUserDepartment(user) === "frontend" ? "selected" : ""}>
 
                             🖥️ Frontend
 
@@ -871,13 +886,7 @@ async function(id) {
         document
             .getElementById(`machineDept-${id}`);
 
-    const machineDepartment =
-        (machineDeptSelect?.value || "backend")
-            .trim()
-            .toLowerCase() === "frontend"
-            ? "frontend"
-            : "backend";
-
+    const machineDepartment = normalizeDepartment(machineDeptSelect?.value);
 
     const result =
         await updatePermissionsApi(
@@ -885,7 +894,6 @@ async function(id) {
             role,
             permissions.join(",")
         );
-
 
     alert(
         result.message ||
@@ -896,25 +904,25 @@ async function(id) {
         )
     );
 
-
     if (result.status === "success") {
-
-        // تحديث تصنيف الماكينات (Backend/Frontend) - استدعاء منفصل
-        // بدون تغيير توقيع updatePermissionsApi الحالي (نفس أسلوب
-        // بقية الحقول المستقلة في هذه الشاشة)
+        // تحديث تصنيف الماكينات (Backend/Frontend)
         await updateUserMachineDepartmentApi(id, machineDepartment);
 
         const currentUid = localStorage.getItem("userId") || "";
         if (id === currentUid) {
             localStorage.setItem("role", role);
             localStorage.setItem("permissions", permissions.join(","));
-            localStorage.setItem("machineDepartment", machineDepartment);
+            if (machineDepartment) {
+                localStorage.setItem("machineDepartment", machineDepartment);
+            } else {
+                localStorage.removeItem("machineDepartment");
+            }
             setCurrentRole(role);
             setCurrentPermissions(permissions.join(","));
+            ensureUserAndMachinesLoaded(true).catch(e => console.warn("Failed to reload machines:", e));
         }
 
         loadUsersManagement();
-
     }
 
 };
