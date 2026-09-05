@@ -192,18 +192,20 @@ export const HomeView = () => {
         </button>
         ` : ""}
 
-        ${hasPermission("maintenance") ? `
+        ${(hasPermission("maintenance") || hasPermission("errorScanner")) ? `
         <!-- Machine Error Scanner -->
         <button 
           type="button"
+          id="cardErrorScanner"
           onclick="window.navigateTo('errorScanner')" 
-          class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+          aria-label="${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
+          class="col-span-2 relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3.5 sm:p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
+            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
               📷
             </div>
             <div>
-              <span class="font-bold text-xs text-gray-100 block">${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
+              <span class="font-bold text-xs dyn-text-muted block">${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
               <span class="text-[10px] text-gray-400 mt-0.5 block">${(translations[currentLang] || translations.ar).maintenance.scannerDesc || ''}</span>
             </div>
           </div>
@@ -211,21 +213,25 @@ export const HomeView = () => {
             <span class="text-xs text-indigo-400 font-bold bg-indigo-500/15 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
               ${(translations[currentLang] || translations.ar).maintenance.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
             </span>
-            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
           </div>
         </button>
+        ` : ''}
 
+        ${(hasPermission("maintenance") || hasPermission("qr")) ? `
         <!-- QR الماكينة -->
         <button 
           type="button"
+          id="cardQrCode"
           onclick="window.navigateTo('qr')" 
-          class="col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+          aria-label="${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}"
+          class="col-span-2 relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3.5 sm:p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
           <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0">
+            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
               📱
             </div>
             <div>
-              <span class="font-bold text-xs text-gray-100 block">${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}</span>
+              <span class="font-bold text-xs dyn-text-muted block">${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}</span>
               <span class="text-[10px] text-gray-400 mt-0.5 block">${(translations[currentLang] || translations.ar).maintenance.qrDesc || ''}</span>
             </div>
           </div>
@@ -233,7 +239,7 @@ export const HomeView = () => {
             <span class="text-xs text-emerald-400 font-bold bg-emerald-500/15 px-3 py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
               ${(translations[currentLang] || translations.ar).maintenance.qrBtn || (currentLang === 'en' ? 'Open' : 'فتح')}
             </span>
-            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+            <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
           </div>
         </button>
         ` : ''}

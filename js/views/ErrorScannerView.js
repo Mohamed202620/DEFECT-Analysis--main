@@ -2,9 +2,6 @@ import { getErrorScannerMachineOptions } from '../errorScanner.js';
 import { translations } from '../config.js';
 
 export const ErrorScannerView = () => {
-  const selectedMachineType = localStorage.getItem('selectedMachineType') || '';
-  window.selectedMachineType = selectedMachineType;
-
   const currentLang = window.currentLang || "ar";
   const t = (translations[currentLang] || translations.ar).errorScanner;
   const common = (translations[currentLang] || translations.ar).common;
@@ -14,6 +11,14 @@ export const ErrorScannerView = () => {
   // getMachineTypeEntries في machines.js) - لو رجعت فاضية (مفيش ماكينة
   // ضمن قسم المستخدم)، نعرض رسالة واضحة بدل قائمة فاضية تماماً
   const scannerMachineOptions = getErrorScannerMachineOptions();
+
+  // التحقق من صحة القيمة المحفوظة: إذا كانت القيمة المخزنة غير متوفرة ضمن خيارات المستخدم الحالية، تُفرغ لتجنب تصفية وهمية
+  const rawSavedMachine = localStorage.getItem('selectedMachineType') || '';
+  const selectedMachineType = scannerMachineOptions.includes(rawSavedMachine) ? rawSavedMachine : '';
+  window.selectedMachineType = selectedMachineType;
+  if (!selectedMachineType && rawSavedMachine) {
+    localStorage.removeItem('selectedMachineType');
+  }
 
   const machineOptionsHtml = scannerMachineOptions.length === 0
     ? `<option value="" selected disabled>${
@@ -56,11 +61,12 @@ export const ErrorScannerView = () => {
     <!-- اختيار نوع الماكينة: يتم حفظه محلياً للاستخدام لاحقاً -->
     <div>
       <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
-        <span class="text-[10px] text-gray-400">🔒</span>
+        <span class="text-xs" aria-hidden="true">🏭</span>
         <span>${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}</span>
       </label>
       <select id="machineTypeSelect"
-        onchange="const value = this.value; localStorage.setItem('selectedMachineType', value); window.selectedMachineType = value;"
+        aria-label="${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}"
+        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value;"
         class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
         ${machineOptionsHtml}
       </select>

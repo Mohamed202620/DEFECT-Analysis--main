@@ -36,6 +36,7 @@ function t() {
 
 let scannedImage = null;      // الصورة بعد الضغط (Base64) لعرضها وحفظها
 let lastFoundError = null;    // آخر نتيجة عطل تم العثور عليها (لإجراءات الاعتماد/التسجيل)
+let isScanning = false;       // true أثناء تشغيل OCR (لمنع تشغيل مزدوج + التحكم بالـ Spinner)
 
 // ============================================================
 // تحميل مكتبة Tesseract.js بشكل كسول (مرة واحدة فقط عند الحاجة)
@@ -124,10 +125,23 @@ function el(id) {
   return document.getElementById(id);
 }
 
-function setStatus(message, isError = false) {
+// إصلاح (isScanning + Spinner): showSpinner اختياري - بيضيف نفس شكل
+// الـ Spinner المستخدم بالفعل في splash screen بالتطبيق (index.html)
+// دون أي تعديل على أي Styling/Layout حالي في باقي الصفحة
+function setStatus(message, isError = false, showSpinner = false) {
   const box = el('errScanStatus');
   if (!box) return;
-  box.textContent = message;
+
+  if (showSpinner) {
+    box.innerHTML = `
+      <span class="inline-flex items-center justify-center gap-2">
+        <span class="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
+        <span>${message}</span>
+      </span>`;
+  } else {
+    box.textContent = message;
+  }
+
   box.classList.toggle('text-red-400', isError);
   box.classList.toggle('text-blue-400', !isError);
 }
@@ -197,6 +211,10 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
+  // إصلاح (isScanning): منع تشغيل مسح جديد أثناء مسح قائم بالفعل
+  if (isScanning) return;
+  isScanning = true;
+
   try {
     setStatus(t().preparingImage);
 
@@ -208,10 +226,13 @@ document.addEventListener('change', async (e) => {
       preview.classList.remove('hidden');
     }
 
-    setStatus(t().readingOcr);
+    // إصلاح (Spinner أثناء القراءة): "جاري قراءة الشاشة..." + Spinner
+    setStatus(t().readingOcr, false, true);
 
     const Tesseract = await loadTesseract();
-    const result = await Tesseract.recognize(scannedImage, 'eng');
+    // إصلاح (دعم عربي + إنجليزي): شاشات الماكينات ممكن تحتوي نص عربي
+    // كمان (رسائل/تعليمات) - ara+eng بيحسّن التعرف عليها مع الإنجليزي
+    const result = await Tesseract.recognize(scannedImage, 'ara+eng');
     const rawText = result?.data?.text || '';
 
     const codeInput = el('errScanCode');
@@ -219,8 +240,15 @@ document.addEventListener('change', async (e) => {
 
     const suggestedCode = extractErrorCode(rawText);
 
+    // إصلاح (استخراج Message بنمط صريح): لو النص فيه "Message: ..."
+    // بشكل صريح بناخده كما هو، وإلا نرجع لنفس السلوك القديم (كل
+    // النص المستخرج) عشان مانفقدش أي معلومة لو الشاشة مالهاش تنسيق
+    // "Message:" واضح
+    const messageMatch = rawText.match(/Message[:：]\s*(.+)/i);
+    const extractedMessage = messageMatch ? messageMatch[1].trim() : rawText.trim();
+
     if (codeInput) codeInput.value = suggestedCode;
-    if (messageInput) messageInput.value = rawText.trim();
+    if (messageInput) messageInput.value = extractedMessage;
 
     setStatus(
       suggestedCode
@@ -228,9 +256,19 @@ document.addEventListener('change', async (e) => {
         : t().codeNotFound
     );
 
+    // إصلاح (بحث تلقائي بعد نجاح OCR): لو فيه كود اتستخرج فعلاً،
+    // نشغّل البحث فوراً بنفس القيمة المستخرجة مباشرة (مش من قراءة
+    // state/DOM قديمة) - لو مفيش كود واضح، سايبين الأمر للمستخدم
+    // يراجع النص ويبحث يدوياً زي ما كان بالظبط
+    if (suggestedCode) {
+      await window.searchMachineError(suggestedCode);
+    }
+
   } catch (err) {
     console.error('OCR Error:', err);
-    setStatus(t().ocrError + err.message, true);
+    setStatus(t().ocrError, true);
+  } finally {
+    isScanning = false;
   }
 });
 
@@ -238,12 +276,20 @@ document.addEventListener('change', async (e) => {
 // البحث عن العطل في قاعدة المعرفة
 // ============================================================
 
-window.searchMachineError = async function () {
+// إصلاح (بحث تلقائي بعد OCR): overrideCode/overrideManual اختياريين -
+// لو اتبعتوا (من مسار OCR) بنستخدمهم مباشرة كما هم، بدل قراءة قيمة
+// الحقول من الـ DOM. الاستدعاء العادي من الزر (بدون parameters) يفضل
+// شغال بالظبط زي ما كان.
+window.searchMachineError = async function (overrideCode, overrideManual) {
 
   const codeInput = el('errScanCode');
-  const code = codeInput?.value?.trim() || '';
+  const code = (overrideCode !== undefined && overrideCode !== null && overrideCode !== '')
+    ? String(overrideCode).trim()
+    : (codeInput?.value?.trim() || '');
   const manualInput = el('errScanManual');
-  const manualSearch = manualInput?.value?.trim() || '';
+  const manualSearch = (overrideManual !== undefined && overrideManual !== null && overrideManual !== '')
+    ? String(overrideManual).trim()
+    : (manualInput?.value?.trim() || '');
   const selectedMachineType = String(window.selectedMachineType || '').trim();
 
   if (!code && !manualSearch) {
