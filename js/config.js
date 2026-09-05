@@ -46,6 +46,7 @@ export const IMGBB_API_KEY = "9e43fc30da5df3c4cdf213f1725504c7";
 // إعدادات Firebase
 // ============================================================
 
+export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 const firebaseConfig = {
 
   apiKey:
@@ -678,7 +679,14 @@ export const translations = {
       password: "كلمة السر",
       loginBtn: "دخول",
       registerBtn: "➕ إنشاء حساب جديد",
-      showHidePass: "إظهار أو إخفاء كلمة المرور"
+      showHidePass: "إظهار أو إخفاء كلمة المرور",
+      forgotPassword: "نسيت كلمة المرور؟",
+      resetPasswordTitle: "استعادة كلمة المرور",
+      resetPasswordDesc: "أدخل رقم الموبايل المسجل لاستلام رابط استعادة كلمة المرور",
+      sendResetLink: "إرسال الرابط",
+      resetLinkSent: "تم الإرسال بنجاح (إذا كان الرقم مسجلاً)",
+      resetError: "حدث خطأ أثناء إرسال الرابط",
+      backToLogin: "العودة لتسجيل الدخول"
     },
 
     // مفاتيح خاصة بصفحة "إنشاء حساب" (registerView.js)
@@ -1320,7 +1328,14 @@ export const translations = {
       password: "Password",
       loginBtn: "Login",
       registerBtn: "➕ Create New Account",
-      showHidePass: "Show or hide password"
+      showHidePass: "Show or hide password",
+      forgotPassword: "Forgot Password?",
+      resetPasswordTitle: "Reset Password",
+      resetPasswordDesc: "Enter your registered mobile number to receive a password reset link",
+      sendResetLink: "Send Reset Link",
+      resetLinkSent: "Link sent successfully (if number is registered)",
+      resetError: "An error occurred while sending the link",
+      backToLogin: "Back to Login"
     },
 
     register: {

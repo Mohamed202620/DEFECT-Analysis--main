@@ -36,7 +36,9 @@ export {
   onSnapshot,
   writeBatch,
   getCountFromServer,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  deleteUser
+  deleteUser,
+  onAuthStateChanged
 } from "../../firebase.js";

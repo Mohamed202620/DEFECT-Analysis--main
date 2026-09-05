@@ -12,8 +12,7 @@ import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
-import { auth } from './config.js';
-import { onAuthStateChanged } from './firebase.js';
+import { auth, onAuthStateChanged } from './providers/backend/index.js';
 
 // إعادة تحميل بيانات لوحة المتابعة تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
 if (auth) {

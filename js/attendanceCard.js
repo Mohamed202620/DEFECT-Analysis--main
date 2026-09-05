@@ -24,8 +24,7 @@
 //    Pattern + حضور فعلي) - نفس الدورة المعروضة في الكارت الحي بالظبط.
 // ============================================================
 
-import { db } from "./config.js";
-import { doc, getDoc } from "./firebase.js";
+import { db, doc, getDoc } from "./providers/backend/index.js";
 import { fetchOfficialHolidaysApi } from "./services/api.js";
 import { exportToPdf } from "./services/exportUtility.js";
 import { buildPdfStatsCardsHtml } from "./branding.js";

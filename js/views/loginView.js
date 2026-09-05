@@ -81,7 +81,48 @@ export const LoginView = () => {
         ${t.registerBtn}
       </button>
 
+      <!-- نسيت كلمة المرور -->
+      <div class="text-center mt-4">
+        <button
+          type="button"
+          onclick="document.getElementById('forgotPasswordModal').classList.remove('hidden')"
+          class="text-xs text-blue-400 hover:text-blue-300 underline focus:outline-none"
+        >
+          ${t.forgotPassword}
+        </button>
+      </div>
+
     </form>
+    <!-- Modal استعادة كلمة المرور -->
+    <div id="forgotPasswordModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+        <h3 class="text-lg font-bold text-white mb-2">${t.resetPasswordTitle}</h3>
+        <p class="text-xs text-gray-400 mb-4">${t.resetPasswordDesc}</p>
+        <form onsubmit="event.preventDefault(); window.doForgotPassword();">
+          <input 
+            id="forgotPhone" 
+            type="tel" 
+            placeholder="${t.phone}" 
+            required
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-4"
+          />
+          <button 
+            id="forgotBtn"
+            type="submit" 
+            class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-sm text-white transition"
+          >
+            ${t.sendResetLink}
+          </button>
+          <button 
+            type="button" 
+            onclick="document.getElementById('forgotPasswordModal').classList.add('hidden')"
+            class="w-full py-3 mt-2 bg-transparent border border-gray-600 hover:bg-gray-800 rounded-xl font-bold text-sm text-gray-300 transition"
+          >
+            ${t.backToLogin}
+          </button>
+        </form>
+      </div>
+    </div>
   </div>
 `;
 };

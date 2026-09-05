@@ -6,7 +6,7 @@
 // نفس التحقق من البيانات، ونفس رسائل الأخطاء بالضبط)
 // ============================================================
 
-import { login } from './auth/login.js';
+import { login, resetPassword } from './auth/login.js';
 
 import {
   fetchUsers,
@@ -683,4 +683,45 @@ navigateTo(
 "login"
 );
 
+};
+
+window.doForgotPassword = async function () {
+  try {
+    const phoneInput = document.getElementById("forgotPhone");
+    const phone = phoneInput ? phoneInput.value.trim() : "";
+    if (!phone) {
+      alert("الرجاء إدخال رقم الموبايل / Please enter mobile number");
+      return;
+    }
+    
+    const btn = document.getElementById("forgotBtn");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = "⏳...";
+    btn.disabled = true;
+
+    const res = await resetPassword(phone);
+    if (res.success || res.message === 'EMAIL_NOT_FOUND') {
+      // Don't leak if user exists or not
+      const currentLang = window.currentLang || "ar";
+      const successMsg = (translations[currentLang] || translations.ar).login.resetLinkSent;
+      alert(successMsg);
+      document.getElementById('forgotPasswordModal').classList.add('hidden');
+      if (phoneInput) phoneInput.value = '';
+    } else {
+      const currentLang = window.currentLang || "ar";
+      const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
+      alert(errorMsg + "\n" + (res.message || ""));
+    }
+  } catch (error) {
+    const currentLang = window.currentLang || "ar";
+    const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
+    alert(errorMsg);
+  } finally {
+    const btn = document.getElementById("forgotBtn");
+    if (btn) {
+      const currentLang = window.currentLang || "ar";
+      btn.innerHTML = (translations[currentLang] || translations.ar).login.sendResetLink;
+      btn.disabled = false;
+    }
+  }
 };
