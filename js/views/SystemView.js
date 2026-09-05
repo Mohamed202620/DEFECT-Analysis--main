@@ -2,6 +2,7 @@ import { BottomNav } from "../components/BottomNav.js";
 import { translations } from "../config.js";
 import { isAdminRole } from "../permissions.js";
 import { renderDailyTipCard } from "../dailyTips.js";
+import { countPendingUsersApi } from "../services/usersApi.js";
 
 export const SystemView = () => {
 
@@ -131,6 +132,15 @@ return `
       class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+
+      <!-- بند C1 في تقرير المراجعة: شارة عدد طلبات الانضمام
+           المعلّقة - مخفية افتراضياً، وبتظهر فقط لما يكون العدد
+           أكبر من صفر (راجع loadSystemHubBadges تحت) -->
+      <span
+        id="pendingRequestsBadge"
+        class="hidden absolute top-2 rtl:right-2.5 ltr:left-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow"
+      >0</span>
+
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         ⏳
       </div>
@@ -234,3 +244,38 @@ ${BottomNav("system")}
 };
 
 export default SystemView;
+
+
+// ============================================================
+// شارة عدد طلبات الانضمام المعلّقة (بند C1 في تقرير المراجعة)
+// ============================================================
+// استعلام خفيف (countPendingUsersApi) منفصل تماماً عن التحميل
+// الكامل لصفحة "طلبات الانضمام" (اللي بيجيب كل المستخدمين) -
+// الهدف هنا بس معرفة الرقم بسرعة لعرضه كشارة على بطاقة الصفحة
+// الرئيسية "النظام"، بدون أي تحميل زائد.
+
+export async function loadSystemHubBadges() {
+
+  const badge = document.getElementById("pendingRequestsBadge");
+  if (!badge) return;
+
+  try {
+
+    const count = await countPendingUsersApi();
+
+    if (count > 0) {
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+
+  } catch (error) {
+
+    console.error("Error loading system hub badges:", error);
+
+  }
+
+}
+
+window.loadSystemHubBadges = loadSystemHubBadges;
