@@ -6,13 +6,17 @@
 // ============================================================
 
 import {
-  db,
-  auth,
   DEFAULT_USER_PERMISSIONS,
   phoneToAuthEmail
 } from "../config.js";
+import {
+  normalizeDepartment,
+  extractUserDepartment
+} from "../utils/departmentUtils.js";
 
 import {
+  db,
+  auth,
   createUserWithEmailAndPassword,
   signOut,
   deleteUser,
@@ -25,8 +29,10 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where
-} from "../firebase.js";
+  where,
+  limit
+} from "../providers/backend/index.js";
+import { isAdminRole } from "../permissions.js";
 
 // إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
 // قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
@@ -55,18 +61,97 @@ function roleFromJob(job) {
 // ============================================================
 
 /**
- * جلب المستخدمين
+ * عدد طلبات الانضمام المعلّقة (status == "pending") - استعلام خفيف
+ * (بدون تحميل كل بيانات المستخدمين) لعرضه كشارة/Badge سريعة في
+ * صفحة النظام (بند C1 في تقرير المراجعة)، بدل ما يضطر الأدمن يدخل
+ * صفحة "طلبات الانضمام" كل مرة عشان يعرف هل فيه طلبات جديدة أصلاً.
+ *
+ * @returns {Promise<number>}
  */
-export async function fetchUsers() {
+export async function countPendingUsersApi() {
 
   try {
 
-    const usersRef =
-      collection(db, "users");
+    const pendingQuery = query(
+      collection(db, "users"),
+      where("status", "==", "pending")
+    );
 
-    // جلب كل المستندات مباشرة لتفادي مشاكل الفهارس أو نقص حقل الترتيب
+    const snap = await getDocs(pendingQuery);
+
+    return snap.size;
+
+  } catch (error) {
+
+    console.error("Error counting pending users:", error);
+    return 0;
+
+  }
+
+}
+
+// إصلاح (بند A3 في تقرير المراجعة - Production Readiness): fetchUsers()
+// كانت بتجيب كل مستند users بدون أي limit ولا أي Cache، فكل تنقل
+// بين تابي "المستخدمون"/"طلبات الانضمام" (وكلاهما بينادي
+// loadUsersManagement() تلقائياً عند كل دخول للصفحة - راجع
+// renderCore.js) كان بيعمل قراءة كاملة لكل الكولكشن من جديد. مع
+// مئات الموظفين، ده استهلاك غير ضروري لقراءات Firestore.
+//
+// الحل هنا (بدون تغيير أي منطق فلترة/بحث موجود في RequestsView.js،
+// وهو منطق Client-side بيحتاج المجموعة كاملة أصلاً - Pagination
+// حقيقي بـ Cursor هيحتاج إعادة بناء شاشة البحث والفلاتر نفسها،
+// ومش ضروري بحجم "مئات" الموظفين المذكور):
+//   ١) Cache قصير المدة (نفس نمط fetchManagersAndAdminsApi/
+//      fetchTechniciansApi تحت) - يمنع إعادة القراءة الكاملة مع كل
+//      تنقل سريع بين التابين لمدة USERS_CACHE_TTL_MS.
+//   ٢) limit() صريح كسقف أمان (لا يوجد حالياً أي سقف إطلاقاً) -
+//      لو اتضرب، بيظهر تحذير في الـ Console لتنبيه المطور إن العدد
+//      قرّب من الحد ومحتاج نراجع الموضوع فعلياً وقتها (Pagination
+//      حقيقي أو بحث Server-side).
+//   ٣) invalidateUsersCache() بتتنادى بعد أي عملية تعديل فعلية
+//      (قبول/رفض/تغيير دور/حذف) عشان أول تحديث للشاشة بعد أي
+//      إجراء يعرض البيانات الفعلية فوراً بدل الكاش القديم.
+const USERS_CACHE_TTL_MS = 60 * 1000; // دقيقة واحدة
+const USERS_SAFETY_LIMIT = 1000; // سقف أمان مؤقت - راجع الملاحظة فوق
+let usersCache = null; // { data, fetchedAt }
+
+function invalidateUsersCache() {
+  usersCache = null;
+}
+
+/**
+ * جلب المستخدمين
+ * @param {{ forceRefresh?: boolean }} [options]
+ */
+export async function fetchUsers({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    usersCache &&
+    (Date.now() - usersCache.fetchedAt) < USERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: usersCache.data };
+  }
+
+  try {
+
+    const usersQuery =
+      query(
+        collection(db, "users"),
+        limit(USERS_SAFETY_LIMIT)
+      );
+
+    // جلب كل المستندات (حتى سقف الأمان) مباشرة لتفادي مشاكل الفهارس
+    // أو نقص حقل الترتيب
     const querySnapshot =
-      await getDocs(usersRef);
+      await getDocs(usersQuery);
+
+    if (querySnapshot.size >= USERS_SAFETY_LIMIT) {
+      console.warn(
+        `⚠️ fetchUsers() وصل لسقف الأمان (${USERS_SAFETY_LIMIT} مستخدم). ` +
+        `قائمة المستخدمين قد تكون غير مكتملة - محتاجين نراجع Pagination حقيقي.`
+      );
+    }
 
 
     const users = [];
@@ -119,6 +204,8 @@ export async function fetchUsers() {
       if (!b.createdAt) return -1;
       return new Date(b.createdAt) - new Date(a.createdAt);
     });
+
+    usersCache = { data: users, fetchedAt: Date.now() };
 
 
     return {
@@ -319,6 +406,8 @@ export async function registerUserApi(userData) {
     }
 
 
+    invalidateUsersCache();
+
     return {
 
       status:
@@ -369,6 +458,74 @@ export async function registerUserApi(userData) {
 // اللي أصلاً بترجع من نفس الدالة
 const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
 let techniciansCache = null; // { data, fetchedAt }
+
+// إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): نفس فكرة الكاش
+// فوق بالظبط لكن لقائمة المدراء/الأدمن - تُستخدم في saveIssueApi
+// (ticketsApi.js) عشان نبعت إشعار لكل مدير/أدمن نشط فور تسجيل بلاغ
+// عطل جديد، بدل ما يفضل معتمد على فتحهم اليدوي للوحة البلاغات
+const MANAGERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let managersAndAdminsCache = null; // { data, fetchedAt }
+
+/**
+ * جلب المستخدمين اللي دورهم مدير/أدمن فقط (نشطين) - تُستخدم لإرسال
+ * إشعار جماعي عند إنشاء بلاغ عطل جديد (راجع saveIssueApi في
+ * ticketsApi.js). ملحوظة: firestore.rules -> match /users/{userId}
+ * -> allow list لازم يسمح صراحة بـ role in ["admin","manager"] لأي
+ * مستخدم نشط (مش بس للأدمن/المدير نفسه) عشان الاستعلام ده يشتغل من
+ * جهاز أي مستخدم عادي بيسجل بلاغ - راجع تعليق الإصلاح المقابل في
+ * firestore.rules
+ */
+export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    managersAndAdminsCache &&
+    (Date.now() - managersAndAdminsCache.fetchedAt) < MANAGERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: managersAndAdminsCache.data };
+  }
+
+  try {
+
+    const q =
+      query(
+        collection(db, "users"),
+        where("role", "in", ["admin", "manager"])
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const managers = [];
+
+    querySnapshot.forEach(docSnap => {
+
+      const data = docSnap.data();
+
+      if ((data.status || "").trim().toLowerCase() !== "active") {
+        return;
+      }
+
+      managers.push({
+        id: docSnap.id,
+        name: data.name || "",
+        role: data.role || ""
+      });
+
+    });
+
+    managersAndAdminsCache = { data: managers, fetchedAt: Date.now() };
+
+    return { status: "success", data: managers };
+
+  } catch (error) {
+
+    console.error("Error fetching managers/admins:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
 
 /**
  * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
@@ -433,6 +590,38 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
 
 
 // ============================================================
+// حماية آخر Admin في النظام (بند A1 في تقرير المراجعة)
+// ============================================================
+
+/**
+ * عدد المستخدمين الذين دورهم "admin" وحالتهم "active" حالياً، مع
+ * إمكانية استثناء مستخدم واحد (المستخدم المستهدف بالتعديل/الحذف)
+ * من العد - عشان نعرف هل هيفضل أدمن نشط تاني بعد العملية ولا لأ.
+ *
+ * @param {string} [excludeUserId]
+ * @returns {Promise<number>}
+ */
+async function countOtherActiveAdmins(excludeUserId) {
+
+  const adminsQuery = query(
+    collection(db, "users"),
+    where("role", "==", "admin"),
+    where("status", "==", "active")
+  );
+
+  const snap = await getDocs(adminsQuery);
+
+  let count = 0;
+  snap.forEach((docSnap) => {
+    if (docSnap.id !== excludeUserId) count++;
+  });
+
+  return count;
+
+}
+
+
+// ============================================================
 // UPDATE USER PERMISSIONS
 // ============================================================
 
@@ -456,6 +645,35 @@ export async function updatePermissionsApi(
       );
 
 
+    // حماية آخر Admin: لو المستخدم ده حالياً "admin" نشط، ومطلوب
+    // تغيير دوره لأي دور تاني، لازم يفضل أدمن نشط واحد على الأقل
+    // غيره بعد العملية - وإلا هيتقفل النظام بالكامل بلا أي أدمن.
+    if (role !== "admin") {
+
+      const currentSnap = await getDoc(userRef);
+      const currentData = currentSnap.exists() ? currentSnap.data() : null;
+      const wasActiveAdmin =
+        currentData &&
+        currentData.role === "admin" &&
+        currentData.status === "active";
+
+      if (wasActiveAdmin) {
+
+        const remaining = await countOtherActiveAdmins(userId);
+
+        if (remaining === 0) {
+          return {
+            status: "error",
+            message:
+              "لا يمكن تغيير دور هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل تغيير هذا الدور."
+          };
+        }
+
+      }
+
+    }
+
+
     await updateDoc(
       userRef,
       {
@@ -473,6 +691,8 @@ export async function updatePermissionsApi(
 
       }
     );
+
+    invalidateUsersCache();
 
 
     return {
@@ -503,6 +723,130 @@ export async function updatePermissionsApi(
         error.message
 
     };
+
+  }
+
+}
+
+
+// ============================================================
+// UPDATE USER MACHINE DEPARTMENT (Backend / Frontend)
+// ============================================================
+
+/**
+ * تحديث تصنيف المستخدم (Backend/Frontend) المستخدم في فلترة قائمة
+ * الماكينات حسب القسم (راجع getMachinesForUser في machines.js).
+ *
+ * ملحوظة: هذا حقل مستقل تماماً اسمه "machineDepartment"، وليس نفس
+ * حقل "department" العام الموجود بالفعل في مستند المستخدم (القسم
+ * التنظيمي: Production/Mechanical/Electrical - مُستخدم في التسجيل/
+ * الملف الشخصي/كايزن/التقارير). عمل حقل مستقل هنا بدل التعديل على
+ * الحقل الموجود يمنع أي كسر لأي شاشة تانية بتعرض/تعتمد على القيمة
+ * التنظيمية الحالية.
+ */
+export let cachedCurrentUserProfile = null;
+
+export function clearCurrentUserProfileCache() {
+  cachedCurrentUserProfile = null;
+}
+
+/**
+ * جلب الملف الشخصي الكامل للمستخدم الحالي من Firestore مباشرة (المصدر الحقيقي للبيانات والصلاحيات)
+ * مع مزامنة التخزين المحلي فورياً لضمان عدم وجود بيانات قديمة
+ *
+ * @param {boolean} [forceRefresh=false]
+ * @returns {Promise<{ status: string, user: Object|null, message?: string }>}
+ */
+export async function fetchCurrentUserProfileApi(forceRefresh = false) {
+  try {
+    const authUser = auth?.currentUser;
+    const currentUid = authUser?.uid || localStorage.getItem("userId");
+
+    if (!currentUid) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "لا يوجد مستخدم مسجل حالياً", user: null };
+    }
+
+    if (!forceRefresh && cachedCurrentUserProfile && cachedCurrentUserProfile.id === currentUid) {
+      return { status: "success", user: cachedCurrentUserProfile };
+    }
+
+    const userRef = doc(db, "users", currentUid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "مستند المستخدم غير موجود في Firestore", user: null };
+    }
+
+    const data = snap.data();
+    const userObj = {
+      id: currentUid,
+      ...data
+    };
+
+    // استخراج وتطبيع قسم الماكينات بدقة من الحقول المختلفة
+    const normDept = extractUserDepartment(userObj);
+    userObj.machineDepartment = normDept;
+
+    // مزامنة التخزين المحلي (localStorage) بالبيانات الموثقة من Firestore
+    if (data.name) localStorage.setItem("name", data.name);
+    if (data.phone) localStorage.setItem("phone", data.phone);
+    if (data.role) localStorage.setItem("role", data.role);
+    if (data.department) localStorage.setItem("department", data.department);
+
+    if (normDept) {
+      localStorage.setItem("machineDepartment", normDept);
+    } else {
+      localStorage.removeItem("machineDepartment");
+    }
+
+    cachedCurrentUserProfile = userObj;
+    return { status: "success", user: userObj };
+  } catch (error) {
+    console.error("Error fetching current user profile from Firestore:", error);
+    return { status: "error", message: error.message, user: null };
+  }
+}
+
+export async function updateUserMachineDepartmentApi(userId, machineDepartment) {
+
+  try {
+
+    if (!userId) {
+      return { status: "error", message: "معرف المستخدم غير موجود" };
+    }
+
+    const cleanDept = normalizeDepartment(machineDepartment);
+
+    await updateDoc(
+      doc(db, "users", userId),
+      {
+        machineDepartment: cleanDept,
+        updatedAt: new Date().toISOString(),
+        updatedBy: localStorage.getItem("name") || "Admin"
+      }
+    );
+
+    const currentUid = auth?.currentUser?.uid || localStorage.getItem("userId") || "";
+    if (userId === currentUid) {
+      if (cleanDept) {
+        localStorage.setItem("machineDepartment", cleanDept);
+      } else {
+        localStorage.removeItem("machineDepartment");
+      }
+    }
+
+    invalidateUsersCache();
+    clearCurrentUserProfileCache();
+
+    return { status: "success", message: "تم تحديث تصنيف القسم (Backend/Frontend)" };
+
+  } catch (error) {
+
+    console.error("Error updating user machine department:", error);
+
+    return { status: "error", message: error.message };
 
   }
 
@@ -601,6 +945,8 @@ export async function updateUserStatusApi(
       updateData
     );
 
+    invalidateUsersCache();
+
 
     return {
 
@@ -673,7 +1019,33 @@ export async function deleteUserApi(userId) {
         userId
       );
 
+    // حماية آخر Admin (بند A1): نفس منطق updatePermissionsApi - لو
+    // المستخدم المطلوب حذفه هو آخر أدمن نشط، امنع الحذف بدل ما
+    // يتقفل النظام بالكامل.
+    const currentSnap = await getDoc(userRef);
+    const currentData = currentSnap.exists() ? currentSnap.data() : null;
+    const isActiveAdmin =
+      currentData &&
+      currentData.role === "admin" &&
+      currentData.status === "active";
+
+    if (isActiveAdmin) {
+
+      const remaining = await countOtherActiveAdmins(userId);
+
+      if (remaining === 0) {
+        return {
+          status: "error",
+          message:
+            "لا يمكن حذف هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل حذف هذا الحساب."
+        };
+      }
+
+    }
+
     await deleteDoc(userRef);
+
+    invalidateUsersCache();
 
     return {
 

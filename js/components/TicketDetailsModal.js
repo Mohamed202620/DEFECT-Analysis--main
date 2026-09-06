@@ -187,7 +187,7 @@ export async function openTicketDetailsModal(ticketId) {
     "fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4";
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md sm:max-w-xl md:max-w-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between p-4 pb-3 border-b border-gray-800 shrink-0">
         <h3 class="text-sm font-bold text-blue-400">🔍 تفاصيل البلاغ</h3>
         <button id="ticketDetails_close" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>

@@ -1,15 +1,17 @@
+import { buildMachineDropdownHtml } from '../machines.js';
+
 export const PMFormFields = (isEn) => `
   <div>
     <label class="block text-xs font-bold mb-1 opacity-70 text-gray-300">
       ${isEn ? 'Machine Name' : 'اسم الماكينة'} <span class="text-red-400">*</span>
     </label>
-    <select id="pmMachine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
-      <option value="" disabled selected>${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
-      <option value="line1">${isEn ? 'Coating Line 1' : 'خط الدهان 1'}</option>
-      <option value="machine2">${isEn ? 'Machine 2' : 'ماكينة 2'}</option>
-    </select>
+    ${buildMachineDropdownHtml("pmMachine", {
+      placeholderLabel: isEn ? 'Select Machine...' : 'اختر الماكينة...',
+      typeSelectClass: "w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors",
+      unitSelectClass: "w-full p-2.5 mt-2 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+    })}
   </div>
-  
+
   <div>
     <label class="block text-xs font-bold mb-2 opacity-70 text-gray-300">
       ${isEn ? 'Inspection & Verification Checklist' : 'قائمة الفحص والتأكيد'} <span class="text-red-400">*</span>
@@ -75,7 +77,7 @@ export const PMView = () => {
 
       if (result.status === 'success') {
         alert(isEn ? 'PM form saved successfully ✅' : 'تم حفظ نموذج الصيانة الوقائية بنجاح ✅');
-        window.navigateTo('maintenance');
+        window.goBack('maintenance');
       } else {
         alert((isEn ? 'Error: ' : 'خطأ: ') + (result.message || (isEn ? 'Failed to save' : 'فشل الحفظ')));
       }
@@ -90,9 +92,9 @@ export const PMView = () => {
   };
 
   return `
-  <div class="app-page p-4 max-w-md mx-auto pb-10">
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-16">
     <!-- زر الرجوع -->
-    <button onclick="window.navigateTo('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
+    <button onclick="window.goBack('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
     </button>
     

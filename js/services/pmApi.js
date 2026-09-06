@@ -4,7 +4,8 @@
 // services/api.js بدون أي تغيير في المنطق أو الأسماء المُصدَّرة.
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
+import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
 
 import {
   collection,
@@ -13,7 +14,7 @@ import {
   orderBy,
   query,
   where
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 
 // ============================================================
@@ -28,10 +29,19 @@ export async function savePmApi(payload) {
 
   try {
 
+    // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نفس منطق
+    // machineErrorsApi.js بالظبط - نحفظ قسم الماكينة الفعلي مع كل
+    // سجل صيانة وقائية جديد
+    const department =
+      getDepartmentForMachineValue(payload?.machine) ||
+      getCurrentUserMachineContext().machineDepartment ||
+      "backend";
+
     const docRef = await addDoc(
       collection(db, "pmRecords"),
       {
         ...payload,
+        department,
         createdAt: new Date().toISOString()
       }
     );

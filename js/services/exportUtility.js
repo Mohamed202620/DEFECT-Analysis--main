@@ -1,131 +1,189 @@
 import { getCurrentRole, hasFullDataAccess } from '../permissions.js';
 import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlockHtml, getCompanyLogoDataUrl } from '../branding.js';
+import { HEADER_COLORS, COMPANY_NAME_AR, COMPANY_NAME_EN } from '../companyHeaderConfig.js';
 
 export const PAGE_BREAK_CLASS = "no-page-break";
 
+// عرض ثابت للورقة (بالبكسل) نستخدمه في التقاط كل من الهيدر والجسم بنفس
+// المقياس بالظبط، عشان يبقى عرضهم متطابق تمامًا لما يترسموا فوق بعض بالـ PDF
+const PDF_PAGE_WIDTH_PX = 794;
+
+// أنماط مشتركة بين حاوية الهيدر وحاوية الجسم (نفس القديم بدون تغيير)
+const PDF_SHARED_STYLE_HTML = `
+  <style>
+    .no-page-break {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .logo-print-wrapper {
+       text-align: center;
+       margin-bottom: 0;
+    }
+    table {
+      width: 100% !important;
+      table-layout: fixed !important;
+      border-collapse: collapse !important;
+    }
+    td, th, p, span, div {
+      word-wrap: break-word !important;
+      white-space: normal !important;
+    }
+    * {
+      letter-spacing: normal !important;
+    }
+  </style>
+`;
+
+/**
+ * ينشئ عنصر Div مؤقت خارج نطاق رؤية الشاشة (يُستخدم كحاوية التقاط لكل من
+ * الهيدر والجسم قبل تمريره لـ html2canvas) - بنفس الإعدادات دايمًا عشان
+ * ضمان اتساق العرض بينهم.
+ */
+function createOffscreenPdfContainer(isAr, paddingCss) {
+  const el = document.createElement('div');
+  el.style.width = `${PDF_PAGE_WIDTH_PX}px`;
+  el.style.boxSizing = 'border-box';
+  el.style.padding = paddingCss;
+  el.style.background = '#ffffff';
+  el.style.color = '#0f172a';
+  el.style.fontFamily = 'Arial, Tahoma, sans-serif';
+  el.dir = isAr ? 'rtl' : 'ltr';
+  // يجب أن يكون العنصر داخل الـ DOM لكي يقوم المتصفح بدمج الحروف العربية بشكل صحيح
+  el.style.position = 'absolute';
+  el.style.left = '-9999px';
+  el.style.top = '0';
+  return el;
+}
+
+/**
+ * تصدير تقرير إلى PDF مع تكرار الهيدر الرسمي الموحّد فعليًا في أعلى كل صفحة.
+ * ----------------------------------------------------------------------
+ * الفرق الجوهري عن النسخة القديمة: الهيدر والجسم بيتلقطوا كصورتين منفصلتين
+ * (Canvas مستقل لكل منهما) بدل صورة واحدة طويلة تتقص بالإزاحة. الهيدر
+ * بيترسم من جديد بأعلى كل صفحة PDF (Page) قبل ما يترسم "الجزء الظاهر" من
+ * صورة الجسم أسفله مباشرة - فيبقى الهيدر فعليًا متكرر وثابت في كل صفحة،
+ * مش موجود بس في الصفحة الأولى زي قبل كده.
+ */
 export async function exportToPdf(title, rows, htmlContent, filename, sigLabels = null) {
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
     alert("❌ مكتبات إنشاء PDF غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
     return;
   }
-  
+
   const logoDataUrl = await getCompanyLogoDataUrl();
   const currentLang = window.currentLang || "ar";
   const isAr = currentLang === "ar";
   const role = getCurrentRole();
   const userName = localStorage.getItem("name") || "";
   const roleLabel = { admin: isAr ? "مدير النظام" : "System Admin", manager: isAr ? "مدير الإنتاج" : "Production Manager", engineer: isAr ? "مهندس" : "Engineer" }[role] || (isAr ? "فني" : "Technician");
-  
+
   const dateStr = new Date().toLocaleDateString(isAr ? "ar-EG" : "en-US");
   const exportDateLabel = isAr ? "تاريخ التصدير" : "Export Date";
   const roleHeaderLabel = isAr ? "الصلاحية" : "Role";
   const userNameLabel = isAr ? "بواسطة" : "By";
-  
+
   const defaultInfoRows = [
     { label: exportDateLabel, value: dateStr },
     { label: roleHeaderLabel, value: roleLabel },
     { label: userNameLabel, value: userName },
     ...rows
   ];
-  
-  const container = document.createElement('div');
-  // نحدد عرض ثابت ومناسب للورقة لضمان دقة التقاط الشاشة
-  container.style.width = '794px';
-  container.style.boxSizing = 'border-box';
-  container.style.padding = '24px';
-  container.style.background = '#ffffff';
-  container.style.color = '#0f172a';
-  container.style.fontFamily = 'Arial, Tahoma, sans-serif';
-  container.dir = isAr ? 'rtl' : 'ltr';
-  
-  // يجب أن يكون العنصر داخل الـ DOM لكي يقوم المتصفح بدمج الحروف العربية بشكل صحيح
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  
-  const styleHtml = `
-    <style>
-      .no-page-break {
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-      .logo-print-wrapper {
-         text-align: center;
-         margin-bottom: 20px;
-      }
-      .logo-print-wrapper img {
-        object-fit: contain !important;
-        height: 120px !important;
-        max-height: 120px !important;
-        width: auto !important;
-      }
-      table {
-        width: 100% !important;
-        table-layout: fixed !important;
-        border-collapse: collapse !important;
-      }
-      td, th, p, span, div {
-        word-wrap: break-word !important;
-        white-space: normal !important;
-      }
-      * {
-        letter-spacing: normal !important;
-      }
-    </style>
-  `;
-  
+
   const sig1 = sigLabels?.first || (isAr ? "توقيع الفني" : "Technician Signature");
   const sig2 = sigLabels?.second || (isAr ? "توقيع مهندس الجودة" : "Quality Eng. Signature");
   const sig3 = sigLabels?.third || (isAr ? "توقيع مدير المصنع" : "Plant Manager Signature");
 
-  container.innerHTML = `
-    ${styleHtml}
+  // 1) حاوية الهيدر بمفرده - هي اللي هتترسم من جديد أعلى كل صفحة PDF
+  const headerContainer = createOffscreenPdfContainer(isAr, '14px 24px 10px 24px');
+  headerContainer.innerHTML = `
+    ${PDF_SHARED_STYLE_HTML}
     <div class="logo-print-wrapper">
       ${buildPdfBrandHeaderHtml(logoDataUrl)}
     </div>
+  `;
+
+  // 2) حاوية جسم التقرير بمفرده (العنوان + الجدول/المحتوى + التوقيعات)
+  const bodyContainer = createOffscreenPdfContainer(isAr, '0 24px 24px 24px');
+  bodyContainer.innerHTML = `
+    ${PDF_SHARED_STYLE_HTML}
     ${buildPdfTitleBlockHtml(title, defaultInfoRows)}
     <div style="margin-top: 20px;">
       ${htmlContent}
     </div>
     ${buildPdfSignatureBlockHtml({ firstLabel: sig1, secondLabel: sig2, thirdLabel: sig3 })}
   `;
-  
-  document.body.appendChild(container);
-  
+
+  document.body.appendChild(headerContainer);
+  document.body.appendChild(bodyContainer);
+
   // ننتظر قليلاً لضمان تحميل الخطوط وتطبيق المتصفح لاتجاه وحروف اللغة العربية (Text Shaping)
   await new Promise(r => setTimeout(r, 150));
-  
+
+  const cleanupContainers = () => {
+    if (headerContainer.parentNode) document.body.removeChild(headerContainer);
+    if (bodyContainer.parentNode) document.body.removeChild(bodyContainer);
+  };
+
   try {
-    const canvas = await window.html2canvas(container, {
+    const html2canvasOptions = {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
-      windowWidth: 794
-    });
-    
-    document.body.removeChild(container);
-    
+      windowWidth: PDF_PAGE_WIDTH_PX
+    };
+
+    // نلتقط الهيدر والجسم كـ Canvas منفصلين تمامًا
+    const [headerCanvas, bodyCanvas] = await Promise.all([
+      window.html2canvas(headerContainer, html2canvasOptions),
+      window.html2canvas(bodyContainer, html2canvasOptions)
+    ]);
+
+    cleanupContainers();
+
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF("p", "pt", "a4");
     
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const margin = 20; 
+    // الأبعاد القياسية لعرض ورقة A4 بالنقط (pt)
+    const pdfWidth = 595.28;
+    const margin = 20;
     const contentWidth = pdfWidth - (margin * 2);
+
+    // تحويل صورة الهيدر لأبعاد الصفحة (عرض ثابت = contentWidth)
+    const headerRatio = contentWidth / headerCanvas.width;
+    const headerPrintHeight = headerCanvas.height * headerRatio;
+    const headerImgData = headerCanvas.toDataURL("image/jpeg", 1.0);
+
+    // تحويل صورة الجسم لنفس العرض
+    const bodyRatio = contentWidth / bodyCanvas.width;
+    const bodyPrintHeight = bodyCanvas.height * bodyRatio;
+    const bodyImgData = bodyCanvas.toDataURL("image/jpeg", 1.0);
+
+    // مسافة فاصلة بسيطة بين أسفل الهيدر وأول سطر من محتوى الجسم
+    const gapAfterHeader = 10;
     
-    const imgWidth = canvas.width;
-    const imgHeight = canvas.height;
+    // خيار دمج التقرير في صفحة واحدة أو تقسيمه
+    const isSinglePage = window.confirm(
+      isAr 
+        ? "هل تفضل دمج التقرير بالكامل في صفحة PDF واحدة طويلة؟\n\n- [موافق]: صفحة واحدة (أفضل للعرض على الشاشات والموبايل).\n- [إلغاء]: مقسّم لصفحات A4 (أفضل للطباعة الورقية)."
+        : "Do you want to merge the entire report into a single long PDF page?\n\n- [OK]: Single page (best for digital viewing).\n- [Cancel]: Split into A4 pages (best for printing)."
+    );
+
+    let pdf, pdfHeight;
     
-    const ratio = contentWidth / imgWidth;
-    const printHeight = imgHeight * ratio;
-    const pageContentHeight = pdfHeight - (margin * 2);
-    
-    const imgData = canvas.toDataURL("image/jpeg", 1.0);
-    
-    let heightLeft = printHeight;
-    let position = margin;
-    let page = 1;
-    
+    if (isSinglePage) {
+      // ارتفاع مخصص يتسع لكل المحتوى في صفحة واحدة
+      pdfHeight = margin * 2 + headerPrintHeight + gapAfterHeader + bodyPrintHeight;
+      pdf = new jsPDF("p", "pt", [pdfWidth, pdfHeight]);
+    } else {
+      // ارتفاع ورقة A4 القياسية
+      pdf = new jsPDF("p", "pt", "a4");
+      pdfHeight = pdf.internal.pageSize.getHeight();
+    }
+
+    // الارتفاع المتاح فعليًا لمحتوى الجسم في كل صفحة (بعد خصم مساحة الهيدر المتكرر)
+    const availableBodyHeightPerPage = pdfHeight - (margin * 2) - headerPrintHeight - gapAfterHeader;
+
+    const totalPages = Math.max(1, Math.ceil(bodyPrintHeight / availableBodyHeightPerPage));
+
     const addFooter = (p, current, total) => {
       p.setFontSize(10);
       p.setTextColor(100);
@@ -133,27 +191,44 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
       const text = `Page ${current} / ${total}`;
       p.text(text, pdfWidth / 2, pdfHeight - 10, { align: 'center' });
     };
-    
-    const totalPages = Math.ceil(printHeight / pageContentHeight);
-    
-    pdf.addImage(imgData, "JPEG", margin, position, contentWidth, printHeight);
-    heightLeft -= pageContentHeight;
-    addFooter(pdf, page++, totalPages);
-    
+
+    const bodyStartY = margin + headerPrintHeight + gapAfterHeader;
+
+    // يرسم الهيدر الثابت + رقم الصفحة أعلى/أسفل الصفحة الحالية. بيترسم
+    // "بعد" صورة الجسم قصدًا عشان يغطي أي تراكب بسيط في حدود التقريب
+    // ويضمن ظهور الهيدر نظيفًا فوق أي حاجة تانية دايمًا.
+    const drawHeaderAndFooter = (p, current, total) => {
+      // Clear the top area to prevent body image from bleeding into margins and gap
+      p.setFillColor(255, 255, 255);
+      p.rect(0, 0, pdfWidth, bodyStartY, 'F');
+      
+      // Clear the bottom margin to prevent body image from bleeding into the footer area
+      p.rect(0, pdfHeight - margin, pdfWidth, margin, 'F');
+
+      p.addImage(headerImgData, "JPEG", margin, margin, contentWidth, headerPrintHeight);
+      addFooter(p, current, total);
+    };
+
+    let heightLeft = bodyPrintHeight;
+    let bodyPosition = bodyStartY;
+    let page = 1;
+
+    pdf.addImage(bodyImgData, "JPEG", margin, bodyPosition, contentWidth, bodyPrintHeight);
+    drawHeaderAndFooter(pdf, page++, totalPages);
+    heightLeft -= availableBodyHeightPerPage;
+
     while (heightLeft > 0) {
-      position -= pageContentHeight;
+      bodyPosition -= availableBodyHeightPerPage;
       pdf.addPage();
-      pdf.addImage(imgData, "JPEG", margin, position, contentWidth, printHeight);
-      addFooter(pdf, page++, totalPages);
-      heightLeft -= pageContentHeight;
+      pdf.addImage(bodyImgData, "JPEG", margin, bodyPosition, contentWidth, bodyPrintHeight);
+      drawHeaderAndFooter(pdf, page++, totalPages);
+      heightLeft -= availableBodyHeightPerPage;
     }
-    
+
     pdf.save(filename);
   } catch (err) {
     console.error("PDF generation error:", err);
-    if (container.parentNode) {
-      document.body.removeChild(container);
-    }
+    cleanupContainers();
     alert("حدث خطأ أثناء تصدير الـ PDF. يرجى المحاولة مرة أخرى.");
   }
 }
@@ -226,10 +301,13 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     });
 
-    const NAVY = "FF0B3D91";
-    const DARK = "FF1E293B";
-    const LIGHT_GREY = "FFF1F5F9"; // Cool grey (Slate 100) instead of anything yellowish
-    const WHITE = "FFFFFFFF";
+    // الألوان الرسمية موحّدة ومصدرها الوحيد companyHeaderConfig.js (نفس
+    // الألوان بالظبط المستخدمة في هيدر HTML/PDF - أي تغيير لوني مستقبلي
+    // بيتم هناك فقط وبينعكس هنا تلقائيًا)
+    const NAVY = HEADER_COLORS.navyArgb;
+    const DARK = HEADER_COLORS.darkArgb;
+    const LIGHT_GREY = HEADER_COLORS.lightGreyArgb;
+    const WHITE = HEADER_COLORS.whiteArgb;
 
     // Pre-fill rows 1 to 150 with pure white to destroy ANY default yellow fills
     for (let i = 1; i <= 150; i++) {
@@ -241,10 +319,14 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     }
 
-    // 1. Header Image & Background (Rows 1-4)
+    // 1. Header Image (Rows 1-4): البانر الرسمي الكامل (شعار MSCANCO + الاسم
+    // الثنائي اللغة + شهادات SGS/ISO الأربعة) - صورة واحدة عالية الدقة، ترتيب
+    // العناصر بداخلها ثابت دائمًا (الشعار يسار / الشهادات يمين) بغض النظر عن
+    // اتجاه عرض الشيت (rightToLeft) لأنه مصدرها Base64 مُضمّن من
+    // companyHeaderConfig.js مباشرة (نفس المصدر المستخدم في هيدر PDF/HTML)
     ws.mergeCells(1, 1, 4, totalCols);
     for (let i = 1; i <= 4; i++) ws.getRow(i).height = 25;
-    
+
     const headerCell = ws.getCell(1, 1);
     headerCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WHITE } };
     headerCell.border = { bottom: { style: "medium", color: { argb: NAVY } } };
@@ -263,7 +345,21 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       }
     }
 
-    // 2. Report Information Table (Rows 6-9)
+    // 1.b Row 5: نص حقيقي (Real Cell Text) لاسم الشركة الثنائي اللغة، مدموج
+    // عبر كل الأعمدة - إضافة لصورة الهيدر، مش بديل عنها. الهدف: أي عميل
+    // بريد/عارض إكسيل بيلغي عرض الصور تلقائيًا (شائع في بعض بيئات الشركات)
+    // يفضل الاسم الرسمي للشركة ظاهر كنص قابل للقراءة والبحث والنسخ، مش بس
+    // صورة قابلة للاختفاء.
+    ws.mergeCells(5, 1, 5, totalCols);
+    const companyTextRow = ws.getRow(5);
+    companyTextRow.height = 16;
+    const companyTextCell = ws.getCell(5, 1);
+    companyTextCell.value = `${COMPANY_NAME_AR}   |   ${COMPANY_NAME_EN}`;
+    companyTextCell.font = { name: "Arial", size: 9, bold: true, color: { argb: NAVY } };
+    companyTextCell.alignment = { horizontal: "center", vertical: "middle" };
+    companyTextCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: WHITE } };
+
+    // 2. Report Information Table (Rows 7-10)
     const infoBorder = {
       top: { style: "thin", color: { argb: "FFCBD5E1" } },
       left: { style: "thin", color: { argb: "FFCBD5E1" } },
@@ -293,18 +389,18 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       ws.getCell(rowNum, 4).border = infoBorder;
     };
 
-    addInfoRow(6, isAr ? "اسم التقرير:" : "Report Name:", sTitle);
-    addInfoRow(7, isAr ? "المستخدم:" : "User:", userName);
-    addInfoRow(8, isAr ? "تاريخ الاستخراج:" : "Generated On:", exportDateStr);
+    addInfoRow(7, isAr ? "اسم التقرير:" : "Report Name:", sTitle);
+    addInfoRow(8, isAr ? "المستخدم:" : "User:", userName);
+    addInfoRow(9, isAr ? "تاريخ الاستخراج:" : "Generated On:", exportDateStr);
     
     let totalRecordsValue = sRows.length.toString();
     if (options.periodLabel) {
        totalRecordsValue += `  |  ${isAr ? "الفترة:" : "Period:"} ${options.periodLabel}`;
     }
-    addInfoRow(9, isAr ? "عدد السجلات:" : "Total Records:", totalRecordsValue);
+    addInfoRow(10, isAr ? "عدد السجلات:" : "Total Records:", totalRecordsValue);
 
-    // 3. Data Table Headers (Row 11)
-    const tableHeaderRowNum = 11;
+    // 3. Data Table Headers (Row 12 - سطر فاصل عند الصف 11 للتنفس البصري)
+    const tableHeaderRowNum = 12;
     const headerRow = ws.getRow(tableHeaderRowNum);
     headerRow.values = sHeaders;
     headerRow.height = 28;
@@ -321,6 +417,10 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       };
     });
 
+    // تثبيت الصفوف (Freeze Panes): كل صفوف الهيدر (البانر + النص + معلومات
+    // التقرير + صف عناوين الأعمدة) بتفضل ثابتة أعلى الشاشة دايمًا مهما نزل
+    // المستخدم لتحت في سجل البيانات - ySplit = رقم آخر صف بيتجمد (صف عناوين
+    // الأعمدة نفسه) فبيفضل ظاهر مع كل صفوف البيانات تحته.
     ws.views = [{
       rightToLeft: true,
       state: "frozen",
@@ -334,7 +434,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
       to: { row: tableHeaderRowNum, column: sHeaders.length }
     };
 
-    let r = 12;
+    let r = tableHeaderRowNum + 1;
 
     const statusColIdx = sHeaders.findIndex(h => h.includes("الحالة") || h.toLowerCase().includes("status")) + 1;
     const priorityColIdx = sHeaders.findIndex(h => h.includes("الأولوية") || h.toLowerCase().includes("priority")) + 1;

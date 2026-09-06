@@ -1,7 +1,9 @@
 // استيراد قاعدة البيانات ومتغير DEBUG من ملف الإعدادات المركزي
-import { db, auth, DEBUG, phoneToAuthEmail } from '../config.js';
+import { DEBUG, phoneToAuthEmail } from '../config.js';
 
 import {
+  db,
+  auth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -13,7 +15,7 @@ import {
   doc,
   getDoc,
   setDoc
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 import { verifyPassword } from '../services/crypto.js';
 
@@ -200,9 +202,20 @@ export async function login(phone, pass) {
   }
 
   if (!userDocSnap.exists()) {
+    // إصلاح (بند B3 في تقرير المراجعة): لو حذف الأدمن مستخدم من
+    // Firestore، حساب Firebase Auth بتاعه بيفضل موجود فعلياً (حذف
+    // حساب Auth لمستخدم تاني محتاج Admin SDK من سيرفر - راجع
+    // الملاحظة فوق deleteUserApi في usersApi.js). لو حاول الدخول
+    // بعد كده بكلمة سره القديمة، Auth SDK هيقبله (الحساب لسه موجود)،
+    // وهيوصل هنا (مفيش مستند بيانات ليه، ومفيش نسخة قديمة نرحّلها).
+    // كان الكود قبل كده بيرجع خطأ من غير ما يعمل signOut، يعني
+    // المستخدم يفضل شكلياً "مسجّل دخول" على مستوى Firebase Auth
+    // (auth.currentUser) رغم إن التطبيق بيعتبره غير مسجّل - نفس
+    // الأسلوب المُتّبع بالفعل تحت لحالات pending/rejected/inactive.
+    await signOut(auth);
     return {
       status: "error",
-      message: "بيانات الحساب غير موجودة."
+      message: "هذا الحساب لم يعد موجودًا بالنظام، يرجى التواصل مع المسؤول."
     };
   }
 
@@ -254,4 +267,32 @@ export async function login(phone, pass) {
     status: "success",
     user: userData
   };
+}
+
+export async function resetPassword(phone) {
+  const { FIREBASE_API_KEY } = await import('../config.js');
+  const email = phoneToAuthEmail(phone);
+  const url = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`;
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requestType: 'PASSWORD_RESET',
+        email: email,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error("[Auth] Password reset error:", data.error?.message);
+      return { success: false, message: data.error?.message || "Unknown error" };
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("[Auth] Password reset network error:", error);
+    return { success: false, message: error.message };
+  }
 }

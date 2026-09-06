@@ -12,14 +12,17 @@ import { loadPendingUsers } from './views/RequestsView.js';
 import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
-import { auth } from './config.js';
-import { onAuthStateChanged } from './firebase.js';
+import { auth, onAuthStateChanged } from './providers/backend/index.js';
+import { ensureUserAndMachinesLoaded } from './machines.js';
 
-// إعادة تحميل بيانات لوحة المتابعة تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
+// إعادة تحميل بيانات لوحة المتابعة وتزامن الماكينات تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
 if (auth) {
   onAuthStateChanged(auth, (user) => {
-    if (user && currentPage === 'home' && typeof loadDashboardStats === 'function') {
-      loadDashboardStats();
+    if (user) {
+      ensureUserAndMachinesLoaded().catch(e => console.warn("Sync machines error:", e));
+      if (currentPage === 'home' && typeof loadDashboardStats === 'function') {
+        loadDashboardStats();
+      }
     }
   });
 }
@@ -321,6 +324,26 @@ if (currentPage === "users") {
 
 
 // ========================================================
+// SYSTEM HUB BADGES AUTO LOAD
+// (شارة عدد طلبات الانضمام المعلّقة على بطاقة "طلبات الانضمام" -
+// بند C1 في تقرير المراجعة - راجع loadSystemHubBadges في
+// SystemView.js)
+// ========================================================
+
+if (currentPage === "system") {
+
+  setTimeout(() => {
+
+    if (typeof window.loadSystemHubBadges === "function") {
+      window.loadSystemHubBadges();
+    }
+
+  }, 100);
+
+}
+
+
+// ========================================================
 // SETTINGS AUTO LOAD
 // (الإجازات الرسمية + Pattern الورديات + معاملات الإضافي - راجع
 // holidaysManagement.js / attendancePatternManagement.js)
@@ -387,6 +410,9 @@ if (currentPage === "kaizenBoard") {
 }  
 
 
+
+
+
 // ========================================================  
 // REQUESTS AUTO LOAD  
 // ========================================================  
@@ -437,6 +463,18 @@ render();
 
 window.navigateTo =
 navigateTo;
+
+
+export function goBack(fallbackPage = 'home') {
+  if (history.state && history.state.page) {
+    history.back();
+  } else if (history.length > 2) {
+    history.back();
+  } else {
+    navigateTo(fallbackPage, true);
+  }
+}
+window.goBack = goBack;
 
 window.render =
 render;
@@ -541,3 +579,18 @@ render();
 
 }
 );
+
+window.addEventListener("popstate", (e) => {
+  if (e.state && e.state.page) {
+    if (e.state.page !== currentPage) {
+      currentPage = e.state.page;
+      render();
+    }
+  } else {
+    const hash = window.location.hash.replace("#", "");
+    if (hash && hash !== currentPage) {
+      currentPage = hash;
+      render();
+    }
+  }
+});

@@ -19,7 +19,7 @@
 // التانية (تسجيل عطل / كايزن / فاحص الأعطال / بحث الصيانة).
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
 
 import {
   collection,
@@ -29,8 +29,15 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy
-} from "../firebase.js";
+} from "../providers/backend/index.js";
+
+import { getCurrentRole, isAdminRole } from "../permissions.js";
+import {
+  normalizeDepartment,
+  extractMachineDepartment
+} from "../utils/departmentUtils.js";
 
 
 // ============================================================
@@ -38,29 +45,51 @@ import {
 // ============================================================
 
 /**
- * جلب كل أنواع الماكينات (مفعّلة ومعطّلة) مرتبة حسب order - تُستخدم
- * في شاشة إدارة الماكينات وفي machines.js لتغذية كل فورمات التطبيق
+ * جلب أنواع الماكينات من Firestore
+ * إذا تم تمرير filterDept (backend أو frontend)، يتم الاستعلام بـ where("department", "==", cleanDept)
+ * وإلا يتم جلب كل الماكينات مرتبة حسب order.
+ *
+ * @param {string|null} [filterDept=null]
+ * @returns {Promise<{ status: string, data: Array, message?: string }>}
  */
-export async function fetchMachineTypesApi() {
+export async function fetchMachineTypesApi(filterDept = null) {
 
   try {
 
     const ref = collection(db, "machineTypes");
-    const q = query(ref, orderBy("order", "asc"));
-    const snapshot = await getDocs(q);
+    const cleanFilter = normalizeDepartment(filterDept);
+
+    let snapshot;
+    if (cleanFilter) {
+      // استعلام Firestore مباشر ومفلتر للقسم المخصص
+      const q = query(ref, where("department", "==", cleanFilter));
+      snapshot = await getDocs(q);
+    } else {
+      const q = query(ref, orderBy("order", "asc"));
+      snapshot = await getDocs(q);
+    }
 
     const types = [];
 
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
+      const mDept = extractMachineDepartment(data);
+
+      if (cleanFilter && mDept !== cleanFilter) {
+        return;
+      }
+
       types.push({
         id: docSnap.id,
         key: String(data.key || "").trim(),
         units: Array.isArray(data.units) ? data.units : [],
         active: data.active !== false,
-        order: typeof data.order === "number" ? data.order : 0
+        order: typeof data.order === "number" ? data.order : 0,
+        department: mDept
       });
     });
+
+    types.sort((a, b) => (a.order || 0) - (b.order || 0));
 
     return { status: "success", data: types };
 
@@ -83,8 +112,14 @@ export async function fetchMachineTypesApi() {
  * إضافة نوع ماكينة جديد. يرفض التكرار (نفس الاسم بالظبط، غير حساس
  * لحالة الأحرف) سواء كان النوع الموجود مفعّل أو معطّل، لتفادي وجود
  * نسختين بنفس الاسم بحالتين مختلفتين.
+ *
+ * @param {string} key
+ * @param {string[]} [units]
+ * @param {string} [department] - "backend" أو "frontend" (Required من
+ *   واجهة "إضافة ماكينة" - راجع MachinesView.js). أي قيمة تانية أو
+ *   فاضية تتعامل كـ "backend" افتراضياً.
  */
-export async function addMachineTypeApi(key, units = []) {
+export async function addMachineTypeApi(key, units = [], department = "backend") {
 
   try {
 
@@ -124,6 +159,7 @@ export async function addMachineTypeApi(key, units = []) {
       {
         key: cleanKey,
         units: cleanUnits,
+        department: normalizeDepartment(department),
         active: true,
         order: maxOrder + 1,
         createdAt: new Date().toISOString(),
@@ -148,7 +184,21 @@ export async function addMachineTypeApi(key, units = []) {
 // UPDATE (تعديل الاسم/الوحدات)
 // ============================================================
 
-export async function updateMachineTypeApi(machineTypeId, key, units = []) {
+/**
+ * @param {string} machineTypeId
+ * @param {string} key
+ * @param {string[]} [units]
+ * @param {string} [department] - "backend" أو "frontend". تعديل هذا
+ *   الحقل مقصور فعلياً على الأدمن فقط: لو الدور الحالي مش أدمن، أي
+ *   قيمة متبعتة هنا تُتجاهل تماماً ولا تنعكس على المستند المحفوظ
+ *   (القيمة الحالية تفضل زي ما هي) - ده تطبيق فعلي للصلاحية على
+ *   مستوى طبقة البيانات، مش مجرد إخفاء الحقل/الزر في الواجهة (راجع
+ *   أيضاً firestore.rules اللي أصلاً بيمنع أي تعديل غير الأدمن على
+ *   مجموعة machineTypes بالكامل، فهذا الفحص طبقة حماية إضافية على
+ *   مستوى التطبيق قبل الوصول لـ Firestore أصلاً). لو الباراميتر ده
+ *   اتسيب undefined (مش متبعت خالص)، حقل department ميتلمسش نهائياً.
+ */
+export async function updateMachineTypeApi(machineTypeId, key, units = [], department = undefined) {
 
   try {
 
@@ -180,14 +230,24 @@ export async function updateMachineTypeApi(machineTypeId, key, units = []) {
       ? units.map(u => String(u).trim()).filter(Boolean)
       : [];
 
+    const updateData = {
+      key: cleanKey,
+      units: cleanUnits,
+      updatedAt: new Date().toISOString(),
+      updatedBy: localStorage.getItem("name") || "Admin"
+    };
+
+    if (department !== undefined) {
+      if (isAdminRole(getCurrentRole())) {
+        updateData.department = normalizeDepartment(department);
+      }
+      // غير أدمن: تجاهل صامت لقيمة department المتبعة - القسم يفضل
+      // كما هو محفوظ حالياً في Firestore
+    }
+
     await updateDoc(
       doc(db, "machineTypes", machineTypeId),
-      {
-        key: cleanKey,
-        units: cleanUnits,
-        updatedAt: new Date().toISOString(),
-        updatedBy: localStorage.getItem("name") || "Admin"
-      }
+      updateData
     );
 
     return { status: "success", message: "تم تحديث نوع الماكينة" };
@@ -295,7 +355,7 @@ export async function seedDefaultMachineTypesApi(defaultTypes) {
     );
 
     for (const m of toAdd) {
-      await addMachineTypeApi(m.key, m.units || []);
+      await addMachineTypeApi(m.key, m.units || [], m.department || "backend");
     }
 
     return { status: "success", added: toAdd.length };

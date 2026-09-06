@@ -20,13 +20,14 @@
 //    Official Holiday Work × معامل قابل للتعديل من الأدمن) بدون أي
 //    تطبيق مزدوج للمعامل على نفس الساعات.
 // 7. ملخص مالي كامل بعد فتح PIN.
-// 8. تصدير PDF شهري يغطي كل أيام الشهر (Pattern + حضور فعلي).
+// 8. تصدير PDF يغطي كل أيام دورة الحضور والمرتبات الحالية (21 → 20،
+//    Pattern + حضور فعلي) - نفس الدورة المعروضة في الكارت الحي بالظبط.
 // ============================================================
 
-import { db } from "./config.js";
-import { doc, getDoc } from "./firebase.js";
-import { getCompanyLogoDataUrl, COMPANY_NAME_AR, COMPANY_SHORT } from "./branding.js";
+import { db, doc, getDoc } from "./providers/backend/index.js";
 import { fetchOfficialHolidaysApi } from "./services/api.js";
+import { exportToPdf } from "./services/exportUtility.js";
+import { buildPdfStatsCardsHtml } from "./branding.js";
 import {
   fetchAttendancePatternApi,
   fetchPayrollRulesApi,
@@ -44,6 +45,11 @@ import {
   isPayrollUnlocked,
   setPayrollUnlocked
 } from "./payrollLocalStore.js";
+import {
+  getLocalEgyptianHolidays,
+  getEgyptianHolidaysUpdatedAt,
+  syncEgyptianHolidaysFromGoogle
+} from "./services/googleHolidaysSync.js";
 
 // ============================================================
 // 0. الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
@@ -413,7 +419,22 @@ export async function checkIn() {
   refreshAttendanceCard();
 }
 
-export async function checkOut() {
+// معيار طول الوردية القياسي (12 ساعة) المستخدَم لتحديد هل الوقت
+// المنقضي منذ الدخول تجاوز الوردية العادية ويحتاج إدخال ساعات
+// إضافية يدوي أو لأ
+const STANDARD_SHIFT_LENGTH_HOURS = 12;
+
+/**
+ * تسجيل الخروج - بيحسب الساعات المنقضية من الدخول، ولو تجاوزت
+ * طول الوردية القياسي (12 ساعة) ومفيش قيمة إضافي يدوية اتبعتت،
+ * بيرجع { needsManualOvertime: true } عشان الكود اللي بينادي الدالة
+ * (window.handleAttendanceButton) يفتح مودال إدخال الساعات
+ * الإضافية يدويًا، ثم يعيد نداء checkOut() تاني مع القيمة المُدخلة.
+ * البيانات بتتحفظ بالشكل الجديد {normalHours, overtimeHours, type}
+ * مع الإبقاء على حقل hoursWorked القديم كمان للتوافق العكسي مع أي
+ * كود لسه بيقرأه (calculateMonth/calculateCycle بيدعموا الشكلين)
+ */
+export async function checkOut(manualOvertimeHours = null) {
   const profile = await getTechnicianProfile();
   const contextDate = getCardContextDate(profile.userId);
   const now = new Date();
@@ -426,19 +447,45 @@ export async function checkOut() {
   if (diffHours < 0.1) diffHours = 12; // خروج فوري تجريبي: قيمة افتراضية آمنة
   diffHours = Number(diffHours.toFixed(2));
 
+  let normalHours = Math.min(diffHours, STANDARD_SHIFT_LENGTH_HOURS);
+  let overtimeHours = 0;
+
+  if (diffHours > STANDARD_SHIFT_LENGTH_HOURS) {
+    if (manualOvertimeHours === null || manualOvertimeHours === undefined) {
+      return {
+        needsManualOvertime: true,
+        elapsedHours: diffHours,
+        shiftLengthHours: STANDARD_SHIFT_LENGTH_HOURS,
+        contextDate
+      };
+    }
+    overtimeHours = Math.max(0, Number(manualOvertimeHours) || 0);
+  }
+
+  const dayInfo = getShiftInfoForDate(profile, contextDate);
+  const isHoliday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+  const type = !dayInfo.isWorkDay ? "off" : (isHoliday ? "holiday" : "normal");
+
+  normalHours = Number(normalHours.toFixed(2));
+  overtimeHours = Number(overtimeHours.toFixed(2));
+
   saveDailyAttendanceRecord(profile.userId, contextDate, {
     ...currentRecord,
     checkIn: currentRecord.checkIn || "08:00",
     checkInTimestamp,
     checkOut: timeStr,
     checkOutTimestamp: now.getTime(),
-    hoursWorked: diffHours,
+    normalHours,
+    overtimeHours,
+    hoursWorked: Number((normalHours + overtimeHours).toFixed(2)), // توافق عكسي
+    type,
     status: "checked_out",
     isExtraDay: false,
     isLeave: false
   });
 
   refreshAttendanceCard();
+  return { needsManualOvertime: false };
 }
 
 /**
@@ -490,15 +537,344 @@ export async function takeLeave() {
   refreshAttendanceCard();
 }
 
+/**
+ * زر تسجيل الحضور الواحد: أول ضغطة = تسجيل دخول، والضغطة التانية
+ * (بوجود دخول وعدم وجود خروج) = تسجيل خروج + حساب الساعات. لو
+ * الساعات المنقضية تجاوزت طول الوردية القياسي، بيفتح مودال إدخال
+ * الساعات الإضافية يدويًا قبل حفظ الخروج نهائيًا
+ */
+window.handleAttendanceButton = async function () {
+  const profile = await getTechnicianProfile();
+  const contextDate = getCardContextDate(profile.userId);
+  const record = getDailyAttendanceRecord(profile.userId, contextDate);
+
+  if (!record || !record.checkIn) {
+    await checkIn();
+    return;
+  }
+
+  if (record.checkIn && !record.checkOut) {
+    const result = await checkOut();
+    if (result && result.needsManualOvertime) {
+      const manualValue = await requestManualOvertimeInput(result.elapsedHours, result.shiftLengthHours);
+      if (manualValue === null) return; // المستخدم لغى الإدخال - يفضل الحضور مفتوح لحد ما يضغط تاني
+      await checkOut(manualValue);
+    }
+    return;
+  }
+
+  alert("✅ تم تسجيل حضورك وانصرافك لهذا اليوم بالفعل.");
+};
+
+// إبقاء الأسماء القديمة شغالة لأي كود/أزرار سابقة لسه بتستخدمها
+window.checkInShift = checkIn;
+window.checkOutShift = checkOut;
+
+/**
+ * مودال إدخال الساعات الإضافية يدويًا عند تجاوز الساعات المنقضية
+ * لطول الوردية القياسي - بيرجع Promise<number|null> (null لو
+ * المستخدم لغى العملية)
+ */
+function requestManualOvertimeInput(elapsedHours, shiftLengthHours) {
+  return new Promise(resolve => {
+    closeAnyPayrollModal();
+    const suggestedOt = Math.max(0, Number((elapsedHours - shiftLengthHours).toFixed(2)));
+
+    const overlay = document.createElement("div");
+    overlay.id = "payrollModalOverlay";
+    overlay.dir = "rtl";
+    overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+    overlay.innerHTML = `
+      <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-amber-400/40 rounded-2xl p-5 shadow-2xl">
+        <div class="text-center mb-3">
+          <div class="text-2xl mb-1">⏱️</div>
+          <div class="text-white font-black text-sm">تجاوزت ساعات الوردية القياسية</div>
+          <div class="text-[10px] text-slate-400 mt-1">الساعات المنقضية: ${elapsedHours} س (الوردية: ${shiftLengthHours} س) - أدخل عدد ساعات الإضافي المستحقة فعليًا</div>
+        </div>
+        <input id="manualOtInput" type="number" min="0" step="0.25" value="${suggestedOt}"
+          class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3" />
+        <div class="grid grid-cols-2 gap-2">
+          <button id="manualOtCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="manualOtSave" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 text-xs font-black">✅ تأكيد وتسجيل الخروج</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#manualOtInput").focus();
+
+    overlay.querySelector("#manualOtCancel").onclick = () => { overlay.remove(); resolve(null); };
+    overlay.querySelector("#manualOtSave").onclick = () => {
+      const val = Math.max(0, Number(overlay.querySelector("#manualOtInput").value) || 0);
+      overlay.remove();
+      resolve(val);
+    };
+  });
+}
+
+/**
+ * مودال "إضافة حضور سابق": تاريخ (بدون السماح بتواريخ مستقبلية) +
+ * ساعات عادية + ساعات إضافية + نوع اليوم (عادي/OFF/إجازة رسمية) -
+ * بيحفظ بنفس شكل البيانات الجديد ({normalHours, overtimeHours, type})
+ * مع البقاء متوافق تمامًا مع السجلات القديمة (مفيش أي حذف/تعديل لها)
+ */
+window.openPastAttendanceModal = async function () {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const todayStr = getTodayDateString();
+
+  const overlay = document.createElement("div");
+  overlay.id = "payrollModalOverlay";
+  overlay.dir = "rtl";
+  overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+  overlay.innerHTML = `
+    <div class="w-full max-w-sm bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-cyan-400/40 rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>🗓️</span><span>إضافة حضور سابق</span></div>
+
+      <label class="block text-[11px] text-slate-300 mb-1">التاريخ</label>
+      <input id="pastAttDate" type="date" max="${todayStr}" value="${todayStr}"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">الساعات العادية</label>
+      <input id="pastAttNormal" type="number" min="0" step="0.25" value="12"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">الساعات الإضافية</label>
+      <input id="pastAttOvertime" type="number" min="0" step="0.25" value="0"
+        class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+
+      <label class="block text-[11px] text-slate-300 mb-1">نوع اليوم</label>
+      <select id="pastAttType" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4">
+        <option value="normal">عادي</option>
+        <option value="off">OFF (يوم راحة)</option>
+        <option value="holiday">إجازة رسمية</option>
+      </select>
+
+      <div id="pastAttError" class="text-[11px] text-rose-400 text-center mb-2 hidden"></div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <button id="pastAttCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+        <button id="pastAttSave" class="py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-slate-900 text-xs font-black">💾 حفظ</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector("#pastAttCancel").onclick = () => overlay.remove();
+
+  overlay.querySelector("#pastAttSave").onclick = () => {
+    const errBox = overlay.querySelector("#pastAttError");
+    const dateVal = overlay.querySelector("#pastAttDate").value;
+    const normalHours = Math.max(0, Number(overlay.querySelector("#pastAttNormal").value) || 0);
+    const overtimeHours = Math.max(0, Number(overlay.querySelector("#pastAttOvertime").value) || 0);
+    const type = overlay.querySelector("#pastAttType").value;
+
+    if (!dateVal) {
+      errBox.textContent = "⚠️ يرجى اختيار التاريخ";
+      errBox.classList.remove("hidden");
+      return;
+    }
+    if (dateVal > todayStr) {
+      errBox.textContent = "⚠️ غير مسموح باختيار تاريخ مستقبلي";
+      errBox.classList.remove("hidden");
+      return;
+    }
+
+    const existing = getDailyAttendanceRecord(profile.userId, dateVal) || {};
+    saveDailyAttendanceRecord(profile.userId, dateVal, {
+      ...existing,
+      checkIn: existing.checkIn || "—",
+      checkOut: existing.checkOut || "—",
+      normalHours,
+      overtimeHours,
+      hoursWorked: Number((normalHours + overtimeHours).toFixed(2)),
+      type,
+      isExtraDay: type === "off",
+      isLeave: false,
+      status: "manual_past_entry"
+    });
+
+    overlay.remove();
+    refreshAttendanceCard();
+  };
+};
+
 // ============================================================
-// 5. حساب إجماليات الشهر: calculateMonth
-// إعادة حساب كاملة لكل يوم من أيام الشهر (مش بس الأيام المسجَّلة)
-// عشان تقرير الـ PDF يعرض "كل أيام الشهر" فعلاً، ولضمان تصنيف
-// دقيق لأي يوم كـ Regular / Normal OT / OFF Work / Holiday Work
-// بدون أي تطبيق مزدوج للمعامل على نفس الساعات (كل يوم بيقع في
-// فئة واحدة بالظبط)
+// 5. تصنيف يوم واحد (Shared Helper) + حساب إجماليات دورة 21 → 20
+// (calculateCycle - يُستخدم في عرض الكارت الحي وفي تصدير تقرير الـ
+// PDF، بالصيغة المطلوبة: requiredHours = 192 - (officialHolidayCount
+// * 8)) + حساب إجماليات الشهر التقويمي (calculateMonth) كدالة قديمة
+// (Legacy) لم تعد مستخدمة في أي تقرير حاليًا - أُبقي عليها فقط
+// لتوافقية أي كود خارجي قديم قد ينادي window.calculateAttendanceMonth
 // ============================================================
 
+/**
+ * تصنيف يوم واحد لأي مستخدم: بيرجع الوردية (Pattern/Fallback)،
+ * هل هو إجازة رسمية، سجل الحضور (لو موجود)، عدد الساعات، والفئة
+ * (bucket) اللي بيقع فيها اليوم. بيدعم شكلي البيانات: القديم
+ * (record.hoursWorked) والجديد (record.normalHours/overtimeHours)
+ * بالإضافة لحقل record.type الصريح (من التسجيل التلقائي أو من
+ * مودال "إضافة حضور سابق") لو موجود، وإلا بيرجع للاشتقاق التلقائي
+ * من الـ Pattern + الإجازات الرسمية (بالظبط زي السلوك القديم)
+ */
+function classifyDay(userId, dateStr, profile, patternTeams, holidays) {
+  const dayInfo = getShiftInfoForDate(profile, dateStr, patternTeams);
+  const isHoliday = isOfficialHolidayDate(dateStr, holidays);
+  const record = getDailyAttendanceRecord(userId, dateStr);
+
+  const hasNewFields = !!(record && (record.normalHours != null || record.overtimeHours != null));
+  const hoursWorked = record
+    ? (hasNewFields
+        ? Number(record.normalHours || 0) + Number(record.overtimeHours || 0)
+        : Number(record.hoursWorked || 0))
+    : 0;
+
+  const isLeave = !!(record && record.isLeave);
+  const isExtraDay = !!(record && record.isExtraDay);
+  const explicitType = record && record.type; // 'normal' | 'off' | 'holiday'
+
+  let bucket = "none";
+  if (isLeave) {
+    bucket = "leave";
+  } else if (isExtraDay) {
+    bucket = "off";
+  } else if (explicitType === "holiday") {
+    bucket = hoursWorked > 0 ? "holiday" : "none";
+  } else if (explicitType === "off") {
+    bucket = hoursWorked > 0 ? "off" : "none";
+  } else if (explicitType === "normal") {
+    bucket = hoursWorked > 0 ? "work" : "none";
+  } else if (dayInfo.isWorkDay && isHoliday) {
+    bucket = hoursWorked > 0 ? "holiday" : "none";
+  } else if (!dayInfo.isWorkDay && hoursWorked > 0) {
+    bucket = "off";
+  } else if (dayInfo.isWorkDay && hoursWorked > 0) {
+    bucket = "work";
+  }
+
+  return { date: dateStr, dayInfo, isHoliday, record, hoursWorked, bucket };
+}
+
+/**
+ * حساب مدى دورة الحضور والمرتبات: من يوم 21 في الشهر لحد يوم 20 في
+ * الشهر التالي (بالظبط كما هو مطلوب) - باستخدام dayjs (محمّلة عبر
+ * CDN في index.html) لضمان دقة حساب نهايات الشهور المختلفة الطول
+ * وتغيّر السنة عند دورة ديسمبر/يناير. لو dayjs مش متاحة لأي سبب
+ * (فشل تحميل الـ CDN) فيه احتياطي بديل بنفس المنطق بالظبط بـ
+ * Date الأصلية في JS، فالنظام يفضل شغال في الحالتين
+ */
+export function getCycleRange(referenceDate = new Date()) {
+  const hasDayjs = typeof window !== "undefined" && typeof window.dayjs === "function";
+
+  if (hasDayjs) {
+    const ref = window.dayjs(referenceDate);
+    const start = ref.date() >= 21 ? ref.date(21) : ref.subtract(1, "month").date(21);
+    const end = start.add(1, "month").date(20);
+    return {
+      startStr: start.format("YYYY-MM-DD"),
+      endStr: end.format("YYYY-MM-DD"),
+      label: `${start.format("D MMM")} – ${end.format("D MMM YYYY")}`
+    };
+  }
+
+  // احتياطي بدون dayjs (نفس منطق الحساب بالظبط)
+  const ref = new Date(referenceDate);
+  let startY = ref.getFullYear(), startM = ref.getMonth();
+  if (ref.getDate() < 21) {
+    startM -= 1;
+    if (startM < 0) { startM = 11; startY -= 1; }
+  }
+  const start = new Date(startY, startM, 21);
+  let endM = startM + 1, endY = startY;
+  if (endM > 11) { endM = 0; endY += 1; }
+  const end = new Date(endY, endM, 20);
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { startStr: fmt(start), endStr: fmt(end), label: `${fmt(start)} – ${fmt(end)}` };
+}
+
+/**
+ * حساب إجماليات دورة 21 → 20 الحالية (أو أي دورة تحتوي على
+ * referenceDate) - هذا هو المصدر الحي لعرض الكارت (المطلوب/المُنجز
+ * وProgress Bar). الصيغة بالظبط كما هو مطلوب:
+ * requiredHours = 192 - (officialHolidayCount * 8)
+ * حيث officialHolidayCount = أي إجازة رسمية تقع داخل الدورة، بغض
+ * النظر عن كونها يوم عمل مُجدوَل للفني أو لأ (خصم غير مشروط)
+ */
+export function calculateCycle(userId, options = {}) {
+  const profile = options.profile || {
+    userId, shiftColor: localStorage.getItem("shift") || "جرين",
+    shiftStartDate: "2026-01-01", shiftStart: "08:00", shiftEnd: "20:00"
+  };
+  const patternTeams = options.patternTeams || getCachedAttendancePattern().teams;
+  const holidays = options.holidays || getCachedOfficialHolidays();
+  const referenceDate = options.referenceDate || new Date();
+
+  const range = getCycleRange(referenceDate);
+
+  let poolHours = 0, offWorkHours = 0, holidayWorkHours = 0, holidayCountInCycle = 0;
+  let totalWorkDays = 0, totalLeaves = 0, totalExtraDays = 0, totalHolidayWorkDays = 0, totalOffWorkDays = 0;
+  const daysList = [];
+
+  let cursor = new Date(`${range.startStr}T00:00:00`);
+  const endDate = new Date(`${range.endStr}T00:00:00`);
+
+  while (cursor.getTime() <= endDate.getTime()) {
+    const dateStr = getTodayDateString(cursor);
+    const info = classifyDay(userId, dateStr, profile, patternTeams, holidays);
+
+    if (info.isHoliday) holidayCountInCycle++;
+
+    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
+    else if (info.bucket === "off") {
+      offWorkHours += info.hoursWorked;
+      totalOffWorkDays++;
+      if (info.record?.isExtraDay) totalExtraDays++;
+    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
+    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
+
+    daysList.push(info);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const targetHours = 192;
+  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * 8);
+
+  const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
+  const normalOvertimeHours = Number(Math.max(0, poolHours - requiredHours).toFixed(2));
+  offWorkHours = Number(offWorkHours.toFixed(2));
+  holidayWorkHours = Number(holidayWorkHours.toFixed(2));
+
+  const registeredHours = Number((regularHours + normalOvertimeHours + offWorkHours + holidayWorkHours).toFixed(2));
+  const progressPercent = requiredHours > 0 ? Math.min(100, Math.round((registeredHours / requiredHours) * 100)) : 100;
+
+  return {
+    cycleStart: range.startStr,
+    cycleEnd: range.endStr,
+    cycleLabel: range.label,
+    targetHours,
+    requiredHours,
+    holidayCountInCycle,
+    regularHours,
+    normalOvertimeHours,
+    offWorkHours,
+    holidayWorkHours,
+    registeredHours,
+    progressPercent,
+    totalWorkDays,
+    totalLeaves,
+    totalExtraDays,
+    totalOffWorkDays,
+    totalHolidayWorkDays,
+    daysList
+  };
+}
+
+/**
+ * حساب إجماليات الشهر التقويمي (1 → آخر يوم بالشهر) - دالة قديمة
+ * (Legacy) لم تعد مستخدمة في تصدير تقرير الـ PDF (بقى بيستخدم
+ * calculateCycle بدل منها عشان يطابق دورة 21 → 20 المعروضة في الكارت
+ * الحي). أُبقي عليها هنا فقط لعدم كسر أي كود خارجي قديم قد ينادي
+ * window.calculateAttendanceMonth مباشرة.
+ */
 export function calculateMonth(userId, yearMonth = null, options = {}) {
   const profile = options.profile || {
     userId, shiftColor: localStorage.getItem("shift") || "جرين",
@@ -523,42 +899,19 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
 
   for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    const dayInfo = getShiftInfoForDate(profile, dateStr, patternTeams);
-    const isHoliday = isOfficialHolidayDate(dateStr, holidays);
-    const record = getDailyAttendanceRecord(userId, dateStr);
-    const hoursWorked = record ? (Number(record.hoursWorked) || 0) : 0;
-    const isLeave = !!(record && record.isLeave);
-    const isExtraDay = !!(record && record.isExtraDay);
+    const info = classifyDay(userId, dateStr, profile, patternTeams, holidays);
 
-    let bucket = "none";
+    if (info.dayInfo.isWorkDay && info.isHoliday) holidayDeductionDays++;
 
-    if (isLeave) {
-      poolHours += hoursWorked;
-      totalLeaves++;
-      bucket = "leave";
-    } else if (isExtraDay) {
-      offWorkHours += hoursWorked;
-      totalExtraDays++;
+    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
+    else if (info.bucket === "off") {
+      offWorkHours += info.hoursWorked;
       totalOffWorkDays++;
-      bucket = "off";
-    } else if (dayInfo.isWorkDay && isHoliday) {
-      holidayDeductionDays++;
-      if (hoursWorked > 0) {
-        holidayWorkHours += hoursWorked;
-        totalHolidayWorkDays++;
-        bucket = "holiday";
-      }
-    } else if (!dayInfo.isWorkDay && hoursWorked > 0) {
-      offWorkHours += hoursWorked;
-      totalOffWorkDays++;
-      bucket = "off";
-    } else if (dayInfo.isWorkDay && hoursWorked > 0) {
-      poolHours += hoursWorked;
-      totalWorkDays++;
-      bucket = "work";
-    }
+      if (info.record?.isExtraDay) totalExtraDays++;
+    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
+    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
 
-    daysList.push({ date: dateStr, dayInfo, isHoliday, record, hoursWorked, bucket });
+    daysList.push(info);
   }
 
   const targetHours = Number(rules.monthlyTargetHours) || DEFAULT_PAYROLL_RULES.monthlyTargetHours;
@@ -628,11 +981,18 @@ export function computeFinancials(monthData, localConfig, rules = getCachedPayro
 }
 
 // ============================================================
-// 6. تصدير PDF الشهري (يغطي كل أيام الشهر + الملخص المالي) -
-// يتطلب فتح PIN أولاً (نفس قاعدة إخفاء البيانات المالية)
+// 6. تصدير PDF لتقرير دورة الحضور والمرتبات (21 → 20) - يغطي كل
+// أيام الدورة الحالية (وليس الشهر التقويمي) + الملخص المالي.
+// يتطلب فتح PIN أولاً (نفس قاعدة إخفاء البيانات المالية).
+//
+// ⚠️ مُوحَّد الآن مع نفس آلية exportToPdf() المستخدمة والمُجرَّبة في
+// باقي تقارير النظام (الأعطال/التذاكر/الصيانة) بدل الاعتماد على
+// html2pdf.bundle بشكل منفصل - وده اللي كان بيسبب ظهور صفحة بيضاء
+// (غياب تحديد windowWidth لالتقاط html2canvas بعرض التقرير الحقيقي
+// 794px بدل عرض شاشة الجهاز الفعلي، وغياب فترة الانتظار القصيرة قبل
+// الالتقاط اللي بتضمن اكتمال تحميل الخط وتشكيل النص العربي).
+// كل تقارير PDF في النظام دلوقتي بتمر من نفس المسار الموحّد.
 // ============================================================
-
-const MONTH_NAMES_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 
 function codeLabel(code) {
   if (code === "M") return "☀️ صباحي";
@@ -641,7 +1001,7 @@ function codeLabel(code) {
   return "—";
 }
 
-export async function exportPDF(customUserId = null, customYM = null) {
+export async function exportPDF(customUserId = null, customReferenceDate = null) {
   const profile = await getTechnicianProfile(customUserId);
 
   if (!isPayrollUnlocked()) {
@@ -649,22 +1009,43 @@ export async function exportPDF(customUserId = null, customYM = null) {
     if (!unlocked) return;
   }
 
-  const yearMonth = customYM || getTodayDateString().substring(0, 7);
+  const referenceDate = customReferenceDate
+    ? new Date(`${customReferenceDate}T00:00:00`)
+    : new Date();
+
   await loadAttendanceSettingsCaches();
 
   const rules = getCachedPayrollRules();
-  const monthData = calculateMonth(profile.userId, yearMonth, { profile, rules });
+  // الدالة نفسها المستخدمة فعلاً في عرض الكارت الحي (21 → 20) - التقرير
+  // بقى بيطابق تمامًا نفس دورة الحضور والمرتبات المعروضة للفني، بدل
+  // الشهر التقويمي القديم.
+  const cycleData = calculateCycle(profile.userId, { profile, rules, referenceDate });
   const localConfig = getPayrollLocalConfig(profile.userId);
-  const financials = computeFinancials(monthData, localConfig, rules);
+  const financials = computeFinancials(cycleData, localConfig, rules);
 
-  const logoDataUrl = await getCompanyLogoDataUrl();
+  const title = `📄 تقرير حاسبة الحضور والمرتبات — دورة ${cycleData.cycleLabel}`;
+  const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${cycleData.cycleStart}_${cycleData.cycleEnd}.pdf`;
 
-  const [yearStr, monthStr] = yearMonth.split("-");
-  const monthArabic = MONTH_NAMES_AR[parseInt(monthStr, 10) - 1] || monthStr;
+  const infoRows = [
+    { label: "اسم الموظف", value: profile.name },
+    { label: "الوظيفة", value: profile.job },
+    { label: "الفريق", value: getColorBadge(profile.shiftColor).label },
+    { label: "دورة الحضور والمرتبات", value: cycleData.cycleLabel },
+    { label: "الساعات المستهدفة الأصلية", value: `${cycleData.targetHours} س` },
+    { label: "خصم إجازات رسمية", value: `${cycleData.holidayCountInCycle} إجازة × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س` },
+    { label: "الساعات المطلوبة الفعلية", value: `${cycleData.requiredHours} س` }
+  ];
+
+  const statsCardsHtml = buildPdfStatsCardsHtml([
+    { label: "عادي", value: `${cycleData.regularHours} س`, color: "#1e3a8a", bg: "#eff6ff" },
+    { label: `إضافي عادي ×${rules.normalOvertimeMultiplier}`, value: `${cycleData.normalOvertimeHours} س`, color: "#b45309", bg: "#fffbeb" },
+    { label: `عمل OFF ×${rules.offWorkMultiplier}`, value: `${cycleData.offWorkHours} س`, color: "#9d174d", bg: "#fdf2f8" },
+    { label: `عمل إجازة رسمية ×${rules.holidayWorkMultiplier}`, value: `${cycleData.holidayWorkHours} س`, color: "#047857", bg: "#f0fdf4" }
+  ]);
 
   let tableRowsHtml = "";
-  monthData.daysList.forEach((row, idx) => {
-    const rowBg = idx % 2 === 0 ? "bg-white" : "bg-slate-50";
+  cycleData.daysList.forEach((row, idx) => {
+    const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
     const statusBadge = row.bucket === "holiday"
       ? '<span style="color:#b45309;font-weight:bold;">🎉 عمل بإجازة رسمية</span>'
       : row.bucket === "off"
@@ -676,7 +1057,7 @@ export async function exportPDF(customUserId = null, customYM = null) {
       : (row.isHoliday ? '<span style="color:#9d174d;">إجازة رسمية (راحة أصلاً)</span>' : '<span style="color:#94a3b8;">—</span>');
 
     tableRowsHtml += `
-      <tr class="${rowBg}" style="border-bottom: 1px solid #e2e8f0; font-size: 10px;">
+      <tr style="background:${rowBg}; border-bottom: 1px solid #e2e8f0; font-size: 10px;">
         <td style="padding: 5px 6px; text-align: center; font-weight: bold;">${idx + 1}</td>
         <td style="padding: 5px 6px; text-align: center; direction: ltr;">${row.date}</td>
         <td style="padding: 5px 6px; text-align: center;">${codeLabel(row.dayInfo.code)}</td>
@@ -688,61 +1069,7 @@ export async function exportPDF(customUserId = null, customYM = null) {
     `;
   });
 
-  const printContainer = document.createElement("div");
-  printContainer.id = "attendance-pdf-print-container";
-  printContainer.dir = "rtl";
-  printContainer.style.width = "794px";
-  printContainer.style.background = "#ffffff";
-  printContainer.style.color = "#0f172a";
-  printContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
-  printContainer.style.padding = "24px";
-  printContainer.style.boxSizing = "border-box";
-  printContainer.style.position = "absolute";
-  printContainer.style.left = "-9999px";
-  printContainer.style.top = "0";
-
-  printContainer.innerHTML = `
-    <div style="border-bottom: 2px solid #d4af37; padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between;">
-      <div style="text-align: right;">
-        <h1 style="margin: 0; font-size: 16px; font-weight: 900; color: #1e3a8a;">${COMPANY_NAME_AR}</h1>
-        <h2 style="margin: 2px 0 0 0; font-size: 11px; font-weight: 700; color: #64748b;">نظام إدارة الصيانة والتشغيل الصناعي (CMMS)</h2>
-        <div style="margin-top: 4px; font-size: 10px; color: #b45309; font-weight: bold;">تقرير حاسبة الحضور والمرتبات الشهري</div>
-      </div>
-      <div style="text-align: left;">
-        ${logoDataUrl ? `<img src="${logoDataUrl}" style="height: 50px; max-width: 140px; object-fit: contain;" />` : `<span style="font-size: 20px; font-weight: 900; color: #1e3a8a;">${COMPANY_SHORT}</span>`}
-      </div>
-    </div>
-
-    <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 11px;">
-      <div><span style="color: #64748b; font-size: 10px; display: block;">اسم الموظف:</span><strong>${profile.name}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الوظيفة:</span><strong>${profile.job}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الفريق:</span><strong style="color:#1e3a8a;">${getColorBadge(profile.shiftColor).label}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الشهر:</span><strong>${monthArabic} ${yearStr}</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المستهدفة الأصلية:</span><strong>${monthData.targetHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">خصم إجازات رسمية:</span><strong>${monthData.holidayDeductionDays} يوم × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">الساعات المطلوبة الفعلية:</span><strong style="color:#047857;">${monthData.requiredHours} س</strong></div>
-      <div><span style="color: #64748b; font-size: 10px; display: block;">تاريخ الطباعة:</span><strong>${new Date().toLocaleDateString("ar-EG")}</strong></div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;">
-      <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #1e40af; font-weight: bold;">عادي</div>
-        <div style="font-size: 14px; font-weight: 900; color: #1e3a8a;">${monthData.regularHours} س</div>
-      </div>
-      <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #92400e; font-weight: bold;">إضافي عادي ×${rules.normalOvertimeMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #b45309;">${monthData.normalOvertimeHours} س</div>
-      </div>
-      <div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #9d174d; font-weight: bold;">عمل OFF ×${rules.offWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #9d174d;">${monthData.offWorkHours} س</div>
-      </div>
-      <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px; text-align: center;">
-        <div style="font-size: 9px; color: #166534; font-weight: bold;">عمل إجازة رسمية ×${rules.holidayWorkMultiplier}</div>
-        <div style="font-size: 14px; font-weight: 900; color: #047857;">${monthData.holidayWorkHours} س</div>
-      </div>
-    </div>
-
+  const tableHtml = `
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #cbd5e1;">
       <thead>
         <tr style="background: #1e3a8a; color: #ffffff; font-size: 10px;">
@@ -757,7 +1084,9 @@ export async function exportPDF(customUserId = null, customYM = null) {
       </thead>
       <tbody>${tableRowsHtml}</tbody>
     </table>
+  `;
 
+  const financialHtml = `
     <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
       <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 11px;">
@@ -771,37 +1100,15 @@ export async function exportPDF(customUserId = null, customYM = null) {
         <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
       </div>
     </div>
-
-    <div style="border-top: 1px solid #cbd5e1; padding-top: 14px; margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center; font-size: 11px;">
-      <div><div style="font-weight: bold; margin-bottom: 30px;">توقيع الفني</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div><div style="margin-top: 4px; color: #64748b; font-size: 10px;">${profile.name}</div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مهندس الوردية</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
-      <div><div style="font-weight: bold; margin-bottom: 30px;">اعتماد مدير المصنع</div><div style="border-bottom: 1px dashed #94a3b8; width: 80%; margin: 0 auto;"></div></div>
-    </div>
   `;
 
-  document.body.appendChild(printContainer);
+  const htmlContent = `${statsCardsHtml}${tableHtml}${financialHtml}`;
 
-  try {
-    const filename = `MSCANCO_Payroll_${profile.name.replace(/\s+/g, "_")}_${yearMonth}.pdf`;
-    if (window.html2pdf) {
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-      };
-      await window.html2pdf().set(opt).from(printContainer).save();
-    } else {
-      window.print();
-    }
-  } catch (err) {
-    console.error("[Attendance] Error generating PDF:", err);
-    alert("تعذر توليد ملف الـ PDF حالياً، سيتم فتح نافذة الطباعة بدلاً من ذلك.");
-    window.print();
-  } finally {
-    if (printContainer.parentNode) printContainer.parentNode.removeChild(printContainer);
-  }
+  await exportToPdf(title, infoRows, htmlContent, filename, {
+    first: "توقيع الفني",
+    second: "اعتماد مهندس الوردية",
+    third: "اعتماد مدير المصنع"
+  });
 }
 
 // ============================================================
@@ -1019,39 +1326,50 @@ export function renderAttendanceCard(customProfile = null) {
   const isExtraDay = !!todayRecord.isExtraDay;
   const isLeave = !!todayRecord.isLeave;
 
-  const currentYM = contextDate.substring(0, 7);
+  // الكارت الحي (المطلوب/Progress Bar) وتصدير تقرير الـ PDF بيستخدموا
+  // دلوقتي نفس الدالة (calculateCycle) ونفس دورة 21 → 20 - راجع تعليق
+  // الدالة أعلاه وتعليق exportPDF بالأسفل.
   const rules = getCachedPayrollRules();
-  const monthData = calculateMonth(userId, currentYM, { profile, rules });
+  const cycleData = calculateCycle(userId, { profile, referenceDate: new Date(`${contextDate}T00:00:00`) });
 
   const localConfig = getPayrollLocalConfig(userId);
   const unlocked = isPayrollUnlocked();
-  const financials = computeFinancials(monthData, localConfig, rules);
+  const financials = computeFinancials(cycleData, localConfig, rules);
 
   const dateOptions = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
   const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString("ar-EG", dateOptions);
 
+  // هل اليوم إجازة رسمية حسب Google Calendar تحديدًا (القائمة
+  // المتزامَنة محليًا) - لتلوين كارت اليوم بالأزرق الفاتح
+  const isGoogleHolidayToday = getLocalEgyptianHolidays().some(h => h.date === contextDate);
+  const todayRowClasses = isGoogleHolidayToday
+    ? "bg-sky-400/10 p-2 rounded-lg border border-sky-300/40"
+    : "bg-slate-950/40 p-2 rounded-lg border border-white/10";
+
   let actionButtonHtml = "";
   if (isExtraDay) {
-    actionButtonHtml = `<div class="px-3 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-1"><span>⭐</span><span>يوم إضافي مسجل</span></div>`;
+    actionButtonHtml = `<div class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>⭐</span><span>إضافي مسجل</span></div>`;
   } else if (isLeave) {
-    actionButtonHtml = `<div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة من الرصيد</span></div>`;
+    actionButtonHtml = `<div class="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة رصيد</span></div>`;
   } else if (isCheckedIn) {
+    // زر واحد واضح "تسجيل حضور" - نفس المُعالِج (handleAttendanceButton)
+    // بيحدد تلقائيًا إنها ضغطة تسجيل خروج طالما فيه دخول بدون خروج
     actionButtonHtml = `
-      <button type="button" id="btnShiftCheckOut" onclick="window.checkOutShift()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-md shadow-red-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-white animate-ping"></span><span>تسجيل خروج</span><span class="rtl:rotate-180 text-sm">🚪</span>
+      <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
+        class="group relative px-3 py-1 rounded-lg font-black text-[11px] text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 border border-red-400/50 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-xs">🚪</span>
       </button>`;
   } else if (isCheckedOut) {
     actionButtonHtml = `
-      <div class="flex items-center gap-1.5">
-        <div class="px-3 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1"><span>✅</span><span>تم إتمام الوردية</span></div>
-        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] transition">🔄</button>
+      <div class="flex items-center gap-1">
+        <div class="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>✅</span><span>تمت الوردية</span></div>
+        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[9px] transition">🔄</button>
       </div>`;
   } else {
     actionButtonHtml = `
-      <button type="button" id="btnShiftCheckIn" onclick="window.checkInShift()"
-        class="group relative px-4 py-2 rounded-xl font-black text-xs text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-md shadow-emerald-950/50 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-        <span class="w-2 h-2 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل دخول</span><span class="rtl:rotate-180 text-sm">📲</span>
+      <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
+        class="group relative px-3 py-1 rounded-lg font-black text-[11px] text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 shadow-sm active:scale-95 transition-all flex items-center justify-center gap-1 cursor-pointer">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span><span>تسجيل حضور</span><span class="rtl:rotate-180 text-xs">📲</span>
       </button>`;
   }
 
@@ -1061,117 +1379,133 @@ export function renderAttendanceCard(customProfile = null) {
 
   return `
   <!-- حاسبة الحضور والمرتبات - MSCANCO EGYPT -->
-  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border-2 border-[#D4AF37] shadow-xl shadow-blue-950/40 rounded-2xl p-4 text-white relative overflow-hidden transition-all duration-300">
+  <div id="attendanceShiftCard" class="w-full bg-gradient-to-br from-[#1E3A8A] via-[#172554] to-[#0F172A] border border-[#D4AF37]/60 shadow-md shadow-blue-950/30 rounded-xl p-2.5 sm:p-3 text-white relative overflow-hidden transition-all duration-300">
 
-    <div class="absolute -left-10 -bottom-10 w-36 h-36 bg-[#D4AF37]/10 rounded-full blur-2xl pointer-events-none"></div>
-    <div class="absolute -right-10 -top-10 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+    <div class="absolute -left-10 -bottom-10 w-28 h-28 bg-[#D4AF37]/10 rounded-full blur-xl pointer-events-none"></div>
+    <div class="absolute -right-10 -top-10 w-28 h-28 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
 
-    <div class="relative z-10 space-y-3.5">
+    <div class="relative z-10 space-y-2">
 
-      <div id="attendanceRow1" class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] font-black text-sm shrink-0 shadow-inner">🧮</div>
+      <div id="attendanceRow1" class="flex items-center justify-between gap-1.5 pb-1.5 border-b border-white/10">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-[#D4AF37]/30 to-amber-500/10 border border-[#D4AF37]/50 flex items-center justify-center text-[#D4AF37] font-black text-xs shrink-0 shadow-inner">🧮</div>
           <div class="min-w-0">
-            <div class="flex items-center gap-1.5">
-              <span class="font-black text-sm text-white truncate max-w-[140px] sm:max-w-[200px]">حاسبة الحضور والمرتبات</span>
-              <span class="text-[9px] text-[#D4AF37] font-bold px-1.5 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
+            <div class="flex items-center gap-1">
+              <span class="font-black text-xs text-white truncate max-w-[120px] sm:max-w-[180px]">حاسبة الحضور</span>
+              <span class="text-[8.5px] text-[#D4AF37] font-bold px-1 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
             </div>
-            <div class="text-[11px] text-slate-300 font-medium truncate max-w-[150px] sm:max-w-[220px]">${name} · ${job}</div>
+            <div class="text-[9.5px] text-slate-300 font-medium truncate max-w-[130px] sm:max-w-[200px]">${name} · ${job}</div>
           </div>
         </div>
 
-        <div class="flex items-center gap-1.5 shrink-0">
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${dayInfo.colorBadge.text}">
-            <span class="w-1.5 h-1.5 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${dayInfo.colorBadge.label}</span>
+        <div class="flex items-center gap-1 shrink-0">
+          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${dayInfo.colorBadge.text}">
+            <span class="w-1 h-1 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${dayInfo.colorBadge.label}</span>
           </span>
-          <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold border ${dayInfo.badgeColorClass}">
+          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${dayInfo.badgeColorClass}">
             ${dayInfo.shiftType === "ليلي" ? "🌙 ليلي" : (dayInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
           </span>
           <button type="button" id="attendanceToggleBtn" onclick="window.toggleAttendanceCard()" aria-expanded="${attendanceCardExpanded ? "true" : "false"}" aria-controls="attendanceExpandableContent"
             title="${attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل"}"
-            class="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
-            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            class="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+            <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
           </button>
         </div>
       </div>
 
-      <div id="attendanceRow3" class="flex items-center justify-between gap-2 bg-slate-950/40 p-2.5 rounded-xl border border-white/10">
-        <div class="flex items-center gap-3 text-xs">
-          <div><span class="text-[10px] text-slate-400 block font-medium">الدخول:</span><span class="font-black text-emerald-400 text-sm dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
-          <div class="h-6 w-px bg-white/10"></div>
-          <div><span class="text-[10px] text-slate-400 block font-medium">الخروج:</span><span class="font-black text-amber-400 text-sm dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
+      <div id="attendanceRow3" class="flex items-center justify-between gap-2 ${todayRowClasses}">
+        <div class="flex items-center gap-2.5 text-xs">
+          <div><span class="text-[9px] text-slate-400 block font-medium leading-tight">الدخول:</span><span class="font-black text-emerald-400 text-xs dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
+          <div class="h-4 w-px bg-white/10"></div>
+          <div><span class="text-[9px] text-slate-400 block font-medium leading-tight">الخروج:</span><span class="font-black text-amber-400 text-xs dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
         </div>
         <div>${actionButtonHtml}</div>
       </div>
 
-      <div id="attendanceExpandableContent" class="overflow-hidden transition-all duration-300 ease-in-out space-y-3.5"
+      <div id="attendanceExpandableContent" class="overflow-hidden transition-all duration-300 ease-in-out space-y-2"
         style="max-height: ${attendanceCardExpanded ? "2400px" : "0px"}; opacity: ${attendanceCardExpanded ? "1" : "0"};"
         aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
 
-      <div id="attendanceRow2" class="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-white/5 text-center items-center">
-        <div><div class="text-[9px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-xs font-black text-[#D4AF37] mt-0.5">${dayInfo.dayInCycleText}</div></div>
-        <div class="border-x border-white/10 px-1"><div class="text-[9px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[11px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
-        <div><div class="text-[9px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[11px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
+      <div id="attendanceRow2" class="grid grid-cols-3 gap-1.5 bg-slate-900/60 p-2 rounded-lg border border-white/5 text-center items-center">
+        <div><div class="text-[8.5px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-[11px] font-black text-[#D4AF37] mt-0.5">${dayInfo.dayInCycleText}</div></div>
+        <div class="border-x border-white/10 px-0.5"><div class="text-[8.5px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[10px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
+        <div><div class="text-[8.5px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[10px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
       </div>
 
-      <div id="attendanceDayStatus" class="flex items-center gap-2 bg-slate-900/60 border border-white/10 rounded-xl px-3 py-2 text-[11px] text-slate-200 font-bold">
+      <div id="attendanceDayStatus" class="flex items-center gap-1.5 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-200 font-bold">
         <span>${dayStatusText}</span>
-        ${dayInfo.source === "cycle" ? '<span class="text-[9px] text-slate-500 font-normal">(محسوبة تلقائياً - لا يوجد Pattern مرفوع لهذا التاريخ)</span>' : ""}
+        ${dayInfo.source === "cycle" ? '<span class="text-[8.5px] text-slate-500 font-normal">(محسوبة تلقائياً)</span>' : ""}
       </div>
 
       ${isHolidayToday ? `
-        <div id="attendanceHolidayBadge" class="flex items-center gap-2 bg-amber-500/10 border border-amber-400/30 rounded-xl px-3 py-2 text-[11px] text-amber-200 font-bold">
+        <div id="attendanceHolidayBadge" class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5 text-[10px] text-amber-200 font-bold">
           <span>🎉</span>
-          <span>${!dayInfo.isWorkDay ? "اليوم إجازة رسمية (يوم راحتك الدورية أصلاً - بدون أي تأثير على حسابك)" : "اليوم إجازة رسمية وهو يوم عملك المُجدوَل - أي ساعات هتشتغلها هتتحسب ضمن فئة العمل بالإجازة الرسمية"}</span>
+          <span>${!dayInfo.isWorkDay ? "اليوم إجازة رسمية (راحة دورية)" : "اليوم إجازة رسمية ويوم عمل مُجدوَل"}</span>
         </div>` : ""}
 
-      <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-3 py-2 rounded-xl border border-blue-400/20 text-xs">
-        <div class="flex items-center gap-2"><span class="text-blue-300 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
+      <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-2.5 py-1.5 rounded-lg border border-blue-400/20 text-[11px]">
+        <div class="flex items-center gap-1.5"><span class="text-blue-300 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
       </div>
 
-      <div id="attendanceRow5" class="space-y-1.5 bg-slate-900/80 p-3 rounded-xl border border-white/10">
-        <div class="grid grid-cols-2 gap-1.5 text-[11px] font-bold text-slate-200">
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عادي</div><div class="text-emerald-400 text-sm">${monthData.regularHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">إضافي عادي</div><div class="text-amber-400 text-sm">${monthData.normalOvertimeHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل OFF</div><div class="text-rose-400 text-sm">${monthData.offWorkHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-lg p-1.5 text-center"><div class="text-slate-400 text-[9px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-sm">${monthData.holidayWorkHours}س</div></div>
+      <div id="attendanceRow5" class="space-y-1 bg-slate-900/80 p-2 rounded-lg border border-white/10">
+        <div class="text-[8.5px] text-slate-500 font-medium text-center">دورة الحضور: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
+        <div class="grid grid-cols-2 gap-1 text-[10px] font-bold text-slate-200">
+          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عادي</div><div class="text-emerald-400 text-xs font-black">${cycleData.regularHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">إضافي عادي</div><div class="text-amber-400 text-xs font-black">${cycleData.normalOvertimeHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عمل OFF</div><div class="text-rose-400 text-xs font-black">${cycleData.offWorkHours}س</div></div>
+          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-xs font-black">${cycleData.holidayWorkHours}س</div></div>
         </div>
-        <div class="space-y-1 pt-1">
-          <div class="flex justify-between text-[10px] text-slate-400 font-medium">
-            <span>المطلوب: ${monthData.requiredHours} ساعة ${monthData.holidayDeductionDays > 0 ? `(بعد خصم ${monthData.holidayDeductionDays} يوم إجازة رسمية)` : ""}</span>
-            <span class="text-cyan-300 font-bold">${monthData.progressPercent}% مُنجز</span>
+
+        <div class="grid grid-cols-2 gap-1 pt-0.5">
+          <div>
+            <label class="text-[8.5px] text-slate-400 font-medium block mb-0.5">الساعات المطلوبة</label>
+            <input type="text" readonly value="${cycleData.requiredHours} س"
+              class="w-full text-center text-[10px] font-black text-white bg-slate-950/70 border border-white/10 rounded-md py-1 cursor-not-allowed" />
           </div>
-          <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden border border-white/5">
-            <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${monthData.progressPercent}%"></div>
+          <div>
+            <label class="text-[8.5px] text-slate-400 font-medium block mb-0.5">الساعات المسجّلة</label>
+            <input type="text" readonly value="${cycleData.registeredHours} س"
+              class="w-full text-center text-[10px] font-black text-cyan-300 bg-slate-950/70 border border-white/10 rounded-md py-1 cursor-not-allowed" />
+          </div>
+        </div>
+
+        <div class="space-y-0.5 pt-0.5">
+          <div class="flex justify-between text-[9px] text-slate-400 font-medium">
+            <span>المطلوب: ${cycleData.requiredHours} س</span>
+            <span class="text-cyan-300 font-bold">${cycleData.progressPercent}%</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+            <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${cycleData.progressPercent}%"></div>
           </div>
         </div>
       </div>
 
       <!-- الملخص المالي - مخفي دايماً خلف PIN -->
-      <div id="attendancePayrollBox" class="space-y-1.5 bg-gradient-to-br from-slate-900 to-slate-950 p-3 rounded-xl border border-[#D4AF37]/30">
+      <div id="attendancePayrollBox" class="space-y-1 bg-gradient-to-br from-slate-900 to-slate-950 p-2 rounded-lg border border-[#D4AF37]/30">
         <div class="flex items-center justify-between">
-          <span class="text-[11px] font-black text-[#D4AF37] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
-          <div class="flex items-center gap-1.5">
-            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[10px] px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">⚙️ بيانات المرتب</button>
+          <span class="text-[10px] font-black text-[#D4AF37] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">⚙️ بيانات</button>
             ${unlocked
-              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[10px] px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">🙈 إخفاء</button>`
-              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[10px] px-2 py-1 rounded-lg bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#D4AF37] font-bold">🔓 إظهار المرتب</button>`}
+              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">🙈 إخفاء</button>`
+              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#D4AF37] font-bold">🔓 إظهار</button>`}
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-1.5 text-[11px]">
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">المرتب الأساسي</span><span class="font-bold text-white">${maskMoney(financials.baseSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">قيمة الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-lg px-2 py-1.5"><span class="text-slate-400">صافي المرتب المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+        <div class="grid grid-cols-2 gap-1 text-[10px]">
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.baseSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
-      <div id="attendanceRow6" class="grid grid-cols-3 gap-2 pt-1">
-        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
-        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
-        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-2 rounded-xl text-[11px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
+      <div id="attendanceRow6" class="grid grid-cols-2 gap-1.5 pt-0.5">
+        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
+        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>حضور سابق</span></button>
+        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
+        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
       </div>
 
       </div>
@@ -1224,6 +1558,7 @@ if (typeof window !== "undefined") {
   window.toggleAttendanceCard = toggleAttendanceCard;
   window.getMyShiftInfo = getMyShiftInfo;
   window.calculateAttendanceMonth = calculateMonth;
+  window.calculateAttendanceCycle = calculateCycle;
   window.renderAttendanceCard = renderAttendanceCard;
 
   // تحميل مبدئي غير معطِّل للإعدادات (Pattern/قواعد الإضافي) عشان

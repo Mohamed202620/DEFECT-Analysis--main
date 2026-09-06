@@ -4,13 +4,13 @@
 // بدون أي تغيير في المنطق أو الأسماء المُصدَّرة.
 // ============================================================
 
-import { db } from "../config.js";
+import { db } from "../providers/backend/index.js";
 import { uploadBase64Image } from "./imageUpload.js";
 
 import {
   collection,
   addDoc
-} from "../firebase.js";
+} from "../providers/backend/index.js";
 
 
 // ============================================================

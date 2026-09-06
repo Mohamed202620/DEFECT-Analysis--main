@@ -1,26 +1,48 @@
 // ============================================================
-// branding.js - الهوية الرسمية (معدل ومُصدّر بشكل صحيح)
+// branding.js - الهوية الرسمية (طبقة توافقية فوق المصدر الموحّد)
+// ============================================================
+// ⚠️ ملحوظة هامة: هذا الملف لم يعد يحتوي على أي بيانات هوية أصلية بنفسه.
+// كل النصوص والصور والألوان أصبح مصدرها الوحيد ملف companyHeaderConfig.js
+// (Single Source of Truth). هذا الملف بقى طبقة توافقية (Wrapper) بس، بتعيد
+// تصدير (Re-export) نفس الأسماء القديمة بالظبط عشان أي كود حالي في المشروع
+// (kaizenBoard.js, reportsView.js, maintenanceSearch.js, attendanceCard.js,
+// ticketsBoard.js, exportUtility.js) يفضل شغال من غير أي تعديل مطلوب فيه.
+//
+// أي تعديل على النص أو الشعار أو الشهادات مستقبلاً: يتم في
+// companyHeaderConfig.js فقط، وينعكس تلقائيًا هنا وفي كل مكان تاني.
 // ============================================================
 
 import { translations } from "./config.js";
+import { buildCompanyHeaderHtml, injectCompanyHeaderPrintStyles } from "./components/headerComponent.js";
+import {
+  COMPANY_NAME_AR,
+  COMPANY_NAME_EN,
+  COMPANY_SHORT,
+  CERTIFICATIONS as CERTIFICATIONS_V2,
+  LOGO_ICON_PATH,
+  LOGO_ICON_DATA_URL,
+  COMPANY_BANNER_PATH,
+  COMPANY_BANNER_DATA_URL,
+  getCompanyLogoDataUrl as getCompanyLogoDataUrlV2
+} from "./companyHeaderConfig.js";
 
-export const COMPANY_BANNER_PATH = "/assets/branding/company-banner.png";
+export { COMPANY_BANNER_DATA_URL, LOGO_ICON_DATA_URL };
 
-// شعار مختصر (الرمز الدائري فقط بدون النص الطويل واختام الجودة)
-// بخلفية شفافة بالكامل - مُجهّز خصيصاً لشريط التطبيق العلوي
-export const LOGO_ICON_PATH = "assets/branding/logo-mark.png";
+// إعادة تصدير النصوص والمسارات بنفس الأسماء القديمة تمامًا (توافقية كاملة)
+export {
+  COMPANY_NAME_AR,
+  COMPANY_NAME_EN,
+  COMPANY_SHORT,
+  LOGO_ICON_PATH,
+  COMPANY_BANNER_PATH
+};
 
-export const COMPANY_NAME_AR = "شركة محمود سعيد لصناعة علب المرطبات والأغطية المحدودة";
-export const COMPANY_NAME_EN = "MAHMOOD SAEED BEVERAGE CANS & ENDS INDUSTRY COMPANY LTD.";
-export const COMPANY_SHORT = "MSCANCO";
-
-// شهادات الجودة المعتمدة
-export const CERTIFICATIONS = [
-  { name: "FSSC 22000", type: "سلامة الغذاء" },
-  { name: "ISO 9001",   type: "إدارة الجودة" },
-  { name: "ISO 14001",  type: "الإدارة البيئية" },
-  { name: "ISO 45001",  type: "السلامة والصحة المهنية" }
-];
+// شهادات الجودة المعتمدة - نفس البيانات، بشكل الحقول القديم (name/type) عشان
+// أي كود حالي بيقرأ CERTIFICATIONS بالشكل ده يفضل شغال بدون أي تعديل
+export const CERTIFICATIONS = CERTIFICATIONS_V2.map(c => ({
+  name: c.code,
+  type: c.nameAr
+}));
 
 function escapeBrandHtml(str) {
   return String(str ?? "")
@@ -40,73 +62,22 @@ function chunkPairs(arr, size) {
 }
 
 // ------------------------------------------------------------
-// 0. تحميل لوجو الشركة كـ Data URL وتخزينه مؤقتاً (Cache)
+// 0. لوجو الشركة كـ Data URL
 // ------------------------------------------------------------
-// المشكلة الأصلية: كانت تقارير الـ PDF (html2canvas) تُلتقط كصورة
-// فور إضافة الـ HTML للـ DOM، أي قبل ما ملف اللوجو (خصوصاً أول مرة
-// وبدون Cache من المتصفح) يخلّص تحميله فعلياً -> فبيطلع فاضي أو
-// ناقص في التقرير المُصدَّر رغم إنه ظاهر تمام في هيدر التطبيق
-// نفسه. الحل: نحوّل اللوجو لـ Data URL مرة واحدة ونخزّنه، وأي
-// تقرير PDF بعد كده (أو حتى أول مرة) بينتظر الدالة دي قبل ما
-// يبني الـ HTML بتاعه، فيضمن ظهور اللوجو 100% في كل تقرير.
+// المشكلة الأصلية (سجل تاريخي): كانت تقارير الـ PDF (html2canvas) بتُلتقط
+// كصورة فور إضافة الـ HTML للـ DOM، أي قبل ما ملف اللوجو (خصوصًا أول مرة
+// وبدون Cache من المتصفح) يخلّص تحميله فعليًا عبر fetch() -> فبيطلع فاضي
+// أو ناقص في التقرير المُصدَّر، وكان بيختفي تحديدًا من ملفات الإكسيل لأن
+// ExcelJS محتاج Base64 حقيقي فقط، مش رابط أو Blob.
 //
-// إصلاح: كانت النسخة القديمة بتحمّل الصورة عبر Image() وتُعيد رسمها
-// على <canvas> لاستخراج الـ Data URL منه (canvas.toDataURL) - في أي
-// بيئة بيتصرف فيها المتصفح مع الصورة على إنها "معزولة" (Tainted
-// Canvas)، ولو حتى الصورة نفسها من نفس الأصل (Same-Origin)، كان
-// toDataURL بيرمي استثناء أمان، وقتها الكود القديم كان "يفشل بصمت"
-// ويرجّع مسار الملف العادي (/assets/...png) بدل Data URL حقيقي.
-// تصدير الـ PDF (html2canvas مع <img src="...">) كان شغال برضه في
-// الحالة دي لأنه بيقبل أي رابط صورة عادي، فالمشكلة كانت مستخبية ولا
-// تظهر إلا في تصدير الإكسيل (ExcelJS محتاج Base64 حقيقي فقط، مش
-// رابط) - فكان اللوجو بيختفي من ملفات الإكسيل تحديداً من غير أي
-// خطأ ظاهر في الكونسول يوضّح السبب.
-//
-// الحل الجذري: استبدال Image()+canvas بـ fetch() + FileReader، وهي
-// طريقة مالهاش علاقة بالـ Canvas أصلاً (فمفيش أي Tainted Canvas
-// ممكن يحصل)، وبتشتغل بشكل موثوق لأي ملف من نفس الأصل (Same-Origin)
-// بغض النظر عن أي إعدادات CORS.
-let _cachedLogoDataUrl = null;
-let _cachedLogoPromise = null;
-
+// الحل الجذري النهائي: بعد توحيد كل أصول الهوية في companyHeaderConfig.js
+// كـ Base64 مُضمّن مباشرة جوه كود الـ JS (مش ملف يُجلب وقت التشغيل)، بقت
+// getCompanyLogoDataUrl() هنا مجرد استدعاء مباشر للمصدر الموحّد - مفيش
+// fetch ولا FileReader ولا انتظار شبكة نهائيًا، والقيمة جاهزة فورًا من نفس
+// لحظة تحميل الملف، فمضمون ظهورها 100% في PDF والإكسيل من أول مرة حتى بدون
+// إنترنت أو Service Worker.
 export function getCompanyLogoDataUrl() {
-  if (_cachedLogoDataUrl) return Promise.resolve(_cachedLogoDataUrl);
-  if (_cachedLogoPromise) return _cachedLogoPromise;
-
-  _cachedLogoPromise = (async () => {
-    try {
-      const response = await fetch(COMPANY_BANNER_PATH);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const blob = await response.blob();
-
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(blob);
-      });
-
-      // ضمان صيغة data:image/... حقيقية (وليس مجرد نص عادي) قبل الاعتماد عليها
-      if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
-        _cachedLogoDataUrl = dataUrl;
-        return _cachedLogoDataUrl;
-      }
-      throw new Error("Unexpected FileReader result");
-    } catch (e) {
-      console.warn("تعذر تحميل/تحويل لوجو الشركة إلى Data URL، سيتم عرض اسم الشركة نصياً بدلاً منه في التقارير:", e);
-      _cachedLogoPromise = null;
-      return null;
-    }
-  })();
-
-  return _cachedLogoPromise;
-}
-
-// تسخين الكاش فور تحميل الصفحة (بدون انتظار)، عشان يبقى جاهز في
-// الذاكرة قبل أول محاولة تصدير تقرير أصلاً
-if (typeof window !== "undefined") {
-  getCompanyLogoDataUrl();
+  return getCompanyLogoDataUrlV2();
 }
 
 // ------------------------------------------------------------
@@ -115,33 +86,33 @@ if (typeof window !== "undefined") {
 // ملحوظة: لازم أي كود بيصدّر تقرير PDF (html2canvas) يستدعي
 // await getCompanyLogoDataUrl() ويمرر الناتج هنا (logoSrc) *قبل*
 // ما يعمل html2canvas على العنصر، بدل ما يسيب المتصفح يحمّل
-// الصورة "لحظة" الالتقاط. لو معدّاش logoSrc أو رجعت null هيظهر
-// اسم الشركة نصياً تلقائياً بدل اللوجو بدل ما يفضل فاضي.
-export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_PATH) {
-  const textFallback = `
-    <div style="text-align:center;">
-      <div style="font-size:13px; font-weight:bold; color:#0B3D91;" dir="rtl">
-        ${COMPANY_NAME_AR}
-      </div>
-      <div style="font-size:9px; font-weight:bold; color:#475569;" dir="ltr">
-        ${COMPANY_NAME_EN}
-      </div>
-    </div>
-  `;
+// الصورة "لحظة" الالتقاط.
+//
+// ⚠️ محدّث: بقت الدالة دي بترجع الهيدر الرسمي الموحّد الكامل بثلاث مناطق
+// (شعار MSCANCO يسار + الاسم الثنائي اللغة في المنتصف + شهادات SGS/ISO
+// يمين) عن طريق headerComponent.js/companyHeaderConfig.js، بدل ما كانت
+// بترجع صورة بانر واحدة مسطّحة بس. الباراميتر logoSrc اتسابت لتوافقية
+// الاستدعاءات القديمة (exportUtility.js بينده بالـ Data URL الناتج من
+// getCompanyLogoDataUrl()) لكن بقت بتستخدم فقط كـ "إشارة": لو اتبعتت
+// صراحة null (يعني عايز نص بس بدون أي صور)، هيظهر اسم الشركة نصيًا فقط
+// من غير أي صور - أي حاجة تانية (بما فيها القيمة الافتراضية) هتعرض
+// الهيدر الكامل بثلاث المناطق زي المطلوب.
+export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_DATA_URL) {
+  const currentLang = (typeof window !== "undefined" && window.currentLang) || "ar";
 
-  const logoBlock = logoSrc
-    ? `
-      <img
-        src="${logoSrc}"
-        alt="${COMPANY_SHORT}"
-        style="width:100%; max-height:85px; object-fit:contain; display:block; margin:0 auto;"
-      />
-    `
-    : textFallback;
+  if (logoSrc === null) {
+    // نص فقط بدون أي صور (Fallback نادر الاستخدام - غالبًا لتقارير بيضاء بحتة)
+    return `
+      <div style="text-align:center; padding-bottom:8px; margin-bottom:16px; border-bottom:2px solid #0B3D91; page-break-inside:avoid;">
+        <div style="font-size:13px; font-weight:bold; color:#0B3D91;" dir="rtl">${COMPANY_NAME_AR}</div>
+        <div style="font-size:9px; font-weight:bold; color:#475569;" dir="ltr">${COMPANY_NAME_EN}</div>
+      </div>
+    `;
+  }
 
   return `
-    <div style="text-align:center; padding-bottom:8px; margin-bottom:16px; border-bottom:2px solid #0B3D91; page-break-inside:avoid;">
-      ${logoBlock}
+    <div style="margin-bottom:16px; page-break-inside:avoid;">
+      ${buildCompanyHeaderHtml({ variant: "pdf", lang: currentLang })}
     </div>
   `;
 }
@@ -233,11 +204,11 @@ export function renderHeader() {
           <!-- شعار الشركة واضح وكامل -->
           <div class="app-header-brand flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
             <img
-              src="${LOGO_ICON_PATH}"
+              src="${LOGO_ICON_DATA_URL}"
               alt="${COMPANY_SHORT}"
               class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200"
               style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
-              onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='assets/icons/app-icon.png';}"
+              onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='${LOGO_ICON_PATH}';}"
             />
             <div class="app-header-brand-copy min-w-0 flex-1 leading-tight overflow-hidden">
               <div class="app-header-brand-name text-[12px] sm:text-[14px] md:text-[15px] font-black tracking-wide truncate" style="color:#f8fafc;">
@@ -538,3 +509,11 @@ export function refreshHeader() {
 }
 
 window.refreshHeader = refreshHeader;
+
+// حقن أنماط الهيدر الرسمي الموحّد (بما فيها قواعد @media print لتكرار
+// الهيدر في كل صفحة طباعة) مرة واحدة من أول تحميل للتطبيق - جاهزة لأي
+// تقرير أو صفحة تستخدم buildCompanyHeaderHtml()/wrapHtmlForRepeatingPrintHeader()
+// بعد كده من غير ما تحتاج تستدعيها بنفسها في كل مرة.
+if (typeof window !== "undefined") {
+  injectCompanyHeaderPrintStyles();
+}

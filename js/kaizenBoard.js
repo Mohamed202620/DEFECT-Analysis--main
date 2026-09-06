@@ -418,8 +418,36 @@ window.handleKaizenAction = async function (suggestionId, action) {
       submitLabel: "إعادة الإرسال للمراجعة",
       fields: [
         { id: "title", label: "عنوان المقترح", type: "text", required: true, defaultValue: current.title || "" },
+        { 
+          id: "line", 
+          label: "رقم الخط", 
+          type: "select", 
+          options: [
+            { value: "Line 1", label: "Line 1" },
+            { value: "Line 2", label: "Line 2" }
+          ],
+          required: true,
+          defaultValue: current.line || "" 
+        },
+        { id: "machine", label: "الماكينة (اكتب الاسم/الرقم)", type: "text", required: true, defaultValue: current.machine || "" },
+        {
+          id: "category",
+          label: "تصنيف التحسين",
+          type: "select",
+          options: [
+            { value: "productivity", label: "⏱️ زيادة الإنتاجية والكفاءة" },
+            { value: "quality", label: "🎯 تحسين الجودة" },
+            { value: "safety", label: "🛡️ السلامة والصحة المهنية" },
+            { value: "5s", label: "🧹 تنظيم بيئة العمل (5S)" },
+            { value: "cost", label: "💰 تقليل التكاليف والهدر" }
+          ],
+          required: true,
+          defaultValue: current.category || ""
+        },
         { id: "problem", label: "المشكلة الحالية", type: "textarea", required: true, defaultValue: current.problem || "" },
-        { id: "solution", label: "الحل المقترح", type: "textarea", required: true, defaultValue: current.solution || "" }
+        { id: "solution", label: "الحل المقترح", type: "textarea", required: true, defaultValue: current.solution || "" },
+        { id: "impact", label: "الأثر المتوقع", type: "text", defaultValue: current.impact || "" },
+        { id: "images", label: "إرفاق صور للتعديل (يستبدل الصور القديمة إن وجدت)", type: "images", required: false }
       ]
     });
 

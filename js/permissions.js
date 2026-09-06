@@ -47,6 +47,24 @@ export function isAdminRole(role) {
 
 window.isAdminRole = isAdminRole;
 
+// إصلاح (بند A2 في تقرير المراجعة - دور "Supervisor" كان بلا أي
+// تأثير فعلي): صفحة "طلبات الانضمام" (RequestsView.js) بتدي الأدمن
+// خيار تعيين role="supervisor" يدوياً لأي مستخدم، لكن كل فحوصات
+// "هل هو مدير؟" في التطبيق (هنا وفي firestore.rules) كانت بتتحقق من
+// "manager" فقط - يعني تعيين "Supervisor" كان عملياً بيدي المستخدم
+// صلاحيات فني عادي بدون أي قدرات إدارية، رغم إن الأدمن قاصد يمنحه
+// صلاحيات مدير. isManagerRole() هي نقطة التحقق الموحدة الجديدة
+// لأي مكان محتاج "مدير أو ما يعادله" - بتشمل "manager" و"supervisor"
+// معاً. لازم أي تعديل هنا ينعكس بنفس المعنى في firestore.rules
+// (دالة isManagerRole() هناك) عشان الحماية الفعلية تتطابق مع منطق
+// الواجهة.
+export function isManagerRole(role) {
+  const r = String(role || "").trim().toLowerCase();
+  return r === "manager" || r === "supervisor";
+}
+
+window.isManagerRole = isManagerRole;
+
 // ============================================================
 // قراءة/تحديث الحالة
 // ============================================================
@@ -141,7 +159,7 @@ export function hasFullDataAccess(role = getCurrentRole()) {
   const r = String(role || getCurrentRole()).trim().toLowerCase();
   return (
     isAdminRole(r) ||
-    r === "manager" ||
+    isManagerRole(r) ||
     r === "engineer"
   );
 }
@@ -177,7 +195,7 @@ export function getTicketActions(ticket) {
 
     case "pending":
       // تصنيف وإسناد البلاغ للمدير أو الأدمن
-      if (role === "manager" || isAdmin) {
+      if (isManagerRole(role) || isAdmin) {
         actions.push({ key: "assign", label: ta().assign });
       }
       break;

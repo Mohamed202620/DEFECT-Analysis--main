@@ -2,29 +2,46 @@ import { getErrorScannerMachineOptions } from '../errorScanner.js';
 import { translations } from '../config.js';
 
 export const ErrorScannerView = () => {
-  const selectedMachineType = localStorage.getItem('selectedMachineType') || '';
-  window.selectedMachineType = selectedMachineType;
-
   const currentLang = window.currentLang || "ar";
   const t = (translations[currentLang] || translations.ar).errorScanner;
   const common = (translations[currentLang] || translations.ar).common;
 
-  const machineOptionsHtml = [
-    `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>${t.selectMachine || (currentLang === 'en' ? 'Select machine type...' : 'اختر نوع الماكينة...')}</option>`,
-    ...getErrorScannerMachineOptions().map((machine) =>
-      `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
-    )
-  ].join('');
+  // إصلاح (بند حرج - Machine Access حسب Role/Work Area): القائمة دلوقتي
+  // مفلترة حسب قسم المستخدم من مصدرها (getErrorScannerMachineOptions ->
+  // getMachineTypeEntries في machines.js) - لو رجعت فاضية (مفيش ماكينة
+  // ضمن قسم المستخدم)، نعرض رسالة واضحة بدل قائمة فاضية تماماً
+  const scannerMachineOptions = getErrorScannerMachineOptions();
+
+  // التحقق من صحة القيمة المحفوظة: إذا كانت القيمة المخزنة غير متوفرة ضمن خيارات المستخدم الحالية، تُفرغ لتجنب تصفية وهمية
+  const rawSavedMachine = localStorage.getItem('selectedMachineType') || '';
+  const selectedMachineType = scannerMachineOptions.includes(rawSavedMachine) ? rawSavedMachine : '';
+  window.selectedMachineType = selectedMachineType;
+  if (!selectedMachineType && rawSavedMachine) {
+    localStorage.removeItem('selectedMachineType');
+  }
+
+  const machineOptionsHtml = scannerMachineOptions.length === 0
+    ? `<option value="" selected disabled>${
+        currentLang === 'en'
+          ? 'No machines available for your work area'
+          : 'لا توجد ماكينات متاحة ضمن قسمك الحالي'
+      }</option>`
+    : [
+        `<option value="" ${selectedMachineType === '' ? 'selected' : ''}>${t.selectMachine || (currentLang === 'en' ? 'Select machine type...' : 'اختر نوع الماكينة...')}</option>`,
+        ...scannerMachineOptions.map((machine) =>
+          `<option value="${machine}" ${selectedMachineType === machine ? 'selected' : ''}>${machine}</option>`
+        )
+      ].join('');
 
   return `
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
 
   <!-- زر الرجوع والعنوان -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
     <div class="flex items-center gap-3">
       <button
         type="button"
-        onclick="window.navigateTo('maintenance')"
+        onclick="window.goBack('maintenance')"
         class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
         <span class="text-base rtl:rotate-180">‹</span>
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
@@ -44,11 +61,12 @@ export const ErrorScannerView = () => {
     <!-- اختيار نوع الماكينة: يتم حفظه محلياً للاستخدام لاحقاً -->
     <div>
       <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
-        <span class="text-[10px] text-gray-400">🔒</span>
+        <span class="text-xs" aria-hidden="true">🏭</span>
         <span>${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}</span>
       </label>
       <select id="machineTypeSelect"
-        onchange="const value = this.value; localStorage.setItem('selectedMachineType', value); window.selectedMachineType = value;"
+        aria-label="${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}"
+        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value;"
         class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
         ${machineOptionsHtml}
       </select>

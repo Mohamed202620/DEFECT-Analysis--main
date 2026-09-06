@@ -59,7 +59,7 @@ export function renderNotificationPermissionBanner() {
   const el = document.createElement("div");
   el.id = BANNER_ID;
   el.className =
-    "fixed bottom-20 inset-x-2 z-[150] bg-[#1E293B] border border-blue-500/40 rounded-xl p-3 shadow-2xl flex items-center justify-between gap-2";
+    "fixed bottom-20 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-lg sm:w-full z-[150] bg-[#1E293B] border border-blue-500/40 rounded-xl p-3 shadow-2xl flex items-center justify-between gap-2";
   el.innerHTML = `
     <span class="text-[11px] text-gray-200 font-bold">${tr.message}</span>
     <div class="flex gap-2 shrink-0">

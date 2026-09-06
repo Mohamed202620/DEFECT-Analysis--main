@@ -37,13 +37,13 @@ export const ReportView = () => {
   window.handleReportSubmit = (event) => {
     event.preventDefault();
     alert(isEn ? 'Report submitted successfully #1024 ✅' : 'تم إرسال البلاغ بنجاح #1024 ✅');
-    window.navigateTo('maintenance');
+    window.goBack('maintenance');
   };
 
   return `
-  <div class="app-page p-4 max-w-md mx-auto pb-10">
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-16">
     <!-- زر الرجوع -->
-    <button onclick="window.navigateTo('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
+    <button onclick="window.goBack('maintenance')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
     </button>
     

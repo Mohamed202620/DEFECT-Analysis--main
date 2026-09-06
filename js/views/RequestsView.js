@@ -12,9 +12,17 @@ function dlog(...args) {
 import {
   fetchUsers,
   updatePermissionsApi,
+  updateUserMachineDepartmentApi,
   updateUserStatusApi,
   deleteUserApi
 } from "../services/api.js";
+
+import {
+  extractUserDepartment,
+  normalizeDepartment
+} from "../utils/departmentUtils.js";
+
+import { ensureUserAndMachinesLoaded } from "../machines.js";
 
 
 // ======================================
@@ -47,8 +55,7 @@ const PERMISSIONS = [
   { value: "qr", label: "📱 QR الماكينات" },
   { value: "errorScanner", label: "🔎 فاحص أعطال الماكينات (OCR)" },
 
-  // الذكاء والمعرفة
-  { value: "ai", label: "🤖 فحص AI" },
+  // المعرفة
   { value: "kb", label: "📚 قاعدة المعرفة" },
 
   // الإحصائيات والتصدير
@@ -86,14 +93,14 @@ function renderUsersManagementPage({
 
 return `
 
-<div class="app-page p-4 max-w-md mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
 
     <!-- Header & Back Button -->
     <div class="flex items-center justify-between border-b border-gray-800 pb-3">
         <div class="flex items-center gap-3">
             <button
                 type="button"
-                onclick="window.navigateTo('system')"
+                onclick="window.goBack('system')"
                 class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
                 <span class="text-base rtl:rotate-180">‹</span>
                 <span class="text-xs text-slate-200">رجوع</span>
@@ -497,6 +504,63 @@ function renderUsers(users) {
                 </div>
 
 
+                <!-- تصنيف قسم الماكينات (Backend / Frontend) - يحدد
+                     أي ماكينات يشوفها هذا المستخدم في شاشة "إدارة
+                     الماكينات" (راجع getMachinesForUser في machines.js).
+                     مستقل عن حقل "القسم" العام فوق (job/department) -->
+
+                <div>
+
+                    <label
+                        class="text-xs text-gray-400">
+
+                        تصنيف الماكينات (Backend / Frontend)
+
+                    </label>
+
+
+                    <select
+                        id="machineDept-${user.id}"
+                        class="
+                        w-full
+                        mt-1
+                        rounded-lg
+                        p-2
+                        bg-[#0F172A]
+                        border
+                        border-gray-700
+                        text-sm
+                        ">
+
+                        <option
+                            value=""
+                            ${!extractUserDepartment(user) ? "selected" : ""}>
+
+                            ⚠️ غير محدد / Not Specified
+
+                        </option>
+
+                        <option
+                            value="backend"
+                            ${extractUserDepartment(user) === "backend" ? "selected" : ""}>
+
+                            🛠️ Backend
+
+                        </option>
+
+                        <option
+                            value="frontend"
+                            ${extractUserDepartment(user) === "frontend" ? "selected" : ""}>
+
+                            🖥️ Frontend
+
+                        </option>
+
+                    </select>
+
+                </div>
+
+
                 <!-- الصلاحيات -->
 
                 <div>
@@ -818,13 +882,18 @@ async function(id) {
     }
 
 
+    const machineDeptSelect =
+        document
+            .getElementById(`machineDept-${id}`);
+
+    const machineDepartment = normalizeDepartment(machineDeptSelect?.value);
+
     const result =
         await updatePermissionsApi(
             id,
             role,
             permissions.join(",")
         );
-
 
     alert(
         result.message ||
@@ -835,18 +904,25 @@ async function(id) {
         )
     );
 
-
     if (result.status === "success") {
+        // تحديث تصنيف الماكينات (Backend/Frontend)
+        await updateUserMachineDepartmentApi(id, machineDepartment);
+
         const currentUid = localStorage.getItem("userId") || "";
         if (id === currentUid) {
             localStorage.setItem("role", role);
             localStorage.setItem("permissions", permissions.join(","));
+            if (machineDepartment) {
+                localStorage.setItem("machineDepartment", machineDepartment);
+            } else {
+                localStorage.removeItem("machineDepartment");
+            }
             setCurrentRole(role);
             setCurrentPermissions(permissions.join(","));
+            ensureUserAndMachinesLoaded(true).catch(e => console.warn("Failed to reload machines:", e));
         }
 
         loadUsersManagement();
-
     }
 
 };

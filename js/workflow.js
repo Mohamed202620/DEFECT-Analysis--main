@@ -121,7 +121,7 @@ window.confirmIssue = async function() {
       if (document.getElementById("issueLocation")) document.getElementById("issueLocation").value = "";
 
       if (typeof window.navigateTo === 'function') {
-        window.navigateTo('home');
+        window.goBack('home');
       }
     } else {
       alert("❌ حدث خطأ أثناء الإرسال: " + (res?.message || "خطأ غير معروف"));

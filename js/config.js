@@ -46,6 +46,7 @@ export const IMGBB_API_KEY = "9e43fc30da5df3c4cdf213f1725504c7";
 // إعدادات Firebase
 // ============================================================
 
+export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 const firebaseConfig = {
 
   apiKey:
@@ -73,7 +74,7 @@ const firebaseConfig = {
 // ثوابت التطبيق
 // ============================================================
 
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.3.0";
 
 export const APP_NAME =
   "MAINTENANCE & DEFECT SYSTEM";
@@ -112,7 +113,7 @@ export const DEBUG = (() => {
 
 // الصلاحيات الافتراضية للمستخدم الجديد بعد القبول
 export const DEFAULT_USER_PERMISSIONS =
-  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,ai,kb,statistics,export";
+  "home,maintenance,issue,suggestions,pm,log,reports,qr,errorScanner,kb,statistics,export";
 
 // جميع الصلاحيات الموجودة في النظام
 export const ALL_PERMISSIONS = [
@@ -128,8 +129,7 @@ export const ALL_PERMISSIONS = [
   "qr",
   "errorScanner",
 
-  // الذكاء الاصطناعي والمعرفة
-  "ai",
+  // المعرفة
   "kb",
 
   // الإحصائيات والتقارير
@@ -279,9 +279,6 @@ export const translations = {
     d1:
       "تصوير عيب",
 
-    d2:
-      "فحص AI",
-
     d3:
       "قاعدة المعرفة",
 
@@ -426,8 +423,6 @@ export const translations = {
       quickAccess: "الوصول السريع",
       reportIssue: "إبلاغ عن عطل",
       reportIssueDesc: "تسجيل بلاغ جديد",
-      aiScan: "فحص الذكاء الاصطناعي",
-      aiScanDesc: "تحليل عيوب الإنتاج",
 
       kbQuick: "قاعدة المعرفة",
       kbQuickDesc: "دليل الإصلاح والحلول",
@@ -490,7 +485,11 @@ export const translations = {
       scannerBtn: "مسح 📷",
       qrTitle: "مسح QR الماكينات",
       qrDesc: "وصول سريع لبيانات المعدة بالكاميرا",
-      qrBtn: "مسح 📷"
+      qrBtn: "مسح 📷",
+      statsTitle: "داشبورد الصيانة والتحليلات",
+      statsDesc: "مؤشرات الأداء KPIs، تدفق الأعطال وMTTR",
+      kbTitle: "قاعدة المعرفة",
+      kbDesc: "دليل الإصلاح وحلول المشاكل"
     },
 
     // مفاتيح خاصة بصفحة "إدارة النظام" (SystemView.js)
@@ -538,42 +537,50 @@ export const translations = {
       emptyPeriod: "لا توجد أعطال مسجلة خلال هذه الفترة."
     },
 
-    // مفاتيح خاصة بصفحة "الإحصائيات" (StatsView.js)
+    // مفاتيح خاصة بصفحة "داشبورد الصيانة والإحصائيات" (StatsView.js)
     stats: {
-      title: "الإحصائيات",
-      subtitle: "تحليل بلاغات الأعطال حسب الفترة",
+      title: "داشبورد الصيانة والتحليلات",
+      subtitle: "مؤشرات الأداء الرئيسية (KPIs)، أداء الورشة وسجل الأعطال",
       day: "اليوم",
       week: "الأسبوع",
       month: "الشهر",
       all: "الكل",
-      loadingStats: "جاري تحميل الإحصائيات...",
-      topMachines: "أكثر الماكينات عطلاً",
+      loadingStats: "جاري تحليل وتحديث مؤشرات الداشبورد...",
+      topMachines: "أكثر الماكينات تكراراً للأعطال",
       noChartData: "لا توجد بلاغات كافية لعرض الرسم البياني خلال هذه الفترة.",
-      priorityDist: "توزيع الأولويات",
-      lineDist: "توزيع البلاغات حسب الخط",
-      mttr: "متوسط زمن الإصلاح",
-      techPerf: "أداء الفنيين (الأكثر إنجازاً)",
+      priorityDist: "توزيع الأولويات ودرجة الخطورة",
+      lineDist: "كثافة الأعطال حسب خطوط الإنتاج",
+      mttr: "متوسط زمن الإصلاح (MTTR)",
+      techPerf: "سجل إنجازات الفنيين المعتمدة",
+      breakdownTrend: "اتجاه ومعدل البلاغات اليومي",
+      kpiEfficiency: "كفاءة إغلاق البلاغات",
+      activeWorkload: "قيد المتابعة والإصلاح",
+      avgDailyTickets: "معدل البلاغات / يوم",
+      healthyLines: "جاهزية خطوط الإنتاج",
       // مفاتيح إضافية لمنطق statistics.js
       periodDay: "اليوم",
       periodWeek: "هذا الأسبوع",
       periodMonth: "هذا الشهر",
       periodAll: "كل الفترات",
       totalTickets: "إجمالي البلاغات",
-      openTickets: "مفتوحة",
+      openTickets: "قيد المعالجة",
       resolvedTickets: "تم إصلاحها",
-      completionRate: "معدل الإنجاز",
+      completionRate: "نسبة الإنجاز",
+      overdueTickets: "متأخرة",
+      criticalTickets: "حرجة عاجلة",
       errorsCountLabel: "عدد الأعطال",
-      priorityHighLabel: "عالية",
+      priorityHighLabel: "عالية / حرجة",
       priorityMediumLabel: "متوسطة",
-      priorityLowLabel: "منخفضة",
-      noLineData: "لا توجد بيانات كافية خلال هذه الفترة.",
+      priorityLowLabel: "منخفضة / عادية",
+      noLineData: "لا توجد بيانات كافية لخطوط الإنتاج خلال هذه الفترة.",
       mttrNoData: "لا توجد بلاغات مُنجزة كافية لحساب متوسط زمن الإصلاح خلال هذه الفترة.",
       mttrMinute: "دقيقة",
       mttrHour: "ساعة",
       mttrDay: "يوم",
-      mttrBasedOn: "بناءً على {n} بلاغ مُنجز",
+      mttrBasedOn: "بناءً على {n} بلاغ مُنجز ومعتمد",
       noTechData: "لا توجد بيانات كافية عن أداء الفنيين خلال هذه الفترة.",
-      ticketWord: "بلاغ"
+      ticketWord: "بلاغ منجز",
+      liveTag: "مباشر"
     },
 
     // مفاتيح خاصة بصفحة "Machine Error Scanner" (ErrorScannerView.js)
@@ -600,7 +607,7 @@ export const translations = {
       readingOcr: "🔍 جاري قراءة النص من الصورة (OCR)...",
       codeExtracted: "✅ تم استخراج كود مقترح: {code} (يمكنك تعديله قبل البحث)",
       codeNotFound: "⚠️ لم يتم التعرف تلقائياً على كود واضح، يرجى إدخاله يدوياً بعد مراجعة النص المستخرج.",
-      ocrError: "❌ حدث خطأ أثناء قراءة النص من الصورة: ",
+      ocrError: "❌ لم استطع قراءة الكود. حاول تصوير اوضح",
       tesseractLoadError: "تعذر تحميل مكتبة قراءة النص (OCR)",
       enterCodeFirst: "⚠️ يرجى إدخال أو استخراج كود العطل أولاً أو استخدام البحث اليدوي.",
       searchingKb: "🔍 جاري البحث في قاعدة المعرفة...",
@@ -672,7 +679,14 @@ export const translations = {
       password: "كلمة السر",
       loginBtn: "دخول",
       registerBtn: "➕ إنشاء حساب جديد",
-      showHidePass: "إظهار أو إخفاء كلمة المرور"
+      showHidePass: "إظهار أو إخفاء كلمة المرور",
+      forgotPassword: "نسيت كلمة المرور؟",
+      resetPasswordTitle: "استعادة كلمة المرور",
+      resetPasswordDesc: "أدخل رقم الموبايل المسجل لاستلام رابط استعادة كلمة المرور",
+      sendResetLink: "إرسال الرابط",
+      resetLinkSent: "تم الإرسال بنجاح (إذا كان الرقم مسجلاً)",
+      resetError: "حدث خطأ أثناء إرسال الرابط",
+      backToLogin: "العودة لتسجيل الدخول"
     },
 
     // مفاتيح خاصة بصفحة "إنشاء حساب" (registerView.js)
@@ -934,9 +948,6 @@ export const translations = {
     d1:
       "Capture Defect",
 
-    d2:
-      "AI Inspect",
-
     d3:
       "Knowledge Base",
 
@@ -1077,8 +1088,6 @@ export const translations = {
       quickAccess: "Quick Access",
       reportIssue: "Report Breakdown",
       reportIssueDesc: "Submit a new ticket",
-      aiScan: "AI Inspection",
-      aiScanDesc: "Production defect analysis",
 
       kbQuick: "Knowledge Base",
       kbQuickDesc: "Repair guide and solutions",
@@ -1134,7 +1143,11 @@ export const translations = {
       scannerBtn: "Scan 📷",
       qrTitle: "Scan Machine QR",
       qrDesc: "Quick equipment access via camera",
-      qrBtn: "Scan 📷"
+      qrBtn: "Scan 📷",
+      statsTitle: "Maintenance Dashboard",
+      statsDesc: "Live KPIs, defect flow and MTTR",
+      kbTitle: "Knowledge Base",
+      kbDesc: "Repair guides and troubleshooting"
     },
 
     system: {
@@ -1180,39 +1193,47 @@ export const translations = {
     },
 
     stats: {
-      title: "Statistics",
-      subtitle: "Breakdown ticket analysis by period",
+      title: "Maintenance Dashboard & Analytics",
+      subtitle: "Workshop KPIs, line reliability, and repair performance",
       day: "Today",
       week: "Week",
       month: "Month",
       all: "All",
-      loadingStats: "Loading statistics...",
-      topMachines: "Top Faulty Machines",
+      loadingStats: "Analyzing dashboard metrics...",
+      topMachines: "Top Recurring Fault Machines",
       noChartData: "Not enough tickets to show a chart for this period.",
-      priorityDist: "Priority Distribution",
-      lineDist: "Tickets by Line",
-      mttr: "Avg. Repair Time (MTTR)",
-      techPerf: "Technician Performance (Top Performers)",
+      priorityDist: "Severity & Priority Breakdown",
+      lineDist: "Defect Density by Production Line",
+      mttr: "Mean Time to Repair (MTTR)",
+      techPerf: "Technician Closed Tickets & Score",
+      breakdownTrend: "Ticket Trend & Daily Intake",
+      kpiEfficiency: "Resolution Efficiency",
+      activeWorkload: "Active Workload",
+      avgDailyTickets: "Tickets / Day",
+      healthyLines: "Production Line Readiness",
       periodDay: "Today",
       periodWeek: "This Week",
       periodMonth: "This Month",
       periodAll: "All Periods",
       totalTickets: "Total Tickets",
-      openTickets: "Open",
+      openTickets: "In Progress",
       resolvedTickets: "Resolved",
       completionRate: "Completion Rate",
+      overdueTickets: "Overdue",
+      criticalTickets: "Critical Urgent",
       errorsCountLabel: "Error Count",
-      priorityHighLabel: "High",
+      priorityHighLabel: "High / Critical",
       priorityMediumLabel: "Medium",
-      priorityLowLabel: "Low",
-      noLineData: "Not enough data for this period.",
+      priorityLowLabel: "Low / Normal",
+      noLineData: "Not enough line breakdown data for this period.",
       mttrNoData: "Not enough resolved tickets to calculate average repair time for this period.",
       mttrMinute: "min",
       mttrHour: "hr",
       mttrDay: "day",
       mttrBasedOn: "Based on {n} resolved ticket(s)",
       noTechData: "Not enough data on technician performance for this period.",
-      ticketWord: "ticket(s)"
+      ticketWord: "resolved",
+      liveTag: "Live"
     },
 
     errorScanner: {
@@ -1237,7 +1258,7 @@ export const translations = {
       readingOcr: "🔍 Reading text from image (OCR)...",
       codeExtracted: "✅ Suggested code extracted: {code} (you can edit it before searching)",
       codeNotFound: "⚠️ Could not automatically recognize a clear code, please enter it manually after reviewing the extracted text.",
-      ocrError: "❌ An error occurred while reading text from the image: ",
+      ocrError: "❌ Could not read the code. Try a clearer photo.",
       tesseractLoadError: "Could not load the OCR text-reading library",
       enterCodeFirst: "⚠️ Please enter or extract an error code first, or use manual search.",
       searchingKb: "🔍 Searching the knowledge base...",
@@ -1307,7 +1328,14 @@ export const translations = {
       password: "Password",
       loginBtn: "Login",
       registerBtn: "➕ Create New Account",
-      showHidePass: "Show or hide password"
+      showHidePass: "Show or hide password",
+      forgotPassword: "Forgot Password?",
+      resetPasswordTitle: "Reset Password",
+      resetPasswordDesc: "Enter your registered mobile number to receive a password reset link",
+      sendResetLink: "Send Reset Link",
+      resetLinkSent: "Link sent successfully (if number is registered)",
+      resetError: "An error occurred while sending the link",
+      backToLogin: "Back to Login"
     },
 
     register: {

@@ -29,8 +29,12 @@ export {
   registerUserApi,
   updatePermissionsApi,
   updateUserStatusApi,
+  updateUserMachineDepartmentApi,
+  fetchCurrentUserProfileApi,
+  clearCurrentUserProfileCache,
   deleteUserApi,
-  fetchTechniciansApi
+  fetchTechniciansApi,
+  fetchManagersAndAdminsApi
 } from "./usersApi.js";
 
 export { saveDefectApi } from "./defectsApi.js";
@@ -97,6 +101,8 @@ export {
   addOfficialHolidayApi,
   deleteOfficialHolidayApi
 } from "./holidaysApi.js";
+
+
 
 export {
   fetchMachineTypesApi,
