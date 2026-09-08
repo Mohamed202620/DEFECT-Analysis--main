@@ -1077,3 +1077,74 @@ export async function deleteUserApi(userId) {
 }
 
 
+// ============================================================
+// ADMIN-ASSISTED PASSWORD RESET (PHASE 2 - بند 2 في تقرير المراجعة، HIGH)
+// ============================================================
+//
+// راجع الشرح الكامل فوق exports.adminResetUserPassword في
+// functions/index.js و فوق resetPassword() في js/auth/login.js:
+// "نسيت كلمة السر" كانت بترسل رابط استعادة لإيميل داخلي وهمي محدش
+// يقدر يوصله. الآلية الحقيقية البديلة: الأدمن (بعد التأكد من هوية
+// الموظف يدوياً) يولّد له كلمة سر مؤقتة عبر Cloud Function مخصصة
+// (adminResetUserPassword) بتتحقق سيرفرياً إن المستدعي admin فعلاً
+// - لا يمكن تنفيذ عملية Admin SDK زي دي من المتصفح مباشرة إطلاقاً.
+//
+// getFunctions/httpsCallable مش موجودين في حزمة js/firebase.js
+// المُجمَّعة حالياً (بُنيت بدون وحدة Cloud Functions) - بنستوردهم
+// هنا مباشرة من نفس نسخة Firebase SDK المُستخدَمة بالفعل في باقي
+// المشروع (12.18.0، راجع js/firebase.js) عبر gstatic CDN، بدل
+// تعديل حزمة firebase.js نفسها (ملف كبير وحساس، وده خارج نطاق
+// إصلاح "نسيت كلمة السر" المطلوب).
+//
+// ⚠️ ملاحظة نشر (لازم قبل الاستخدام الفعلي):
+//  ١) لازم تفعيل خطة Firebase Blaze على المشروع (Cloud Functions
+//     بشكل عام محتاجة Blaze - راجع functions/README.md لباقي
+//     التفاصيل، نفس المتطلب الموجود بالفعل لـ deleteUserAccount).
+//  ٢) لازم نشر functions/index.js فعلياً:
+//     firebase deploy --only functions:adminResetUserPassword
+//  ٣) الدالة دي جاهزة للاستدعاء من الكود، لكن لسه مش مربوطة بأي
+//     زر في واجهة إدارة المستخدمين (خارج نطاق هذا الإصلاح - "لا
+//     تعديلات على واجهات أخرى غير ملفات المصادقة").
+//
+// @param {string} userId - معرّف المستخدم (نفس Firestore doc id،
+//   وهو نفسه Firebase Auth uid بعد الترحيل - راجع js/auth/login.js)
+// @returns {Promise<{status:string, temporaryPassword?:string, message?:string}>}
+export async function adminResetPasswordApi(userId) {
+
+  if (!userId) {
+    return { status: "error", message: "معرف المستخدم غير موجود" };
+  }
+
+  try {
+
+    const { getFunctions, httpsCallable } = await import(
+      "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js"
+    );
+    const { app } = await import("../config.js");
+
+    const functions = getFunctions(app);
+    const callAdminReset = httpsCallable(functions, "adminResetUserPassword");
+
+    const result = await callAdminReset({ userId });
+
+    return {
+      status: "success",
+      temporaryPassword: result.data?.temporaryPassword
+    };
+
+  } catch (error) {
+
+    console.error("Error in adminResetPasswordApi:", error);
+
+    return {
+      status: "error",
+      message:
+        error?.message ||
+        "فشل إعادة تعيين كلمة السر - تأكد من نشر Cloud Functions أولاً."
+    };
+
+  }
+
+}
+
+
