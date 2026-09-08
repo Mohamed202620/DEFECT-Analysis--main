@@ -27,10 +27,10 @@ import {
   doc,
   setDoc,
   updateDoc,
-  deleteDoc,
   query,
   where,
-  limit
+  limit,
+  callCloudFunction
 } from "../providers/backend/index.js";
 import { isAdminRole } from "../permissions.js";
 
@@ -648,11 +648,13 @@ export async function updatePermissionsApi(
     // حماية آخر Admin: لو المستخدم ده حالياً "admin" نشط، ومطلوب
     // تغيير دوره لأي دور تاني، لازم يفضل أدمن نشط واحد على الأقل
     // غيره بعد العملية - وإلا هيتقفل النظام بالكامل بلا أي أدمن.
+    let wasActiveAdmin = false;
+
     if (role !== "admin") {
 
       const currentSnap = await getDoc(userRef);
       const currentData = currentSnap.exists() ? currentSnap.data() : null;
-      const wasActiveAdmin =
+      wasActiveAdmin =
         currentData &&
         currentData.role === "admin" &&
         currentData.status === "active";
@@ -674,23 +676,39 @@ export async function updatePermissionsApi(
     }
 
 
-    await updateDoc(
-      userRef,
-      {
+    if (wasActiveAdmin) {
 
-        role,
+      // إصلاح (بند A1 في تقرير المراجعة - حماية سيرفرية حقيقية):
+      // firestore.rules بقت تمنع تحديداً تحويل "Admin نشط" لأي دور
+      // تاني عبر updateDoc() من كود العميل مباشرة (حتى لو الفحص فوق
+      // عدّى) - عشان مينفعش حد يتجاوز فحص "آخر Admin" بمناداة
+      // updateDoc() مباشرة من DevTools. الحالة دي بالذات لازم تمر
+      // عبر Cloud Function (updateUserRoleAccount) اللي بتعمل نفس
+      // الفحص تاني على السيرفر (Admin SDK بيتجاوز Security Rules)
+      // قبل التنفيذ الفعلي - راجع functions/index.js.
+      await callCloudFunction("updateUserRoleAccount", { userId, role, permissions });
 
-        permissions,
+    } else {
 
-        updatedAt:
-          new Date().toISOString(),
+      await updateDoc(
+        userRef,
+        {
 
-        updatedBy:
-          localStorage.getItem("name")
-          || "Admin"
+          role,
 
-      }
-    );
+          permissions,
+
+          updatedAt:
+            new Date().toISOString(),
+
+          updatedBy:
+            localStorage.getItem("name")
+            || "Admin"
+
+        }
+      );
+
+    }
 
     invalidateUsersCache();
 
@@ -991,14 +1009,18 @@ export async function updateUserStatusApi(
 // DELETE USER
 // ============================================================
 
-// ⚠️ ملحوظة بعد تفعيل Firebase Authentication:
-// الدالة دي بتحذف مستند بيانات المستخدم من Firestore فقط. حساب
-// Firebase Auth نفسه (اللي بيسمح بتسجيل الدخول) مينفعش يتحذف من
-// كود العميل (Client SDK) لأي مستخدم غير المستخدم المسجّل دخوله
-// حالياً - محتاج Firebase Admin SDK من سيرفر/Cloud Function.
-// عملياً: حذف مستند users/{uid} كافي لمنع الدخول (فحص status/role
-// في login.js هيفشل لو المستند مش موجود)، لكن حساب Auth بيفضل
-// موجود فعلياً حتى يتم حذفه لاحقاً عبر Admin SDK لو احتجتم ده.
+// إصلاح (بند B3 في تقرير المراجعة - حذف حساب Firebase Auth الفعلي):
+// كانت الدالة دي بتحذف مستند بيانات المستخدم من Firestore بس، وحساب
+// Firebase Auth (اللي بيسمح بتسجيل الدخول بكلمة السر) بيفضل موجود
+// فعلياً - حذف حساب Auth لمستخدم تاني مينفعش من كود العميل (Client
+// SDK) أصلاً، ده قيد من Firebase نفسه، فالعملية دلوقتي بالكامل عبر
+// Cloud Function (deleteUserAccount - راجع functions/index.js)
+// بتستخدم Firebase Admin SDK على السيرفر: بتحذف حساب Auth ومستند
+// Firestore معاً في نفس العملية، وبتتحقق بنفسها (على السيرفر) إن
+// اللي بينادي عليها Admin نشط فعلاً وإن المستهدف مش آخر Admin نشط -
+// دفاع إضافي فوق فحص العميل تحت وفوق firestore.rules (اللي بقت
+// كمان تمنع حذف "Admin نشط" مباشرة عبر deleteDoc() من كود العميل،
+// لمنع أي تجاوز يسيب حساب Auth يتيم زي المشكلة الأصلية).
 export async function deleteUserApi(userId) {
 
   try {
@@ -1043,7 +1065,11 @@ export async function deleteUserApi(userId) {
 
     }
 
-    await deleteDoc(userRef);
+    // حذف حقيقي (Auth + Firestore معاً) عبر Cloud Function - راجع
+    // الملحوظة فوق. لو الدالة مش منشورة بعد على Firebase، هترجع
+    // خطأ واضح تحت (callCloudFunction في firebaseBackendProvider.js)
+    // بدل ما تدّعي نجاح جزئي.
+    await callCloudFunction("deleteUserAccount", { userId });
 
     invalidateUsersCache();
 
@@ -1051,7 +1077,7 @@ export async function deleteUserApi(userId) {
 
       status: "success",
 
-      message: "تم حذف المستخدم نهائيًا"
+      message: "تم حذف المستخدم نهائيًا (الحساب والبيانات)"
 
     };
 
@@ -1070,77 +1096,6 @@ export async function deleteUserApi(userId) {
         error.message ||
         "فشل حذف المستخدم"
 
-    };
-
-  }
-
-}
-
-
-// ============================================================
-// ADMIN-ASSISTED PASSWORD RESET (PHASE 2 - بند 2 في تقرير المراجعة، HIGH)
-// ============================================================
-//
-// راجع الشرح الكامل فوق exports.adminResetUserPassword في
-// functions/index.js و فوق resetPassword() في js/auth/login.js:
-// "نسيت كلمة السر" كانت بترسل رابط استعادة لإيميل داخلي وهمي محدش
-// يقدر يوصله. الآلية الحقيقية البديلة: الأدمن (بعد التأكد من هوية
-// الموظف يدوياً) يولّد له كلمة سر مؤقتة عبر Cloud Function مخصصة
-// (adminResetUserPassword) بتتحقق سيرفرياً إن المستدعي admin فعلاً
-// - لا يمكن تنفيذ عملية Admin SDK زي دي من المتصفح مباشرة إطلاقاً.
-//
-// getFunctions/httpsCallable مش موجودين في حزمة js/firebase.js
-// المُجمَّعة حالياً (بُنيت بدون وحدة Cloud Functions) - بنستوردهم
-// هنا مباشرة من نفس نسخة Firebase SDK المُستخدَمة بالفعل في باقي
-// المشروع (12.18.0، راجع js/firebase.js) عبر gstatic CDN، بدل
-// تعديل حزمة firebase.js نفسها (ملف كبير وحساس، وده خارج نطاق
-// إصلاح "نسيت كلمة السر" المطلوب).
-//
-// ⚠️ ملاحظة نشر (لازم قبل الاستخدام الفعلي):
-//  ١) لازم تفعيل خطة Firebase Blaze على المشروع (Cloud Functions
-//     بشكل عام محتاجة Blaze - راجع functions/README.md لباقي
-//     التفاصيل، نفس المتطلب الموجود بالفعل لـ deleteUserAccount).
-//  ٢) لازم نشر functions/index.js فعلياً:
-//     firebase deploy --only functions:adminResetUserPassword
-//  ٣) الدالة دي جاهزة للاستدعاء من الكود، لكن لسه مش مربوطة بأي
-//     زر في واجهة إدارة المستخدمين (خارج نطاق هذا الإصلاح - "لا
-//     تعديلات على واجهات أخرى غير ملفات المصادقة").
-//
-// @param {string} userId - معرّف المستخدم (نفس Firestore doc id،
-//   وهو نفسه Firebase Auth uid بعد الترحيل - راجع js/auth/login.js)
-// @returns {Promise<{status:string, temporaryPassword?:string, message?:string}>}
-export async function adminResetPasswordApi(userId) {
-
-  if (!userId) {
-    return { status: "error", message: "معرف المستخدم غير موجود" };
-  }
-
-  try {
-
-    const { getFunctions, httpsCallable } = await import(
-      "https://www.gstatic.com/firebasejs/12.18.0/firebase-functions.js"
-    );
-    const { app } = await import("../config.js");
-
-    const functions = getFunctions(app);
-    const callAdminReset = httpsCallable(functions, "adminResetUserPassword");
-
-    const result = await callAdminReset({ userId });
-
-    return {
-      status: "success",
-      temporaryPassword: result.data?.temporaryPassword
-    };
-
-  } catch (error) {
-
-    console.error("Error in adminResetPasswordApi:", error);
-
-    return {
-      status: "error",
-      message:
-        error?.message ||
-        "فشل إعادة تعيين كلمة السر - تأكد من نشر Cloud Functions أولاً."
     };
 
   }

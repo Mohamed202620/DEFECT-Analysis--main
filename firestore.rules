@@ -32,41 +32,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // إصلاح أمني (PHASE 2 - بند 1 في تقرير المراجعة، CRITICAL):
-    // كان فيه استثناء في allow list تحت بيسمح بقراءة users بحد
-    // أقصى نتيجة واحدة (limit<=1) لأي حد حتى بدون تسجيل دخول
-    // (!isSignedIn()) - بدون أي ضمان إن الاستعلام فعلاً متصفّي
-    // برقم هاتف (Firestore Rules أصلاً مش بتقدر تتحقق من شروط
-    // where() المُستخدَمة في query()، تقدر بس تشوف limit/orderBy/
-    // offset). ده كان معناه إن أي حد يقدر ينادي مباشرة من كونسول
-    // المتصفح (من غير المرور بواجهة التطبيق خالص):
-    //   getDocs(query(collection(db,"users"), limit(1)))
-    // من غير أي where() أصلاً - وتتكرر بـ startAfter(lastDoc) عشان
-    // تسحب كل مستندات users واحد واحد (تسريب كامل: هاتف/اسم/دور/
-    // قسم/وردية لكل الموظفين) بلا أي مصادقة.
-    //
-    // الإصلاح: شيلنا استثناء "!isSignedIn()" خالص. بدل منه، آلية
-    // الترحيل التلقائي (login.js) بقت بتنشئ حساب Firebase Auth
-    // حقيقي (Email/Password) الأول قبل أي استعلام على Firestore،
-    // فبيبقى فعلاً "مسجّل دخول" (request.auth != null) وقت
-    // الاستعلام - ولو كلمة السر القديمة غلط أو رقم الهاتف مش
-    // مسجّل، بيتم حذف الحساب المؤقت ده فوراً من العميل نفسه
-    // (deleteUser على المستخدم الحالي - مسموح بدون Admin SDK).
-    //
-    // isPasswordAuthed() بالتحديد (مش isSignedIn() العادية) عشان
-    // نمنع أي التفاف عن طريق Firebase Anonymous Authentication:
-    // لو حد فعّل Anonymous Sign-in على المشروع، أي حد كان هيقدر
-    // يعمل signInAnonymously() (مجاني وفوري) ويحقق isSignedIn()==true
-    // من غير أي احتكاك حقيقي - فبنتحقق كمان إن الحساب فعلاً
-    // Email/Password (sign_in_provider == "password")، وده بيتطلب
-    // فعلياً إنشاء حساب Firebase Auth حقيقي (محكوم بحماية Firebase
-    // Auth المدمجة ضد إساءة الاستخدام - auth/too-many-requests،
-    // مُعالجة بالفعل في login.js).
-    function isPasswordAuthed() {
-      return isSignedIn()
-             && request.auth.token.firebase.sign_in_provider == "password";
-    }
-
     // بيانات ملف المستخدم الحالي (users/{uid}) - استدعاء get() له
     // تكلفة قراءة إضافية بسيطة، لكنه ضروري عشان نعرف دور/حالة
     // المستخدم فعلياً بدل الاعتماد على أي حاجة يبعتها العميل
@@ -89,6 +54,18 @@ service cloud.firestore {
     // هنا لازم يتطابق مع التعديل هناك.
     function isManagerRole() {
       return myRole() == "manager" || myRole() == "supervisor";
+    }
+
+    // إصلاح (بند A1 في تقرير المراجعة - حماية "آخر Admin" على مستوى
+    // القاعدة، مش بس الواجهة): مستند المستخدم المستهدف حالياً "Admin
+    // نشط" فعلاً (قبل التعديل/الحذف - resource.data)
+    function targetIsActiveAdmin() {
+      return resource.data.role == "admin" && resource.data.status == "active";
+    }
+
+    // هل المستند هيفضل "Admin نشط" بعد التعديل المطلوب (request.resource.data)
+    function staysActiveAdmin() {
+      return request.resource.data.role == "admin" && request.resource.data.status == "active";
     }
 
     // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
@@ -145,30 +122,45 @@ service cloud.firestore {
       //     fetchManagersAndAdminsApi (usersApi.js) يقدر يبعت إشعار
       //     "بلاغ جديد" لكل مدير/أدمن نشط من جهاز أي مستخدم بيسجل بلاغ،
       //     مش بس من جهاز أدمن/مدير
-      //  ٤) إصلاح (PHASE 2 - بند 1، CRITICAL): استعلام الترحيل
-      //     التلقائي من النظام القديم (js/auth/login.js) - بحد
-      //     أقصى نتيجة واحدة (limit<=1)، ومطلوب منه يكون بحساب
-      //     Firebase Auth حقيقي Email/Password فعلاً (مش مجرد
-      //     "مسجّل دخول" بأي طريقة، ومش بدون تسجيل دخول خالص زي
-      //     كان قبل كده) - راجع isPasswordAuthed() وشرحها فوق.
-      //     ده مش استثناء غير محدود عن كل المستخدمين: الطلب لازم
-      //     يمرّ أولاً بإنشاء حساب Auth حقيقي (رقم هاتف->إيميل
-      //     داخلي)، وده بيتطلب فعلياً المرور بحماية Firebase Auth
-      //     ضد إساءة الاستخدام (rate limiting مدمج، auth/too-many-
-      //     requests) بدل ما يبقى استعلام Firestore حر بلا أي قيد.
+      //  ٤) استثناء مؤقت بدون تسجيل دخول، بحد أقصى نتيجة واحدة فقط
+      //     (limit(1)) - ضروري لآلية الترحيل التلقائي من النظام
+      //     القديم في js/auth/login.js: قبل ما يبقى للمستخدم حساب
+      //     Firebase Auth، محتاج نستعلم على بياناته القديمة برقم
+      //     هاتفه عشان نتحقق من كلمة سره القديمة وننشئله حساب Auth
+      //     حقيقي. بدون السطر ده، أي حساب لسه ماترحّلش هيفضل عاجز
+      //     عن الدخول نهائياً حتى لو كلمة سره صح.
+      //     ⚠️ يُنصح بحذف هذا الاستثناء بعد التأكد إن كل المستخدمين
+      //     القدامى دخلوا مرة واحدة على الأقل بعد التحديث (وبالتالي
+      //     بقى عندهم حساب Auth حقيقي ومحتاجوش الاستثناء ده تاني).
       allow list: if (isSignedIn()
                       && (myRole() == "admin" || isManagerRole()
                           || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]))
-                  || (isPasswordAuthed() && request.query.limit <= 1);
+                  || (!isSignedIn() && request.query.limit <= 1);
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
       // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
       // بنفسه (ده كان ثغرة: كان أي مستخدم مسجّل دخول يقدر يرقّي
       // نفسه لـ admin بسطر واحد في الكونسول). تغيير الدور/الحالة/
       // الصلاحيات مقصور على الأدمن فقط.
+      //
+      // إصلاح (بند A1 في تقرير المراجعة): حتى الأدمن نفسه مينفعش
+      // يغيّر مستند "Admin نشط" (سواء نفسه أو أدمن تاني) بحيث يخرجه
+      // من هذه الحالة (role != "admin" أو status != "active") عبر
+      // updateDoc() من كود العميل مباشرة - Security Rules مينفعش
+      // تعمل "عد" حقيقي لباقي الأدمنز النشطين (لا يوجد Query
+      // بـ count داخل Rules)، فالتحويل الحرج ده بالذات لازم يمر عبر
+      // Cloud Function (updateUserRoleAccount - راجع
+      // functions/index.js) اللي بتستخدم Firebase Admin SDK (بيتجاوز
+      // Security Rules) وبتعمل الفحص الحقيقي (فعلاً فيه أدمن نشط
+      // تاني ولا لأ) على السيرفر قبل التنفيذ. باقي التعديلات (تبديل
+      // الصلاحيات مع بقاء الدور "admin"، أو تعديل أي مستخدم مش Admin
+      // نشط أصلاً) لسه مسموحة مباشرة زي ما هي.
       allow update: if isSignedIn()
                     && (
-                      myRole() == "admin"
+                      (
+                        myRole() == "admin"
+                        && !(targetIsActiveAdmin() && !staysActiveAdmin())
+                      )
                       || (
                         request.auth.uid == userId
                         && request.resource.data.role == resource.data.role
@@ -177,7 +169,20 @@ service cloud.firestore {
                       )
                     );
 
-      allow delete: if myRole() == "admin";
+      // إصلاح (بند A1 + B3 في تقرير المراجعة): حذف مستند مستخدم من
+      // كود العميل مباشرة (deleteDoc()) ممنوع تماماً دلوقتي، لسببين
+      // مرتبطين:
+      //  ١) لو المستند "Admin نشط" - نفس مشكلة التعديل فوق (مفيش
+      //     "عد" حقيقي متاح جوه Rules لباقي الأدمنز).
+      //  ٢) حتى لو مش Admin - حذف المستند من كود العميل بس بيسيب
+      //     حساب Firebase Authentication الخاص به شغّال (يتيم) بلا
+      //     أي مستند بيانات - نفس المشكلة الأصلية في بند B3.
+      // الحذف الفعلي (لأي مستخدم) بقى بيمر حصرياً عبر Cloud Function
+      // (deleteUserAccount - راجع functions/index.js وusersApi.js)
+      // اللي بتحذف حساب Auth + مستند Firestore معاً، وبتعمل فحص
+      // "آخر Admin" الحقيقي على السيرفر - وبتشتغل عادي رغم "false"
+      // هنا لأن Firebase Admin SDK بيتجاوز Security Rules أصلاً.
+      allow delete: if false;
     }
 
     // ==========================================================

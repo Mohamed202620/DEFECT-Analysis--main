@@ -717,22 +717,17 @@ window.doForgotPassword = async function () {
     btn.disabled = true;
 
     const res = await resetPassword(phone);
-    if (res.success) {
-      // احتياطي فقط - resetPassword() الحالية دايمًا بترجع
-      // success:false (راجع تعليق الإصلاح فوق الدالة في login.js)
+    if (res.success || res.message === 'EMAIL_NOT_FOUND') {
+      // Don't leak if user exists or not
       const currentLang = window.currentLang || "ar";
       const successMsg = (translations[currentLang] || translations.ar).login.resetLinkSent;
       alert(successMsg);
       document.getElementById('forgotPasswordModal').classList.add('hidden');
       if (phoneInput) phoneInput.value = '';
     } else {
-      // إصلاح (PHASE 2 - بند 2 في تقرير المراجعة، HIGH): مبقتش
-      // بنعرض رسالة نجاح وهمية ("تم الإرسال") رغم إن محدش هيستلم
-      // أي شيء فعليًا - بنعرض الرسالة الصادقة اللي رجعت من
-      // resetPassword() نفسها (توضح إن الاستعادة التلقائية غير
-      // متاحة حاليًا وإن التواصل مع مسؤول النظام هو الطريقة
-      // الحقيقية المتاحة)
-      alert(res.message || (translations[window.currentLang || "ar"] || translations.ar).login.resetError);
+      const currentLang = window.currentLang || "ar";
+      const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
+      alert(errorMsg + "\n" + (res.message || ""));
     }
   } catch (error) {
     const currentLang = window.currentLang || "ar";

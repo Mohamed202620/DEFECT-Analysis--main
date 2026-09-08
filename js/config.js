@@ -47,13 +47,26 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "9e43fc30da5df3
 // ============================================================
 
 export const FIREBASE_API_KEY = window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+
+export const FIREBASE_PROJECT_ID = window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
+
+// إصلاح (بند B3 في تقرير المراجعة): region الـ Cloud Functions
+// (functions/index.js) - محتاجينه لبناء رابط استدعاء الـ callable
+// functions يدوياً (راجع callCloudFunction في
+// firebaseBackendProvider.js) من غير تحميل حزمة "firebase/functions"
+// كاملة في js/firebase.js. لو غيّرتوا الـ region في functions/index.js
+// (حالياً "us-central1" افتراضياً) لازم تغيّروا القيمة هنا كمان، أو
+// تحطوا window.APP_CONFIG.FIREBASE_FUNCTIONS_REGION.
+export const FIREBASE_FUNCTIONS_REGION =
+  window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
+
 const firebaseConfig = {
 
   apiKey: window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
 
   authDomain: window.APP_CONFIG?.FIREBASE_AUTH_DOMAIN || "maintenance-defect-system.firebaseapp.com",
 
-  projectId: window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system",
+  projectId: FIREBASE_PROJECT_ID,
 
   storageBucket: window.APP_CONFIG?.FIREBASE_STORAGE_BUCKET || "maintenance-defect-system.firebasestorage.app",
 
@@ -676,10 +689,10 @@ export const translations = {
       showHidePass: "إظهار أو إخفاء كلمة المرور",
       forgotPassword: "نسيت كلمة المرور؟",
       resetPasswordTitle: "استعادة كلمة المرور",
-      resetPasswordDesc: "أدخل رقم الموبايل المسجل - سيتم توضيح خطوات استعادة الحساب",
-      sendResetLink: "متابعة",
+      resetPasswordDesc: "أدخل رقم الموبايل المسجل لاستلام رابط استعادة كلمة المرور",
+      sendResetLink: "إرسال الرابط",
       resetLinkSent: "تم الإرسال بنجاح (إذا كان الرقم مسجلاً)",
-      resetError: "لا يوجد بريد إلكتروني حقيقي مرتبط برقم الموبايل، فلا يمكن إرسال رابط استعادة تلقائيًا. يرجى التواصل مع مسؤول النظام لإعادة تعيين كلمة السر لك.",
+      resetError: "حدث خطأ أثناء إرسال الرابط",
       backToLogin: "العودة لتسجيل الدخول"
     },
 
@@ -1325,10 +1338,10 @@ export const translations = {
       showHidePass: "Show or hide password",
       forgotPassword: "Forgot Password?",
       resetPasswordTitle: "Reset Password",
-      resetPasswordDesc: "Enter your registered mobile number - you'll be shown how to recover your account",
-      sendResetLink: "Continue",
+      resetPasswordDesc: "Enter your registered mobile number to receive a password reset link",
+      sendResetLink: "Send Reset Link",
       resetLinkSent: "Link sent successfully (if number is registered)",
-      resetError: "There is no real email linked to this phone number, so an automatic reset link cannot be sent. Please contact your system administrator to reset your password.",
+      resetError: "An error occurred while sending the link",
       backToLogin: "Back to Login"
     },
 
