@@ -39,33 +39,27 @@ export const GOOGLE_SCRIPT_URL =
 //
 // ============================================================
 
-export const IMGBB_API_KEY = "9e43fc30da5df3c4cdf213f1725504c7";
+export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "9e43fc30da5df3c4cdf213f1725504c7";
 
 
 // ============================================================
 // إعدادات Firebase
 // ============================================================
 
-export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+export const FIREBASE_API_KEY = window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 const firebaseConfig = {
 
-  apiKey:
-    "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
+  apiKey: window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
 
-  authDomain:
-    "maintenance-defect-system.firebaseapp.com",
+  authDomain: window.APP_CONFIG?.FIREBASE_AUTH_DOMAIN || "maintenance-defect-system.firebaseapp.com",
 
-  projectId:
-    "maintenance-defect-system",
+  projectId: window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system",
 
-  storageBucket:
-    "maintenance-defect-system.firebasestorage.app",
+  storageBucket: window.APP_CONFIG?.FIREBASE_STORAGE_BUCKET || "maintenance-defect-system.firebasestorage.app",
 
-  messagingSenderId:
-    "1065779979535",
+  messagingSenderId: window.APP_CONFIG?.FIREBASE_MESSAGING_SENDER_ID || "1065779979535",
 
-  appId:
-    "1:1065779979535:web:6d53e69c4cfde57b414a7a"
+  appId: window.APP_CONFIG?.FIREBASE_APP_ID || "1:1065779979535:web:6d53e69c4cfde57b414a7a"
 
 };
 
@@ -682,10 +676,10 @@ export const translations = {
       showHidePass: "إظهار أو إخفاء كلمة المرور",
       forgotPassword: "نسيت كلمة المرور؟",
       resetPasswordTitle: "استعادة كلمة المرور",
-      resetPasswordDesc: "أدخل رقم الموبايل المسجل لاستلام رابط استعادة كلمة المرور",
-      sendResetLink: "إرسال الرابط",
+      resetPasswordDesc: "أدخل رقم الموبايل المسجل - سيتم توضيح خطوات استعادة الحساب",
+      sendResetLink: "متابعة",
       resetLinkSent: "تم الإرسال بنجاح (إذا كان الرقم مسجلاً)",
-      resetError: "حدث خطأ أثناء إرسال الرابط",
+      resetError: "لا يوجد بريد إلكتروني حقيقي مرتبط برقم الموبايل، فلا يمكن إرسال رابط استعادة تلقائيًا. يرجى التواصل مع مسؤول النظام لإعادة تعيين كلمة السر لك.",
       backToLogin: "العودة لتسجيل الدخول"
     },
 
@@ -1331,10 +1325,10 @@ export const translations = {
       showHidePass: "Show or hide password",
       forgotPassword: "Forgot Password?",
       resetPasswordTitle: "Reset Password",
-      resetPasswordDesc: "Enter your registered mobile number to receive a password reset link",
-      sendResetLink: "Send Reset Link",
+      resetPasswordDesc: "Enter your registered mobile number - you'll be shown how to recover your account",
+      sendResetLink: "Continue",
       resetLinkSent: "Link sent successfully (if number is registered)",
-      resetError: "An error occurred while sending the link",
+      resetError: "There is no real email linked to this phone number, so an automatic reset link cannot be sent. Please contact your system administrator to reset your password.",
       backToLogin: "Back to Login"
     },
 
