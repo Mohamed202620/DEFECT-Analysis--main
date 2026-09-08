@@ -7,6 +7,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  deleteUser,
   collection,
   query,
   where,
@@ -84,18 +85,90 @@ export async function login(phone, pass) {
     }
 
     // ==================================================
-    // ترحيل تلقائي من النظام القديم (بدون Firebase Auth)
+    // إصلاح أمني (PHASE 2 - بند 1 في تقرير المراجعة، CRITICAL):
+    // ترحيل تلقائي من النظام القديم (بدون Firebase Auth) - بدون
+    // أي استعلام Firestore غير مُصادَق عليه.
+    //
+    // كان الكود القديم هنا بيعمل getDocs() على users بـ
+    // where(phone)+limit(1) وهو المستخدم لسه غير مسجّل دخول - وده
+    // كان بيعتمد على استثناء في firestore.rules
+    // (!isSignedIn() && request.query.limit<=1) اتضح إنه قابل
+    // للاستغلال: أي حد يقدر يستدعي مباشرة من كونسول المتصفح
+    //   getDocs(query(collection(db,"users"), limit(1)))
+    // من غير where() أصلاً (القاعدة مش بتتحقق من وجوده أصلاً)
+    // ويكرر العملية بـ startAfter(lastDoc) عشان يسحب كل مستندات
+    // users بالتدريج - تسريب كامل (هاتف/اسم/دور/الخ) لكل
+    // المستخدمين بلا أي تسجيل دخول.
+    //
+    // الإصلاح: بننشئ حساب Firebase Auth الحقيقي *الأول*
+    // (createUserWithEmailAndPassword) قبل أي استعلام Firestore -
+    // فبيبقى عندنا request.auth != null فعلياً (بحساب Email/
+    // Password حقيقي) وقت الاستعلام. firestore.rules دلوقتي
+    // بتسمح بـ list() بحد أقصى نتيجة واحدة بس لمستخدم مسجّل دخول
+    // فعلياً بحساب Email/Password حقيقي (مش Anonymous) - يعني أي
+    // محاولة تعداد لازم تعدي أولاً من إنشاء حساب Firebase Auth
+    // حقيقي، اللي عنده حماية Rate-Limiting مدمجة من Firebase نفسها
+    // (auth/too-many-requests، مُعالجة بالفعل تحت).
+    //
+    // لو كلمة السر القديمة غلط أو الهاتف مش مسجّل أو مسجّل أكتر من
+    // مرة: بنحذف الحساب المؤقت ده فوراً (deleteUser على المستخدم
+    // الحالي نفسه - مسموح من الـ Client SDK بدون أي Admin SDK)
+    // عشان مايفضلش أي أثر ومايتسربش أي معلومة عن وجود الحساب من
+    // عدمه بعد كده.
     // ==================================================
 
+    let tempCred;
+    try {
+      tempCred = await createUserWithEmailAndPassword(auth, email, cleanPass);
+    } catch (createError) {
+
+      if (createError.code === "auth/email-already-in-use") {
+        // نادرة جداً (Race condition محتمل) - الحساب موجود فعلاً
+        // بس كلمة السر المُدخَلة غلط عليه
+        return { status: "error", message: "كلمة السر غير صحيحة." };
+      }
+
+      if (createError.code === "auth/weak-password") {
+        return {
+          status: "error",
+          message: "كلمة السر قصيرة جداً (الحد الأدنى المسموح به من Firebase هو 6 أحرف)، يرجى التواصل مع المسؤول لتحديثها."
+        };
+      }
+
+      if (createError.code === "auth/too-many-requests") {
+        return {
+          status: "error",
+          message: "محاولات كثيرة جداً، يرجى المحاولة لاحقاً."
+        };
+      }
+
+      console.error("Auth migration pre-check error:", createError);
+      return { status: "error", message: "حدث خطأ أثناء تسجيل الدخول." };
+    }
+
+    uid = tempCred.user.uid;
+
+    // من هنا المستخدم *مسجّل دخول فعلياً* بحساب Email/Password
+    // حقيقي، فالاستعلام التالي مسموح من firestore.rules الجديدة
     const usersRef = collection(db, "users");
     const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
-    const legacySnapshot = await getDocs(legacyQuery);
+
+    let legacySnapshot;
+    try {
+      legacySnapshot = await getDocs(legacyQuery);
+    } catch (queryError) {
+      console.error("Legacy lookup error:", queryError);
+      await deleteUser(tempCred.user).catch(() => {});
+      return { status: "error", message: "حدث خطأ أثناء تسجيل الدخول." };
+    }
 
     if (legacySnapshot.empty) {
+      await deleteUser(tempCred.user).catch(() => {});
       return { status: "error", message: "رقم الموبايل غير مسجل بالنظام." };
     }
 
     if (legacySnapshot.size > 1) {
+      await deleteUser(tempCred.user).catch(() => {});
       return {
         status: "error",
         message: "يوجد أكثر من حساب بنفس رقم الهاتف."
@@ -120,25 +193,13 @@ export async function login(phone, pass) {
     }
 
     if (!passwordOk) {
+      await deleteUser(tempCred.user).catch(() => {});
       return { status: "error", message: "كلمة السر غير صحيحة." };
     }
 
-    // كلمة السر صحيحة -> ننشئ حساب Firebase Auth حقيقي الآن
-    let migratedCred;
-    try {
-      migratedCred = await createUserWithEmailAndPassword(auth, email, cleanPass);
-    } catch (migrationAuthError) {
-      console.error("Auth migration error:", migrationAuthError);
-      return {
-        status: "error",
-        message: "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى."
-      };
-    }
-
-    uid = migratedCred.user.uid;
-
-    // نقل بيانات المستخدم (بدون أي حقول متعلقة بكلمة السر) لمستند
-    // جديد بمعرّف = uid، بدل المستند القديم بمعرّفه العشوائي.
+    // كلمة السر صحيحة -> ننقل بياناته لمستند جديد بمعرّف = uid
+    // بتاع حساب Auth اللي اتعمل فوق بالفعل (مش هننشئ حساب Auth
+    // تاني - نفس مبدأ الكود القديم، بس بترتيب مختلف)
     // migratedFromId: معرّف المستند القديم - مطلوب عشان قاعدة
     // الأمان (firestore.rules) تقدر تتحقق إن role/status المنسوخين
     // فعلاً جايين من مستند قديم حقيقي بنفس القيم، مش مُلفّقين
@@ -156,6 +217,10 @@ export async function login(phone, pass) {
       });
     } catch (migrationWriteError) {
       console.error("Legacy profile migration error:", migrationWriteError);
+      // ملحوظة: هنا الحساب صحيح وكلمة السر صحيحة، بس فشلت كتابة
+      // المستند الجديد - مبنحذفش الحساب (لو حذفناه المستخدم يفقد
+      // فرصة إعادة المحاولة بنفس الحساب) وبنسيب رسالة واضحة تطلب
+      // إعادة المحاولة، بدل ما نرجّعه لنقطة الصفر
       return {
         status: "error",
         message: "تم ترقية الحساب لكن حدث خطأ أثناء نقل البيانات، يرجى المحاولة مرة أخرى."
@@ -269,30 +334,44 @@ export async function login(phone, pass) {
   };
 }
 
-export async function resetPassword(phone) {
-  const { FIREBASE_API_KEY } = await import('../config.js');
-  const email = phoneToAuthEmail(phone);
-  const url = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`;
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        requestType: 'PASSWORD_RESET',
-        email: email,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("[Auth] Password reset error:", data.error?.message);
-      return { success: false, message: data.error?.message || "Unknown error" };
-    }
-    return { success: true };
-  } catch (error) {
-    console.error("[Auth] Password reset network error:", error);
-    return { success: false, message: error.message };
-  }
+/**
+ * إصلاح (PHASE 2 - بند 2 في تقرير المراجعة، HIGH): "نسيت كلمة السر"
+ * المعطّلة فعلياً.
+ *
+ * كانت هذه الدالة بتستخدم phoneToAuthEmail() لتحويل رقم الموبايل
+ * لإيميل داخلي وهمي (مثال: 01001234567@maintenance-defect-system.local)
+ * ثم تطلب من Firebase إرسال رابط استعادة كلمة السر القياسي (sendOobCode)
+ * لهذا الإيميل - رغم إنه إيميل غير موجود فعلياً ولا يملكه أي أحد.
+ * كانت الواجهة (authHandlers.js) تعرض للمستخدم "تم الإرسال بنجاح"
+ * دائماً، بينما لا يصل أي شيء لأي أحد أبداً - المستخدم يفضل عالق
+ * بلا أي طريقة حقيقية لاستعادة حسابه.
+ *
+ * لماذا لا يوجد حل "استعادة تلقائية حقيقية" هنا: المستخدمون يدخلون
+ * برقم موبايل فقط (لا يوجد إيميل حقيقي لأي أحد)، وإرسال رابط عبر
+ * SMS يتطلب الاشتراك في خدمة SMS مدفوعة (خارج نطاق هذا الإصلاح).
+ *
+ * الآلية الحقيقية الوحيدة المتاحة بدون أي خدمة مدفوعة: "إعادة
+ * تعيين بمساعدة الأدمن" - بعد أن يتأكد الأدمن من هوية الموظف (يدويًا
+ * داخل الشركة)، يستطيع توليد كلمة سر مؤقتة جديدة له من صفحة الإدارة
+ * عبر Cloud Function مخصصة (adminResetUserPassword في
+ * functions/index.js) لا تعمل إطلاقاً من المتصفح مباشرة بصلاحيات
+ * Admin - تتحقق من كون المستخدم المستدعي admin فعلاً على السيرفر
+ * أولاً (نفس مبدأ deleteUserAccount الموجودة بالفعل).
+ *
+ * لذلك: هذه الدالة لم تعد تتصل بـ Firebase إطلاقاً (كانت هي نفسها
+ * مصدر الخداع)، وترجع فقط رسالة صادقة توضح الآلية الحقيقية المتاحة
+ * حاليًا - بدون أي ادّعاء بنجاح إرسال أي شيء.
+ *
+ * ⚠️ ملاحظة نشر: ربط adminResetUserPassword بزر فعلي داخل شاشة
+ * إدارة المستخدمين (مثل RequestsView.js) لم يتم في هذا الإصلاح
+ * (خارج النطاق المطلوب - "لا تعديلات على واجهات أخرى") - الدالة
+ * جاهزة للاستخدام عبر adminResetPasswordApi في usersApi.js.
+ */
+export async function resetPassword(_phone) {
+  return {
+    success: false,
+    adminAssistedOnly: true,
+    message:
+      "لا يوجد بريد إلكتروني حقيقي مرتبط برقم الموبايل، فلا يمكن إرسال رابط استعادة تلقائيًا. يرجى التواصل مع مسؤول النظام لإعادة تعيين كلمة السر لك."
+  };
 }
