@@ -46,17 +46,11 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "9e43fc30da5df3
 // إعدادات Firebase
 // ============================================================
 
-export const FIREBASE_API_KEY = window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 
-export const FIREBASE_PROJECT_ID = window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
+export const FIREBASE_PROJECT_ID =
+  window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
 
-// إصلاح (بند B3 في تقرير المراجعة): region الـ Cloud Functions
-// (functions/index.js) - محتاجينه لبناء رابط استدعاء الـ callable
-// functions يدوياً (راجع callCloudFunction في
-// firebaseBackendProvider.js) من غير تحميل حزمة "firebase/functions"
-// كاملة في js/firebase.js. لو غيّرتوا الـ region في functions/index.js
-// (حالياً "us-central1" افتراضياً) لازم تغيّروا القيمة هنا كمان، أو
-// تحطوا window.APP_CONFIG.FIREBASE_FUNCTIONS_REGION.
 export const FIREBASE_FUNCTIONS_REGION =
   window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
 
