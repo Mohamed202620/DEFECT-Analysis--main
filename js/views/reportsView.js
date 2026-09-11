@@ -7,6 +7,12 @@ import {
 } from '../services/api.js';
 import { COMPANY_NAME_AR, COMPANY_NAME_EN, COMPANY_SHORT } from '../branding.js';
 
+// إصلاح UX (P1 - حماية أزرار تصدير التقارير): علم بسيط على مستوى
+// الملف لمنع تشغيل أكثر من عملية تصدير Excel واحدة في نفس الوقت
+// (العملية ثقيلة - ExcelJS - وتعتمد أصلاً على مؤشر حالة واحد مشترك
+// exportStatusBox). لا علاقة له بمنطق التصدير أو محتوى التقارير.
+let isExcelExportRunning = false;
+
 export const ReportsView = () => {
   const isEn = window.currentLang === 'en';
   const isAr = !isEn;
@@ -105,7 +111,7 @@ export const ReportsView = () => {
       <button
         type="button"
         id="btnExportMaster"
-        onclick="window.runExcelExport('master')"
+        onclick="window.runExcelExport('master', this)"
         class="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] rounded-xl font-black text-xs text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer">
         <span>📊</span>
         <span>${isEn ? 'Export Full Master Workbook (.xlsx)' : 'تصدير التقرير الشامل المجمع (Excel)'}</span>
@@ -135,7 +141,7 @@ export const ReportsView = () => {
         </div>
         <button
           type="button"
-          onclick="window.runExcelExport('tickets')"
+          onclick="window.runExcelExport('tickets', this)"
           class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
           <span>📤</span>
           <span>${isEn ? 'Excel' : 'إكسيل'}</span>
@@ -159,7 +165,7 @@ export const ReportsView = () => {
         </div>
         <button
           type="button"
-          onclick="window.runExcelExport('pm')"
+          onclick="window.runExcelExport('pm', this)"
           class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
           <span>📤</span>
           <span>${isEn ? 'Excel' : 'إكسيل'}</span>
@@ -183,7 +189,7 @@ export const ReportsView = () => {
         </div>
         <button
           type="button"
-          onclick="window.runExcelExport('suggestions')"
+          onclick="window.runExcelExport('suggestions', this)"
           class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
           <span>📤</span>
           <span>${isEn ? 'Excel' : 'إكسيل'}</span>
@@ -338,10 +344,40 @@ function getPeriodLabel(filterType, fromDate, toDate, isAr) {
 // ============================================================
 // الدالة المركزية لتصدير الإكسيل
 // ============================================================
-window.runExcelExport = async function (type) {
+window.runExcelExport = async function (type, buttonEl) {
   const isEn = window.currentLang === 'en';
   const isAr = !isEn;
   const statusBox = document.getElementById('exportStatusBox');
+
+  // ============================================================
+  // إصلاح UX (P1 - حماية زر التصدير أثناء العملية): تعطيل الزر
+  // نفسه فورًا + نص حالة واضح عليه، ومنع تشغيل تصدير آخر متزامن،
+  // عشان نمنع الضغط المتكرر أو تشغيل أكثر من عملية ExcelJS ثقيلة
+  // في نفس الوقت (بطء الجهاز/الشبكة/بيانات كبيرة). لا يوجد أي
+  // تغيير في منطق التصدير، الاستعلامات، أو محتوى التقرير أدناه.
+  // ============================================================
+  if (isExcelExportRunning) {
+    alert(isAr
+      ? '⏳ يوجد بالفعل تصدير قيد التنفيذ حالياً، يرجى الانتظار حتى ينتهي قبل بدء تصدير آخر.'
+      : '⏳ Another export is already running. Please wait for it to finish before starting a new one.');
+    return;
+  }
+
+  const originalButtonHtml = buttonEl ? buttonEl.innerHTML : null;
+  const exportBusyLabel = isAr ? '⏳ جاري التصدير...' : '⏳ Exporting...';
+
+  const restoreButton = () => {
+    if (buttonEl && originalButtonHtml !== null) {
+      buttonEl.disabled = false;
+      buttonEl.innerHTML = originalButtonHtml;
+    }
+  };
+
+  isExcelExportRunning = true;
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.innerHTML = exportBusyLabel;
+  }
 
   if (statusBox) {
     statusBox.classList.remove('hidden');
@@ -585,6 +621,12 @@ window.runExcelExport = async function (type) {
     console.error('Error during Excel export:', err);
     alert(isAr ? 'حدث خطأ أثناء إعداد وتصدير ملف الإكسيل. يرجى المحاولة مجدداً.' : 'Error generating Excel report. Please try again.');
     if (statusBox) statusBox.classList.add('hidden');
+  } finally {
+    // إصلاح UX (P1): إعادة الزر لحالته الطبيعية وفك قفل التصدير في
+    // كل الحالات (نجاح/فشل/عدم وجود بيانات) - بدون أي تأثير على
+    // منطق التصدير نفسه
+    isExcelExportRunning = false;
+    restoreButton();
   }
 };
 
