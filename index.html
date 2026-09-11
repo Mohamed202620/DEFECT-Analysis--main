@@ -2,7 +2,12 @@
 <html lang="ar" dir="rtl" id="html-tag">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- إصلاح UX (P1 - السماح بالتكبير على الموبايل): تمت إزالة
+       maximum-scale=1.0 وuser-scalable=no فقط - كانا يمنعان
+       المستخدم من عمل Pinch-to-zoom نهائياً على الهاتف، وهو أمر
+       مهم لقراءة النصوص الصغيرة داخل بيئة المصنع. لم يتم تغيير أي
+       شيء آخر في التصميم أو أحجام الخطوط. -->
   <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
   <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
 
@@ -244,6 +249,56 @@
 
   <!-- Error Handlers & SW -->
   <script>
+    // ============================================================
+    // إصلاح UX (P0 - حماية بيانات الحضور من الفقد): سجلات الحضور/
+    // الانصراف مخزّنة محلياً في localStorage بمفاتيح تبدأ بـ
+    // "attendance_" (راجع js/attendanceCard.js -> getStorageKey).
+    // هذه الدالة بتُستخدم فقط من زر "مسح الذاكرة المؤقتة وإعادة
+    // التشغيل" في شاشة الخطأ الحرج أدناه، وبتعمل الآتي:
+    // 1) تحذير صريح ومحدد (وليس "هل أنت متأكد؟" مبهم) يوضح للمستخدم
+    //    بالضبط ماذا سيحدث.
+    // 2) عند الموافقة: تحتفظ بمفاتيح الحضور فعلياً قبل المسح وتعيدها
+    //    بعده، فلا يتم فقد بيانات الحضور غير المتزامنة إطلاقاً بسبب
+    //    هذا الإجراء - بدون أي تعديل على شكل التخزين أو منطق
+    //    الحضور نفسه.
+    // ============================================================
+    function clearAppCachePreservingAttendance() {
+      var confirmed = window.confirm(
+        "سيتم تسجيل خروجك الآن، وحذف البيانات المؤقتة لهذا التطبيق من هذا المتصفح (الجلسة الحالية والإعدادات المحلية)، ثم إعادة تشغيل التطبيق من جديد.\n\n" +
+        "سجلات الحضور والانصراف المحفوظة على هذا الجهاز ستبقى محفوظة تلقائياً ولن تُحذف بهذا الإجراء.\n\n" +
+        "هل تريد المتابعة؟"
+      );
+      if (!confirmed) return;
+
+      try {
+        var savedAttendance = {};
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf("attendance_") === 0) {
+            savedAttendance[k] = localStorage.getItem(k);
+          }
+        }
+
+        localStorage.clear();
+
+        Object.keys(savedAttendance).forEach(function (k) {
+          localStorage.setItem(k, savedAttendance[k]);
+        });
+      } catch (e) {
+        console.error("Error while preserving attendance data during cache clear:", e);
+      }
+
+      sessionStorage.clear();
+
+      if ("caches" in window) {
+        caches.keys().then(function (keys) {
+          return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }).then(function () { location.reload(); });
+      } else {
+        location.reload();
+      }
+    }
+
     function showFatalError(errorMsg) {
       window.hideSplash();
       var appDiv = document.getElementById("app");
@@ -254,7 +309,7 @@
           '<p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">' + (errorMsg || 'خطأ غير معروف أثناء الإقلاع') + '</p>' +
           '<div class="flex flex-col gap-2 pt-2">' +
           '<button onclick="location.reload();" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">إعادة المحاولة</button>' +
-          '<button onclick="localStorage.clear(); sessionStorage.clear(); if(\'caches\' in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload()); else location.reload();" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">مسح الذاكرة المؤقتة وإعادة التشغيل</button>' +
+          '<button onclick="clearAppCachePreservingAttendance();" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">مسح الذاكرة المؤقتة وإعادة التشغيل</button>' +
           '</div></div></div>';
       }
     }
