@@ -83,7 +83,7 @@ function ticketCardHtml(ticket) {
 
   const actionsHtml = actions.map(a => `
     <button
-      onclick="window.handleTicketAction('${ticket.id}', '${a.key}')"
+      onclick="window.handleTicketAction(this, '${ticket.id}', '${a.key}')"
       class="min-h-[40px] text-xs font-black px-4 py-2 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 ${getActionButtonStyle(a.key)}">
       ${a.label}
     </button>
@@ -574,7 +574,7 @@ window.cleanupTicketsBoard = function () {
 /**
  * تنفيذ الإجراءات على التذكرة
  */
-window.handleTicketAction = async function (ticketId, action) {
+window.handleTicketAction = async function (buttonEl, ticketId, action) {
 
   let result;
   const tr = t();
@@ -584,118 +584,195 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (action === "assign") {
+  // ============================================================
+  // إصلاح UX (P0 - منع تكرار الإجراء): تعطيل الزر نفسه فور الضغط +
+  // نص حالة واضح، عشان نمنع أي ضغطة إضافية أثناء انتظار الشبكة
+  // (بطء الإنترنت/انقطاعه/بطء استجابة Firebase). الحماية هنا على
+  // مستوى الزر الموجود فعلياً في كارت التذكرة (وليس فقط زر داخل
+  // Modal) - راجع نداء الدالة في ticketCardHtml أعلاه وفي
+  // TicketDetailsModal.js. لا يوجد أي تغيير في منطق الإجراءات أو
+  // الـAPIs نفسها هنا - فقط طبقة حماية على الواجهة.
+  // ============================================================
+  const busyLabels = {
+    assign: tr.busyAssign,
+    reassign: tr.busyReassign,
+    start: tr.busyStart,
+    resolve: tr.busyResolve,
+    confirm: tr.busyConfirm,
+    reject: tr.busyReject
+  };
 
-    const techResult = await fetchTechniciansApi();
-    const technicians = techResult.status === "success" ? techResult.data : [];
+  const originalButtonHtml = buttonEl ? buttonEl.innerHTML : null;
 
-    if (!technicians.length) {
-      alert(tr.noTechnicians);
+  const setBusy = () => {
+    if (!buttonEl) return;
+    buttonEl.disabled = true;
+    buttonEl.innerHTML = busyLabels[action] || (tr.busyStart || "⏳ ...");
+  };
+
+  const restoreButton = () => {
+    if (!buttonEl) return;
+    buttonEl.disabled = false;
+    if (originalButtonHtml !== null) buttonEl.innerHTML = originalButtonHtml;
+  };
+
+  // زر بالفعل معطّل (ضغطة مزدوجة وصلت قبل ما نعطّله) - تجاهل الضغطة
+  // الإضافية تمامًا بدل تنفيذ نفس الإجراء مرتين
+  if (buttonEl && buttonEl.disabled) {
+    return;
+  }
+
+  setBusy();
+
+  try {
+
+    if (action === "assign") {
+
+      const techResult = await fetchTechniciansApi();
+      const technicians = techResult.status === "success" ? techResult.data : [];
+
+      if (!technicians.length) {
+        alert(tr.noTechnicians);
+        restoreButton();
+        return;
+      }
+
+      const values = await openActionModal({
+        title: tr.assignTitle,
+        submitLabel: tr.assignSubmit,
+        fields: [
+          {
+            id: "type",
+            label: tr.typeLabel,
+            type: "select",
+            options: [
+              { value: "Breakdown", label: tr.typeBreakdown },
+              { value: "PM", label: tr.typePM },
+              { value: "Other", label: tr.typeOther }
+            ]
+          },
+          {
+            id: "assignedTo",
+            label: tr.assignToLabel,
+            type: "select",
+            options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+          }
+        ]
+      });
+
+      if (!values) {
+        restoreButton();
+        return;
+      }
+
+      const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
+      if (!assignedTo) {
+        restoreButton();
+        return;
+      }
+
+      setBusy();
+      result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
+
+    } else if (action === "reassign") {
+
+      // إضافة (تحسين Workflow - إعادة إسناد): نفس منطق "assign" بالظبط
+      // (اختيار فني من قائمة الفنيين المتاحين)، لكن بيستدعي
+      // reassignTicketApi بدل assignTicketApi - متاحة للتذاكر (تم
+      // الإسناد/قيد التنفيذ) فقط، ومفيدة لو الفني الأصلي بقى غير متاح
+      const techResult = await fetchTechniciansApi();
+      const technicians = techResult.status === "success" ? techResult.data : [];
+
+      if (!technicians.length) {
+        alert(tr.noTechnicians);
+        restoreButton();
+        return;
+      }
+
+      const values = await openActionModal({
+        title: tr.reassignTitle,
+        submitLabel: tr.reassignSubmit,
+        fields: [
+          {
+            id: "assignedTo",
+            label: tr.reassignToLabel,
+            type: "select",
+            options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+          }
+        ]
+      });
+
+      if (!values) {
+        restoreButton();
+        return;
+      }
+
+      const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
+      if (!assignedTo) {
+        restoreButton();
+        return;
+      }
+
+      setBusy();
+      result = await reassignTicketApi(ticketId, { assignedTo, assignedToUid });
+
+    } else if (action === "start") {
+
+      result = await startTicketApi(ticketId);
+
+    } else if (action === "resolve") {
+
+      const values = await openActionModal({
+        title: tr.resolveTitle,
+        submitLabel: tr.resolveSubmit,
+        fields: [
+          { id: "mechanicNotes", label: tr.mechanicNotesField, type: "textarea", placeholder: tr.mechanicNotesPlaceholder, required: true },
+          { id: "afterImages", label: tr.afterImagesField, type: "images", required: true }
+        ]
+      });
+
+      if (!values || !values.mechanicNotes) {
+        restoreButton();
+        return;
+      }
+
+      setBusy();
+      result = await resolveTicketApi(ticketId, values.mechanicNotes, values.afterImages);
+
+    } else if (action === "confirm") {
+
+      result = await closeTicketApi(ticketId);
+
+    } else if (action === "reject") {
+
+      const values = await openActionModal({
+        title: tr.rejectTitle,
+        submitLabel: tr.rejectSubmit,
+        fields: [
+          { id: "operatorFeedback", label: tr.operatorFeedbackField, type: "textarea", placeholder: tr.operatorFeedbackPlaceholder, required: true }
+        ]
+      });
+
+      if (!values || !values.operatorFeedback) {
+        restoreButton();
+        return;
+      }
+
+      setBusy();
+      result = await reopenTicketApi(ticketId, values.operatorFeedback);
+
+    } else {
+      restoreButton();
       return;
     }
 
-    const values = await openActionModal({
-      title: tr.assignTitle,
-      submitLabel: tr.assignSubmit,
-      fields: [
-        {
-          id: "type",
-          label: tr.typeLabel,
-          type: "select",
-          options: [
-            { value: "Breakdown", label: tr.typeBreakdown },
-            { value: "PM", label: tr.typePM },
-            { value: "Other", label: tr.typeOther }
-          ]
-        },
-        {
-          id: "assignedTo",
-          label: tr.assignToLabel,
-          type: "select",
-          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
-        }
-      ]
-    });
-
-    if (!values) return;
-
-    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
-    if (!assignedTo) return;
-
-    result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
-
-  } else if (action === "reassign") {
-
-    // إضافة (تحسين Workflow - إعادة إسناد): نفس منطق "assign" بالظبط
-    // (اختيار فني من قائمة الفنيين المتاحين)، لكن بيستدعي
-    // reassignTicketApi بدل assignTicketApi - متاحة للتذاكر (تم
-    // الإسناد/قيد التنفيذ) فقط، ومفيدة لو الفني الأصلي بقى غير متاح
-    const techResult = await fetchTechniciansApi();
-    const technicians = techResult.status === "success" ? techResult.data : [];
-
-    if (!technicians.length) {
-      alert(tr.noTechnicians);
-      return;
-    }
-
-    const values = await openActionModal({
-      title: tr.reassignTitle,
-      submitLabel: tr.reassignSubmit,
-      fields: [
-        {
-          id: "assignedTo",
-          label: tr.reassignToLabel,
-          type: "select",
-          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
-        }
-      ]
-    });
-
-    if (!values) return;
-
-    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
-    if (!assignedTo) return;
-
-    result = await reassignTicketApi(ticketId, { assignedTo, assignedToUid });
-
-  } else if (action === "start") {
-
-    result = await startTicketApi(ticketId);
-
-  } else if (action === "resolve") {
-
-    const values = await openActionModal({
-      title: tr.resolveTitle,
-      submitLabel: tr.resolveSubmit,
-      fields: [
-        { id: "mechanicNotes", label: tr.mechanicNotesField, type: "textarea", placeholder: tr.mechanicNotesPlaceholder, required: true },
-        { id: "afterImages", label: tr.afterImagesField, type: "images", required: true }
-      ]
-    });
-
-    if (!values || !values.mechanicNotes) return;
-
-    result = await resolveTicketApi(ticketId, values.mechanicNotes, values.afterImages);
-
-  } else if (action === "confirm") {
-
-    result = await closeTicketApi(ticketId);
-
-  } else if (action === "reject") {
-
-    const values = await openActionModal({
-      title: tr.rejectTitle,
-      submitLabel: tr.rejectSubmit,
-      fields: [
-        { id: "operatorFeedback", label: tr.operatorFeedbackField, type: "textarea", placeholder: tr.operatorFeedbackPlaceholder, required: true }
-      ]
-    });
-
-    if (!values || !values.operatorFeedback) return;
-
-    result = await reopenTicketApi(ticketId, values.operatorFeedback);
-
-  } else {
+  } catch (err) {
+    // حماية إضافية (انقطاع/بطء الإنترنت أو أي خطأ غير متوقع أثناء
+    // الاتصال بـFirebase): نعيد الزر لحالته الطبيعية ونوضّح للمستخدم
+    // إن العملية لم تكتمل، بدل ما يفضل الزر معطّل بلا أي تفسير
+    console.error("Ticket action error:", err);
+    alert("❌ " + (tr.genericActionError || "حدث خطأ أثناء تنفيذ الإجراء، حاول مرة أخرى."));
+    restoreButton();
     return;
   }
 
@@ -707,6 +784,7 @@ window.handleTicketAction = async function (ticketId, action) {
     // الخام (عربي دايماً) عشان يفضل متوافق مع اللغة الحالية للواجهة،
     // ومن غير علامة "❌" اللي بتوحي بفشل العملية
     alert("📥 " + tr.actionQueuedOffline);
+    restoreButton();
   } else if (result?.status !== "success") {
     const msg = result?.message || "";
     const isArabicMessage = /[\u0600-\u06FF]/.test(msg);
@@ -716,6 +794,12 @@ window.handleTicketAction = async function (ticketId, action) {
     }
 
     alert("❌ " + (isArabicMessage ? msg : tr.genericActionError));
+    restoreButton();
+  } else {
+    // نجاح: التحديث الطبيعي بيوصل عبر الاشتراك اللحظي (onSnapshot)
+    // اللي بيعيد رسم الكارت بالكامل عادة، لكن بنعيد الزر لحالته هنا
+    // كمان كإجراء احترازي لو تأخر وصول التحديث اللحظي لأي سبب
+    restoreButton();
   }
 
 };

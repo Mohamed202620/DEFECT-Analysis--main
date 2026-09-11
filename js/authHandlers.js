@@ -671,6 +671,28 @@ container.innerHTML = `
 // LOGOUT
 // ============================================================
 
+// إصلاح UX (P0 - حماية بيانات الحضور من الفقد): تسجيل الخروج
+// العادي كان بينادي localStorage.clear() بالكامل، وده كان بيمسح
+// كمان سجلات الحضور/الانصراف المحفوظة محلياً (مفاتيح تبدأ بـ
+// "attendance_" - راجع js/attendanceCard.js -> getStorageKey)
+// لأي فني يسجّل خروج ثم دخول تاني على نفس الجهاز. الدالة دي بتعمل
+// نفس تنظيف بيانات الجلسة بالظبط، لكن بتستثني سجلات الحضور فقط -
+// بدون أي تغيير في باقي منطق تسجيل الخروج أو شكل التخزين نفسه.
+function clearSessionStoragePreservingAttendance() {
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf("attendance_") !== 0) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch (e) {
+    console.error("Error clearing session storage while preserving attendance data:", e);
+  }
+}
+
 window.logout =
 async function () {
 
@@ -688,7 +710,7 @@ try {
   console.warn("SignOut error:", err);
 }
 
-localStorage.clear();
+clearSessionStoragePreservingAttendance();
 clearUserAndMachinesCache();
 clearCurrentUserProfileCache();
 
