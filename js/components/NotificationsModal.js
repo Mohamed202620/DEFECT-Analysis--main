@@ -80,23 +80,44 @@ function notificationItemHtml(n) {
  * تحديث شارة (Badge) عدد الإشعارات غير المقروءة فوق زر 🔔 في
  * الهيدر - آمنة تماماً لو الهيدر غير ظاهر حالياً في DOM
  * (بترجع فوراً من غير أي تأثير جانبي)
+ *
+ * إصلاح UX (P1 - شارة إشعارات الـSidebar): نفس الدالة دلوقتي بتحدّث
+ * كمان شارة "sidebarNotifBadge" (القائمة الجانبية - Desktop) بنفس
+ * العدد بالظبط اللي بيتحسب هنا لشارة الهيدر - نفس مصدر البيانات
+ * (fetchMyNotificationsApi) ونفس آلية التحديث تمامًا، من غير أي
+ * استعلام إضافي أو نظام إشعارات موازٍ جديد. لو عنصر الـSidebar مش
+ * موجود في الصفحة الحالية (مثلاً على الموبايل)، الكود بيتجاهله
+ * بأمان زي ما بيحصل بالظبط مع شارة الهيدر.
  */
 export async function refreshNotificationsBadge() {
 
   const badge = document.getElementById("headerNotifBadge");
+  const sidebarBadge = document.getElementById("sidebarNotifBadge");
   const myUid = localStorage.getItem("userId") || "";
-  if (!badge || !myUid) return;
+  if ((!badge && !sidebarBadge) || !myUid) return;
 
   const result = await fetchMyNotificationsApi(myUid);
   if (!result || result.status !== "success" || !Array.isArray(result.data)) return;
 
   const unread = result.data.filter(n => !n.read).length;
+  const displayValue = unread > 9 ? "9+" : String(unread);
 
-  if (unread > 0) {
-    badge.textContent = unread > 9 ? "9+" : String(unread);
-    badge.classList.remove("hidden");
-  } else {
-    badge.classList.add("hidden");
+  if (badge) {
+    if (unread > 0) {
+      badge.textContent = displayValue;
+      badge.classList.remove("hidden");
+    } else {
+      badge.classList.add("hidden");
+    }
+  }
+
+  if (sidebarBadge) {
+    if (unread > 0) {
+      sidebarBadge.textContent = displayValue;
+      sidebarBadge.classList.remove("hidden");
+    } else {
+      sidebarBadge.classList.add("hidden");
+    }
   }
 
 }

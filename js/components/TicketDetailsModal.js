@@ -366,7 +366,7 @@ export async function openTicketDetailsModal(ticketId) {
         btn.innerHTML = "⏳ جاري التنفيذ...";
 
         try {
-          await window.handleTicketAction(ticket.id, btn.dataset.actionKey);
+          await window.handleTicketAction(btn, ticket.id, btn.dataset.actionKey);
         } finally {
           if (document.body.contains(overlay)) {
             await render();
