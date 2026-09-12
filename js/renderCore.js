@@ -94,14 +94,23 @@ if (
 
 activePage = currentPage;
 
-app.style.opacity = "0.4";
-
-setTimeout(() => {
-
-app.innerHTML =  
-  renderPage(currentPage);  
-
-app.style.opacity = "1";  
+try {
+  app.innerHTML = renderPage(currentPage);
+  app.style.opacity = "1";
+} catch (renderErr) {
+  console.error("Page Render Error (" + currentPage + "):", renderErr);
+  const errDesc = String(renderErr?.message || renderErr);
+  app.innerHTML = `
+    <div class="min-h-[60vh] flex items-center justify-center p-4 text-center text-white" dir="rtl">
+      <div class="bg-red-950/80 border border-red-500 text-red-200 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-3">
+        <h3 class="text-base font-bold text-red-400">⚠️ خطأ في عرض الصفحة</h3>
+        <p class="text-xs text-yellow-300 font-mono text-left" style="direction:ltr">${errDesc}</p>
+        <button onclick="window.navigateTo('home')" class="w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">العودة للرئيسية</button>
+      </div>
+    </div>
+  `;
+  app.style.opacity = "1";
+}
 
 // ========================================================
 // DESKTOP SIDEBAR
@@ -430,8 +439,6 @@ if (
   }, 100);  
 
 }
-
-}, 150);
 
 }
 

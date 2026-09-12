@@ -17,11 +17,10 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
   
-  <!-- App Runtime Config (Backend / Vercel / Client Fallback) -->
+  <!-- App Runtime Config Fallback -->
   <script>
     window.APP_CONFIG = window.APP_CONFIG || {};
   </script>
-  <script src="/api/config.js" onerror="console.warn('Backend /api/config.js not reachable, utilizing client-side default configuration.');"></script>
 
   <!-- أيقونة التبويب في المتصفح (Favicon) -->
   <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
@@ -306,7 +305,9 @@
     }
 
     function showFatalError(errorMsg) {
-      window.hideSplash();
+      if (typeof window.hideSplash === 'function') {
+        window.hideSplash();
+      }
       var appDiv = document.getElementById("app");
       if (appDiv && !appDiv.innerHTML.trim()) {
         appDiv.innerHTML = '<div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono text-white" dir="rtl">' +
@@ -320,15 +321,16 @@
       }
     }
 
+    // اصطياد الأخطاء البرمجية فقط وتجاهل أخطاء تحميل الصور غير الحرجة
     window.addEventListener("error", function (e) {
+      if (e && e.target && e.target !== window && (e.target.tagName === 'IMG' || e.target.tagName === 'LINK')) {
+        return; // تجاهل أخطاء تحميل الصور أو الروابط المسبقة
+      }
       console.error("Application Error:", e.error || e.message);
-      showFatalError(e.message || String(e.error));
-    });
-
-    window.addEventListener("unhandledrejection", function (e) {
-      console.error("Promise Error:", e.reason);
-      var reasonMsg = e.reason && (e.reason.message || String(e.reason));
-      showFatalError(reasonMsg);
+      var appDiv = document.getElementById("app");
+      if (appDiv && !appDiv.innerHTML.trim()) {
+        showFatalError(e.message || (e.error && e.error.message) || String(e.error || "خطأ برمجي غير متوقع"));
+      }
     });
 
     if ('serviceWorker' in navigator) {
@@ -350,7 +352,12 @@
       });
     }
 
-    setTimeout(() => { window.hideSplash(); }, 2500);
+    // مهلة أمان قصوى لإخفاء شاشة البداية
+    setTimeout(() => { 
+      if (typeof window.hideSplash === 'function') {
+        window.hideSplash(); 
+      }
+    }, 1800);
   </script>
 
   <!-- Router Loader & Dynamic Branding Header -->
@@ -377,7 +384,7 @@
         if (!savedPhone && !savedUid) {
           targetPage = (initialHash === "register") ? "register" : "login";
         } else {
-          // انتظار استعادة جلسة Firebase Auth بحد أقصى لمنع تعليق شاشة الإقلاع
+          // محاولة استعادة جلسة Firebase Auth بمهلة أمان لمنع أي تعليق
           let authUser = null;
           try {
             authUser = await ensureAuthReady();
@@ -392,7 +399,6 @@
               targetPage = localStorage.getItem('lastPage') || 'home';
             }
           } else {
-            // الجلسة غير متزامنة مع Firebase Auth - توجيه لصفحة تسجيل الدخول لتوثيق الجلسة
             targetPage = (initialHash === "register") ? "register" : "login";
           }
         }
@@ -412,30 +418,28 @@
             navigateTo('login', false);
           }
         } catch (fallbackErr) {
-          const appDiv = document.getElementById("app");
-          if (appDiv) {
-            appDiv.innerHTML = `
-            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
-                <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
-                    <h3 class="text-base font-bold text-red-400 mb-2">
-                        ⚠️ تعذر تحميل التطبيق
-                    </h3>
-                    <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-                        ${errorMsg}
-                    </p>
-                    <button onclick="location.reload();" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">
-                        إعادة المحاولة
-                    </button>
-                </div>
-            </div>
-            `;
-          }
+          showFatalError(errorMsg);
         }
       } finally {
         if (typeof window.hideSplash === 'function') {
           window.hideSplash();
         }
       }
+
+      // فحص أمان نهائي: إذا ظل #app فارغاً بعد الإقلاع، اعرض صفحة الدخول فوراً
+      setTimeout(() => {
+        const appDiv = document.getElementById("app");
+        if (appDiv && !appDiv.innerHTML.trim()) {
+          console.warn("[App Init] App container empty, navigating to login fallback.");
+          try {
+            if (typeof navigateTo === 'function') {
+              navigateTo('login', false);
+            }
+          } catch (e) {
+            showFatalError("فشل في عرض واجهة التطبيق");
+          }
+        }
+      }, 500);
     }
 
     initApp();

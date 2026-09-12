@@ -2,11 +2,7 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/config.js",
-      "destination": "/api/config.js"
-    },
-    {
-      "source": "/((?!api/|assets/|js/|sw.js|manifest.json|firebase.json|firestore.rules).*)",
+      "source": "/((?!assets/|js/|sw.js|manifest.json|firebase.json|firestore.rules).*)",
       "destination": "/index.html"
     }
   ]
