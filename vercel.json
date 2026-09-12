@@ -1,8 +1,41 @@
 {
   "version": 2,
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
-      "source": "/((?!assets/|js/|sw.js|manifest.json|firebase.json|firestore.rules).*)",
+      "source": "/((?!assets/|js/|sw.js|manifest.json|firebase.json|firestore.rules|.*\\..*).*)",
       "destination": "/index.html"
     }
   ]
