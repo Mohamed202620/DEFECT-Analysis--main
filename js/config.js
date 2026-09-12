@@ -46,7 +46,8 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "9e43fc30da5df3
 // إعدادات Firebase
 // ============================================================
 
-export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+export const FIREBASE_API_KEY =
+  window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 
 export const FIREBASE_PROJECT_ID =
   window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
@@ -185,16 +186,47 @@ export const auth =
 
 /**
  * دالة للتأكد من استعادة جلسة تسجيل الدخول من Firebase Auth قبل تنفيذ أي استعلام
+ * مزودة بـ Safety Timeout لمنع تعليق شاشة الإقلاع على أي استضافة (Vercel/Hosting)
  */
 export function ensureAuthReady() {
   return new Promise((resolve) => {
-    if (auth && typeof auth.authStateReady === "function") {
-      auth.authStateReady().then(() => resolve(auth.currentUser)).catch(() => resolve(auth.currentUser));
-    } else {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (typeof unsubscribe === "function") unsubscribe();
-        resolve(user);
-      }, () => resolve(null));
+    // مهلة أمان قصوى (1.5 ثانية) لضمان عدم تجميد التطبيق أو ترك الشاشة سوداء إطلاقاً
+    const timer = setTimeout(() => {
+      resolve(auth?.currentUser || null);
+    }, 1500);
+
+    try {
+      if (auth && typeof auth.authStateReady === "function") {
+        auth
+          .authStateReady()
+          .then(() => {
+            clearTimeout(timer);
+            resolve(auth.currentUser);
+          })
+          .catch(() => {
+            clearTimeout(timer);
+            resolve(auth?.currentUser || null);
+          });
+      } else if (auth) {
+        const unsubscribe = onAuthStateChanged(
+          auth,
+          (user) => {
+            clearTimeout(timer);
+            if (typeof unsubscribe === "function") unsubscribe();
+            resolve(user);
+          },
+          () => {
+            clearTimeout(timer);
+            resolve(null);
+          }
+        );
+      } else {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    } catch (e) {
+      clearTimeout(timer);
+      resolve(null);
     }
   });
 }

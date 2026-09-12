@@ -8,14 +8,20 @@
        المستخدم من عمل Pinch-to-zoom نهائياً على الهاتف، وهو أمر
        مهم لقراءة النصوص الصغيرة داخل بيئة المصنع. لم يتم تغيير أي
        شيء آخر في التصميم أو أحجام الخطوط. -->
-  <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
-  <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
+  <meta name="description" content="Maintenance & Defect Analysis System (نظام إدارة الصيانة وتحليل العيوب)">
+  <meta property="og:title" content="MAINTENANCE & DEFECT SYSTEM">
+  <meta property="og:description" content="Maintenance & Defect Analysis System (نظام إدارة الصيانة وتحليل العيوب)">
+  <title>MAINTENANCE & DEFECT SYSTEM</title>
 
   <!-- PWA Manifest & Theme -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
   
-  <script src="/api/config.js"></script>
+  <!-- App Runtime Config (Backend / Vercel / Client Fallback) -->
+  <script>
+    window.APP_CONFIG = window.APP_CONFIG || {};
+  </script>
+  <script src="/api/config.js" onerror="console.warn('Backend /api/config.js not reachable, utilizing client-side default configuration.');"></script>
 
   <!-- أيقونة التبويب في المتصفح (Favicon) -->
   <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
@@ -361,20 +367,25 @@
         console.warn("Could not render header automatically:", String(e?.message || e));
       }
 
+      let targetPage = "login";
+
       try {
         const savedPhone = localStorage.getItem("phone");
         const savedUid = localStorage.getItem("userId");
         const initialHash = window.location.hash.replace("#", "");
 
-        let targetPage = "login";
-
         if (!savedPhone && !savedUid) {
           targetPage = (initialHash === "register") ? "register" : "login";
         } else {
-          // انتظار استعادة جلسة Firebase Auth لضمان إرسال رمز المصادقة الصالح مع جميع استعلامات Firestore
-          const authUser = await ensureAuthReady();
+          // انتظار استعادة جلسة Firebase Auth بحد أقصى لمنع تعليق شاشة الإقلاع
+          let authUser = null;
+          try {
+            authUser = await ensureAuthReady();
+          } catch (authErr) {
+            console.warn("Auth check warning:", authErr);
+          }
 
-          if (authUser) {
+          if (authUser || (savedPhone && savedUid)) {
             if (initialHash && initialHash !== "login" && initialHash !== "register") {
               targetPage = initialHash;
             } else {
@@ -391,34 +402,38 @@
         } else if (typeof window.navigateTo === 'function') {
           window.navigateTo(targetPage, false);
         }
-
-        if (typeof window.hideSplash === 'function') {
-          window.hideSplash();
-        }
       } catch (err) {
         const errorMsg = String(err?.message || err || 'Unknown initialization error');
         console.error("Router error: " + errorMsg);
+
+        // محاولة الانتقال لصفحة تسجيل الدخول كإجراء احتياطي لمنع بقاء الشاشة فارغة
+        try {
+          if (typeof navigateTo === 'function') {
+            navigateTo('login', false);
+          }
+        } catch (fallbackErr) {
+          const appDiv = document.getElementById("app");
+          if (appDiv) {
+            appDiv.innerHTML = `
+            <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+                <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
+                    <h3 class="text-base font-bold text-red-400 mb-2">
+                        ⚠️ تعذر تحميل التطبيق
+                    </h3>
+                    <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
+                        ${errorMsg}
+                    </p>
+                    <button onclick="location.reload();" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">
+                        إعادة المحاولة
+                    </button>
+                </div>
+            </div>
+            `;
+          }
+        }
+      } finally {
         if (typeof window.hideSplash === 'function') {
           window.hideSplash();
-        }
-
-        const appDiv = document.getElementById("app");
-        if (appDiv) {
-          appDiv.innerHTML = `
-          <div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
-              <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
-                  <h3 class="text-base font-bold text-red-400 mb-2">
-                      ⚠️ تعذر تحميل التطبيق
-                  </h3>
-                  <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-                      ${errorMsg}
-                  </p>
-                  <p class="text-[11px] text-gray-400 mt-3">
-                      اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
-                  </p>
-              </div>
-          </div>
-          `;
         }
       }
     }
