@@ -5,7 +5,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "deploy": "firebase deploy --only hosting",
+    "deploy:dev": "firebase deploy --only hosting",
+    "deploy:rules": "firebase deploy --only firestore:rules",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:all": "firebase deploy"
   },
   "dependencies": {
     "express": "^4.21.2"

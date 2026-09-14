@@ -1,13 +1,15 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "maintenance-defect-system"
+  },
   "targets": {
     "maintenance-defect-system": {
       "hosting": {
-        "main": [
-          "maintenance-defect-system"
-        ],
         "dev": [
           "my-dev-2026"
+        ],
+        "main": [
+          "maintenance-defect-system"
         ]
       }
     }
