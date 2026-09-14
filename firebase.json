@@ -8,11 +8,12 @@
   "hosting": [
     {
       "target": "main",
-      "public": "public",
+      "public": ".",
       "ignore": [
         "firebase.json",
         "**/.*",
-        "**/node_modules/**"
+        "**/node_modules/**",
+        "functions/**"
       ],
       "rewrites": [
         {
@@ -23,11 +24,12 @@
     },
     {
       "target": "dev",
-      "public": "public",
+      "public": ".",
       "ignore": [
         "firebase.json",
         "**/.*",
-        "**/node_modules/**"
+        "**/node_modules/**",
+        "functions/**"
       ],
       "rewrites": [
         {
