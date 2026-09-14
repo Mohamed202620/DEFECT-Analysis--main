@@ -2,10 +2,13 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "functions": {
+    "source": "functions"
+  },
   "hosting": [
     {
       "target": "main",
-      "public": ".",
+      "public": "public",
       "ignore": [
         "firebase.json",
         "**/.*",
@@ -20,7 +23,7 @@
     },
     {
       "target": "dev",
-      "public": ".",
+      "public": "public",
       "ignore": [
         "firebase.json",
         "**/.*",
