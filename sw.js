@@ -1,5 +1,5 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v5.8';
+const CACHE_NAME = 'maint-system-v5.9';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
