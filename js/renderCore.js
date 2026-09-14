@@ -113,19 +113,18 @@ app.style.opacity = "1";
 const sidebarContainer = document.getElementById("sidebarContainer");
 
 if (sidebarContainer) {
+  const isMobile = typeof window !== "undefined" && (
+    window.innerWidth < 1024 ||
+    window.matchMedia("(orientation: portrait)").matches
+  );
 
-  if (currentPage === "login" || currentPage === "register") {
-
+  if (currentPage === "login" || currentPage === "register" || isMobile) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
-
   } else {
-
-    sidebarContainer.className = "hidden md:block";
+    sidebarContainer.className = "hidden lg:landscape:block";
     sidebarContainer.innerHTML = Sidebar(currentPage);
-
   }
-
 }
 
 
@@ -592,5 +591,14 @@ window.addEventListener("popstate", (e) => {
       currentPage = hash;
       render();
     }
+  }
+});
+
+let _lastIsMobile = typeof window !== "undefined" ? (window.innerWidth < 1024 || window.matchMedia("(orientation: portrait)").matches) : false;
+window.addEventListener("resize", () => {
+  const currentIsMobile = window.innerWidth < 1024 || window.matchMedia("(orientation: portrait)").matches;
+  if (_lastIsMobile !== currentIsMobile) {
+    _lastIsMobile = currentIsMobile;
+    render();
   }
 });

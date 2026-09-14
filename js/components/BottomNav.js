@@ -38,10 +38,11 @@ export const BottomNav = (activeTab) => {
   ];
 
   return `
-    <nav aria-label="Bottom Navigation" class="md:hidden fixed bottom-3 left-3 right-3 max-w-md mx-auto
+    <nav aria-label="Bottom Navigation" class="lg:landscape:hidden fixed left-3 right-3 max-w-md mx-auto
                 bg-[#0F172A]/95 backdrop-blur-2xl border border-slate-700/60
                 rounded-2xl flex justify-between items-center p-1.5 px-2
-                shadow-2xl shadow-black/60 z-50 transition-all duration-300">
+                shadow-2xl shadow-black/60 z-50 transition-all duration-300"
+                style="bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));">
 
       ${navItems.map(item => {
         const isActive = activeTab === item.id;
