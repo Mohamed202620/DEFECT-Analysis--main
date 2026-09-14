@@ -1,5 +1,5 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v5.7';
+const CACHE_NAME = 'maint-system-v5.8';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -55,7 +55,7 @@ self.addEventListener('fetch', (e) => {
   }
 
   // لملفات الجافاسكريبت والـ HTML نستخدم Network-First لضمان أحدث كود دائماً
-  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.includes('/js/')) {
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.html') || url.pathname.endsWith('.css') || url.pathname === '/' || url.pathname.includes('/js/')) {
     e.respondWith(
       fetch(req).then((networkRes) => {
         if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
