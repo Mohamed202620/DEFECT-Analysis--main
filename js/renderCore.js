@@ -230,6 +230,48 @@ if (currentPage === "suggestions") {
 }  
 
 
+// ========================================================
+// MACHINE PROFILE (QR) AUTO LOAD
+// (تحميل آخر نتيجة Daily AM/5S + السجل الأخير للماكينة المختارة -
+// راجع MachineProfileView.js: window.loadMachineProfileData)
+// ========================================================
+
+if (currentPage === "machineProfile") {
+
+  setTimeout(() => {
+
+    if (typeof window.loadMachineProfileData === "function") {
+
+      window.loadMachineProfileData();
+
+    }
+
+  }, 100);
+
+}
+
+
+// ========================================================
+// DAILY AM FORM AUTO LOAD
+// (تفعيل مكوّنات اختيار الصور لكل بند "Not OK" - راجع
+// DailyAMView.js: initDailyAmAttachments)
+// ========================================================
+
+if (currentPage === "dailyAM") {
+
+  setTimeout(() => {
+
+    if (typeof window.initDailyAmAttachments === "function") {
+
+      window.initDailyAmAttachments();
+
+    }
+
+  }, 100);
+
+}
+
+
 // ========================================================  
 // KNOWLEDGE BASE (kb) AUTO LOAD  
 // ========================================================  

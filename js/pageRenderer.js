@@ -34,6 +34,10 @@ import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
 import { RequestsView, UsersManagementView } from './views/RequestsView.js';
 import { MachinesView } from './views/MachinesView.js';
 import { StatsView } from './views/StatsView.js';
+import { QrScannerView } from './views/QrScannerView.js';
+import { MachineProfileView } from './views/MachineProfileView.js';
+import { DailyAMView } from './views/DailyAMView.js';
+import { FiveSView } from './views/FiveSView.js';
 
 
 // ============================================================
@@ -201,6 +205,41 @@ case 'errorScanner':
   return (hasPermission("maintenance") || hasPermission("errorScanner"))  
     ? ErrorScannerView()  
     : unauthorizedPage("errorScanner");  
+
+
+// ========================================================
+// QR MACHINE + DAILY AM + 5S
+// (مسح QR الماكينة -> ملف الماكينة -> فحص يومي AM / تقييم 5S -
+// نفس نمط صلاحية "errorScanner" فوق: "maintenance" العامة أو "qr"
+// الدقيقة، بدون إضافة أي Role/Permission جديد)
+// ========================================================
+
+case 'qr':
+
+  return (hasPermission("maintenance") || hasPermission("qr"))
+    ? QrScannerView()
+    : unauthorizedPage("qr");
+
+
+case 'machineProfile':
+
+  return (hasPermission("maintenance") || hasPermission("qr"))
+    ? MachineProfileView()
+    : unauthorizedPage("qr");
+
+
+case 'dailyAM':
+
+  return (hasPermission("maintenance") || hasPermission("qr"))
+    ? DailyAMView()
+    : unauthorizedPage("qr");
+
+
+case 'fiveS':
+
+  return (hasPermission("maintenance") || hasPermission("qr"))
+    ? FiveSView()
+    : unauthorizedPage("qr");
 
 
 case 'kb':  
