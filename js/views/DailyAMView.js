@@ -12,6 +12,8 @@ import {
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
+import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { hasFullDataAccess } from '../permissions.js';
 
 // بنود الفحص اليومي الثابتة (نفس فكرة PMFormFields الثابتة في
 // pmView.js - لا يوجد حالياً نظام Templates ديناميكي في المشروع)
@@ -39,6 +41,8 @@ function t() {
     missingAnswers: isEn ? '⚠️ Please evaluate all items' : '⚠️ يرجى تقييم جميع البنود',
     missingNotes: isEn ? '⚠️ Please add a note for every "Not OK" item' : '⚠️ يرجى إضافة ملاحظة لكل بند "غير سليم"',
     noMachine: isEn ? 'No machine selected.' : 'لم يتم اختيار ماكينة.',
+    noPermissionTitle: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
+    noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     saving: isEn ? 'Saving...' : 'جاري الحفظ...',
     success: isEn ? 'Daily AM checklist saved successfully ✅' : 'تم حفظ فحص اليومي بنجاح ✅',
     ticketsCreated: isEn ? ' (tickets created for flagged items)' : ' (تم إنشاء بلاغات للبنود المطلوبة)',
@@ -59,6 +63,35 @@ export const DailyAMView = () => {
       </button>
       <div class="bg-[#1E293B] rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
         ${tr.noMachine}
+      </div>
+    </div>`;
+  }
+
+  // إصلاح (فجوة صلاحيات): كانت هذه الصفحة بتعتمد فقط على صلاحية
+  // "maintenance"/"qr" العامة (راجع pageRenderer.js) بدون أي تحقق
+  // من تطابق قسم الماكينة (Backend/Frontend) مع قسم المستخدم - رغم
+  // إن MachineProfileView.js (الصفحة اللي المفروض المستخدم يوصل
+  // منها لهنا دايماً) بتعمل هذا التحقق بالظبط. أي وصول مباشر لهذا
+  // المسار (#dailyAM) بقيمة "activeMachine" قديمة/من قسم تاني في
+  // localStorage كان بيسمح للمستخدم يملأ الفورم بالكامل ويحاول
+  // الحفظ، ليكتشف بعد الإرسال بس إن Firestore Security Rules رفضت
+  // الكتابة (لأن قسم الماكينة الفعلي مش قسمه - راجع firestore.rules:
+  // machineChecklists) - تجربة استخدام سيئة ومربكة. دلوقتي بيتحقق
+  // من نفس الشرط بالظبط هنا (نفس مصدر الحقيقة: getDepartmentForMachineValue
+  // + normalizeDepartment + hasFullDataAccess) قبل عرض الفورم أصلاً.
+  const department = getDepartmentForMachineValue(machine);
+  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
+  const allowed = hasFullDataAccess() || (department && department === userDept);
+
+  if (!allowed) {
+    return `
+    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
+      <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+        ${isEn ? '← Back' : '← رجوع'}
+      </button>
+      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+        <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
+        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
       </div>
     </div>`;
   }

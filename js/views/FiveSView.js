@@ -6,6 +6,9 @@
 // + 5S Score إجمالي (متوسط التقييمات كنسبة مئوية).
 // ============================================================
 
+import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { hasFullDataAccess } from '../permissions.js';
+
 const FIVE_S_PILLARS = [
   { id: 'sort', ar: 'Sort - الفرز/التنظيم', en: 'Sort', desc: { ar: 'التخلص من الأدوات/المواد غير الضرورية حول الماكينة', en: 'Unnecessary items removed from the area' } },
   { id: 'setInOrder', ar: 'Set in Order - الترتيب', en: 'Set in Order', desc: { ar: 'الأدوات والمواد مرتبة في أماكنها المحددة', en: 'Tools and parts organized in designated places' } },
@@ -23,6 +26,8 @@ function t() {
     submit: isEn ? 'Save & Submit ✅' : 'حفظ وإرسال ✅',
     missingAnswers: isEn ? '⚠️ Please rate all 5 pillars' : '⚠️ يرجى تقييم جميع العناصر الخمسة',
     noMachine: isEn ? 'No machine selected.' : 'لم يتم اختيار ماكينة.',
+    noPermissionTitle: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
+    noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     saving: isEn ? 'Saving...' : 'جاري الحفظ...',
     success: isEn ? '5S assessment saved successfully ✅ Score: ' : 'تم حفظ تقييم 5S بنجاح ✅ النتيجة: ',
     error: isEn ? 'Error: ' : 'خطأ: '
@@ -42,6 +47,32 @@ export const FiveSView = () => {
       </button>
       <div class="bg-[#1E293B] rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
         ${tr.noMachine}
+      </div>
+    </div>`;
+  }
+
+  // إصلاح (فجوة صلاحيات - نفس الإصلاح المطبّق في DailyAMView.js):
+  // هذه الصفحة كانت بتعتمد فقط على صلاحية "maintenance"/"qr" العامة
+  // (pageRenderer.js) بدون أي تحقق من تطابق قسم الماكينة مع قسم
+  // المستخدم، رغم إن MachineProfileView.js بتعمل هذا التحقق بالظبط
+  // قبل ما تسمح بالوصول لزرار "بدء تقييم 5S". وصول مباشر لـ#fiveS
+  // بقيمة "activeMachine" قديمة من قسم تاني كان بيسمح بملء الفورم
+  // بالكامل قبل ما يُكتشف الرفض من Firestore Security Rules عند
+  // الحفظ فقط (راجع firestore.rules: machineChecklists). دلوقتي
+  // بيتحقق من نفس شرط MachineProfileView.js بالظبط قبل عرض الفورم.
+  const department = getDepartmentForMachineValue(machine);
+  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
+  const allowed = hasFullDataAccess() || (department && department === userDept);
+
+  if (!allowed) {
+    return `
+    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
+      <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+        ${isEn ? '← Back' : '← رجوع'}
+      </button>
+      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+        <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
+        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
       </div>
     </div>`;
   }
