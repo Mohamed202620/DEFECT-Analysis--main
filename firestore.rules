@@ -523,6 +523,26 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // machineChecklists - سجلات ميزة "QR Machine + Daily AM +
+    // 5S" الجديدة (Daily AM Checklist اليومي + تقييم 5S - راجع
+    // services/checklistApi.js). نفس مبدأ حماية القسم المطبَّق
+    // بالظبط على machineErrors/pmRecords فوق: القراءة مفتوحة لأي
+    // مستخدم مفعّل (نفس مبدأ الشفافية)، لكن الإنشاء مقيّد بحقل
+    // "department" يطابق قسم المستخدم المُبلِّغ نفسه، إلا لو كان
+    // صاحب صلاحية وصول كامل (admin/manager/engineer). التعديل/الحذف
+    // مقصوران على الأدمن فقط (سجلات Append-Only بعد الإنشاء).
+    // ==========================================================
+    match /machineChecklists/{checklistId} {
+      allow read: if isActive();
+      allow create: if isActive()
+                    && request.resource.data.type in ["am", "5s"]
+                    && request.resource.data.department in ["backend", "frontend"]
+                    && (myRole() in ["admin", "manager", "engineer"]
+                        || request.resource.data.department == myProfile().machineDepartment);
+      allow update, delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
     // باقي المجموعات (defects ...) - أي مستخدم مفعّل (status ==
     // active) يقدر يقرأ/يكتب. ملحوظة: مجموعة "defects" (defectsApi.js
     // -> saveDefectApi) غير مستخدمة فعلياً من أي شاشة في الواجهة حالياً
