@@ -232,7 +232,7 @@ export const HomeView = () => {
             id="cardErrorScanner"
             onclick="window.navigateTo('errorScanner')" 
             aria-label="${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
-            class="${hasPermission("qr") ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+            class="${(hasPermission("maintenance") || hasPermission("qr")) ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
             <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
                 📷
@@ -258,7 +258,7 @@ export const HomeView = () => {
             id="cardQrCode"
             onclick="window.navigateTo('qr')" 
             aria-label="${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}"
-            class="${hasPermission("errorScanner") ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+            class="${(hasPermission("maintenance") || hasPermission("errorScanner")) ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
             <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
                 📱
