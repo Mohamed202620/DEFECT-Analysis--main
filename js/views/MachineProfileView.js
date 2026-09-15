@@ -6,7 +6,7 @@
 // Score لـ5S، وأزرار تنفيذ الفحصين - كل ده حسب صلاحية المستخدم.
 // ============================================================
 
-import { getDepartmentForMachineValue } from '../machines.js';
+import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess, isManagerRole, isAdminRole, hasPermission, getCurrentRole } from '../permissions.js';
 import {
   fetchLatestChecklistApi,
@@ -38,6 +38,8 @@ function t() {
     issues: isEn ? '⚠️ Issues Found' : '⚠️ يوجد ملاحظات',
     scanAnother: isEn ? '🔄 Scan Another Machine' : '🔄 مسح ماكينة أخرى',
     printQr: isEn ? '🖨️ Generate / Print QR' : '🖨️ توليد / طباعة QR',
+    generatingQr: isEn ? '⏳ Generating...' : '⏳ جاري التوليد...',
+    qrGenError: isEn ? '❌ Could not generate the QR code. Check your internet connection and try again.' : '❌ تعذر توليد رمز QR. تأكد من اتصال الإنترنت وحاول مرة أخرى.',
     loading: isEn ? 'Loading...' : 'جاري التحميل...'
   };
 }
@@ -63,7 +65,11 @@ export const MachineProfileView = () => {
   }
 
   const department = getDepartmentForMachineValue(machine);
-  const userDept = (localStorage.getItem('machineDepartment') || '').trim().toLowerCase();
+  // إصلاح: نفس معالجة normalizeDepartment المستخدمة في كل مكان تاني
+  // بالتطبيق (QrScannerView.js/machines.js) بدل trim()/toLowerCase()
+  // الخام - عشان تبقى المقارنة مع "department" (اللي راجعة أصلاً من
+  // normalizeDepartment) متسقة دايماً.
+  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
   const allowed = hasFullDataAccess() || (department && department === userDept);
 
   if (!allowed) {
@@ -125,7 +131,7 @@ export const MachineProfileView = () => {
 
     ${canPrintQr ? `
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
-      <button onclick="window.generateMachineQr()" class="w-full p-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-xs text-white transition active:scale-95">
+      <button id="machineQrGenBtn" onclick="window.generateMachineQr()" class="w-full p-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-xs text-white transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
         ${tr.printQr}
       </button>
       <div id="machineQrPrintBox" class="hidden text-center pt-2">
@@ -236,15 +242,37 @@ window.generateMachineQr = async function () {
   const machine = localStorage.getItem('activeMachine') || '';
   if (!machine) return;
 
+  const tr = t();
+  const btn = document.getElementById('machineQrGenBtn');
+  const originalLabel = btn ? btn.textContent : '';
+
+  // إصلاح (زر توليد QR كان بيفشل بصمت): كان أي خطأ في تحميل مكتبة
+  // qrcode من الـCDN (زي انقطاع الإنترنت) بينتهي بـ console.error()
+  // فقط بدون أي تغيير مرئي على الشاشة - فيبان للمستخدم إن الزر "مش
+  // شغال" بدون أي تفسير. دلوقتي بيتعطل الزر ويتغير نصه أثناء
+  // التحميل، وبيظهر رسالة خطأ واضحة لو فشل التوليد بدل الصمت التام.
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = tr.generatingQr;
+  }
+
   try {
     await loadQrCodeLib();
     const canvas = document.getElementById('machineQrCanvas');
     const box = document.getElementById('machineQrPrintBox');
-    if (!canvas || !window.QRCode) return;
+    if (!canvas || !window.QRCode) {
+      throw new Error('QRCode library or canvas element unavailable');
+    }
 
     await window.QRCode.toCanvas(canvas, machine, { width: 220, margin: 1 });
     box?.classList.remove('hidden');
   } catch (err) {
     console.error('Error generating machine QR:', err);
+    alert(tr.qrGenError);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
   }
 };

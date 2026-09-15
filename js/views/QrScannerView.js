@@ -17,7 +17,7 @@
 // ============================================================
 
 import { buildMachineDropdownHtml } from '../machines.js';
-import { getDepartmentForMachineValue } from '../machines.js';
+import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 
 let videoStream = null;
@@ -123,11 +123,18 @@ function extractMachineValueFromQrText(rawText) {
 
 // ============================================================
 // معالجة قيمة ماكينة تم التعرف عليها (من QR أو الاختيار اليدوي)
-// ============================================================
+// إصلاح (تماشي مع فلو الصلاحيات): كانت بترجع undefined دايماً بدون
+// تفرقة بين "نجاح" و"فشل" - الاستدعاء من الكاميرا (tick) كان بيتعامل
+// مع أي استدعاء لهذه الدالة على إنه "تم التعرف على كود" فيوقف حلقة
+// المسح تماماً حتى لو الكود غير صالح/غير موجود/بلا صلاحية، فيفضل
+// الفيديو ظاهر وزر "إيقاف الكاميرا" شغّال بصريًا لكن بدون أي مسح
+// فعلي شغّال تحته. دلوقتي بترجع true فقط في حالة النجاح الفعلي
+// (فتح ملف الماكينة) عشان الكاميرا تكمل المسح تلقائيًا في أي حالة
+// تانية (راجع tick() تحت).
 function handleResolvedMachineValue(machineValue) {
   const tr = t();
   const resultBox = document.getElementById('qrResultBox');
-  if (!resultBox) return;
+  if (!resultBox) return false;
 
   if (!machineValue) {
     resultBox.innerHTML = `
@@ -135,7 +142,7 @@ function handleResolvedMachineValue(machineValue) {
         <div class="text-sm font-bold text-red-400">${tr.invalidQr}</div>
         <div class="text-[11px] text-gray-400 mt-1">${tr.invalidQrDesc}</div>
       </div>`;
-    return;
+    return false;
   }
 
   const department = getDepartmentForMachineValue(machineValue);
@@ -148,17 +155,22 @@ function handleResolvedMachineValue(machineValue) {
         <div class="text-sm font-bold text-red-400">${tr.notFound}</div>
         <div class="text-[11px] text-gray-400 mt-1">${tr.notFoundDesc}</div>
       </div>`;
-    return;
+    return false;
   }
 
-  const userDept = (localStorage.getItem('machineDepartment') || '').trim().toLowerCase();
+  // إصلاح: توحيد قراءة قسم المستخدم عبر normalizeDepartment (نفس
+  // المصدر المستخدم في كل مكان آخر بالتطبيق - راجع departmentUtils.js)
+  // بدل الاعتماد على trim()/toLowerCase() الخام فقط، عشان أي قيمة
+  // قديمة أو غير موحّدة مخزّنة في localStorage متتحسبش خطأً "قسم
+  // مختلف" وتمنع المستخدم من الوصول لماكينة قسمه الفعلي.
+  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
   if (!hasFullDataAccess() && department !== userDept) {
     resultBox.innerHTML = `
       <div class="bg-[#1E293B] rounded-xl p-4 border border-amber-500/30 text-center">
         <div class="text-sm font-bold text-amber-400">${tr.noPermission}</div>
         <div class="text-[11px] text-gray-400 mt-1">${tr.noPermissionDesc}</div>
       </div>`;
-    return;
+    return false;
   }
 
   resultBox.innerHTML = `
@@ -169,6 +181,7 @@ function handleResolvedMachineValue(machineValue) {
   localStorage.setItem('activeMachine', machineValue);
   window.stopQrScan();
   setTimeout(() => window.navigateTo('machineProfile'), 400);
+  return true;
 }
 
 window.openMachineFromManualSelect = function () {
@@ -257,8 +270,13 @@ window.startQrScan = async function () {
         if (detector) {
           const codes = await detector.detect(video);
           if (codes && codes.length) {
-            handleResolvedMachineValue(extractMachineValueFromQrText(codes[0].rawValue));
-            return;
+            // إصلاح: نكمل حلقة المسح تلقائيًا لو الكود غير صالح/غير
+            // موجود/بلا صلاحية (بترجع false) بدل ما تتجمد الكاميرا
+            // بصريًا وهي فعليًا متوقفة عن المسح - راجع تعليق
+            // handleResolvedMachineValue فوق.
+            if (handleResolvedMachineValue(extractMachineValueFromQrText(codes[0].rawValue))) {
+              return;
+            }
           }
         } else if (window.jsQR) {
           canvas.width = video.videoWidth;
@@ -267,8 +285,9 @@ window.startQrScan = async function () {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = window.jsQR(imageData.data, imageData.width, imageData.height);
           if (code && code.data) {
-            handleResolvedMachineValue(extractMachineValueFromQrText(code.data));
-            return;
+            if (handleResolvedMachineValue(extractMachineValueFromQrText(code.data))) {
+              return;
+            }
           }
         }
       } catch {
