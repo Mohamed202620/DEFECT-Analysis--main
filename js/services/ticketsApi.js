@@ -112,6 +112,13 @@ export async function syncOfflineTicketsApi() {
       if (result.status === "success") {
         await removeQueuedTicket(item.localId);
         synced++;
+      } else {
+        const msg = (result.message || "").toLowerCase();
+        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
+        if (!isNetworkError) {
+          console.warn(`[Sync] Permanent error for offline ticket ${item.localId}, removing from queue:`, msg);
+          await removeQueuedTicket(item.localId);
+        }
       }
     } catch (error) {
       console.error("Error syncing offline ticket:", item.localId, error);
@@ -124,9 +131,7 @@ export async function syncOfflineTicketsApi() {
 // دورة حياة التذكرة (بدء تنفيذ/تم الإصلاح/تأكيد الإغلاق) المخزّنة
 // محلياً وقت انقطاع الإنترنت - بنفس نمط syncOfflineTicketsApi فوق
 // بالظبط، بترتيب زمني (الأقدم أولاً) عشان دورة حياة كل تذكرة تتنفذ
-// بنفس التسلسل اللي حصل بيه فعلياً. أي إجراء يفشل (مثلاً التذكرة
-// اتحذفت أو تغيّرت حالتها من جهة تانية في الأثناء) بيفضل في الطابور
-// للمحاولة تاني، ومفيش أي إجراء بيتفوّت صامتاً
+// بنفس التسلسل اللي حصل بيه فعلياً.
 export async function syncOfflineTicketActionsApi() {
   const queued = await getQueuedActions();
   if (!queued.length) {
@@ -156,14 +161,34 @@ export async function syncOfflineTicketActionsApi() {
           { assignedTo: payload?.assignedTo, assignedToUid: payload?.assignedToUid },
           { skipOfflineQueue: true }
         );
+      } else if (type === "new_suggestion") {
+        const { saveSuggestionApi } = await import("./suggestionsApi.js");
+        result = await saveSuggestionApi(payload, { skipOfflineQueue: true });
+      } else if (type === "new_defect") {
+        const { saveDefectApi } = await import("./defectsApi.js");
+        result = await saveDefectApi(payload, { skipOfflineQueue: true });
+      } else if (type === "new_machine_error") {
+        const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
+        result = await saveMachineErrorApi(payload, { skipOfflineQueue: true });
+      } else if (type === "log_machine_error") {
+        const { logMachineErrorOccurrenceApi } = await import("./machineErrorsApi.js");
+        result = await logMachineErrorOccurrenceApi(payload, { skipOfflineQueue: true });
       } else {
         console.error("Unknown queued action type:", type);
+        await removeQueuedAction(item.localId);
         continue;
       }
 
       if (result.status === "success") {
         await removeQueuedAction(item.localId);
         synced++;
+      } else {
+        const msg = (result.message || "").toLowerCase();
+        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
+        if (!isNetworkError) {
+          console.warn(`[Sync] Permanent error for offline action ${item.localId}, removing from queue:`, msg);
+          await removeQueuedAction(item.localId);
+        }
       }
     } catch (error) {
       console.error("Error syncing offline ticket action:", item.localId, error);
