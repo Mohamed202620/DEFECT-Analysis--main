@@ -53,12 +53,13 @@ export const QrScannerView = () => {
   const tr = t();
 
   return `
-  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
-    <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
-      <span>${isEn ? '← Back' : '← رجوع'}</span>
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl mx-auto pb-24 text-white">
+    <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm min-h-[38px] cursor-pointer">
+      <span class="text-amber-400 font-black">${isEn ? '←' : '→'}</span>
+      <span>${isEn ? 'Back Home' : 'رجوع للرئيسية'}</span>
     </button>
 
-    <div class="mb-5">
+    <div class="mb-5 border-b border-gray-800 pb-2">
       <h2 class="text-lg font-bold text-blue-400 flex items-center gap-2">${tr.title}</h2>
       <p class="text-[11px] text-gray-400 mt-1">${tr.subtitle}</p>
     </div>
