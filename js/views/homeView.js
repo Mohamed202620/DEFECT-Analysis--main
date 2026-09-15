@@ -41,7 +41,7 @@ export const HomeView = () => {
         </div>
 
         <!-- كروت العدادات الخمسة -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-3 md:gap-3.5">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
 
           <!-- أعطال مفتوحة -->
           <button
@@ -123,7 +123,7 @@ export const HomeView = () => {
           <button
             type="button"
             onclick="window.openTicketsWithFilter('all')"
-            class="relative text-start dyn-card border border-purple-500/30 hover:border-purple-400/60 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group col-span-2 sm:col-span-1">
+            class="relative text-start dyn-card border border-purple-500/30 hover:border-purple-400/60 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group col-span-2 sm:col-span-1 lg:col-span-1">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-purple-500"></div>
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-purple-400/80 group-hover:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
@@ -184,11 +184,11 @@ export const HomeView = () => {
           </h3>
         </div>
 
-        <div class="grid grid-cols-2 gap-2.5 sm:gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
           <!-- زر الإبلاغ عن عطل - تصميم مميز بأسلوب الطوارئ والبروز البصري الفوري -->
           <button
             onclick="window.navigateTo('issue')"
-            class="${hasPermission('suggestions') ? 'col-span-1' : 'col-span-2'} relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
+            class="${hasPermission('suggestions') ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
             <div class="absolute -right-4 -bottom-4 w-12 h-12 bg-red-500/20 rounded-full blur-lg pointer-events-none"></div>
             <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
 
@@ -232,7 +232,7 @@ export const HomeView = () => {
             id="cardErrorScanner"
             onclick="window.navigateTo('errorScanner')" 
             aria-label="${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
-            class="${hasPermission("maintenance") || hasPermission("qr") ? 'col-span-2 sm:col-span-1' : 'col-span-2'} relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+            class="${hasPermission("qr") ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
             <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
                 📷
@@ -258,7 +258,7 @@ export const HomeView = () => {
             id="cardQrCode"
             onclick="window.navigateTo('qr')" 
             aria-label="${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}"
-            class="${hasPermission("maintenance") || hasPermission("errorScanner") ? 'col-span-2 sm:col-span-1' : 'col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+            class="${hasPermission("errorScanner") ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
             <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
               <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
                 📱

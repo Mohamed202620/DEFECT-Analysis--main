@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" id="html-tag">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <meta name="description" content="MAINTENANCE & DEFECT SYSTEM V1.0">
   <title>MAINTENANCE & DEFECT SYSTEM V1.0</title>
 
@@ -138,10 +138,25 @@
          فعلياً، عشان يفضل مظبوط حتى لو الاسم طويل واتلف سطرين أو
          تغيّر حجم اللوجو بين الموبايل والكمبيوتر - بدل رقم ثابت
          ممكن يفضل مش دقيق */
-      padding-top: var(--app-header-h, 56px);
+      padding-top: var(--app-header-h, 90px);
     }
 
-    @media (min-width: 768px) {
+    /* إخفاء القائمة الجانبية بالكامل على جميع الموبايلات والشاشات الرأسية (Portrait) */
+    @media (max-width: 1023px), (orientation: portrait) {
+      #sidebarContainer {
+        display: none !important;
+      }
+      #appShell {
+        display: block !important;
+      }
+      #app {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+    }
+
+    /* القائمة الجانبية مخصصة لشاشات الكمبيوتر واللابتوب فقط (1024px فما فوق بالوضع العرضي) */
+    @media (min-width: 1024px) and (orientation: landscape) {
       #appShell {
         display: flex;
         align-items: stretch;
@@ -160,9 +175,13 @@
         padding-right: 2rem !important;
         padding-top: 1.75rem !important;
       }
+
+      [aria-label="Bottom Navigation"] {
+        display: none !important;
+      }
     }
 
-    @media (min-width: 1280px) {
+    @media (min-width: 1280px) and (orientation: landscape) {
       .app-page {
         max-width: 1600px !important;
         margin-left: auto !important;

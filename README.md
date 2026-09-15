@@ -57,6 +57,24 @@
 
 ## 🔒 ملاحظات أمان مهمة
 
+## النشر التلقائي عبر GitHub Actions
+
+تم إعداد Workflowين للنشر التلقائي:
+
+- الدفع إلى فرع `dev` ينشر إلى `my-dev-2026.web.app`.
+- الدفع إلى فرع `main` ينشر إلى `maintenance-defect-system.web.app`.
+
+قبل أول Push، أضف Secret باسم `FIREBASE_SERVICE_ACCOUNT` إلى مستودع GitHub:
+
+1. افتح Firebase Console واختر مشروع `maintenance-defect-system`.
+2. اذهب إلى **Project settings → Service accounts**.
+3. اضغط **Generate new private key** ونزّل ملف JSON.
+4. في GitHub افتح **Settings → Secrets and variables → Actions**.
+5. اضغط **New repository secret**.
+6. استخدم الاسم `FIREBASE_SERVICE_ACCOUNT` والصق محتوى ملف JSON كاملًا.
+
+لا ترفع ملف JSON إلى Git أو تضعه داخل المشروع. النشر يقتصر على Firebase Hosting، ولا ينشر قواعد Firestore أو Functions.
+
 المشروع بيتواصل مباشرة من المتصفح مع Firestore (بدون باك-إند وسيط)، لكنه **بيستخدم Firebase Authentication حقيقي** (Email/Password، عبر تحويل رقم الهاتف لإيميل داخلي - راجع `js/auth/login.js` و`phoneToAuthEmail` في `config.js`)، والحسابات القديمة (نظام الدخول المخصص القديم) بتترحّل تلقائياً لحساب Auth حقيقي عند أول تسجيل دخول ليها بعد هذا التحديث. بناءً عليه، **`firestore.rules` فعلاً بتقدر تفرّق بين مستخدم عادي وأدمن/مدير** عن طريق قراءة مستند `users/{uid}` الخاص بالمستخدم المسجّل دخوله فعليًا (`request.auth.uid`) والتحقق من حقل `role` فيه - راجع الدوال المساعدة `myProfile()`/`myRole()`/`isActive()` في أول `firestore.rules`. ⚠️ *(تحديث: نسخة سابقة من هذا القسم كانت بتقول إن مفيش Firebase Authentication حقيقي وإن الـ Rules مقدرش تفرّق بين الأدوار - ده لم يكن يعكس الكود الفعلي بشكل دقيق، وتم تصحيحه هنا)*.
 
 نقاط لازم تعرفها:
