@@ -6,6 +6,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build": "echo 'No build step required'",
+    "lint": "node --check server.js",
     "deploy": "firebase deploy --only hosting",
     "deploy:dev": "firebase deploy --only hosting",
     "deploy:rules": "firebase deploy --only firestore:rules",
