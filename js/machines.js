@@ -360,7 +360,16 @@ export function buildMachineDropdownHtml(baseId, {
  * تحديث القوائم المعروضة في DOM فور اكتمال الجلب
  */
 function refreshActiveMachineDropdowns() {
-  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect"];
+  // إصلاح: قائمة الاختيار اليدوي للماكينة في شاشة مسح QR
+  // (QrScannerView.js -> baseId="qrManualMachine") كانت غير مُدرجة
+  // هنا، فكانت الأقسام الأخرى (issueMachine/suggestionMachine/
+  // pmMachine/machineTypeSelect) بتتحدّث تلقائياً وتتفعّل بمجرد
+  // اكتمال تحميل قائمة الماكينات الفعلية من Firestore، بينما القائمة
+  // اليدوية في QR كانت تفضل عالقة على حالتها الأولى (المعطّلة أو
+  // القائمة الاحتياطية الافتراضية DEFAULT_MACHINE_TYPES) لو المستخدم
+  // فتح صفحة QR قبل اكتمال التحميل - نفس المسار المفروض يتصرف بنفس
+  // سياق باقي فورمات التطبيق بالظبط.
+  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect", "qrManualMachine"];
   for (const base of dropdownBases) {
     const typeSelect = document.getElementById(base + "Type") || (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null);
     if (!typeSelect) continue;
