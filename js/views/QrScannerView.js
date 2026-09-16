@@ -61,9 +61,9 @@ function t() {
     scanning: isEn ? 'Scanning... point the camera at the QR code' : 'جاري المسح... وجّه الكاميرا نحو رمز QR',
     cameraError: isEn ? 'Could not access the camera. Use manual selection instead.' : 'تعذر الوصول للكاميرا. استخدم الاختيار اليدوي بدلاً من ذلك.',
     invalidQr: isEn ? '❌ Invalid QR Code' : '❌ رمز QR غير صالح',
-    invalidQrDesc: isEn ? 'This QR code does not contain a recognizable machine code.' : 'رمز QR هذا لا يحتوي على كود ماكينة معروف.',
+    invalidQrDesc: isEn ? 'This QR code does not contain a recognizable machine code. Please use manual selection.' : 'رمز QR هذا لا يحتوي على كود ماكينة معروف. يرجى استخدام الاختيار اليدوي.',
     notFound: isEn ? '❌ Machine Not Found' : '❌ الماكينة غير موجودة',
-    notFoundDesc: isEn ? 'No machine matches this code, or you do not have permission to access it.' : 'لا توجد ماكينة مطابقة لهذا الكود، أو ليس لديك صلاحية الوصول إليها.',
+    notFoundDesc: isEn ? 'No machine matches this code, or you do not have permission to access it. Please use manual selection.' : 'لا توجد ماكينة مطابقة لهذا الكود، أو ليس لديك صلاحية الوصول إليها. يرجى استخدام الاختيار اليدوي.',
     noPermission: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
     noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     success: isEn ? '✅ Machine found - opening profile...' : '✅ تم التعرف على الماكينة - جاري فتح الملف...',
@@ -90,12 +90,6 @@ export const QrScannerView = () => {
     </div>
 
     <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3">
-      <select id="qrScanLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mb-2">
-        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
-        <option value="1">${isEn ? 'Line 1' : 'الخط 1'}</option>
-        <option value="2">${isEn ? 'Line 2' : 'الخط 2'}</option>
-      </select>
-
       <div id="qrVideoBox" class="hidden relative rounded-xl overflow-hidden bg-black aspect-square max-w-xs mx-auto border-2 border-blue-500/40">
         <video id="qrVideo" class="w-full h-full object-cover" playsinline muted></video>
         <div class="absolute inset-0 border-[3px] border-blue-400/60 m-8 rounded-xl pointer-events-none"></div>
@@ -144,8 +138,25 @@ export const QrScannerView = () => {
 //   "https://.../?m=Bodymaker%2001&line=1"
 //   "Bodymaker 01|1"
 function parseQrPayload(rawText) {
-  const text = String(rawText || '').trim();
+  let text = String(rawText || '').trim();
   if (!text) return { value: '', line: '' };
+
+  // 0) فك التشفير (Base64) لو كان النص مشفر
+  try {
+    const decoded = decodeURIComponent(escape(atob(text)));
+    if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
+      text = decoded;
+    }
+  } catch (e) {
+    try {
+      const decoded = atob(text);
+      if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
+        text = decoded;
+      }
+    } catch (err) {
+      // ليس مشفراً، نستمر بالنص الأصلي
+    }
+  }
 
   // 1) JSON
   if (text.startsWith('{')) {
@@ -241,6 +252,8 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   let qrLine = normalizeLine(payload?.line);
 
   if (!scannedValue) {
+    window.stopQrScan();
+    alert(tr.invalidQrDesc);
     renderQrMessage({ tone: 'error', title: tr.invalidQr, desc: tr.invalidQrDesc });
     return false;
   }
@@ -254,6 +267,8 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   const machine = resolveMachineFromValue(scannedValue);
 
   if (!machine.found) {
+    window.stopQrScan();
+    alert(tr.notFoundDesc);
     renderQrMessage({
       tone: 'error',
       title: tr.notFound,
@@ -267,6 +282,8 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   if (!hasFullDataAccess()) {
     const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
     if (!userDept || !machine.department || machine.department !== userDept) {
+      window.stopQrScan();
+      alert(tr.noPermissionDesc);
       renderQrMessage({ tone: 'warn', title: tr.noPermission, desc: tr.noPermissionDesc });
       return false;
     }
@@ -292,7 +309,23 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   }
 
   window.stopQrScan();
-  setTimeout(() => window.navigateTo('machineProfile'), 400);
+  
+  // عرض مؤشر تحميل سريع (Toast notification)
+  const isEn = (window.currentLang || 'ar') === 'en';
+  const toastText = isEn 
+    ? `Identified: ${machine.value}${lineLabel ? ` - ${lineLabel}` : ''}` 
+    : `تم التعرف: ${machine.value}${lineLabel ? ` - ${lineLabel}` : ''}`;
+    
+  const toast = document.createElement('div');
+  toast.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-[99999] flex items-center gap-3 font-bold text-lg animate-bounce';
+  toast.innerHTML = `<span>✅</span> <span dir="${isEn ? 'ltr' : 'rtl'}">${toastText}</span>`;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    if (toast.parentNode) toast.remove();
+    window.navigateTo('machineProfile');
+  }, 1200);
+
   return true;
 }
 
@@ -351,14 +384,9 @@ function setQrStatus(message, isError = false) {
 
 window.startQrScan = async function () {
   const tr = t();
-  const lineSelect = document.getElementById('qrScanLine');
   
-  if (lineSelect && !lineSelect.value) {
-    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line first.' : 'يرجى اختيار الخط أولاً.');
-    return;
-  }
-
-  const selectedLine = lineSelect ? lineSelect.value : null;
+  // تمت إزالة قائمة اختيار الخط، لا نحتاج للتحقق منها هنا
+  const selectedLine = null;
 
   const videoBox = document.getElementById('qrVideoBox');
   const video = document.getElementById('qrVideo');
