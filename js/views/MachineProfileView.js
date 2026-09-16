@@ -258,10 +258,12 @@ function loadQrCodeLib() {
 // دي بتحتاج تحديد typeNumber يدوياً بدل الاكتشاف التلقائي) - بنجرّب
 // من أصغر حجم ونكبّر لحد ما نلاقي حجم يستوعب النص من غير "تجاوز سعة"
 function buildQrCode(text) {
+  // تحويل النص إلى UTF-8 لدعم اللغة العربية في المكتبة (بدونها تظهر رموز غير مفهومة)
+  const utf8Text = unescape(encodeURIComponent(text));
   for (let typeNumber = 1; typeNumber <= 40; typeNumber += 1) {
     try {
       const qr = window.qrcode(typeNumber, 'M');
-      qr.addData(text);
+      qr.addData(utf8Text);
       qr.make();
       return qr;
     } catch (err) {

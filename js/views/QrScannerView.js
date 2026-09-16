@@ -17,7 +17,7 @@
 // ============================================================
 
 import { buildMachineDropdownHtml } from '../machines.js';
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { getDepartmentForMachineValue, normalizeDepartment, isMachineTypesLoaded, ensureUserAndMachinesLoaded } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 
@@ -271,6 +271,14 @@ window.startQrScan = async function () {
       window.stopQrScan();
       return;
     }
+  }
+
+  try {
+    if (!isMachineTypesLoaded()) {
+      await ensureUserAndMachinesLoaded();
+    }
+  } catch (e) {
+    console.warn("Error ensuring machines are loaded:", e);
   }
 
   const tick = async () => {
