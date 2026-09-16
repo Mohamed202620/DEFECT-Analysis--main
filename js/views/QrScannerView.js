@@ -19,6 +19,7 @@
 import { buildMachineDropdownHtml } from '../machines.js';
 import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
+import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 
 let videoStream = null;
 let scanRafId = null;
@@ -192,16 +193,26 @@ window.openMachineFromManualSelect = function () {
 // ============================================================
 // الكاميرا + قراءة QR
 // ============================================================
+// ============================================================
+// إصلاح (نفس بند MachineProfileView.js - راجع utils/loadExternalScript.js
+// لتفاصيل كاملة): تصفير jsQRLoadPromise عند الفشل عشان محاولة
+// المسح التالية (لو المستخدم رجّع الإنترنت وضغط "بدء المسح" تاني)
+// تعمل تحميل شبكة جديدة فعلياً بدل ما ترجع نفس الفشل القديم للأبد،
+// + تجربة مصدر CDN بديل (unpkg) قبل الاستسلام.
+// ============================================================
 function loadJsQR() {
   if (window.jsQR) return Promise.resolve(window.jsQR);
   if (jsQRLoadPromise) return jsQRLoadPromise;
 
-  jsQRLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-    script.onload = () => resolve(window.jsQR);
-    script.onerror = () => reject(new Error('jsQR load failed'));
-    document.head.appendChild(script);
+  jsQRLoadPromise = loadScriptWithFallback(
+    [
+      'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+      'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+    ],
+    () => window.jsQR
+  ).catch(err => {
+    jsQRLoadPromise = null;
+    throw err;
   });
 
   return jsQRLoadPromise;
