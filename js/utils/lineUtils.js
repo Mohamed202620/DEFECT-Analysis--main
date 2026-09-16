@@ -1,99 +1,96 @@
 // ============================================================
 // lineUtils.js
-// أدوات موحّدة للتعامل مع أسماء خطوط الإنتاج أو خطوط العمل
-// الهدف: توحيد القيم وتفادي الأخطاء الناتجة عن تنسيقات مختلفة
+// مصدر موحّد لمعالجة وتطبيع "خط الإنتاج" (Line) في التطبيق كله.
+//
+// القيمة المخزّنة المعيارية = "1" أو "2" فقط (أو "" لو غير محدد)،
+// والعرض/التكامل مع باقي مسارات التطبيق (البلاغات/الكايزن/فاحص
+// الأعطال) بيستخدم نفس التسمية المستعملة أصلاً في كل الفورمات:
+// "Line 1" / "Line 2" (راجع issueView.js / suggestionView.js /
+// errorScanner.js: LINE_OPTIONS) - يعني مفيش منطق جديد أو مختلف
+// للـQR، نفس الحقل ونفس القيم ونفس المسار بالظبط.
+//
+// normalizeLine() بتقبل كل الصيغ المتداولة في البيانات القديمة
+// والـQR المطبوع مسبقاً ("1" / 1 / "01" / "Line 1" / "line-1" /
+// "L1" / "خط 1" / "خط الإنتاج 1" / الأرقام العربية "١") وبترجّعها
+// كلها لنفس القيمة المعيارية، عشان مقارنة الخطوط تبقى موثوقة من
+// أي مصدر.
 // ============================================================
 
 /**
- * تطبيع اسم الخط أو القيمة المرتبطة به إلى نص نظيف ومتسق.
- * مثال: "Line 1" -> "Line 1"
- * "line_1" -> "line 1"
- * "  خط 1  " -> "خط 1"
- *
+ * تحويل الأرقام العربية/الفارسية إلى أرقام لاتينية
  * @param {*} value
  * @returns {string}
+ */
+export function normalizeDigits(value) {
+  return String(value == null ? "" : value)
+    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0));
+}
+
+/**
+ * تطبيع قيمة خط الإنتاج إلى "1" أو "2" فقط.
+ * أي قيمة غير معروفة أو فارغة أو غير محددة تُرجع "" (بدون افتراض
+ * خاطئ لخط معيّن - نفس فلسفة normalizeDepartment).
+ *
+ * @param {*} value
+ * @returns {"1" | "2" | ""}
  */
 export function normalizeLine(value) {
   if (value == null) return "";
 
-  const str = String(value).trim();
+  const str = normalizeDigits(value).trim().toLowerCase();
   if (!str) return "";
 
-  return str
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+  // الأرقام الموجودة داخل النص ("Line 1" -> "1"، "خط 2" -> "2")
+  const digits = str.replace(/[^0-9]/g, "");
 
-/**
- * استخراج اسم الخط من كائن أو سجل معين.
- * يبحث في الحقول المحتملة الشائعة: line, productionLine, workLine,
- * lineName, machineLine, line_number, lineNumber
- *
- * @param {Object} record
- * @param {string[]} [fields]
- * @returns {string}
- */
-export function extractLineName(record, fields = [
-  "line",
-  "productionLine",
-  "workLine",
-  "lineName",
-  "machineLine",
-  "line_number",
-  "lineNumber",
-  "line_id",
-  "lineId"
-]) {
-  if (!record || typeof record !== "object") return "";
-
-  for (const field of fields) {
-    const value = record[field];
-    const normalized = normalizeLine(value);
-    if (normalized) return normalized;
-  }
+  if (digits === "1" || digits === "01") return "1";
+  if (digits === "2" || digits === "02") return "2";
 
   return "";
 }
 
 /**
- * استخراج رقم الخط من قيمة رقمية أو نصية.
- * يحاول استخراج الأرقام فقط من النص مثل: "Line 12" -> "12"
+ * التسمية المعروضة/المخزّنة في باقي مسارات التطبيق (البلاغات
+ * والكايزن بتخزّن "Line 1"/"Line 2" نصاً) - نفس الصيغة بالظبط
+ * عشان أي قيمة جاية من الماكينة/الـQR تفضل متوافقة مع الفلاتر
+ * والإحصائيات الحالية بدون أي تحويل إضافي.
  *
  * @param {*} value
- * @returns {string}
+ * @returns {string} "Line 1" | "Line 2" | ""
  */
-export function extractLineNumber(value) {
-  if (value == null) return "";
-
-  const str = String(value).trim();
-  if (!str) return "";
-
-  const match = str.match(/\d+/);
-  return match ? match[0] : "";
+export function formatLineLabel(value) {
+  const line = normalizeLine(value);
+  return line ? `Line ${line}` : "";
 }
 
 /**
- * إرجاع اسم الخط بشكل آمن لو كان موجودًا، وإلا ترجع نصًا فارغًا.
+ * استخراج خط الإنتاج من مستند ماكينة (Firestore) أو من الكاش أو من
+ * حمولة QR، بمرونة على اسم الحقل - نفس أسلوب extractMachineDepartment
+ * في departmentUtils.js.
  *
- * @param {Object|string|null|undefined} value
- * @returns {string}
+ * @param {Object|string|number} machine
+ * @returns {"1" | "2" | ""}
  */
-export function safeLineName(value) {
-  if (!value) return "";
+export function extractMachineLine(machine) {
+  if (machine == null) return "";
+  if (typeof machine !== "object") return normalizeLine(machine);
 
-  if (typeof value === "string") return normalizeLine(value);
+  const candidateFields = [
+    machine.line,
+    machine.Line,
+    machine.lineNumber,
+    machine.line_number,
+    machine.productionLine,
+    machine.production_line,
+    machine.lineNo,
+    machine.l
+  ];
 
-  if (typeof value === "object") {
-    return extractLineName(value);
+  for (const candidate of candidateFields) {
+    const normalized = normalizeLine(candidate);
+    if (normalized) return normalized;
   }
 
-  return normalizeLine(value);
+  return "";
 }
-
-export default {
-  normalizeLine,
-  extractLineName,
-  extractLineNumber,
-  safeLineName
-};
