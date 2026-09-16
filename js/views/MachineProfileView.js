@@ -6,7 +6,12 @@
 // Score لـ5S، وأزرار تنفيذ الفحصين - كل ده حسب صلاحية المستخدم.
 // ============================================================
 
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import {
+  resolveMachineFromValue,
+  normalizeDepartment,
+  normalizeLine,
+  formatLineLabel
+} from '../machines.js';
 import { hasFullDataAccess, isManagerRole, isAdminRole, hasPermission, getCurrentRole } from '../permissions.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 import {
@@ -27,6 +32,9 @@ function t() {
     noPermissionTitle: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
     noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     department: isEn ? 'Department' : 'القسم',
+    line: isEn ? 'Line' : 'الخط',
+    notFoundTitle: isEn ? '❌ Machine Not Found' : '❌ الماكينة غير موجودة',
+    notFoundDesc: isEn ? 'This machine is no longer in the machines list.' : 'هذه الماكينة لم تعد موجودة ضمن قائمة الماكينات.',
     lastAm: isEn ? 'Last Daily AM Result' : 'آخر نتيجة فحص يومي (AM)',
     last5s: isEn ? 'Last 5S Score' : 'آخر تقييم 5S',
     noRecords: isEn ? 'No records yet' : 'لا توجد سجلات بعد',
@@ -65,12 +73,24 @@ export const MachineProfileView = () => {
     </div>`;
   }
 
-  const department = getDepartmentForMachineValue(machine);
+  // نفس مسار البحث المستخدم في مسح الـQR بالظبط (machines.js:
+  // resolveMachineFromValue) - الوجود والقسم وخط الإنتاج من مصدر
+  // واحد، مفيش منطق منفصل لكل شاشة
+  const resolved = resolveMachineFromValue(machine);
+  const department = resolved.department;
+
+  // خط الإنتاج: القيمة اللي اتحفظت وقت فتح الماكينة (من الـQR) لها
+  // الأولوية، وإلا الخط المسجّل على الماكينة نفسها
+  const line = normalizeLine(localStorage.getItem('activeMachineLine')) || resolved.line || '';
+  const lineLabel = formatLineLabel(line);
+
   // إصلاح: نفس معالجة normalizeDepartment المستخدمة في كل مكان تاني
   // بالتطبيق (QrScannerView.js/machines.js) بدل trim()/toLowerCase()
   // الخام - عشان تبقى المقارنة مع "department" (اللي راجعة أصلاً من
   // normalizeDepartment) متسقة دايماً.
   const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
+  // Admin/وصول كامل: بيتخطى فلترة القسم بالكامل (نفس قاعدة
+  // QrScannerView.js). غير كده: شرط تطابق القسم زي ما هو بالظبط.
   const allowed = hasFullDataAccess() || (department && department === userDept);
 
   if (!allowed) {
@@ -99,8 +119,13 @@ export const MachineProfileView = () => {
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-1 mb-4">
       <div class="text-xs text-gray-400">${tr.title}</div>
       <div class="text-xl font-black text-white">${machine}</div>
-      <div class="inline-block mt-1 text-[10px] font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
-        ${tr.department}: ${department ? department.toUpperCase() : '-'}
+      <div class="flex flex-wrap items-center gap-1.5 mt-1">
+        <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
+          ${tr.department}: ${department ? department.toUpperCase() : '-'}
+        </span>
+        <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
+          🏭 ${tr.line}: ${lineLabel || '-'}
+        </span>
       </div>
     </div>
 
@@ -137,7 +162,8 @@ export const MachineProfileView = () => {
       </button>
       <div id="machineQrPrintBox" class="hidden text-center pt-2">
         <canvas id="machineQrCanvas" class="mx-auto"></canvas>
-        <div class="text-xs font-bold text-white mt-2">${machine}</div>
+        <div class="text-xs font-bold text-white mt-2">${resolved.found ? resolved.value : machine}</div>
+        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${lineLabel}</div>` : ''}
         <button onclick="window.print()" class="mt-3 w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white transition">
           🖨️ ${isEn ? 'Print' : 'طباعة'}
         </button>
@@ -305,9 +331,27 @@ function drawQrToCanvas(qr, canvas, targetSize = 220, marginModules = 2) {
   }
 }
 
+// حمولة الـQR (QR Payload) - متوافقة تماماً مع الـscanner ومع أي
+// QR متطبوع قبل كده:
+//  - بدون خط إنتاج: نص خام بقيمة الماكينة المعيارية (نفس السلوك
+//    القديم بالحرف، عشان الأكواد المطبوعة القديمة تفضل شغّالة).
+//  - مع خط إنتاج: JSON {"m":"<machine>","line":"1"} - وهي صيغة
+//    الـscanner بيقراها أصلاً (راجع QrScannerView.js: parseQrPayload).
+function buildMachineQrPayload(machineValue, line) {
+  const normalizedLine = normalizeLine(line);
+  if (!normalizedLine) return machineValue;
+  return JSON.stringify({ m: machineValue, line: normalizedLine });
+}
+
 window.generateMachineQr = async function () {
-  const machine = localStorage.getItem('activeMachine') || '';
-  if (!machine) return;
+  const rawMachine = localStorage.getItem('activeMachine') || '';
+  if (!rawMachine) return;
+
+  // القيمة المعيارية للماكينة + خطها - نفس مصدر الحقيقة المستخدم
+  // في العرض وفي المسح
+  const resolvedMachine = resolveMachineFromValue(rawMachine);
+  const machine = resolvedMachine.found ? resolvedMachine.value : rawMachine;
+  const machineLine = normalizeLine(localStorage.getItem('activeMachineLine')) || resolvedMachine.line || '';
 
   const tr = t();
   const btn = document.getElementById('machineQrGenBtn');
@@ -331,7 +375,7 @@ window.generateMachineQr = async function () {
       throw new Error('QRCode library or canvas element unavailable');
     }
 
-    const qr = buildQrCode(machine);
+    const qr = buildQrCode(buildMachineQrPayload(machine, machineLine));
     drawQrToCanvas(qr, canvas, 220, 2);
     box?.classList.remove('hidden');
   } catch (err) {
