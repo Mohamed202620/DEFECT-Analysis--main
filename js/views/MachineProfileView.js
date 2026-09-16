@@ -8,6 +8,7 @@
 
 import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess, isManagerRole, isAdminRole, hasPermission, getCurrentRole } from '../permissions.js';
+import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 import {
   fetchLatestChecklistApi,
   fetchChecklistHistoryApi,
@@ -220,22 +221,86 @@ window.loadMachineProfileData = async function () {
 };
 
 // ============================================================
-// توليد QR للماكينة (أدمن فقط) + طباعة - تحميل كسول لمكتبة qrcode
-// (نفس أسلوب تحميل Tesseract.js/jsQR الكسول في الملفات الأخرى)
+// توليد QR للماكينة (أدمن فقط) + طباعة
+//
+// إصلاح جذري: كان توليد الـQR بالكامل معتمد على تحميل مكتبة "qrcode"
+// من CDN خارجي (cdn.jsdelivr.net) في كل مرة - وهو اعتماد شبكي غير
+// ضروري بيفشل بالكامل لو دومين الـCDN تحديداً محجوب/مش واصل من شبكة
+// المستخدم (واي فاي مصنع، فلتر خصوصية على الجهاز...)، حتى لو باقي
+// الإنترنت (فايربيز مثلاً) شغّال تمامًا - فيظهر للمستخدم رسالة "تأكد
+// من اتصال الإنترنت" بينما الإنترنت شغّال فعليًا، والمشكلة الحقيقية
+// إن الدومين الخارجي بس هو المحجوب.
+//
+// الحل: مكتبة توليد QR (js/vendor/qrcode-generator.js - نسخة Kazuhiko
+// Arase الأصلية المرخّصة MIT) بقت جزء من ملفات التطبيق نفسه، بتتحمّل
+// من نفس دومين التطبيق (Firebase Hosting) زي أي ملف .js تاني بالضبط
+// - مفيش أي اعتماد على أي CDN خارجي إطلاقاً، وبتتخزّن كمان في كاش
+// الـService Worker (sw.js) فتشتغل حتى أوفلاين بعد أول تحميل للتطبيق.
 // ============================================================
 function loadQrCodeLib() {
-  if (window.QRCode) return Promise.resolve(window.QRCode);
+  if (window.qrcode) return Promise.resolve(window.qrcode);
   if (qrCodeLoadPromise) return qrCodeLoadPromise;
 
-  qrCodeLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-    script.onload = () => resolve(window.QRCode);
-    script.onerror = () => reject(new Error('QRCode lib load failed'));
-    document.head.appendChild(script);
+  qrCodeLoadPromise = loadScriptWithFallback(
+    ['./js/vendor/qrcode-generator.js'],
+    () => window.qrcode
+  ).catch(err => {
+    // تصفير الـPromise المخزّن عشان أي ضغطة تالية على الزرار تعمل
+    // محاولة تحميل جديدة بدل ما ترجع نفس الفشل القديم للأبد
+    qrCodeLoadPromise = null;
+    throw err;
   });
 
   return qrCodeLoadPromise;
+}
+
+// بناء كائن QR بأصغر "typeNumber" كافي لاستيعاب النص (المكتبة القديمة
+// دي بتحتاج تحديد typeNumber يدوياً بدل الاكتشاف التلقائي) - بنجرّب
+// من أصغر حجم ونكبّر لحد ما نلاقي حجم يستوعب النص من غير "تجاوز سعة"
+function buildQrCode(text) {
+  for (let typeNumber = 1; typeNumber <= 40; typeNumber += 1) {
+    try {
+      const qr = window.qrcode(typeNumber, 'M');
+      qr.addData(text);
+      qr.make();
+      return qr;
+    } catch (err) {
+      // "code length overflow" - النص أكبر من سعة الحجم ده، نجرّب اللي بعده
+      continue;
+    }
+  }
+  throw new Error('QR data too long to encode');
+}
+
+// رسم الـQR الناتج على <canvas> يدوياً (المكتبة القديمة دي معندهاش
+// toCanvas() جاهزة - بس بتوفر isDark(row,col) لكل خانة، فبنرسمها
+// بأنفسنا بمربعات بسيطة، بدون أي منطق تكويد إضافي)
+function drawQrToCanvas(qr, canvas, targetSize = 220, marginModules = 2) {
+  const moduleCount = qr.getModuleCount();
+  const totalModules = moduleCount + marginModules * 2;
+  const cellSize = Math.max(2, Math.floor(targetSize / totalModules));
+  const size = totalModules * cellSize;
+
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#000000';
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect(
+          (col + marginModules) * cellSize,
+          (row + marginModules) * cellSize,
+          cellSize,
+          cellSize
+        );
+      }
+    }
+  }
 }
 
 window.generateMachineQr = async function () {
@@ -260,11 +325,12 @@ window.generateMachineQr = async function () {
     await loadQrCodeLib();
     const canvas = document.getElementById('machineQrCanvas');
     const box = document.getElementById('machineQrPrintBox');
-    if (!canvas || !window.QRCode) {
+    if (!canvas || !window.qrcode) {
       throw new Error('QRCode library or canvas element unavailable');
     }
 
-    await window.QRCode.toCanvas(canvas, machine, { width: 220, margin: 1 });
+    const qr = buildQrCode(machine);
+    drawQrToCanvas(qr, canvas, 220, 2);
     box?.classList.remove('hidden');
   } catch (err) {
     console.error('Error generating machine QR:', err);
