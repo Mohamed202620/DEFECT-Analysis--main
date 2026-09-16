@@ -46,118 +46,6 @@ import { updateMachineTypeApi } from '../services/machinesApi.js';
 let videoStream = null;
 let scanRafId = null;
 let jsQRLoadPromise = null;
-let qrCodeLoadPromise = null;
-
-function loadQrCodeLib() {
-  if (window.qrcode) return Promise.resolve(window.qrcode);
-  if (qrCodeLoadPromise) return qrCodeLoadPromise;
-
-  qrCodeLoadPromise = loadScriptWithFallback(
-    ['./js/vendor/qrcode-generator.js'],
-    () => window.qrcode
-  ).catch(err => {
-    qrCodeLoadPromise = null;
-    throw err;
-  });
-
-  return qrCodeLoadPromise;
-}
-
-function buildQrCode(text) {
-  const utf8Text = unescape(encodeURIComponent(text));
-  for (let typeNumber = 1; typeNumber <= 40; typeNumber += 1) {
-    try {
-      const qr = window.qrcode(typeNumber, 'M');
-      qr.addData(utf8Text);
-      qr.make();
-      return qr;
-    } catch (err) {
-      continue;
-    }
-  }
-  throw new Error('QR data too long to encode');
-}
-
-function drawQrToCanvas(qr, canvas, targetSize = 220, marginModules = 2) {
-  const moduleCount = qr.getModuleCount();
-  const totalModules = moduleCount + marginModules * 2;
-  const cellSize = Math.max(2, Math.floor(targetSize / totalModules));
-  const size = totalModules * cellSize;
-
-  canvas.width = size;
-  canvas.height = size;
-
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = '#000000';
-
-  for (let row = 0; row < moduleCount; row += 1) {
-    for (let col = 0; col < moduleCount; col += 1) {
-      if (qr.isDark(row, col)) {
-        ctx.fillRect(
-          (col + marginModules) * cellSize,
-          (row + marginModules) * cellSize,
-          cellSize,
-          cellSize
-        );
-      }
-    }
-  }
-}
-
-window.generateMachineQr = async function() {
-  const machineValue = document.getElementById('qrGenMachine')?.value;
-  const lineValue = document.getElementById('qrGenLine')?.value;
-  
-  if (!machineValue) {
-    alert((window.currentLang || 'ar') === 'en' ? 'Please select a machine first' : 'يرجى اختيار الماكينة أولاً');
-    return;
-  }
-  if (!lineValue) {
-    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line' : 'يرجى اختيار خط الإنتاج');
-    return;
-  }
-
-  const resultBox = document.getElementById('qrGenResult');
-  const canvasBox = document.getElementById('qrGenCanvasBox');
-  const payloadText = document.getElementById('qrGenPayloadText');
-  const btn = document.querySelector('button[onclick="window.generateMachineQr()"]');
-  const originalBtnText = btn.innerHTML;
-
-  try {
-    btn.disabled = true;
-    btn.innerHTML = (window.currentLang || 'ar') === 'en' ? 'Generating...' : 'جاري التوليد...';
-
-    const machineFound = findMachineEntryByValue(machineValue);
-    if (machineFound && machineFound.entry && machineFound.entry.id) {
-      const entry = machineFound.entry;
-      await updateMachineTypeApi(entry.id, entry.key, entry.units, undefined, lineValue);
-    }
-
-    await loadQrCodeLib();
-    
-    const payload = JSON.stringify({ m: machineValue, line: lineValue });
-    const qr = buildQrCode(payload);
-    
-    const canvas = document.createElement('canvas');
-    canvas.className = 'w-48 h-48 sm:w-56 sm:h-56 rounded-md shadow-sm';
-    drawQrToCanvas(qr, canvas);
-    
-    canvasBox.innerHTML = '';
-    canvasBox.appendChild(canvas);
-    payloadText.textContent = payload;
-    
-    resultBox.classList.remove('hidden');
-
-  } catch (error) {
-    console.error('Error generating QR:', error);
-    alert((window.currentLang || 'ar') === 'en' ? 'Failed to generate QR code' : 'فشل توليد رمز QR');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalBtnText;
-  }
-};
 
 function t() {
   const isEn = (window.currentLang || 'ar') === 'en';
@@ -202,6 +90,12 @@ export const QrScannerView = () => {
     </div>
 
     <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3">
+      <select id="qrScanLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mb-2">
+        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
+        <option value="1">${isEn ? 'Line 1' : 'الخط 1'}</option>
+        <option value="2">${isEn ? 'Line 2' : 'الخط 2'}</option>
+      </select>
+
       <div id="qrVideoBox" class="hidden relative rounded-xl overflow-hidden bg-black aspect-square max-w-xs mx-auto border-2 border-blue-500/40">
         <video id="qrVideo" class="w-full h-full object-cover" playsinline muted></video>
         <div class="absolute inset-0 border-[3px] border-blue-400/60 m-8 rounded-xl pointer-events-none"></div>
@@ -225,35 +119,15 @@ export const QrScannerView = () => {
         placeholderLabel: isEn ? 'Select machine...' : 'اختر الماكينة...',
         unitPlaceholderLabel: isEn ? 'Select number...' : 'اختر الرقم...'
       })}
+      <select id="qrManualLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mt-2">
+        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
+        <option value="1">${isEn ? 'Line 1' : 'الخط 1'}</option>
+        <option value="2">${isEn ? 'Line 2' : 'الخط 2'}</option>
+      </select>
       <button onclick="window.openMachineFromManualSelect()" class="w-full p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 font-bold text-xs text-white transition">
         ${tr.openBtn}
       </button>
     </div>
-
-    ${isAdminRole(getCurrentRole()) ? `
-    <div id="qrGenerateSection" class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 mt-4">
-      <h3 class="text-xs font-bold text-gray-300">${isEn ? 'Generate QR Code' : 'توليد QR للماكينة'}</h3>
-      ${buildMachineDropdownHtml('qrGenMachine', {
-        placeholderLabel: isEn ? 'Select machine...' : 'اختر الماكينة...',
-        unitPlaceholderLabel: isEn ? 'Select number...' : 'اختر الرقم...'
-      })}
-      
-      <select id="qrGenLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mt-2">
-        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
-        <option value="1">Line 1</option>
-        <option value="2">Line 2</option>
-      </select>
-
-      <button onclick="window.generateMachineQr()" class="w-full p-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-95 font-bold text-xs text-white transition mt-2">
-        ${isEn ? 'Generate QR' : 'توليد QR'}
-      </button>
-
-      <div id="qrGenResult" class="hidden mt-3 text-center flex flex-col items-center justify-center p-4 bg-white rounded-xl">
-        <div id="qrGenCanvasBox" class="mb-2"></div>
-        <div class="text-[10px] text-gray-600 font-mono" id="qrGenPayloadText"></div>
-      </div>
-    </div>
-    ` : ''}
   </div>
   `;
 };
@@ -358,23 +232,20 @@ function escapeHtml(value) {
 // فعلي شغّال تحته. دلوقتي بترجع true فقط في حالة النجاح الفعلي
 // (فتح ملف الماكينة) عشان الكاميرا تكمل المسح تلقائيًا في أي حالة
 // تانية (راجع tick() تحت).
-async function handleResolvedMachineValue(payload) {
+async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   const tr = t();
   const resultBox = document.getElementById('qrResultBox');
   if (!resultBox) return false;
 
   const scannedValue = String(payload?.value || '').trim();
-  const qrLine = normalizeLine(payload?.line);
+  let qrLine = normalizeLine(payload?.line);
 
   if (!scannedValue) {
     renderQrMessage({ tone: 'error', title: tr.invalidQr, desc: tr.invalidQrDesc });
     return false;
   }
 
-  // 1) البحث الفعلي عن الماكينة في كتالوج التطبيق - لازم يكون
-  //    محمّل من Firestore قبل الحكم بـ"غير موجودة"، وإلا البحث
-  //    بيتم على القائمة الافتراضية الاحتياطية بس (سبب إضافي كان
-  //    بيدي "الماكينة غير موجودة" لماكينات مضافة يدوياً)
+  // 1) البحث الفعلي عن الماكينة في كتالوج التطبيق
   if (!isMachineTypesLoaded()) {
     renderQrMessage({ tone: 'ok', title: tr.checking, desc: '' });
     await ensureMachineCatalogReady();
@@ -392,10 +263,7 @@ async function handleResolvedMachineValue(payload) {
     return false;
   }
 
-  // 2) الصلاحية - خطوة منفصلة تماماً عن الوجود.
-  //    Admin / صاحب وصول كامل: يتخطى أي فلترة قسم للماكينات.
-  //    غير كده: لازم قسم الماكينة = قسم المستخدم (زي ما كان بالظبط،
-  //    بدون أي تخفيف).
+  // 2) الصلاحية
   if (!hasFullDataAccess()) {
     const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
     if (!userDept || !machine.department || machine.department !== userDept) {
@@ -404,10 +272,8 @@ async function handleResolvedMachineValue(payload) {
     }
   }
 
-  // 3) خط الإنتاج: الخط المسجّل على الماكينة نفسها هو مصدر الحقيقة،
-  //    والخط الجاي في الـQR بيُستخدم فقط لو الماكينة لسه متسجّلش
-  //    ليها خط (توافق مع أكواد QR متطبوعة قبل إضافة الحقل)
-  const line = machine.line || qrLine || '';
+  // 3) خط الإنتاج: إعطاء الأولوية للخط المختار من الواجهة (سواء سكان أو يدوي)
+  const line = manualSelectedLine || qrLine || machine.line || '';
   const lineLabel = formatLineLabel(line);
 
   renderQrMessage({
@@ -417,9 +283,6 @@ async function handleResolvedMachineValue(payload) {
     extra: `<div class="text-[11px] text-gray-300 mt-1 font-bold">${escapeHtml(machine.value)}${lineLabel ? ` · 🏭 ${lineLabel}` : ''}</div>`
   });
 
-  // بنخزّن القيمة المعيارية للماكينة (زي ما القوائم المنسدلة
-  // بتنتجها بالظبط) مش النص الخام الممسوح - عشان كل الشاشات
-  // اللاحقة (ملف الماكينة/Daily AM/5S) تلاقي نفس السجلات
   localStorage.setItem('activeMachine', machine.value);
 
   if (line) {
@@ -435,8 +298,19 @@ async function handleResolvedMachineValue(payload) {
 
 window.openMachineFromManualSelect = function () {
   const value = document.getElementById('qrManualMachine')?.value || '';
-  // نفس المسار بالظبط المستخدم بعد مسح الـQR - مفيش منطق منفصل
-  handleResolvedMachineValue({ value: value.trim(), line: '' });
+  const lineSelect = document.getElementById('qrManualLine');
+  
+  if (!value) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a machine first.' : 'يرجى اختيار الماكينة أولاً.');
+    return;
+  }
+  
+  if (lineSelect && !lineSelect.value) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line first.' : 'يرجى اختيار الخط أولاً.');
+    return;
+  }
+
+  handleResolvedMachineValue({ value: value.trim(), line: '' }, lineSelect.value);
 };
 
 // ============================================================
@@ -477,6 +351,15 @@ function setQrStatus(message, isError = false) {
 
 window.startQrScan = async function () {
   const tr = t();
+  const lineSelect = document.getElementById('qrScanLine');
+  
+  if (lineSelect && !lineSelect.value) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line first.' : 'يرجى اختيار الخط أولاً.');
+    return;
+  }
+
+  const selectedLine = lineSelect ? lineSelect.value : null;
+
   const videoBox = document.getElementById('qrVideoBox');
   const video = document.getElementById('qrVideo');
   const startBtn = document.getElementById('qrStartBtn');
@@ -543,7 +426,7 @@ window.startQrScan = async function () {
             // موجود/بلا صلاحية (بترجع false) بدل ما تتجمد الكاميرا
             // بصريًا وهي فعليًا متوقفة عن المسح - راجع تعليق
             // handleResolvedMachineValue فوق.
-            if (await handleResolvedMachineValue(parseQrPayload(codes[0].rawValue))) {
+            if (await handleResolvedMachineValue(parseQrPayload(codes[0].rawValue), selectedLine)) {
               return;
             }
           }
@@ -554,7 +437,7 @@ window.startQrScan = async function () {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = window.jsQR(imageData.data, imageData.width, imageData.height);
           if (code && code.data) {
-            if (await handleResolvedMachineValue(parseQrPayload(code.data))) {
+            if (await handleResolvedMachineValue(parseQrPayload(code.data), selectedLine)) {
               return;
             }
           }
