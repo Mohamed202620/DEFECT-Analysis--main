@@ -10,7 +10,7 @@ import {
   seedDefaultMachineTypesApi
 } from "./services/machinesApi.js";
 
-import { isAdminRole, getCurrentRole } from "./permissions.js";
+import { isAdminRole, getCurrentRole, hasFullDataAccess } from "./permissions.js";
 import {
   normalizeDepartment,
   extractUserDepartment,
@@ -99,7 +99,7 @@ export function getMachinesForUser(user, allMachines) {
   if (!user || typeof user !== "object") return [];
 
   const role = String(user.role || "").trim().toLowerCase();
-  if (isAdminRole(role)) {
+  if (isAdminRole(role) || hasFullDataAccess(role)) {
     return list;
   }
 
@@ -120,7 +120,7 @@ export async function loadMachineTypesFromFirestore(force = false) {
 
   try {
     const userContext = getCurrentUserMachineContext();
-    const isAdmin = isAdminRole(userContext.role);
+    const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
     const userDept = extractUserDepartment(userContext);
 
     // إذا لم يكن المستخدم أدمن، نطلب من Firestore مباشرة استعلام مفلتر لقسمه
@@ -263,7 +263,7 @@ export function buildMachineDropdownHtml(baseId, {
 
   const userContext = getCurrentUserMachineContext();
   const role = userContext.role;
-  const isAdmin = isAdminRole(role);
+  const isAdmin = isAdminRole(role) || hasFullDataAccess(role);
   const userDept = extractUserDepartment(userContext);
 
   const savedUid = localStorage.getItem("userId");
@@ -376,7 +376,7 @@ function refreshActiveMachineDropdowns() {
 
     const visibleTypes = getMachineTypeEntries({ includeInactive: false });
     const userContext = getCurrentUserMachineContext();
-    const isAdmin = isAdminRole(userContext.role);
+    const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
     const userDept = extractUserDepartment(userContext);
 
     if (!isAdmin && !userDept) continue;

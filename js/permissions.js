@@ -158,6 +158,7 @@ window.can = hasPermission;
 export function hasFullDataAccess(role = getCurrentRole()) {
   const r = String(role || getCurrentRole()).trim().toLowerCase();
   return (
+    hasPermission("all") ||
     isAdminRole(r) ||
     isManagerRole(r) ||
     r === "engineer"
