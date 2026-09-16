@@ -547,7 +547,7 @@ function refreshActiveMachineDropdowns() {
   // القائمة الاحتياطية الافتراضية DEFAULT_MACHINE_TYPES) لو المستخدم
   // فتح صفحة QR قبل اكتمال التحميل - نفس المسار المفروض يتصرف بنفس
   // سياق باقي فورمات التطبيق بالظبط.
-  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect", "qrManualMachine"];
+  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect", "qrManualMachine", "qrGenMachine"];
   for (const base of dropdownBases) {
     const typeSelect = document.getElementById(base + "Type") || (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null);
     if (!typeSelect) continue;

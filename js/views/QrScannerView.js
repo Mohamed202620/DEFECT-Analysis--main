@@ -36,14 +36,128 @@ import {
   normalizeLine,
   formatLineLabel,
   isMachineTypesLoaded,
-  ensureMachineCatalogReady
+  ensureMachineCatalogReady,
+  findMachineEntryByValue
 } from '../machines.js';
-import { hasFullDataAccess } from '../permissions.js';
+import { hasFullDataAccess, isAdminRole, getCurrentRole } from '../permissions.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+import { updateMachineTypeApi } from '../services/machinesApi.js';
 
 let videoStream = null;
 let scanRafId = null;
 let jsQRLoadPromise = null;
+let qrCodeLoadPromise = null;
+
+function loadQrCodeLib() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (qrCodeLoadPromise) return qrCodeLoadPromise;
+
+  qrCodeLoadPromise = loadScriptWithFallback(
+    ['./js/vendor/qrcode-generator.js'],
+    () => window.qrcode
+  ).catch(err => {
+    qrCodeLoadPromise = null;
+    throw err;
+  });
+
+  return qrCodeLoadPromise;
+}
+
+function buildQrCode(text) {
+  const utf8Text = unescape(encodeURIComponent(text));
+  for (let typeNumber = 1; typeNumber <= 40; typeNumber += 1) {
+    try {
+      const qr = window.qrcode(typeNumber, 'M');
+      qr.addData(utf8Text);
+      qr.make();
+      return qr;
+    } catch (err) {
+      continue;
+    }
+  }
+  throw new Error('QR data too long to encode');
+}
+
+function drawQrToCanvas(qr, canvas, targetSize = 220, marginModules = 2) {
+  const moduleCount = qr.getModuleCount();
+  const totalModules = moduleCount + marginModules * 2;
+  const cellSize = Math.max(2, Math.floor(targetSize / totalModules));
+  const size = totalModules * cellSize;
+
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#000000';
+
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (qr.isDark(row, col)) {
+        ctx.fillRect(
+          (col + marginModules) * cellSize,
+          (row + marginModules) * cellSize,
+          cellSize,
+          cellSize
+        );
+      }
+    }
+  }
+}
+
+window.generateMachineQr = async function() {
+  const machineValue = document.getElementById('qrGenMachine')?.value;
+  const lineValue = document.getElementById('qrGenLine')?.value;
+  
+  if (!machineValue) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a machine first' : 'يرجى اختيار الماكينة أولاً');
+    return;
+  }
+  if (!lineValue) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line' : 'يرجى اختيار خط الإنتاج');
+    return;
+  }
+
+  const resultBox = document.getElementById('qrGenResult');
+  const canvasBox = document.getElementById('qrGenCanvasBox');
+  const payloadText = document.getElementById('qrGenPayloadText');
+  const btn = document.querySelector('button[onclick="window.generateMachineQr()"]');
+  const originalBtnText = btn.innerHTML;
+
+  try {
+    btn.disabled = true;
+    btn.innerHTML = (window.currentLang || 'ar') === 'en' ? 'Generating...' : 'جاري التوليد...';
+
+    const machineFound = findMachineEntryByValue(machineValue);
+    if (machineFound && machineFound.entry && machineFound.entry.id) {
+      const entry = machineFound.entry;
+      await updateMachineTypeApi(entry.id, entry.key, entry.units, undefined, lineValue);
+    }
+
+    await loadQrCodeLib();
+    
+    const payload = JSON.stringify({ m: machineValue, line: lineValue });
+    const qr = buildQrCode(payload);
+    
+    const canvas = document.createElement('canvas');
+    canvas.className = 'w-48 h-48 sm:w-56 sm:h-56 rounded-md shadow-sm';
+    drawQrToCanvas(qr, canvas);
+    
+    canvasBox.innerHTML = '';
+    canvasBox.appendChild(canvas);
+    payloadText.textContent = payload;
+    
+    resultBox.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('Error generating QR:', error);
+    alert((window.currentLang || 'ar') === 'en' ? 'Failed to generate QR code' : 'فشل توليد رمز QR');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
+  }
+};
 
 function t() {
   const isEn = (window.currentLang || 'ar') === 'en';
@@ -115,6 +229,31 @@ export const QrScannerView = () => {
         ${tr.openBtn}
       </button>
     </div>
+
+    ${isAdminRole(getCurrentRole()) ? `
+    <div id="qrGenerateSection" class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 mt-4">
+      <h3 class="text-xs font-bold text-gray-300">${isEn ? 'Generate QR Code' : 'توليد QR للماكينة'}</h3>
+      ${buildMachineDropdownHtml('qrGenMachine', {
+        placeholderLabel: isEn ? 'Select machine...' : 'اختر الماكينة...',
+        unitPlaceholderLabel: isEn ? 'Select number...' : 'اختر الرقم...'
+      })}
+      
+      <select id="qrGenLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mt-2">
+        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
+        <option value="1">Line 1</option>
+        <option value="2">Line 2</option>
+      </select>
+
+      <button onclick="window.generateMachineQr()" class="w-full p-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:scale-95 font-bold text-xs text-white transition mt-2">
+        ${isEn ? 'Generate QR' : 'توليد QR'}
+      </button>
+
+      <div id="qrGenResult" class="hidden mt-3 text-center flex flex-col items-center justify-center p-4 bg-white rounded-xl">
+        <div id="qrGenCanvasBox" class="mb-2"></div>
+        <div class="text-[10px] text-gray-600 font-mono" id="qrGenPayloadText"></div>
+      </div>
+    </div>
+    ` : ''}
   </div>
   `;
 };
