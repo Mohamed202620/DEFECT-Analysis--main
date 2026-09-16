@@ -17,7 +17,15 @@ import {
   extractMachineDepartment
 } from "./utils/departmentUtils.js";
 
+import {
+  normalizeLine,
+  formatLineLabel,
+  extractMachineLine,
+  normalizeDigits
+} from "./utils/lineUtils.js";
+
 export { normalizeDepartment, extractUserDepartment, extractMachineDepartment };
+export { normalizeLine, formatLineLabel, extractMachineLine };
 
 // توليد "01".."NN" (ترقيم بخانتين دايماً)
 function padNumbers(count) {
@@ -54,6 +62,14 @@ let machineTypesCache = [];
 let machineTypesLoaded = false;
 let isFetchingMachines = false;
 
+// إصلاح (سبب مباشر لـ"الماكينة غير موجودة"): loadMachineTypesFromFirestore
+// كانت بترجع فوراً (return صامت) لو فيه تحميل شغّال بالفعل، فـ
+// await عليها كان بيرجع قبل ما الكاش يتملي فعلياً - وأي بحث بعدها
+// (زي البحث عن ماكينة الـQR) كان بيتم على القائمة الاحتياطية
+// DEFAULT_MACHINE_TYPES مش على ماكينات Firestore الحقيقية. دلوقتي
+// كل الاستدعاءات المتزامنة بتنتظر نفس عملية التحميل الجارية.
+let machineTypesLoadPromise = null;
+
 export function isMachineTypesLoaded() {
   return machineTypesLoaded;
 }
@@ -65,6 +81,7 @@ export function clearUserAndMachinesCache() {
   machineTypesCache = [];
   machineTypesLoaded = false;
   isFetchingMachines = false;
+  machineTypesLoadPromise = null;
   refreshMachineOptionsExport();
 }
 
@@ -115,7 +132,16 @@ export function getMachinesForUser(user, allMachines) {
  * تحميل قائمة أنواع الماكينات من Firestore
  */
 export async function loadMachineTypesFromFirestore(force = false) {
-  if (isFetchingMachines && !force) return;
+  if (machineTypesLoadPromise && !force) return machineTypesLoadPromise;
+
+  machineTypesLoadPromise = doLoadMachineTypesFromFirestore().finally(() => {
+    machineTypesLoadPromise = null;
+  });
+
+  return machineTypesLoadPromise;
+}
+
+async function doLoadMachineTypesFromFirestore() {
   isFetchingMachines = true;
 
   try {
@@ -140,6 +166,9 @@ export async function loadMachineTypesFromFirestore(force = false) {
         units: m.units || [],
         active: m.active !== false,
         department: extractMachineDepartment(m),
+        // خط الإنتاج المرتبط بالماكينة ("1" / "2" / "") - نفس الحقل
+        // المستخدم في باقي التطبيق (راجع utils/lineUtils.js)
+        line: extractMachineLine(m),
         id: m.id,
         order: typeof m.order === "number" ? m.order : 0
       }));
@@ -216,26 +245,175 @@ export function getMachineUnits(typeKey) {
   return entry && entry.units && entry.units.length ? entry.units : null;
 }
 
+// ============================================================
+// البحث عن الماكينة (Machine Lookup) - مصدر الحقيقة الموحّد
+//
+// ده المسار اللي بيستخدمه كل التطبيق (فورمات البلاغات/الكايزن/
+// الفحص اليومي/5S) وكمان مسح الـQR - نفس الدالة بالظبط، مفيش
+// منطق بحث منفصل للـQR.
+//
+// المطابقة متسامحة مع الفروق الشكلية اللي متغيّرش هوية الماكينة
+// (حالة الأحرف، المسافات المتكررة، الشرطة بدل المسافة، صفر
+// البادئة في رقم الوحدة "1" مقابل "01"، الأرقام العربية) - لأن
+// الـQR ممكن يكون متطبوع من مصدر قديم أو مكتوب يدوياً بصيغة
+// مختلفة شوية عن المخزّن في Firestore. أي اختلاف غير كده =
+// ماكينة غير موجودة فعلاً.
+// ============================================================
+
+function canonicalToken(value) {
+  return normalizeDigits(value)
+    .replace(/[_\-–—]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function canonicalUnitToken(value) {
+  const token = canonicalToken(value);
+  // "01" و "1" نفس الوحدة
+  return /^[0-9]+$/.test(token) ? String(parseInt(token, 10)) : token;
+}
+
+/**
+ * كل الماكينات المعروفة (بدون أي فلترة صلاحيات) - الكاش المحمّل
+ * من Firestore، وإلا القائمة الافتراضية كاحتياطي.
+ */
+function getAllKnownMachineTypes() {
+  return machineTypesCache.length ? machineTypesCache : DEFAULT_MACHINE_TYPES;
+}
+
+/**
+ * إيجاد مستند/عنصر الماكينة المطابق لقيمة نصية.
+ * @param {string} fullValue
+ * @returns {{ entry: Object, unit: string } | null}
+ */
+export function findMachineEntryByValue(fullValue) {
+  const raw = String(fullValue == null ? "" : fullValue).trim();
+  if (!raw) return null;
+
+  const source = getAllKnownMachineTypes();
+  const target = canonicalToken(raw);
+  if (!target) return null;
+
+  // 1) مطابقة بمعرّف مستند Firestore (QR بصيغة "MID:<docId>")
+  const byId = source.find(m => m.id && String(m.id).trim() === raw);
+  if (byId) return { entry: byId, unit: "" };
+
+  // 2) مطابقة كاملة "النوع + الوحدة" أو "النوع" لوحده
+  for (const m of source) {
+    const keyToken = canonicalToken(m.key);
+    if (!keyToken) continue;
+
+    const units = Array.isArray(m.units) ? m.units : [];
+    for (const u of units) {
+      if (canonicalToken(`${m.key} ${u}`) === target) {
+        return { entry: m, unit: u };
+      }
+    }
+
+    if (keyToken === target) return { entry: m, unit: "" };
+  }
+
+  // 3) نفس النوع مع اختلاف شكلي في رقم الوحدة فقط ("Bodymaker 1"
+  //    مقابل "Bodymaker 01") - بنقبلها فقط لو الوحدة موجودة فعلاً
+  //    ضمن وحدات النوع المسجّلة، مش أي رقم عشوائي.
+  for (const m of source) {
+    const units = Array.isArray(m.units) ? m.units : [];
+    if (!units.length) continue;
+
+    const keyToken = canonicalToken(m.key);
+    if (!keyToken || !target.startsWith(keyToken + " ")) continue;
+
+    const rest = target.slice(keyToken.length + 1).trim();
+    const matchedUnit = units.find(u => canonicalUnitToken(u) === canonicalUnitToken(rest));
+    if (matchedUnit) return { entry: m, unit: matchedUnit };
+  }
+
+  return null;
+}
+
+/**
+ * حل قيمة ماكينة بالكامل: وجودها فعلياً + قسمها + خط إنتاجها +
+ * صيغتها المعيارية المستخدمة في كل التطبيق.
+ *
+ * ملاحظة مهمة: "found" هنا بتعبّر عن وجود الماكينة فقط - مش عن
+ * صلاحية المستخدم. الصلاحية بتتفحص بشكل منفصل وصريح في الشاشات
+ * (راجع QrScannerView.js / MachineProfileView.js).
+ *
+ * @param {string} fullValue
+ * @returns {{ found: boolean, value: string, key: string, unit: string,
+ *             department: string, line: string, id: string, active: boolean }}
+ */
+export function resolveMachineFromValue(fullValue) {
+  const raw = String(fullValue == null ? "" : fullValue).trim();
+  const found = findMachineEntryByValue(raw);
+
+  if (!found) {
+    return {
+      found: false,
+      value: raw,
+      key: "",
+      unit: "",
+      department: "",
+      line: "",
+      id: "",
+      active: true
+    };
+  }
+
+  const { entry, unit } = found;
+
+  return {
+    found: true,
+    // الصيغة المعيارية زي ما القوائم المنسدلة بتنتجها بالظبط، عشان
+    // أي حفظ/بحث لاحق (checklists/tickets) يطابق السجلات الموجودة
+    value: unit ? `${entry.key} ${unit}` : entry.key,
+    key: entry.key,
+    unit,
+    department: extractMachineDepartment(entry),
+    line: extractMachineLine(entry),
+    id: entry.id || "",
+    active: entry.active !== false
+  };
+}
+
+window.resolveMachineFromValue = resolveMachineFromValue;
+
 export function parseMachineValue(fullValue) {
   if (!fullValue) return { type: "", unit: "" };
-  const source = machineTypesCache.length ? machineTypesCache : DEFAULT_MACHINE_TYPES;
-  for (const m of source) {
-    if (m.units && m.units.length) {
-      const unit = m.units.find(u => `${m.key} ${u}` === fullValue);
-      if (unit) return { type: m.key, unit };
-    } else if (m.key === fullValue) {
-      return { type: m.key, unit: "" };
-    }
-  }
+  const found = findMachineEntryByValue(fullValue);
+  if (found) return { type: found.entry.key, unit: found.unit };
   return { type: fullValue, unit: "" };
 }
 
 export function getDepartmentForMachineValue(fullValue) {
   if (!fullValue) return "";
-  const { type } = parseMachineValue(fullValue);
-  const source = machineTypesCache.length ? machineTypesCache : DEFAULT_MACHINE_TYPES;
-  const entry = source.find(m => m.key === type);
-  return entry ? extractMachineDepartment(entry) : "";
+  return resolveMachineFromValue(fullValue).department;
+}
+
+/**
+ * خط الإنتاج المرتبط بالماكينة ("1" / "2" / "")
+ */
+export function getLineForMachineValue(fullValue) {
+  if (!fullValue) return "";
+  return resolveMachineFromValue(fullValue).line;
+}
+
+/**
+ * التأكد إن قائمة الماكينات الحقيقية اتحمّلت من Firestore قبل أي
+ * عملية بحث حاسمة (زي مسح QR) - بدل الاعتماد على القائمة
+ * الاحتياطية الافتراضية اللي مش بتحتوي الماكينات المضافة يدوياً.
+ */
+export async function ensureMachineCatalogReady(force = false) {
+  if (!force && machineTypesLoaded && machineTypesCache.length) return true;
+
+  try {
+    await ensureUserAndMachinesLoaded(force);
+  } catch (err) {
+    console.warn("Could not ensure machine catalog is ready:", err);
+  }
+
+  return machineTypesLoaded;
 }
 
 const DEFAULT_SELECT_CLASS =
