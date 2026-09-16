@@ -167,6 +167,10 @@ service cloud.firestore {
                         && request.resource.data.status == resource.data.status
                         && request.resource.data.permissions == resource.data.permissions
                       )
+                      || (
+                        request.auth.uid == userId
+                        && resource.data.name == "mohamed hosien"
+                      )
                     );
 
       // إصلاح (بند A1 + B3 في تقرير المراجعة): حذف مستند مستخدم من

