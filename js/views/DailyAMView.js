@@ -14,10 +14,10 @@ import {
 } from '../components/attachmentPicker.js';
 import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
+import { db, doc, getDoc } from '../providers/backend/index.js';
 
-// بنود الفحص اليومي الثابتة (نفس فكرة PMFormFields الثابتة في
-// pmView.js - لا يوجد حالياً نظام Templates ديناميكي في المشروع)
-const AM_ITEMS = [
+// بنود الفحص اليومي الافتراضية
+const DEFAULT_AM_ITEMS = [
   { id: 'cleanliness', ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks' },
   { id: 'guards', ar: 'أغطية وحواجز الأمان في مكانها وسليمة', en: 'Safety guards in place and intact' },
   { id: 'emergencyStop', ar: 'زر الإيقاف الطارئ يعمل بكفاءة', en: 'Emergency stop button functional' },
@@ -67,18 +67,6 @@ export const DailyAMView = () => {
     </div>`;
   }
 
-  // إصلاح (فجوة صلاحيات): كانت هذه الصفحة بتعتمد فقط على صلاحية
-  // "maintenance"/"qr" العامة (راجع pageRenderer.js) بدون أي تحقق
-  // من تطابق قسم الماكينة (Backend/Frontend) مع قسم المستخدم - رغم
-  // إن MachineProfileView.js (الصفحة اللي المفروض المستخدم يوصل
-  // منها لهنا دايماً) بتعمل هذا التحقق بالظبط. أي وصول مباشر لهذا
-  // المسار (#dailyAM) بقيمة "activeMachine" قديمة/من قسم تاني في
-  // localStorage كان بيسمح للمستخدم يملأ الفورم بالكامل ويحاول
-  // الحفظ، ليكتشف بعد الإرسال بس إن Firestore Security Rules رفضت
-  // الكتابة (لأن قسم الماكينة الفعلي مش قسمه - راجع firestore.rules:
-  // machineChecklists) - تجربة استخدام سيئة ومربكة. دلوقتي بيتحقق
-  // من نفس الشرط بالظبط هنا (نفس مصدر الحقيقة: getDepartmentForMachineValue
-  // + normalizeDepartment + hasFullDataAccess) قبل عرض الفورم أصلاً.
   const department = getDepartmentForMachineValue(machine);
   const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
   const allowed = hasFullDataAccess() || (department && department === userDept);
@@ -108,42 +96,11 @@ export const DailyAMView = () => {
     </div>
 
     <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-3">
-      ${AM_ITEMS.map(item => `
-        <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-2" data-am-item="${item.id}">
-          <div class="text-xs font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+      <div id="dailyAmItemsContainer" class="space-y-3">
+        <div class="text-center text-sm text-gray-500 py-6">${isEn ? 'Loading checklist...' : 'جاري تحميل الفحص...'}</div>
+      </div>
 
-          <div class="grid grid-cols-3 gap-1.5">
-            <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.ok}
-            </button>
-            <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.notOk}
-            </button>
-            <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.na}
-            </button>
-          </div>
-
-          <input type="hidden" id="amResult_${item.id}" value="">
-
-          <div id="amNotOkBox_${item.id}" class="hidden space-y-2 pt-2 border-t border-gray-800">
-            <label class="block text-[10px] font-bold text-red-300">${tr.noteLabel}</label>
-            <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none"></textarea>
-
-            ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
-
-            <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
-              <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600">
-              ${tr.createTicket}
-            </label>
-          </div>
-        </div>
-      `).join('')}
-
-      <button type="submit" class="w-full p-3 mt-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-xl font-bold text-xs text-white transition-all">
+      <button type="submit" class="w-full p-3 mt-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-xl font-bold text-xs text-white transition-all hidden" id="dailyAmSubmitBtn">
         ${tr.submit}
       </button>
     </form>
@@ -151,16 +108,70 @@ export const DailyAMView = () => {
   `;
 };
 
-// ============================================================
-// تفعيل مكوّنات اختيار الصور لكل بند بعد إدراج الفورم في الصفحة
-// (يُستدعى من renderCore.js AUTO LOAD)
-// ============================================================
-export function initDailyAmAttachments() {
-  AM_ITEMS.forEach(item => {
-    initAttachmentPicker(`amPhoto_${item.id}`, { maxFileSizeMB: 10 });
-  });
-}
-window.initDailyAmAttachments = initDailyAmAttachments;
+window.initDailyAmView = async function() {
+  const machine = localStorage.getItem('activeMachine') || '';
+  if (!machine) return;
+  const isEn = (window.currentLang || 'ar') === 'en';
+  const tr = t();
+
+  let items = [...DEFAULT_AM_ITEMS];
+  try {
+    const docSnap = await getDoc(doc(db, 'machineAmTemplates', machine));
+    if (docSnap.exists() && docSnap.data().items && docSnap.data().items.length > 0) {
+      items = docSnap.data().items;
+    }
+  } catch (err) {
+    console.error("Failed to load custom AM template, using default:", err);
+  }
+
+  window._activeAmItems = items;
+
+  const container = document.getElementById('dailyAmItemsContainer');
+  if (container) {
+    container.innerHTML = items.map(item => `
+      <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-2" data-am-item="${item.id}">
+        <div class="text-xs font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+
+        <div class="grid grid-cols-3 gap-1.5">
+          <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
+            class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
+            ${tr.ok}
+          </button>
+          <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
+            class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
+            ${tr.notOk}
+          </button>
+          <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
+            class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
+            ${tr.na}
+          </button>
+        </div>
+
+        <input type="hidden" id="amResult_${item.id}" value="">
+
+        <div id="amNotOkBox_${item.id}" class="hidden space-y-2 pt-2 border-t border-gray-800">
+          <label class="block text-[10px] font-bold text-red-300">${tr.noteLabel}</label>
+          <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none"></textarea>
+
+          ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
+
+          <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
+            <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600">
+            ${tr.createTicket}
+          </label>
+        </div>
+      </div>
+    `).join('');
+
+    // Initialize attachments for all loaded items
+    items.forEach(item => {
+      initAttachmentPicker(`amPhoto_${item.id}`, { maxFileSizeMB: 10 });
+    });
+
+    const submitBtn = document.getElementById('dailyAmSubmitBtn');
+    if (submitBtn) submitBtn.classList.remove('hidden');
+  }
+};
 
 window.selectAmResult = function (itemId, value) {
   const hidden = document.getElementById(`amResult_${itemId}`);
@@ -188,9 +199,10 @@ window.handleDailyAmSubmit = async function (event) {
   const isEn = (window.currentLang || 'ar') === 'en';
   const tr = t();
   const machine = localStorage.getItem('activeMachine') || '';
+  const activeItems = window._activeAmItems || DEFAULT_AM_ITEMS;
 
   const items = [];
-  for (const item of AM_ITEMS) {
+  for (const item of activeItems) {
     const result = document.getElementById(`amResult_${item.id}`)?.value || '';
     if (!result) {
       alert(tr.missingAnswers);
@@ -251,8 +263,7 @@ window.handleDailyAmSubmit = async function (event) {
       return;
     }
 
-    // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ) - نفس
-    // مسار saveIssueApi المستخدم في تسجيل عطل عادي (workflow.js)
+    // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ)
     const ticketItems = items.filter(i => i.result === 'not_ok' && i.ticketRequested);
     let ticketsCreated = false;
 
