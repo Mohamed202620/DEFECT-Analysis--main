@@ -397,42 +397,50 @@ export function getCardContextDate(userId, now = new Date()) {
 // 4. العمليات التفاعلية: checkIn, checkOut, addExtraDay, takeLeave
 // ============================================================
 
-export async function checkIn() {
+// معيار طول الوردية القياسي (12 ساعة) الرسمية
+const STANDARD_SHIFT_LENGTH_HOURS = 12;
+
+/**
+ * تسجيل اليوم كامل أوتوماتيكياً بالساعات الرسمية بمجرد الضغط،
+ * بدون الحاجة لإدخال ساعات يومية يدوياً
+ */
+export async function registerFullAttendanceDay(targetDate = null) {
   const profile = await getTechnicianProfile();
-  // دخول جديد بيبدأ دايماً وردية "النهارده" (مش سياق يوم مفتوح
-  // سابق - ده بيتحدد وقت الخروج فقط)
-  const todayStr = getTodayDateString();
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const dayInfo = getShiftInfoForDate(profile, contextDate);
+  const isHoliday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+  const type = !dayInfo.isWorkDay ? "off" : (isHoliday ? "holiday" : "normal");
+
+  const shiftStart = dayInfo.shiftStart || "08:00";
+  const shiftEnd = dayInfo.shiftEnd || "20:00";
   const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
 
-  const currentRecord = getDailyAttendanceRecord(profile.userId, todayStr) || {};
-
-  saveDailyAttendanceRecord(profile.userId, todayStr, {
+  saveDailyAttendanceRecord(profile.userId, contextDate, {
     ...currentRecord,
-    checkIn: timeStr,
-    checkInTimestamp: now.getTime(),
-    checkOut: null,
-    checkOutTimestamp: null,
-    status: "checked_in"
+    checkIn: shiftStart,
+    checkOut: shiftEnd,
+    checkInTimestamp: now.getTime() - STANDARD_SHIFT_LENGTH_HOURS * 60 * 60 * 1000,
+    checkOutTimestamp: now.getTime(),
+    normalHours: STANDARD_SHIFT_LENGTH_HOURS,
+    overtimeHours: 0,
+    earlyDepartureHours: 0,
+    hoursWorked: STANDARD_SHIFT_LENGTH_HOURS,
+    type,
+    status: "attended",
+    isExtraDay: type === "off",
+    isLeave: false
   });
 
   refreshAttendanceCard();
 }
 
-// معيار طول الوردية القياسي (12 ساعة) المستخدَم لتحديد هل الوقت
-// المنقضي منذ الدخول تجاوز الوردية العادية ويحتاج إدخال ساعات
-// إضافية يدوي أو لأ
-const STANDARD_SHIFT_LENGTH_HOURS = 12;
+export async function checkIn() {
+  await registerFullAttendanceDay();
+}
 
 /**
- * تسجيل الخروج - بيحسب الساعات المنقضية من الدخول، ولو تجاوزت
- * طول الوردية القياسي (12 ساعة) ومفيش قيمة إضافي يدوية اتبعتت،
- * بيرجع { needsManualOvertime: true } عشان الكود اللي بينادي الدالة
- * (window.handleAttendanceButton) يفتح مودال إدخال الساعات
- * الإضافية يدويًا، ثم يعيد نداء checkOut() تاني مع القيمة المُدخلة.
- * البيانات بتتحفظ بالشكل الجديد {normalHours, overtimeHours, type}
- * مع الإبقاء على حقل hoursWorked القديم كمان للتوافق العكسي مع أي
- * كود لسه بيقرأه (calculateMonth/calculateCycle بيدعموا الشكلين)
+ * تسجيل الخروج - متوافق مع التدفق السابق
  */
 export async function checkOut(manualOvertimeHours = null) {
   const profile = await getTechnicianProfile();
@@ -444,7 +452,7 @@ export async function checkOut(manualOvertimeHours = null) {
   const checkInTimestamp = currentRecord.checkInTimestamp || (now.getTime() - 12 * 60 * 60 * 1000);
 
   let diffHours = (now.getTime() - checkInTimestamp) / (1000 * 60 * 60);
-  if (diffHours < 0.1) diffHours = 12; // خروج فوري تجريبي: قيمة افتراضية آمنة
+  if (diffHours < 0.1) diffHours = 12;
   diffHours = Number(diffHours.toFixed(2));
 
   let normalHours = Math.min(diffHours, STANDARD_SHIFT_LENGTH_HOURS);
@@ -477,10 +485,10 @@ export async function checkOut(manualOvertimeHours = null) {
     checkOutTimestamp: now.getTime(),
     normalHours,
     overtimeHours,
-    hoursWorked: Number((normalHours + overtimeHours).toFixed(2)), // توافق عكسي
+    hoursWorked: Number((normalHours + overtimeHours).toFixed(2)),
     type,
-    status: "checked_out",
-    isExtraDay: false,
+    status: "attended",
+    isExtraDay: type === "off",
     isLeave: false
   });
 
@@ -489,97 +497,16 @@ export async function checkOut(manualOvertimeHours = null) {
 }
 
 /**
- * إضافة يوم إضافي (عمل كامل في يوم راحة/OFF مُجدوَل - يُحتسب دايماً
- * ضمن فئة "العمل في يوم OFF" × المعامل، بغض النظر عن حساب الساعات
- * الفعلي، لأنه إعلان صريح من الفني إنه اشتغل يوم راحته)
+ * مودال تسجيل خروج مبكر (خصم ساعات من الوردية الرسمية)
  */
-export async function addExtraDay() {
-  if (!confirm("هل تريد إضافة يوم إضافي كامل (12 ساعة) في يوم راحتك المُجدوَل؟ سيُحتسب بالكامل ضمن فئة \"العمل في يوم OFF\".")) return;
-
+export async function openEarlyDepartureModal(targetDate = null) {
+  closeAnyPayrollModal();
   const profile = await getTechnicianProfile();
-  const todayStr = getTodayDateString();
-  const currentRecord = getDailyAttendanceRecord(profile.userId, todayStr) || {};
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
+  const currentEarly = Number(currentRecord.earlyDepartureHours) || 0;
 
-  saveDailyAttendanceRecord(profile.userId, todayStr, {
-    ...currentRecord,
-    checkIn: currentRecord.checkIn || "20:00",
-    checkOut: currentRecord.checkOut || "08:00",
-    hoursWorked: 12,
-    isExtraDay: true,
-    isLeave: false,
-    status: "extra_day"
-  });
-
-  refreshAttendanceCard();
-}
-
-/**
- * تسجيل إجازة من الرصيد (8 ساعات مدفوعة عادي - بتضاف لمجمّع
- * الساعات العادية اللي بتُقارن بالساعات المطلوبة شهرياً)
- */
-export async function takeLeave() {
-  if (!confirm("هل تريد تسجيل إجازة من الرصيد (8 ساعات مدفوعة الأجر ضمن الساعات العادية)؟")) return;
-
-  const profile = await getTechnicianProfile();
-  const todayStr = getTodayDateString();
-  const currentRecord = getDailyAttendanceRecord(profile.userId, todayStr) || {};
-
-  saveDailyAttendanceRecord(profile.userId, todayStr, {
-    ...currentRecord,
-    checkIn: "—",
-    checkOut: "—",
-    hoursWorked: 8,
-    isExtraDay: false,
-    isLeave: true,
-    status: "leave"
-  });
-
-  refreshAttendanceCard();
-}
-
-/**
- * زر تسجيل الحضور الواحد: أول ضغطة = تسجيل دخول، والضغطة التانية
- * (بوجود دخول وعدم وجود خروج) = تسجيل خروج + حساب الساعات. لو
- * الساعات المنقضية تجاوزت طول الوردية القياسي، بيفتح مودال إدخال
- * الساعات الإضافية يدويًا قبل حفظ الخروج نهائيًا
- */
-window.handleAttendanceButton = async function () {
-  const profile = await getTechnicianProfile();
-  const contextDate = getCardContextDate(profile.userId);
-  const record = getDailyAttendanceRecord(profile.userId, contextDate);
-
-  if (!record || !record.checkIn) {
-    await checkIn();
-    return;
-  }
-
-  if (record.checkIn && !record.checkOut) {
-    const result = await checkOut();
-    if (result && result.needsManualOvertime) {
-      const manualValue = await requestManualOvertimeInput(result.elapsedHours, result.shiftLengthHours);
-      if (manualValue === null) return; // المستخدم لغى الإدخال - يفضل الحضور مفتوح لحد ما يضغط تاني
-      await checkOut(manualValue);
-    }
-    return;
-  }
-
-  alert("✅ تم تسجيل حضورك وانصرافك لهذا اليوم بالفعل.");
-};
-
-// إبقاء الأسماء القديمة شغالة لأي كود/أزرار سابقة لسه بتستخدمها
-window.checkInShift = checkIn;
-window.checkOutShift = checkOut;
-
-/**
- * مودال إدخال الساعات الإضافية يدويًا عند تجاوز الساعات المنقضية
- * لطول الوردية القياسي - بيرجع Promise<number|null> (null لو
- * المستخدم لغى العملية)
- */
-function requestManualOvertimeInput(elapsedHours, shiftLengthHours) {
   return new Promise(resolve => {
-    closeAnyPayrollModal();
-    const suggestedOt = Math.max(0, Number((elapsedHours - shiftLengthHours).toFixed(2)));
-
     const overlay = document.createElement("div");
     overlay.id = "payrollModalOverlay";
     overlay.dir = "rtl";
@@ -587,29 +514,327 @@ function requestManualOvertimeInput(elapsedHours, shiftLengthHours) {
     overlay.innerHTML = `
       <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-amber-400/40 rounded-2xl p-5 shadow-2xl">
         <div class="text-center mb-3">
-          <div class="text-2xl mb-1">⏱️</div>
-          <div class="text-white font-black text-sm">تجاوزت ساعات الوردية القياسية</div>
-          <div class="text-[10px] text-slate-400 mt-1">الساعات المنقضية: ${elapsedHours} س (الوردية: ${shiftLengthHours} س) - أدخل عدد ساعات الإضافي المستحقة فعليًا</div>
+          <div class="text-2xl mb-1">🚪</div>
+          <div class="text-white font-black text-sm">تسجيل خروج مبكر</div>
+          <div class="text-[10px] text-slate-400 mt-1">أدخل عدد ساعات الخروج المبكر لتخصم من ساعات الوردية الرسمية (12س):</div>
         </div>
-        <input id="manualOtInput" type="number" min="0" step="0.25" value="${suggestedOt}"
-          class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3" />
+        <label class="block text-[11px] text-slate-300 mb-1">ساعات الخروج المبكر (خصم بالساعات)</label>
+        <input id="earlyHoursInput" type="number" min="0.25" max="12" step="0.25" value="${currentEarly || 1}"
+          class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3 focus:border-amber-400 outline-none" />
+        <div class="text-center text-[11px] text-slate-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mb-3">
+          صافي الساعات العادية اليوم: <strong id="earlyNetHours" class="text-amber-300 font-black">11</strong> س
+        </div>
         <div class="grid grid-cols-2 gap-2">
-          <button id="manualOtCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
-          <button id="manualOtSave" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 text-xs font-black">✅ تأكيد وتسجيل الخروج</button>
+          <button id="earlyCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="earlySave" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 text-xs font-black">💾 حفظ الخروج المبكر</button>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
-    overlay.querySelector("#manualOtInput").focus();
 
-    overlay.querySelector("#manualOtCancel").onclick = () => { overlay.remove(); resolve(null); };
-    overlay.querySelector("#manualOtSave").onclick = () => {
-      const val = Math.max(0, Number(overlay.querySelector("#manualOtInput").value) || 0);
+    const input = overlay.querySelector("#earlyHoursInput");
+    const netEl = overlay.querySelector("#earlyNetHours");
+    const updatePreview = () => {
+      const val = Math.min(12, Math.max(0, Number(input.value) || 0));
+      netEl.textContent = (12 - val).toFixed(2);
+    };
+    input.addEventListener("input", updatePreview);
+    updatePreview();
+    input.focus();
+
+    overlay.querySelector("#earlyCancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector("#earlySave").onclick = () => {
+      const earlyVal = Math.min(12, Math.max(0, Number(input.value) || 0));
+      const normalHours = Math.max(0, Number((12 - earlyVal).toFixed(2)));
+      const overtimeHours = Number(currentRecord.overtimeHours) || 0;
+      const dayInfo = getShiftInfoForDate(profile, contextDate);
+      const isHoliday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+      const type = currentRecord.type || (!dayInfo.isWorkDay ? "off" : (isHoliday ? "holiday" : "normal"));
+
+      saveDailyAttendanceRecord(profile.userId, contextDate, {
+        ...currentRecord,
+        checkIn: currentRecord.checkIn || dayInfo.shiftStart || "08:00",
+        checkOut: currentRecord.checkOut || dayInfo.shiftEnd || "20:00",
+        normalHours,
+        earlyDepartureHours: earlyVal,
+        overtimeHours,
+        hoursWorked: Number((normalHours + overtimeHours).toFixed(2)),
+        type,
+        status: "attended",
+        isExtraDay: type === "off",
+        isLeave: false
+      });
+
       overlay.remove();
-      resolve(val);
+      refreshAttendanceCard();
+      resolve(true);
     };
   });
 }
+
+/**
+ * مودال إدخال ساعات إضافية (Overtime بعد ساعات الوردية الرسمية)
+ */
+export async function openDailyOvertimeModal(targetDate = null) {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
+  const currentOt = Number(currentRecord.overtimeHours) || 0;
+
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.id = "payrollModalOverlay";
+    overlay.dir = "rtl";
+    overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+    overlay.innerHTML = `
+      <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-cyan-400/40 rounded-2xl p-5 shadow-2xl">
+        <div class="text-center mb-3">
+          <div class="text-2xl mb-1">⏱️</div>
+          <div class="text-white font-black text-sm">إضافة ساعات إضافية (Overtime)</div>
+          <div class="text-[10px] text-slate-400 mt-1">ساعات عمل بعد نهاية الوردية الرسمية (12س):</div>
+        </div>
+        <label class="block text-[11px] text-slate-300 mb-1">عدد الساعات الإضافية (س)</label>
+        <input id="overtimeHoursInput" type="number" min="0.25" max="24" step="0.25" value="${currentOt || 2}"
+          class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3 focus:border-cyan-400 outline-none" />
+        <div class="grid grid-cols-2 gap-2">
+          <button id="otCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="otSave" class="py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-slate-900 text-xs font-black">💾 حفظ الإضافي</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector("#overtimeHoursInput");
+    input.focus();
+
+    overlay.querySelector("#otCancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector("#otSave").onclick = () => {
+      const otVal = Math.max(0, Number(input.value) || 0);
+      const earlyVal = Number(currentRecord.earlyDepartureHours) || 0;
+      const normalHours = currentRecord.normalHours !== undefined ? Number(currentRecord.normalHours) : Math.max(0, 12 - earlyVal);
+      const dayInfo = getShiftInfoForDate(profile, contextDate);
+      const isHoliday = isOfficialHolidayDate(contextDate, getCachedOfficialHolidays());
+      const type = currentRecord.type || (!dayInfo.isWorkDay ? "off" : (isHoliday ? "holiday" : "normal"));
+
+      saveDailyAttendanceRecord(profile.userId, contextDate, {
+        ...currentRecord,
+        checkIn: currentRecord.checkIn || dayInfo.shiftStart || "08:00",
+        checkOut: currentRecord.checkOut || dayInfo.shiftEnd || "20:00",
+        normalHours,
+        earlyDepartureHours: earlyVal,
+        overtimeHours: otVal,
+        hoursWorked: Number((normalHours + otVal).toFixed(2)),
+        type,
+        status: "attended",
+        isExtraDay: type === "off",
+        isLeave: false
+      });
+
+      overlay.remove();
+      refreshAttendanceCard();
+      resolve(true);
+    };
+  });
+}
+
+/**
+ * خيارات حضور اليوم (خروج مبكر / ساعات إضافية / إلغاء)
+ */
+export async function openAttendanceOptionsModal(targetDate = null) {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
+
+  const overlay = document.createElement("div");
+  overlay.id = "payrollModalOverlay";
+  overlay.dir = "rtl";
+  overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+  overlay.innerHTML = `
+    <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-blue-400/40 rounded-2xl p-5 shadow-2xl space-y-3">
+      <div class="text-center">
+        <div class="text-2xl mb-1">📋</div>
+        <div class="text-white font-black text-sm">خيارات حضور اليوم</div>
+        <div class="text-[10px] text-slate-400 mt-0.5">مسجل حالياً: ${currentRecord.hoursWorked || 12} ساعة</div>
+      </div>
+      <div class="space-y-2">
+        <button id="optEarly" class="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+          <span>🚪 تسجيل خروج مبكر (خصم ساعات)</span>
+          <span>←</span>
+        </button>
+        <button id="optOvertime" class="w-full py-2.5 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+          <span>⏱️ إضافة ساعات إضافية (Overtime)</span>
+          <span>←</span>
+        </button>
+        <button id="optReset" class="w-full py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+          <span>🗑️ إلغاء تسجيل حضور اليوم</span>
+          <span>✕</span>
+        </button>
+      </div>
+      <button id="optClose" class="w-full py-2 rounded-xl bg-slate-700/60 text-slate-300 text-xs font-bold cursor-pointer">إغلاق</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector("#optClose").onclick = () => overlay.remove();
+  overlay.querySelector("#optEarly").onclick = () => {
+    overlay.remove();
+    openEarlyDepartureModal(contextDate);
+  };
+  overlay.querySelector("#optOvertime").onclick = () => {
+    overlay.remove();
+    openDailyOvertimeModal(contextDate);
+  };
+  overlay.querySelector("#optReset").onclick = () => {
+    if (!confirm("هل تريد بالتأكيد إلغاء تسجيل حضور اليوم؟")) return;
+    saveDailyAttendanceRecord(profile.userId, contextDate, {
+      checkIn: null,
+      checkOut: null,
+      normalHours: 0,
+      overtimeHours: 0,
+      earlyDepartureHours: 0,
+      hoursWorked: 0,
+      status: "idle",
+      isExtraDay: false,
+      isLeave: false
+    });
+    overlay.remove();
+    refreshAttendanceCard();
+  };
+}
+
+/**
+ * إضافة يوم إضافي (عمل كامل في يوم راحة/OFF مُجدوَل)
+ */
+export async function addExtraDay(targetDate = null) {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
+
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.id = "payrollModalOverlay";
+    overlay.dir = "rtl";
+    overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+    overlay.innerHTML = `
+      <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-amber-400/40 rounded-2xl p-5 shadow-2xl text-center space-y-3">
+        <div class="text-3xl mb-1">⭐</div>
+        <div class="text-white font-black text-sm">إضافة يوم إضافي كامل</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          هل تريد تسجيل يوم عمل إضافي كامل (<span class="text-amber-400 font-bold">12 ساعة</span>) لتاريخ <span class="text-cyan-300 font-bold dir-ltr">${contextDate}</span>؟
+          <br>
+          <span class="text-[10px] text-slate-400 mt-1 block">سيُحتسب ضمن فئة "العمل في يوم OFF" بمعامل ×2.</span>
+        </p>
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button id="extraCancel" class="py-2.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer">إلغاء</button>
+          <button id="extraConfirm" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black transition shadow-lg cursor-pointer">تأكيد الإضافة</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#extraCancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector("#extraConfirm").onclick = () => {
+      saveDailyAttendanceRecord(profile.userId, contextDate, {
+        ...currentRecord,
+        checkIn: currentRecord.checkIn || "08:00",
+        checkOut: currentRecord.checkOut || "20:00",
+        normalHours: 12,
+        overtimeHours: 0,
+        earlyDepartureHours: 0,
+        hoursWorked: 12,
+        type: "off",
+        isExtraDay: true,
+        isLeave: false,
+        status: "attended"
+      });
+      overlay.remove();
+      refreshAttendanceCard();
+      resolve(true);
+    };
+  });
+}
+
+/**
+ * تسجيل إجازة من الرصيد (8 ساعات مدفوعة عادي)
+ */
+export async function takeLeave(targetDate = null) {
+  closeAnyPayrollModal();
+  const profile = await getTechnicianProfile();
+  const contextDate = targetDate || getCardContextDate(profile.userId);
+  const currentRecord = getDailyAttendanceRecord(profile.userId, contextDate) || {};
+
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.id = "payrollModalOverlay";
+    overlay.dir = "rtl";
+    overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
+    overlay.innerHTML = `
+      <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-emerald-400/40 rounded-2xl p-5 shadow-2xl text-center space-y-3">
+        <div class="text-3xl mb-1">🏖️</div>
+        <div class="text-white font-black text-sm">تسجيل إجازة من الرصيد</div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          هل تريد تسجيل إجازة من الرصيد لتاريخ <span class="text-cyan-300 font-bold dir-ltr">${contextDate}</span>؟
+          <br>
+          <span class="text-[10px] text-slate-400 mt-1 block">تُحتسب <span class="text-emerald-400 font-bold">8 ساعات</span> مدفوعة الأجر ضمن الساعات العادية.</span>
+        </p>
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button id="leaveCancel" class="py-2.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer">إلغاء</button>
+          <button id="leaveConfirm" class="py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 text-xs font-black transition shadow-lg cursor-pointer">تأكيد الإجازة</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#leaveCancel").onclick = () => { overlay.remove(); resolve(false); };
+    overlay.querySelector("#leaveConfirm").onclick = () => {
+      saveDailyAttendanceRecord(profile.userId, contextDate, {
+        ...currentRecord,
+        checkIn: "—",
+        checkOut: "—",
+        normalHours: 8,
+        overtimeHours: 0,
+        earlyDepartureHours: 0,
+        hoursWorked: 8,
+        isExtraDay: false,
+        isLeave: true,
+        status: "leave"
+      });
+      overlay.remove();
+      refreshAttendanceCard();
+      resolve(true);
+    };
+  });
+}
+
+/**
+ * زر تسجيل الحضور:
+ * - تسجيل اليوم كامل أوتوماتيكياً بالساعات الرسمية بمجرد الضغط، بدون الحاجة لإدخال ساعات يومية يدوياً
+ * - لو اليوم مسجل بالفعل، الضغط يفتح خيارات الحضور (خروج مبكر / ساعات إضافية)
+ */
+window.handleAttendanceButton = async function () {
+  const profile = await getTechnicianProfile();
+  const contextDate = getCardContextDate(profile.userId);
+  const record = getDailyAttendanceRecord(profile.userId, contextDate);
+
+  const isAttended = record && (record.status === "attended" || (record.checkIn && record.checkOut) || (Number(record.hoursWorked) > 0));
+
+  if (!isAttended) {
+    await registerFullAttendanceDay(contextDate);
+    return;
+  }
+
+  await openAttendanceOptionsModal(contextDate);
+};
+
+window.checkInShift = checkIn;
+window.checkOutShift = checkOut;
+window.registerFullAttendanceDay = registerFullAttendanceDay;
+window.openEarlyDepartureModal = openEarlyDepartureModal;
+window.openDailyOvertimeModal = openDailyOvertimeModal;
+window.openAttendanceOptionsModal = openAttendanceOptionsModal;
 
 /**
  * مودال "إضافة حضور سابق": تاريخ (بدون السماح بتواريخ مستقبلية) +
@@ -845,16 +1070,27 @@ export function calculateCycle(userId, options = {}) {
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const targetHours = 192;
-  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * 8);
+  const rules = options.rules || getCachedPayrollRules();
+  const targetHours = Number(rules?.monthlyTargetHours) || 192;
+  const holidayDeduction = Number(rules?.holidayHoursDeduction) || 8;
+  const requiredHours = Math.max(0, targetHours - holidayCountInCycle * holidayDeduction);
 
   const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
   const poolExcessOt = Math.max(0, poolHours - requiredHours);
-  const normalOvertimeHours = Number((dailyNormalOtHours + poolExcessOt).toFixed(2));
-  offWorkHours = Number(offWorkHours.toFixed(2));
-  holidayWorkHours = Number(holidayWorkHours.toFixed(2));
+  const rawNormalOvertimeHours = Number((dailyNormalOtHours + poolExcessOt).toFixed(2));
+  const rawOffWorkHours = Number(offWorkHours.toFixed(2));
+  const rawHolidayWorkHours = Number(holidayWorkHours.toFixed(2));
 
-  const registeredHours = Number((regularHours + normalOvertimeHours + offWorkHours + holidayWorkHours).toFixed(2));
+  // أرقام/قيم دورة الحضور بعد تطبيق الـmultiplier والمعادلة الخاصة بها
+  const normalOvertimeMultiplier = 1.5;
+  const offWorkMultiplier = Number(rules?.offWorkMultiplier) || 2.0;
+  const holidayWorkMultiplier = Number(rules?.holidayWorkMultiplier) || 1.5;
+
+  const normalOvertimeHours = Number((rawNormalOvertimeHours * normalOvertimeMultiplier).toFixed(2));
+  const calculatedOffWorkHours = Number((rawOffWorkHours * offWorkMultiplier).toFixed(2));
+  const calculatedHolidayWorkHours = Number((rawHolidayWorkHours * holidayWorkMultiplier).toFixed(2));
+
+  const registeredHours = Number((regularHours + normalOvertimeHours + calculatedOffWorkHours + calculatedHolidayWorkHours).toFixed(2));
   const progressPercent = requiredHours > 0 ? Math.min(100, Math.round((registeredHours / requiredHours) * 100)) : 100;
 
   return {
@@ -866,8 +1102,14 @@ export function calculateCycle(userId, options = {}) {
     holidayCountInCycle,
     regularHours,
     normalOvertimeHours,
-    offWorkHours,
-    holidayWorkHours,
+    offWorkHours: calculatedOffWorkHours,
+    holidayWorkHours: calculatedHolidayWorkHours,
+    rawNormalOvertimeHours,
+    rawOffWorkHours,
+    rawHolidayWorkHours,
+    normalOvertimeMultiplier,
+    offWorkMultiplier,
+    holidayWorkMultiplier,
     registeredHours,
     progressPercent,
     totalWorkDays,
@@ -875,7 +1117,8 @@ export function calculateCycle(userId, options = {}) {
     totalExtraDays,
     totalOffWorkDays,
     totalHolidayWorkDays,
-    daysList
+    daysList,
+    isMultiplied: true
   };
 }
 
@@ -999,13 +1242,13 @@ export function calculateSalary(param1, param2, param3) {
   let attendanceDays = 30;
   let requiredHours = 0;
   let regularHours = 0;
-  let excludeAllowances30 = false;
-  let noInsurance = false;
-  let otHourRate = 0;
   let normalOvertimeHours = 0;
   let offWorkHours = 0;
   let holidayWorkHours = 0;
-  let normalOvertimeMultiplier = 1.5; // مراجعة الإضافي العادي ليضرب في 1.5
+  let rawNormalOvertimeHours = null;
+  let rawOffWorkHours = null;
+  let rawHolidayWorkHours = null;
+  let normalOvertimeMultiplier = 1.5;
   let offWorkMultiplier = 2.0;
   let holidayWorkMultiplier = 1.5;
 
@@ -1015,10 +1258,7 @@ export function calculateSalary(param1, param2, param3) {
     const localConfig = param2 || {};
     const rules = param3 || getCachedPayrollRules();
 
-    basicSalary = Number(localConfig.basicSalary ?? localConfig.baseSalary) || 0;
-    excludeAllowances30 = Boolean(localConfig.excludeAllowances30);
-    noInsurance = Boolean(localConfig.noInsurance);
-    otHourRate = Number(localConfig.otHourRate) || 0;
+    basicSalary = Number(localConfig.basicSalary ?? localConfig.baseSalary ?? monthData.basicSalary ?? monthData.baseSalary) || 0;
 
     requiredHours = Number(monthData.requiredHours) || 0;
     regularHours = Number(monthData.regularHours) || 0;
@@ -1027,7 +1267,11 @@ export function calculateSalary(param1, param2, param3) {
     offWorkHours = Number(monthData.offWorkHours) || 0;
     holidayWorkHours = Number(monthData.holidayWorkHours) || 0;
 
-    normalOvertimeMultiplier = 1.5; // الإضافي العادي يُضرب دائماً في 1.5
+    if (monthData.rawNormalOvertimeHours !== undefined) rawNormalOvertimeHours = Number(monthData.rawNormalOvertimeHours);
+    if (monthData.rawOffWorkHours !== undefined) rawOffWorkHours = Number(monthData.rawOffWorkHours);
+    if (monthData.rawHolidayWorkHours !== undefined) rawHolidayWorkHours = Number(monthData.rawHolidayWorkHours);
+
+    normalOvertimeMultiplier = 1.5;
     offWorkMultiplier = Number(rules?.offWorkMultiplier) || 2.0;
     holidayWorkMultiplier = Number(rules?.holidayWorkMultiplier) || 1.5;
 
@@ -1048,12 +1292,12 @@ export function calculateSalary(param1, param2, param3) {
     attendanceDays = opts.attendanceDays !== undefined && opts.attendanceDays !== null ? Number(opts.attendanceDays) : 30;
     requiredHours = Number(opts.requiredHours) || 0;
     regularHours = Number(opts.regularHours) || 0;
-    excludeAllowances30 = Boolean(opts.excludeAllowances30);
-    noInsurance = Boolean(opts.noInsurance);
-    otHourRate = Number(opts.otHourRate) || 0;
     normalOvertimeHours = Number(opts.normalOvertimeHours) || 0;
     offWorkHours = Number(opts.offWorkHours) || 0;
     holidayWorkHours = Number(opts.holidayWorkHours) || 0;
+    if (opts.rawNormalOvertimeHours !== undefined) rawNormalOvertimeHours = Number(opts.rawNormalOvertimeHours);
+    if (opts.rawOffWorkHours !== undefined) rawOffWorkHours = Number(opts.rawOffWorkHours);
+    if (opts.rawHolidayWorkHours !== undefined) rawHolidayWorkHours = Number(opts.rawHolidayWorkHours);
     normalOvertimeMultiplier = 1.5;
     offWorkMultiplier = Number(opts.offWorkMultiplier) || 2.0;
     holidayWorkMultiplier = Number(opts.holidayWorkMultiplier) || 1.5;
@@ -1065,51 +1309,27 @@ export function calculateSalary(param1, param2, param3) {
     const opts = param3 || {};
     requiredHours = Number(opts.requiredHours) || 0;
     regularHours = Number(opts.regularHours) || 0;
-    excludeAllowances30 = Boolean(opts.excludeAllowances30);
-    noInsurance = Boolean(opts.noInsurance);
-    otHourRate = Number(opts.otHourRate) || 0;
     normalOvertimeHours = Number(opts.normalOvertimeHours) || 0;
     offWorkHours = Number(opts.offWorkHours) || 0;
     holidayWorkHours = Number(opts.holidayWorkHours) || 0;
+    if (opts.rawNormalOvertimeHours !== undefined) rawNormalOvertimeHours = Number(opts.rawNormalOvertimeHours);
+    if (opts.rawOffWorkHours !== undefined) rawOffWorkHours = Number(opts.rawOffWorkHours);
+    if (opts.rawHolidayWorkHours !== undefined) rawHolidayWorkHours = Number(opts.rawHolidayWorkHours);
     normalOvertimeMultiplier = 1.5;
     offWorkMultiplier = Number(opts.offWorkMultiplier) || 2.0;
     holidayWorkMultiplier = Number(opts.holidayWorkMultiplier) || 1.5;
   }
 
-  // 1. الأجر التأميني = الأساسي
-  //    - لو مفعل 30% بدلات مستبعدة: الأجر التأميني = الأساسي * 0.7
-  //    - الحد الأقصى 2026 = 14500
-  //    - التأمينات = الأجر التأميني * 0.11
-  //    - لو مفعل بدون تأمينات: التأمينات = 0
-  let insurableSalary = basicSalary;
-  if (excludeAllowances30) {
-    insurableSalary = basicSalary * 0.7;
-  }
+  // 1. الأجر التأميني = الأساسي (الحد الأقصى 2026 = 14500)
+  // إلغاء خيارات بدلات الأجر التأميني وبدون تأمينات
   const MAX_INSURABLE_SALARY_2026 = 14500;
-  if (insurableSalary > MAX_INSURABLE_SALARY_2026) {
-    insurableSalary = MAX_INSURABLE_SALARY_2026;
-  }
-  if (insurableSalary < 0) {
-    insurableSalary = 0;
-  }
+  let insurableSalary = Math.min(Math.max(0, basicSalary), MAX_INSURABLE_SALARY_2026);
   insurableSalary = Number(insurableSalary.toFixed(2));
-
-  let insuranceAmount = 0;
-  if (!noInsurance) {
-    insuranceAmount = Number((insurableSalary * 0.11).toFixed(2));
-  }
+  const insuranceAmount = Number((insurableSalary * 0.11).toFixed(2));
 
   // 2. حساب الضريبة:
   //    سنوي = (الأساسي * 12) - (التأمينات * 12) - 20000 (إعفاء شخصي)
   //    لو سنوي < 0 = 0
-  //    الضريبة السنوية شرائح:
-  //    - 0 لـ 40000 معفي
-  //    - من 40001 لـ 55000 = 10%
-  //    - من 55001 لـ 70000 = 15%
-  //    - من 70001 لـ 200000 = 20%
-  //    - من 200001 لـ 400000 = 22.5%
-  //    - فوق 400000 = 25%
-  //    الضريبة الشهرية = السنوية / 12
   const annualGross = basicSalary * 12;
   const annualInsurance = insuranceAmount * 12;
   const personalExemption = 20000;
@@ -1145,8 +1365,6 @@ export function calculateSalary(param1, param2, param3) {
   const monthlyTax = Number((annualTax / 12).toFixed(2));
 
   // 3. الصافي = الأساسي - التأمينات - الضريبة
-  // في نظام الورديات (12 ساعة)، استحقاق المرتب الأساسي مرتبط بتحقيق الساعات المطلوبة للدورة (requiredHours)
-  // عند إتمام الساعات المطلوبة (regularHours >= requiredHours) يستحق الفني 100% من صافي الأساسي
   const netSalary = Number((basicSalary - insuranceAmount - monthlyTax).toFixed(2));
   let netAfterAttendance = netSalary;
   if (requiredHours > 0) {
@@ -1157,32 +1375,35 @@ export function calculateSalary(param1, param2, param3) {
     netAfterAttendance = Number(((netSalary / 30) * attendanceDays).toFixed(2));
   }
 
-  // حساب أجر الساعة (Hourly Rate):
-  // 1. إذا حُدد otHourRate يدوياً في إعدادات المرتب يُستخدم كما هو.
-  // 2. إذا لم يُحدد يدوياً، يُحسب بناءً على بيانات المرتب والساعات المطلوبة المحسوبة فعلياً لتلك الدورة:
-  //    hourlyRate = basicSalary / requiredHours
-  //    (مع استخدام 192 كاحتياطي فقط في حال عدم توفر requiredHours)
-  const divisorHours = requiredHours > 0 ? requiredHours : 192;
-  const hourlyRate = otHourRate > 0
-    ? otHourRate
-    : (basicSalary > 0 ? Number((basicSalary / divisorHours).toFixed(2)) : 0);
+  // 4. حساب أجر الساعة (Hourly Rate):
+  // يُحسب أوتوماتيكياً: الأساسي ÷ 240 بدون إدخال يدوي
+  const hourlyRate = basicSalary > 0 ? Number((basicSalary / 240).toFixed(2)) : 0;
 
-  // مراجعة الإضافي العادي ليضرب في 1.5
-  normalOvertimeMultiplier = 1.5;
-  const normalOvertimeMoney = Number((normalOvertimeHours * hourlyRate * normalOvertimeMultiplier).toFixed(2));
-  const offWorkMoney = Number((offWorkHours * hourlyRate * offWorkMultiplier).toFixed(2));
-  const holidayWorkMoney = Number((holidayWorkHours * hourlyRate * holidayWorkMultiplier).toFixed(2));
+  // مستحقات الإضافي
+  const normalOvertimeMoney = rawNormalOvertimeHours !== null
+    ? Number((rawNormalOvertimeHours * hourlyRate * normalOvertimeMultiplier).toFixed(2))
+    : Number((normalOvertimeHours * hourlyRate).toFixed(2));
+
+  const offWorkMoney = rawOffWorkHours !== null
+    ? Number((rawOffWorkHours * hourlyRate * offWorkMultiplier).toFixed(2))
+    : Number((offWorkHours * hourlyRate).toFixed(2));
+
+  const holidayWorkMoney = rawHolidayWorkHours !== null
+    ? Number((rawHolidayWorkHours * hourlyRate * holidayWorkMultiplier).toFixed(2))
+    : Number((holidayWorkHours * hourlyRate).toFixed(2));
+
   const totalOvertimeMoney = Number((normalOvertimeMoney + offWorkMoney + holidayWorkMoney).toFixed(2));
 
-  // صافي المرتب المتوقع بعد الحضور وإضافة مستحقات الإضافي
-  const netExpectedSalary = Number((netAfterAttendance + totalOvertimeMoney).toFixed(2));
+  // 5. بدل انتقال ثابت = 750 ج.م ويضاف إلى صافي المستحق المتوقع
+  const transportAllowance = 750;
+  const netExpectedSalary = Number((netAfterAttendance + totalOvertimeMoney + transportAllowance).toFixed(2));
 
   return {
     basicSalary,
     baseSalary: basicSalary,
     insurableSalary,
     insuranceAmount,
-    insurancePercent: insurableSalary > 0 ? (noInsurance ? 0 : 11) : 0,
+    insurancePercent: insurableSalary > 0 ? 11 : 0,
     annualTaxable: Number(annualTaxable.toFixed(2)),
     annualTax,
     monthlyTax,
@@ -1204,6 +1425,7 @@ export function calculateSalary(param1, param2, param3) {
     holidayWorkMultiplier,
     holidayWorkMoney,
     totalOvertimeMoney,
+    transportAllowance,
     netExpectedSalary
   };
 }
@@ -1268,11 +1490,15 @@ export async function exportPDF(customUserId = null, customReferenceDate = null)
     { label: "الساعات المطلوبة الفعلية", value: `${cycleData.requiredHours} س` }
   ];
 
+  const normalMultiplier = cycleData.normalOvertimeMultiplier || rules?.normalOvertimeMultiplier || 1.5;
+  const offMultiplier = cycleData.offWorkMultiplier || rules?.offWorkMultiplier || 2.0;
+  const holidayMultiplier = cycleData.holidayWorkMultiplier || rules?.holidayWorkMultiplier || 1.5;
+
   const statsCardsHtml = buildPdfStatsCardsHtml([
     { label: "عادي", value: `${cycleData.regularHours} س`, color: "#1e3a8a", bg: "#eff6ff" },
-    { label: `إضافي عادي ×${rules.normalOvertimeMultiplier}`, value: `${cycleData.normalOvertimeHours} س`, color: "#b45309", bg: "#fffbeb" },
-    { label: `عمل OFF ×${rules.offWorkMultiplier}`, value: `${cycleData.offWorkHours} س`, color: "#9d174d", bg: "#fdf2f8" },
-    { label: `عمل إجازة رسمية ×${rules.holidayWorkMultiplier}`, value: `${cycleData.holidayWorkHours} س`, color: "#047857", bg: "#f0fdf4" }
+    { label: `إضافي عادي ×${normalMultiplier}`, value: `${cycleData.normalOvertimeHours} س`, color: "#b45309", bg: "#fffbeb" },
+    { label: `عمل OFF ×${offMultiplier}`, value: `${cycleData.offWorkHours} س`, color: "#9d174d", bg: "#fdf2f8" },
+    { label: `عمل إجازة رسمية ×${holidayMultiplier}`, value: `${cycleData.holidayWorkHours} س`, color: "#047857", bg: "#f0fdf4" }
   ]);
 
   let tableRowsHtml = "";
@@ -1328,12 +1554,13 @@ export async function exportPDF(customUserId = null, customReferenceDate = null)
         <div>ضريبة كسب العمل الشهرية: <strong style="color:#f87171;">-${financials.monthlyTax.toLocaleString()} ج.م</strong></div>
         <div>الصافي الشهري (30 يوم): <strong>${financials.netSalary.toLocaleString()} ج.م</strong></div>
         <div>صافي بعد الحضور (${financials.attendanceDays} يوم): <strong>${financials.netAfterAttendance.toLocaleString()} ج.م</strong></div>
-        <div>سعر ساعة الإضافي: <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
+        <div>سعر ساعة الإضافي (الأساسي ÷ 240): <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
+        <div>بدل انتقال (ثابت): <strong style="color:#34d399;">+${(financials.transportAllowance || 750).toLocaleString()} ج.م</strong></div>
         <div>قيمة الإضافي العادي (×1.5): <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
         <div>قيمة عمل OFF (×2): <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
         <div>قيمة عمل الإجازة الرسمية: <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong></div>
         <div>إجمالي الإضافي: <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-        <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المستحق المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
+        <div style="font-size: 13px; color:#d4af37; font-weight:900; grid-column: span 2; margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(212,175,55,0.4);">صافي المستحق المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
       </div>
     </div>
   `;
@@ -1484,32 +1711,20 @@ window.openPayrollSettingsModal = async function () {
   overlay.innerHTML = `
     <div class="w-full max-w-sm bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-[#D4AF37]/40 rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>⚙️</span><span>بيانات المرتب (معادلة TAX EG 2026)</span></div>
-      <p class="text-[10px] text-slate-400 mb-3">أدخل الأساسي فقط ويتم حساب التأمينات والضريبة والصافي تلقائياً - البيانات محفوظة محلياً على جهازك فقط.</p>
+      <p class="text-[10px] text-slate-400 mb-3">أدخل الأساسي فقط ويتم حساب التأمينات والضريبة وأجر الإضافي (الأساسي ÷ 240) وبدل الانتقال تلقائياً - البيانات محفوظة محلياً على جهازك فقط.</p>
 
       <label class="block text-[11px] text-slate-300 mb-1">المرتب الأساسي (ج.م) - basicSalary</label>
       <input id="cfgBaseSalary" type="number" min="0" step="0.01" value="${currentBasicSalary || ""}" placeholder="أدخل الأساسي فقط..." class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3 focus:border-[#D4AF37] outline-none" />
-
-      <div class="space-y-2 mb-3 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
-        <label class="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer select-none">
-          <input id="cfgExcludeAllowances30" type="checkbox" ${config.excludeAllowances30 ? "checked" : ""} class="accent-[#D4AF37] w-4 h-4 rounded" />
-          <span>استبعاد 30% بدلات (الأجر التأميني = 70% من الأساسي)</span>
-        </label>
-        <label class="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer select-none">
-          <input id="cfgNoInsurance" type="checkbox" ${config.noInsurance ? "checked" : ""} class="accent-[#D4AF37] w-4 h-4 rounded" />
-          <span>بدون تأمينات (التأمينات = 0)</span>
-        </label>
-      </div>
 
       <div id="cfgLiveSummary" class="bg-slate-950/80 border border-[#D4AF37]/30 rounded-xl p-2.5 mb-3 text-[10px] space-y-1">
         <div class="text-[10px] font-bold text-[#D4AF37] mb-1">📊 الحساب التلقائي (TAX EG 2026):</div>
         <div class="flex justify-between text-slate-400"><span>الأجر التأميني (أقصى 14,500):</span><span id="cfgLiveInsurable" class="font-bold text-white">0 ج.م</span></div>
         <div class="flex justify-between text-slate-400"><span>التأمينات (11%):</span><span id="cfgLiveInsurance" class="font-bold text-rose-300">0 ج.م</span></div>
         <div class="flex justify-between text-slate-400"><span>ضريبة الدخل الشهرية:</span><span id="cfgLiveTax" class="font-bold text-rose-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-400"><span>سعر ساعة الإضافي (الأساسي ÷ 240):</span><span id="cfgLiveOtRate" class="font-bold text-cyan-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-400"><span>بدل انتقال (ثابت):</span><span class="font-bold text-emerald-400">750 ج.م</span></div>
         <div class="flex justify-between text-slate-300 border-t border-white/10 pt-1"><span>صافي المرتب الشهري (30 يوم):</span><span id="cfgLiveNet" class="font-black text-[#D4AF37]">0 ج.م</span></div>
       </div>
-
-      <label class="block text-[11px] text-slate-300 mb-1">سعر ساعة الإضافي (ج.م) <span class="text-[10px] text-slate-400">- اختياري</span></label>
-      <input id="cfgOtHourRate" type="number" min="0" step="0.01" value="${config.otHourRate || ""}" placeholder="تلقائي: الأساسي / الساعات المطلوبة" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4 focus:border-[#D4AF37] outline-none" />
 
       <div class="grid grid-cols-2 gap-2 mb-2">
         <button id="payrollCfgCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
@@ -1523,33 +1738,25 @@ window.openPayrollSettingsModal = async function () {
 
   const updateLiveSummary = () => {
     const sal = Number(overlay.querySelector("#cfgBaseSalary").value) || 0;
-    const excl = overlay.querySelector("#cfgExcludeAllowances30").checked;
-    const noIns = overlay.querySelector("#cfgNoInsurance").checked;
-    const calc = calculateSalary(sal, 30, { excludeAllowances30: excl, noInsurance: noIns });
+    const calc = calculateSalary(sal, 30);
     overlay.querySelector("#cfgLiveInsurable").textContent = `${calc.insurableSalary.toLocaleString()} ج.م`;
     overlay.querySelector("#cfgLiveInsurance").textContent = calc.insuranceAmount > 0 ? `-${calc.insuranceAmount.toLocaleString()} ج.م` : "0 ج.م";
     overlay.querySelector("#cfgLiveTax").textContent = calc.monthlyTax > 0 ? `-${calc.monthlyTax.toLocaleString()} ج.م` : "0 ج.م";
+    overlay.querySelector("#cfgLiveOtRate").textContent = `${calc.otHourRate.toLocaleString()} ج.م`;
     overlay.querySelector("#cfgLiveNet").textContent = `${calc.netSalary.toLocaleString()} ج.م`;
   };
 
   overlay.querySelector("#cfgBaseSalary").addEventListener("input", updateLiveSummary);
-  overlay.querySelector("#cfgExcludeAllowances30").addEventListener("change", updateLiveSummary);
-  overlay.querySelector("#cfgNoInsurance").addEventListener("change", updateLiveSummary);
   updateLiveSummary();
 
   overlay.querySelector("#payrollCfgCancel").onclick = () => overlay.remove();
 
   overlay.querySelector("#payrollCfgSave").onclick = () => {
     const basicSalary = Number(overlay.querySelector("#cfgBaseSalary").value) || 0;
-    const excludeAllowances30 = overlay.querySelector("#cfgExcludeAllowances30").checked;
-    const noInsurance = overlay.querySelector("#cfgNoInsurance").checked;
-    const otHourRate = Number(overlay.querySelector("#cfgOtHourRate").value) || 0;
     savePayrollLocalConfig(userId, {
       basicSalary,
       baseSalary: basicSalary,
-      excludeAllowances30,
-      noInsurance,
-      otHourRate
+      transportAllowance: 750
     });
     overlay.remove();
     refreshAttendanceCard();
@@ -1624,9 +1831,17 @@ export function renderAttendanceCard(customProfile = null) {
 
   let actionButtonHtml = "";
   if (isExtraDay) {
-    actionButtonHtml = `<div class="px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>⭐</span><span>إضافي مسجل</span></div>`;
+    actionButtonHtml = `
+      <button type="button" onclick="window.openAttendanceOptionsModal()" title="خيارات اليوم (تعديل / إلغاء)"
+        class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
+        <span>⭐</span><span>إضافي مسجل</span><span class="text-[9px] text-amber-400/80">⚙️</span>
+      </button>`;
   } else if (isLeave) {
-    actionButtonHtml = `<div class="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>🏖️</span><span>إجازة رصيد</span></div>`;
+    actionButtonHtml = `
+      <button type="button" onclick="window.openAttendanceOptionsModal()" title="خيارات اليوم (تعديل / إلغاء)"
+        class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
+        <span>🏖️</span><span>إجازة رصيد</span><span class="text-[9px] text-emerald-400/80">⚙️</span>
+      </button>`;
   } else if (isCheckedIn) {
     // زر واحد واضح "تسجيل حضور" - نفس المُعالِج (handleAttendanceButton)
     // بيحدد تلقائيًا إنها ضغطة تسجيل خروج طالما فيه دخول بدون خروج
@@ -1638,8 +1853,11 @@ export function renderAttendanceCard(customProfile = null) {
   } else if (isCheckedOut) {
     actionButtonHtml = `
       <div class="flex items-center gap-1">
-        <div class="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1"><span>✅</span><span>تمت الوردية</span></div>
-        <button type="button" title="تعديل الدخول" onclick="window.checkInShift()" class="p-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[9px] transition">🔄</button>
+        <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
+          title="خيارات الوردية (خروج مبكر / ساعات إضافية / إلغاء)"
+          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
+          <span>✅</span><span>تمت الوردية</span><span class="text-[9px] text-emerald-400/80">⚙️</span>
+        </button>
       </div>`;
   } else {
     actionButtonHtml = `
@@ -1723,6 +1941,14 @@ export function renderAttendanceCard(customProfile = null) {
 
       <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-2.5 py-1.5 rounded-lg border border-blue-400/20 text-[11px]">
         <div class="flex items-center gap-1.5"><span class="text-blue-300 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
+        <div class="flex items-center gap-1">
+          <button type="button" onclick="window.openEarlyDepartureModal()" title="تسجيل خروج مبكر وخصم ساعات" class="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold text-[10px] active:scale-95 transition cursor-pointer">
+            🚪 خروج مبكر
+          </button>
+          <button type="button" onclick="window.openDailyOvertimeModal()" title="إضافة ساعات عمل إضافية بعد ساعات الوردية" class="px-2 py-0.5 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 font-bold text-[10px] active:scale-95 transition cursor-pointer">
+            ⏱️ + إضافي
+          </button>
+        </div>
       </div>
 
       <div id="attendanceRow5" class="space-y-1 bg-slate-900/80 p-2 rounded-lg border border-white/10">
@@ -1771,11 +1997,13 @@ export function renderAttendanceCard(customProfile = null) {
         </div>
         <div class="grid grid-cols-2 gap-1 text-[10px]">
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.basicSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">بدل انتقال</span><span class="font-bold text-emerald-400">${unlocked ? "750 ج.م" : "🔒 ••••••"}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">سعر س الإضافي</span><span class="font-bold text-cyan-300">${unlocked ? `${financials.otHourRate} ج.م` : "🔒 ••••••"}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">إجمالي الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الضريبة</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.monthlyTax, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي (30 يوم)</span><span class="font-bold text-slate-200">${maskMoney(financials.netSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">صافي المستحق المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1 col-span-2 border border-[#D4AF37]/30 bg-amber-500/10"><span class="text-amber-200 font-bold">صافي المستحق المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
@@ -1827,6 +2055,9 @@ export async function refreshAttendanceCard() {
 }
 
 if (typeof window !== "undefined") {
+  window.openEarlyDepartureModal = openEarlyDepartureModal;
+  window.openDailyOvertimeModal = openDailyOvertimeModal;
+  window.openAttendanceOptionsModal = openAttendanceOptionsModal;
   window.calculateSalary = calculateSalary;
   window.computeFinancials = computeFinancials;
   window.checkInShift = checkIn;
