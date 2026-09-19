@@ -722,11 +722,13 @@ function classifyDay(userId, dateStr, profile, patternTeams, holidays) {
   const record = getDailyAttendanceRecord(userId, dateStr);
 
   const hasNewFields = !!(record && (record.normalHours != null || record.overtimeHours != null));
-  const hoursWorked = record
-    ? (hasNewFields
-        ? Number(record.normalHours || 0) + Number(record.overtimeHours || 0)
-        : Number(record.hoursWorked || 0))
+  const normalHours = record
+    ? (hasNewFields ? Number(record.normalHours || 0) : Math.min(Number(record.hoursWorked || 0), 12))
     : 0;
+  const overtimeHours = record
+    ? (hasNewFields ? Number(record.overtimeHours || 0) : Math.max(0, Number(record.hoursWorked || 0) - 12))
+    : 0;
+  const hoursWorked = Number((normalHours + overtimeHours).toFixed(2));
 
   const isLeave = !!(record && record.isLeave);
   const isExtraDay = !!(record && record.isExtraDay);
@@ -751,7 +753,7 @@ function classifyDay(userId, dateStr, profile, patternTeams, holidays) {
     bucket = "work";
   }
 
-  return { date: dateStr, dayInfo, isHoliday, record, hoursWorked, bucket };
+  return { date: dateStr, dayInfo, isHoliday, record, hoursWorked, normalHours, overtimeHours, bucket };
 }
 
 /**
@@ -810,7 +812,7 @@ export function calculateCycle(userId, options = {}) {
 
   const range = getCycleRange(referenceDate);
 
-  let poolHours = 0, offWorkHours = 0, holidayWorkHours = 0, holidayCountInCycle = 0;
+  let poolHours = 0, dailyNormalOtHours = 0, offWorkHours = 0, holidayWorkHours = 0, holidayCountInCycle = 0;
   let totalWorkDays = 0, totalLeaves = 0, totalExtraDays = 0, totalHolidayWorkDays = 0, totalOffWorkDays = 0;
   const daysList = [];
 
@@ -823,13 +825,21 @@ export function calculateCycle(userId, options = {}) {
 
     if (info.isHoliday) holidayCountInCycle++;
 
-    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
-    else if (info.bucket === "off") {
+    if (info.bucket === "leave") {
+      poolHours += info.hoursWorked;
+      totalLeaves++;
+    } else if (info.bucket === "off") {
       offWorkHours += info.hoursWorked;
       totalOffWorkDays++;
       if (info.record?.isExtraDay) totalExtraDays++;
-    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
-    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
+    } else if (info.bucket === "holiday") {
+      holidayWorkHours += info.hoursWorked;
+      totalHolidayWorkDays++;
+    } else if (info.bucket === "work") {
+      poolHours += info.normalHours;
+      dailyNormalOtHours += info.overtimeHours;
+      totalWorkDays++;
+    }
 
     daysList.push(info);
     cursor.setDate(cursor.getDate() + 1);
@@ -839,7 +849,8 @@ export function calculateCycle(userId, options = {}) {
   const requiredHours = Math.max(0, targetHours - holidayCountInCycle * 8);
 
   const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
-  const normalOvertimeHours = Number(Math.max(0, poolHours - requiredHours).toFixed(2));
+  const poolExcessOt = Math.max(0, poolHours - requiredHours);
+  const normalOvertimeHours = Number((dailyNormalOtHours + poolExcessOt).toFixed(2));
   offWorkHours = Number(offWorkHours.toFixed(2));
   holidayWorkHours = Number(holidayWorkHours.toFixed(2));
 
@@ -890,6 +901,7 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
   const daysInMonth = new Date(y, m, 0).getDate();
 
   let poolHours = 0;          // ساعات تُقارن بسقف الساعات المطلوبة (حضور عادي + إجازة رصيد)
+  let dailyNormalOtHours = 0; // ساعات إضافية في أيام العمل العادية
   let offWorkHours = 0;       // عمل في يوم OFF مُجدوَل (× offWorkMultiplier)
   let holidayWorkHours = 0;   // عمل في يوم عمل مُجدوَل صادف إجازة رسمية (× holidayWorkMultiplier)
   let holidayDeductionDays = 0; // عدد أيام العمل المُجدوَلة المصادفة لإجازة رسمية (لخصم الساعات المطلوبة)
@@ -903,13 +915,21 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
 
     if (info.dayInfo.isWorkDay && info.isHoliday) holidayDeductionDays++;
 
-    if (info.bucket === "leave") { poolHours += info.hoursWorked; totalLeaves++; }
-    else if (info.bucket === "off") {
+    if (info.bucket === "leave") {
+      poolHours += info.hoursWorked;
+      totalLeaves++;
+    } else if (info.bucket === "off") {
       offWorkHours += info.hoursWorked;
       totalOffWorkDays++;
       if (info.record?.isExtraDay) totalExtraDays++;
-    } else if (info.bucket === "holiday") { holidayWorkHours += info.hoursWorked; totalHolidayWorkDays++; }
-    else if (info.bucket === "work") { poolHours += info.hoursWorked; totalWorkDays++; }
+    } else if (info.bucket === "holiday") {
+      holidayWorkHours += info.hoursWorked;
+      totalHolidayWorkDays++;
+    } else if (info.bucket === "work") {
+      poolHours += info.normalHours;
+      dailyNormalOtHours += info.overtimeHours;
+      totalWorkDays++;
+    }
 
     daysList.push(info);
   }
@@ -919,7 +939,8 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
   const requiredHours = Math.max(0, targetHours - holidayDeductionPerDay * holidayDeductionDays);
 
   const regularHours = Number(Math.min(poolHours, requiredHours).toFixed(2));
-  const normalOvertimeHours = Number(Math.max(0, poolHours - requiredHours).toFixed(2));
+  const poolExcessOt = Math.max(0, poolHours - requiredHours);
+  const normalOvertimeHours = Number((dailyNormalOtHours + poolExcessOt).toFixed(2));
   offWorkHours = Number(offWorkHours.toFixed(2));
   holidayWorkHours = Number(holidayWorkHours.toFixed(2));
 
@@ -976,6 +997,8 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
 export function calculateSalary(param1, param2, param3) {
   let basicSalary = 0;
   let attendanceDays = 30;
+  let requiredHours = 0;
+  let regularHours = 0;
   let excludeAllowances30 = false;
   let noInsurance = false;
   let otHourRate = 0;
@@ -987,7 +1010,7 @@ export function calculateSalary(param1, param2, param3) {
   let holidayWorkMultiplier = 1.5;
 
   // نمط 1: calculateSalary(monthData, localConfig, rules)
-  if (param1 && typeof param1 === "object" && (param1.daysList || param1.registeredHours !== undefined || param1.regularHours !== undefined || param2?.baseSalary !== undefined || param2?.basicSalary !== undefined)) {
+  if (param1 && typeof param1 === "object" && (param1.daysList || param1.registeredHours !== undefined || param1.regularHours !== undefined || param1.requiredHours !== undefined || param2?.baseSalary !== undefined || param2?.basicSalary !== undefined)) {
     const monthData = param1 || {};
     const localConfig = param2 || {};
     const rules = param3 || getCachedPayrollRules();
@@ -996,6 +1019,9 @@ export function calculateSalary(param1, param2, param3) {
     excludeAllowances30 = Boolean(localConfig.excludeAllowances30);
     noInsurance = Boolean(localConfig.noInsurance);
     otHourRate = Number(localConfig.otHourRate) || 0;
+
+    requiredHours = Number(monthData.requiredHours) || 0;
+    regularHours = Number(monthData.regularHours) || 0;
 
     normalOvertimeHours = Number(monthData.normalOvertimeHours) || 0;
     offWorkHours = Number(monthData.offWorkHours) || 0;
@@ -1020,6 +1046,8 @@ export function calculateSalary(param1, param2, param3) {
     const opts = param1;
     basicSalary = Number(opts.basicSalary ?? opts.baseSalary) || 0;
     attendanceDays = opts.attendanceDays !== undefined && opts.attendanceDays !== null ? Number(opts.attendanceDays) : 30;
+    requiredHours = Number(opts.requiredHours) || 0;
+    regularHours = Number(opts.regularHours) || 0;
     excludeAllowances30 = Boolean(opts.excludeAllowances30);
     noInsurance = Boolean(opts.noInsurance);
     otHourRate = Number(opts.otHourRate) || 0;
@@ -1035,6 +1063,8 @@ export function calculateSalary(param1, param2, param3) {
     basicSalary = Number(param1) || 0;
     attendanceDays = param2 !== undefined && param2 !== null ? Number(param2) : 30;
     const opts = param3 || {};
+    requiredHours = Number(opts.requiredHours) || 0;
+    regularHours = Number(opts.regularHours) || 0;
     excludeAllowances30 = Boolean(opts.excludeAllowances30);
     noInsurance = Boolean(opts.noInsurance);
     otHourRate = Number(opts.otHourRate) || 0;
@@ -1115,14 +1145,27 @@ export function calculateSalary(param1, param2, param3) {
   const monthlyTax = Number((annualTax / 12).toFixed(2));
 
   // 3. الصافي = الأساسي - التأمينات - الضريبة
-  //   . صافي بعد الحضور = (الصافي / 30) * أيام الحضور
+  // في نظام الورديات (12 ساعة)، استحقاق المرتب الأساسي مرتبط بتحقيق الساعات المطلوبة للدورة (requiredHours)
+  // عند إتمام الساعات المطلوبة (regularHours >= requiredHours) يستحق الفني 100% من صافي الأساسي
   const netSalary = Number((basicSalary - insuranceAmount - monthlyTax).toFixed(2));
-  const netAfterAttendance = Number(((netSalary / 30) * attendanceDays).toFixed(2));
+  let netAfterAttendance = netSalary;
+  if (requiredHours > 0) {
+    const attendanceRatio = Math.min(1, Math.max(0, regularHours / requiredHours));
+    netAfterAttendance = Number((netSalary * attendanceRatio).toFixed(2));
+    attendanceDays = attendanceRatio >= 1 ? 30 : Number((attendanceRatio * 30).toFixed(1));
+  } else if (attendanceDays !== 30) {
+    netAfterAttendance = Number(((netSalary / 30) * attendanceDays).toFixed(2));
+  }
 
-  // حساب سعر ساعة الإضافي تلقائياً من الأساسي إذا لم يُحدد يدوياً ((الأساسي / 30) / 8)
+  // حساب أجر الساعة (Hourly Rate):
+  // 1. إذا حُدد otHourRate يدوياً في إعدادات المرتب يُستخدم كما هو.
+  // 2. إذا لم يُحدد يدوياً، يُحسب بناءً على بيانات المرتب والساعات المطلوبة المحسوبة فعلياً لتلك الدورة:
+  //    hourlyRate = basicSalary / requiredHours
+  //    (مع استخدام 192 كاحتياطي فقط في حال عدم توفر requiredHours)
+  const divisorHours = requiredHours > 0 ? requiredHours : 192;
   const hourlyRate = otHourRate > 0
     ? otHourRate
-    : (basicSalary > 0 ? Number(((basicSalary / 30) / 8).toFixed(2)) : 0);
+    : (basicSalary > 0 ? Number((basicSalary / divisorHours).toFixed(2)) : 0);
 
   // مراجعة الإضافي العادي ليضرب في 1.5
   normalOvertimeMultiplier = 1.5;
@@ -1145,9 +1188,12 @@ export function calculateSalary(param1, param2, param3) {
     monthlyTax,
     taxAmount: monthlyTax,
     netSalary,
+    requiredHours,
+    regularHours,
     attendanceDays,
     netAfterAttendance,
     otHourRate: hourlyRate,
+    hourlyRate,
     normalOvertimeHours,
     normalOvertimeMultiplier,
     normalOvertimeMoney,
@@ -1218,7 +1264,7 @@ export async function exportPDF(customUserId = null, customReferenceDate = null)
     { label: "الفريق", value: getColorBadge(profile.shiftColor).label },
     { label: "دورة الحضور والمرتبات", value: cycleData.cycleLabel },
     { label: "الساعات المستهدفة الأصلية", value: `${cycleData.targetHours} س` },
-    { label: "خصم إجازات رسمية", value: `${cycleData.holidayCountInCycle} إجازة × ${DEFAULT_PAYROLL_RULES.holidayHoursDeduction}س` },
+    { label: "خصم إجازات رسمية", value: `${cycleData.holidayCountInCycle} إجازة × 8س` },
     { label: "الساعات المطلوبة الفعلية", value: `${cycleData.requiredHours} س` }
   ];
 
@@ -1463,7 +1509,7 @@ window.openPayrollSettingsModal = async function () {
       </div>
 
       <label class="block text-[11px] text-slate-300 mb-1">سعر ساعة الإضافي (ج.م) <span class="text-[10px] text-slate-400">- اختياري</span></label>
-      <input id="cfgOtHourRate" type="number" min="0" step="0.01" value="${config.otHourRate || ""}" placeholder="تلقائي: الأساسي / 240" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4 focus:border-[#D4AF37] outline-none" />
+      <input id="cfgOtHourRate" type="number" min="0" step="0.01" value="${config.otHourRate || ""}" placeholder="تلقائي: الأساسي / الساعات المطلوبة" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4 focus:border-[#D4AF37] outline-none" />
 
       <div class="grid grid-cols-2 gap-2 mb-2">
         <button id="payrollCfgCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
@@ -1725,11 +1771,11 @@ export function renderAttendanceCard(customProfile = null) {
         </div>
         <div class="grid grid-cols-2 gap-1 text-[10px]">
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.basicSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الإضافي (×1.5)</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">إجمالي الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الضريبة</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.monthlyTax, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي (30 يوم)</span><span class="font-bold text-slate-200">${maskMoney(financials.netSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">صافي بعد الحضور</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">صافي المستحق المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
