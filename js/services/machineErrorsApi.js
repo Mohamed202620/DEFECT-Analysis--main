@@ -90,7 +90,21 @@ export async function findMachineErrorByCode(code) {
  * حفظ عطل جديد في قاعدة المعرفة (كـ Pending Review افتراضياً)
  * يمنع تكرار نفس كود العطل قدر الإمكان
  */
-export async function saveMachineErrorApi(payload) {
+export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } = {}) {
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const { queueOfflineAction } = await import("./offlineQueue.js");
+      const localId = await queueOfflineAction({ type: "new_machine_error", payload });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - تم حفظ العطل محلياً وسيتم إرساله تلقائياً"
+      };
+    } catch (error) {
+      console.error("Error queuing offline machine error:", error);
+      return { status: "error", message: "تعذر حفظ العطل محلياً" };
+    }
+  }
 
   try {
 
@@ -197,7 +211,21 @@ export async function verifyMachineErrorApi(errorId) {
  * تسجيل ظهور جديد لعطل معروف (سجل الأعطال السابق)
  * وربط الصورة الملتقطة بهذا الظهور
  */
-export async function logMachineErrorOccurrenceApi(payload) {
+export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue = false } = {}) {
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const { queueOfflineAction } = await import("./offlineQueue.js");
+      const localId = await queueOfflineAction({ type: "log_machine_error", payload });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - تم حفظ السجل محلياً وسيتم إرساله تلقائياً"
+      };
+    } catch (error) {
+      console.error("Error queuing offline machine error log:", error);
+      return { status: "error", message: "تعذر حفظ السجل محلياً" };
+    }
+  }
 
   try {
 

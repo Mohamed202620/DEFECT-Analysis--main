@@ -2,14 +2,27 @@
 // QrScannerView.js
 // مسح QR الماكينة -> فتح ملف الماكينة (MachineProfileView) مباشرة.
 //
-// - الـQR بيحتوي على "قيمة الماكينة" فقط (نفس القيمة المستخدمة في
-//   كل قوائم الماكينات بالتطبيق - راجع machines.js: MACHINE_OPTIONS/
-//   buildMachineDropdownHtml)، سواء كنص خام أو بصيغة JSON {"m":"..."}
-//   أو بادئة "MID:".
-// - يحترم صلاحيات القسم تلقائياً: عند مستخدم غير أدمن/مدير/مهندس،
-//   قائمة أنواع الماكينات المحمّلة أصلاً مفلترة على قسمه فقط من
-//   Firestore (راجع machines.js: loadMachineTypesFromFirestore) -
-//   فمينفعش يوصل لبيانات قسم تاني حتى لو مسح QR بتاعه.
+// - الـQR بيحتوي على "قيمة الماكينة" (نفس القيمة المستخدمة في كل
+//   قوائم الماكينات بالتطبيق - راجع machines.js: MACHINE_OPTIONS/
+//   buildMachineDropdownHtml)، سواء كنص خام أو بصيغة JSON
+//   {"m":"...","line":"1"} أو بادئة "MID:" أو رابط بباراميتر ?m=.
+//
+// - إصلاح جذري (كان Admin بيشوف "الماكينة غير موجودة" لماكينة
+//   موجودة فعلاً): الشاشة دي كانت بتستخدم "قسم الماكينة" كدليل على
+//   وجودها -> getDepartmentForMachineValue() بترجع "" في حالتين
+//   مختلفتين تماماً: (1) الماكينة مش موجودة، (2) الماكينة موجودة
+//   لكن حقل department بتاعها في Firestore ناقص أو بقيمة مش ضمن
+//   backend/frontend. الحالة (2) كانت بتتعامل كـ"غير موجودة" حتى
+//   للأدمن، رغم إن الماكينة نفسها ظاهرة في قوائم التطبيق و
+//   MachineProfileView بيفتحها عادي. دلوقتي الوجود بيتحدد بالبحث
+//   الفعلي في كتالوج الماكينات (resolveMachineFromValue) والصلاحية
+//   بتتفحص بعد كده كخطوة منفصلة صريحة - والأدمن/صاحب الوصول الكامل
+//   بيتخطى فلترة القسم بالكامل.
+//
+// - صلاحيات غير الأدمن زي ما هي بالظبط: لازم قسم الماكينة = قسم
+//   المستخدم، وأي ماكينة بقسم غير محدد أو مختلف بترفض برسالة
+//   "لا توجد صلاحية" (مع إن كتالوج الماكينات المحمّل لغير الأدمن
+//   أصلاً مفلتر على قسمه من Firestore).
 // - كاميرا حقيقية عبر BarcodeDetector المدمج في المتصفح لو متاح،
 //   وإلا تحميل مكتبة jsQR الخفيفة (~29kB) بشكل كسول عند الحاجة فقط
 //   (نفس أسلوب تحميل Tesseract.js في errorScanner.js) - بدون كاميرا،
@@ -17,8 +30,18 @@
 // ============================================================
 
 import { buildMachineDropdownHtml } from '../machines.js';
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
-import { hasFullDataAccess } from '../permissions.js';
+import {
+  resolveMachineFromValue,
+  normalizeDepartment,
+  normalizeLine,
+  formatLineLabel,
+  isMachineTypesLoaded,
+  ensureMachineCatalogReady,
+  findMachineEntryByValue
+} from '../machines.js';
+import { hasFullDataAccess, isAdminRole, getCurrentRole } from '../permissions.js';
+import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+import { updateMachineTypeApi } from '../services/machinesApi.js';
 
 let videoStream = null;
 let scanRafId = null;
@@ -38,13 +61,15 @@ function t() {
     scanning: isEn ? 'Scanning... point the camera at the QR code' : 'جاري المسح... وجّه الكاميرا نحو رمز QR',
     cameraError: isEn ? 'Could not access the camera. Use manual selection instead.' : 'تعذر الوصول للكاميرا. استخدم الاختيار اليدوي بدلاً من ذلك.',
     invalidQr: isEn ? '❌ Invalid QR Code' : '❌ رمز QR غير صالح',
-    invalidQrDesc: isEn ? 'This QR code does not contain a recognizable machine code.' : 'رمز QR هذا لا يحتوي على كود ماكينة معروف.',
+    invalidQrDesc: isEn ? 'This QR code does not contain a recognizable machine code. Please use manual selection.' : 'رمز QR هذا لا يحتوي على كود ماكينة معروف. يرجى استخدام الاختيار اليدوي.',
     notFound: isEn ? '❌ Machine Not Found' : '❌ الماكينة غير موجودة',
-    notFoundDesc: isEn ? 'No machine matches this code, or you do not have permission to access it.' : 'لا توجد ماكينة مطابقة لهذا الكود، أو ليس لديك صلاحية الوصول إليها.',
+    notFoundDesc: isEn ? 'No machine matches this code, or you do not have permission to access it. Please use manual selection.' : 'لا توجد ماكينة مطابقة لهذا الكود، أو ليس لديك صلاحية الوصول إليها. يرجى استخدام الاختيار اليدوي.',
     noPermission: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
     noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     success: isEn ? '✅ Machine found - opening profile...' : '✅ تم التعرف على الماكينة - جاري فتح الملف...',
-    scanAgain: isEn ? 'Scan Again' : 'مسح مرة أخرى'
+    scanAgain: isEn ? 'Scan Again' : 'مسح مرة أخرى',
+    scannedCode: isEn ? 'Scanned code' : 'الكود الممسوح',
+    checking: isEn ? 'Checking machine...' : 'جاري التحقق من الماكينة...'
   };
 }
 
@@ -88,6 +113,11 @@ export const QrScannerView = () => {
         placeholderLabel: isEn ? 'Select machine...' : 'اختر الماكينة...',
         unitPlaceholderLabel: isEn ? 'Select number...' : 'اختر الرقم...'
       })}
+      <select id="qrManualLine" class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm mt-2">
+        <option value="" disabled selected>${isEn ? 'Select Line...' : 'اختر الخط...'}</option>
+        <option value="1">${isEn ? 'Line 1' : 'الخط 1'}</option>
+        <option value="2">${isEn ? 'Line 2' : 'الخط 2'}</option>
+      </select>
       <button onclick="window.openMachineFromManualSelect()" class="w-full p-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 font-bold text-xs text-white transition">
         ${tr.openBtn}
       </button>
@@ -99,26 +129,108 @@ export const QrScannerView = () => {
 // ============================================================
 // تحليل نص QR واستخراج "قيمة الماكينة" منه
 // ============================================================
-function extractMachineValueFromQrText(rawText) {
+// بيرجّع { value, line } - الـline اختياري تماماً (بيتاخد من الـQR
+// لو موجود، وإلا بيتاخد من بيانات الماكينة نفسها بعد البحث).
+// كل الصيغ المدعومة متوافقة للخلف مع أي QR متطبوع قبل كده:
+//   "Bodymaker 01"
+//   "MID:<docId>"  |  "MID:Bodymaker 01"
+//   {"m":"Bodymaker 01","line":"1"}   (ونفس الشيء بـ machine/u/unit)
+//   "https://.../?m=Bodymaker%2001&line=1"
+//   "Bodymaker 01|1"
+function parseQrPayload(rawText) {
   let text = String(rawText || '').trim();
-  if (!text) return '';
+  if (!text) return { value: '', line: '' };
 
-  if (text.toUpperCase().startsWith('MID:')) {
-    text = text.slice(4).trim();
-  } else {
+  // 0) فك التشفير (Base64) لو كان النص مشفر
+  try {
+    const decoded = decodeURIComponent(escape(atob(text)));
+    if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
+      text = decoded;
+    }
+  } catch (e) {
     try {
-      const parsed = JSON.parse(text);
-      if (parsed && typeof parsed === 'object' && parsed.m) {
-        text = String(parsed.m).trim();
-      } else if (parsed && typeof parsed === 'object' && parsed.machine) {
-        text = String(parsed.machine).trim();
+      const decoded = atob(text);
+      if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
+        text = decoded;
       }
-    } catch {
-      // ليس JSON - نستخدم النص كما هو (القيمة الخام)
+    } catch (err) {
+      // ليس مشفراً، نستمر بالنص الأصلي
     }
   }
 
-  return text;
+  // 1) JSON
+  if (text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') {
+        const type = String(parsed.m ?? parsed.machine ?? parsed.machineValue ?? parsed.v ?? parsed.id ?? '').trim();
+        const unit = String(parsed.u ?? parsed.unit ?? '').trim();
+        return {
+          value: unit ? `${type} ${unit}`.trim() : type,
+          line: normalizeLine(parsed.line ?? parsed.l ?? parsed.productionLine ?? '')
+        };
+      }
+    } catch {
+      // مش JSON صالح - بنكمل للصيغ التانية
+    }
+  }
+
+  // 2) رابط فيه باراميتر للماكينة
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text);
+      const value = url.searchParams.get('m') || url.searchParams.get('machine') || '';
+      if (value) {
+        return {
+          value: String(value).trim(),
+          line: normalizeLine(url.searchParams.get('line') || url.searchParams.get('l') || '')
+        };
+      }
+    } catch {
+      // رابط غير صالح - بنكمل
+    }
+  }
+
+  // 3) نص خام (مع دعم "MID:" ودعم فاصل الخط "|")
+  let body = text;
+  if (body.toUpperCase().startsWith('MID:')) {
+    body = body.slice(4).trim();
+  }
+
+  const parts = body.split('|');
+  if (parts.length > 1) {
+    return { value: parts[0].trim(), line: normalizeLine(parts.slice(1).join('|')) };
+  }
+
+  return { value: body, line: '' };
+}
+
+function renderQrMessage({ tone, title, desc, extra = '' }) {
+  const resultBox = document.getElementById('qrResultBox');
+  if (!resultBox) return;
+
+  const border = tone === 'error'
+    ? 'border-red-500/30'
+    : tone === 'warn' ? 'border-amber-500/30' : 'border-emerald-500/30';
+
+  const titleColor = tone === 'error'
+    ? 'text-red-400'
+    : tone === 'warn' ? 'text-amber-400' : 'text-emerald-400';
+
+  resultBox.innerHTML = `
+    <div class="bg-[#1E293B] rounded-xl p-4 border ${border} text-center">
+      <div class="text-sm font-bold ${titleColor}">${title}</div>
+      ${desc ? `<div class="text-[11px] text-gray-400 mt-1">${desc}</div>` : ''}
+      ${extra}
+    </div>`;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 // ============================================================
@@ -131,77 +243,132 @@ function extractMachineValueFromQrText(rawText) {
 // فعلي شغّال تحته. دلوقتي بترجع true فقط في حالة النجاح الفعلي
 // (فتح ملف الماكينة) عشان الكاميرا تكمل المسح تلقائيًا في أي حالة
 // تانية (راجع tick() تحت).
-function handleResolvedMachineValue(machineValue) {
+async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   const tr = t();
   const resultBox = document.getElementById('qrResultBox');
   if (!resultBox) return false;
 
-  if (!machineValue) {
-    resultBox.innerHTML = `
-      <div class="bg-[#1E293B] rounded-xl p-4 border border-red-500/30 text-center">
-        <div class="text-sm font-bold text-red-400">${tr.invalidQr}</div>
-        <div class="text-[11px] text-gray-400 mt-1">${tr.invalidQrDesc}</div>
-      </div>`;
+  const scannedValue = String(payload?.value || '').trim();
+  let qrLine = normalizeLine(payload?.line);
+
+  if (!scannedValue) {
+    window.stopQrScan();
+    alert(tr.invalidQrDesc);
+    renderQrMessage({ tone: 'error', title: tr.invalidQr, desc: tr.invalidQrDesc });
     return false;
   }
 
-  const department = getDepartmentForMachineValue(machineValue);
+  // 1) البحث الفعلي عن الماكينة في كتالوج التطبيق
+  if (!isMachineTypesLoaded()) {
+    renderQrMessage({ tone: 'ok', title: tr.checking, desc: '' });
+    await ensureMachineCatalogReady();
+  }
 
-  if (!department) {
-    // إما مش موجودة أصلاً، أو موجودة في قسم تاني مش محمّل أصلاً
-    // لهذا المستخدم (راجع تعليق أعلى الملف) - رسالة موحّدة آمنة
-    resultBox.innerHTML = `
-      <div class="bg-[#1E293B] rounded-xl p-4 border border-red-500/30 text-center">
-        <div class="text-sm font-bold text-red-400">${tr.notFound}</div>
-        <div class="text-[11px] text-gray-400 mt-1">${tr.notFoundDesc}</div>
-      </div>`;
+  const machine = resolveMachineFromValue(scannedValue);
+
+  if (!machine.found) {
+    window.stopQrScan();
+    alert(tr.notFoundDesc);
+    renderQrMessage({
+      tone: 'error',
+      title: tr.notFound,
+      desc: tr.notFoundDesc,
+      extra: `<div class="text-[10px] text-gray-500 mt-2 font-mono break-all">${tr.scannedCode}: ${escapeHtml(scannedValue)}</div>`
+    });
     return false;
   }
 
-  // إصلاح: توحيد قراءة قسم المستخدم عبر normalizeDepartment (نفس
-  // المصدر المستخدم في كل مكان آخر بالتطبيق - راجع departmentUtils.js)
-  // بدل الاعتماد على trim()/toLowerCase() الخام فقط، عشان أي قيمة
-  // قديمة أو غير موحّدة مخزّنة في localStorage متتحسبش خطأً "قسم
-  // مختلف" وتمنع المستخدم من الوصول لماكينة قسمه الفعلي.
-  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
-  if (!hasFullDataAccess() && department !== userDept) {
-    resultBox.innerHTML = `
-      <div class="bg-[#1E293B] rounded-xl p-4 border border-amber-500/30 text-center">
-        <div class="text-sm font-bold text-amber-400">${tr.noPermission}</div>
-        <div class="text-[11px] text-gray-400 mt-1">${tr.noPermissionDesc}</div>
-      </div>`;
-    return false;
+  // 2) الصلاحية
+  if (!hasFullDataAccess()) {
+    const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
+    if (!userDept || !machine.department || machine.department !== userDept) {
+      window.stopQrScan();
+      alert(tr.noPermissionDesc);
+      renderQrMessage({ tone: 'warn', title: tr.noPermission, desc: tr.noPermissionDesc });
+      return false;
+    }
   }
 
-  resultBox.innerHTML = `
-    <div class="bg-[#1E293B] rounded-xl p-4 border border-emerald-500/30 text-center">
-      <div class="text-sm font-bold text-emerald-400">${tr.success}</div>
-    </div>`;
+  // 3) خط الإنتاج: إعطاء الأولوية للخط المختار من الواجهة (سواء سكان أو يدوي)
+  const line = manualSelectedLine || qrLine || machine.line || '';
+  const lineLabel = formatLineLabel(line);
 
-  localStorage.setItem('activeMachine', machineValue);
+  renderQrMessage({
+    tone: 'ok',
+    title: tr.success,
+    desc: '',
+    extra: `<div class="text-[11px] text-gray-300 mt-1 font-bold">${escapeHtml(machine.value)}${lineLabel ? ` · 🏭 ${lineLabel}` : ''}</div>`
+  });
+
+  localStorage.setItem('activeMachine', machine.value);
+
+  if (line) {
+    localStorage.setItem('activeMachineLine', line);
+  } else {
+    localStorage.removeItem('activeMachineLine');
+  }
+
   window.stopQrScan();
-  setTimeout(() => window.navigateTo('machineProfile'), 400);
+  
+  // عرض مؤشر تحميل سريع (Toast notification)
+  const isEn = (window.currentLang || 'ar') === 'en';
+  const toastText = isEn 
+    ? `Identified: ${machine.value}${lineLabel ? ` - ${lineLabel}` : ''}` 
+    : `تم التعرف: ${machine.value}${lineLabel ? ` - ${lineLabel}` : ''}`;
+    
+  const toast = document.createElement('div');
+  toast.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl z-[99999] flex items-center gap-3 font-bold text-lg animate-bounce';
+  toast.innerHTML = `<span>✅</span> <span dir="${isEn ? 'ltr' : 'rtl'}">${toastText}</span>`;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    if (toast.parentNode) toast.remove();
+    window.navigateTo('machineProfile');
+  }, 1200);
+
   return true;
 }
 
 window.openMachineFromManualSelect = function () {
   const value = document.getElementById('qrManualMachine')?.value || '';
-  handleResolvedMachineValue(value.trim());
+  const lineSelect = document.getElementById('qrManualLine');
+  
+  if (!value) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a machine first.' : 'يرجى اختيار الماكينة أولاً.');
+    return;
+  }
+  
+  if (lineSelect && !lineSelect.value) {
+    alert((window.currentLang || 'ar') === 'en' ? 'Please select a line first.' : 'يرجى اختيار الخط أولاً.');
+    return;
+  }
+
+  handleResolvedMachineValue({ value: value.trim(), line: '' }, lineSelect.value);
 };
 
 // ============================================================
 // الكاميرا + قراءة QR
 // ============================================================
+// ============================================================
+// إصلاح (نفس بند MachineProfileView.js - راجع utils/loadExternalScript.js
+// لتفاصيل كاملة): تصفير jsQRLoadPromise عند الفشل عشان محاولة
+// المسح التالية (لو المستخدم رجّع الإنترنت وضغط "بدء المسح" تاني)
+// تعمل تحميل شبكة جديدة فعلياً بدل ما ترجع نفس الفشل القديم للأبد،
+// + تجربة مصدر CDN بديل (unpkg) قبل الاستسلام.
+// ============================================================
 function loadJsQR() {
   if (window.jsQR) return Promise.resolve(window.jsQR);
   if (jsQRLoadPromise) return jsQRLoadPromise;
 
-  jsQRLoadPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-    script.onload = () => resolve(window.jsQR);
-    script.onerror = () => reject(new Error('jsQR load failed'));
-    document.head.appendChild(script);
+  jsQRLoadPromise = loadScriptWithFallback(
+    [
+      'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+      'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+    ],
+    () => window.jsQR
+  ).catch(err => {
+    jsQRLoadPromise = null;
+    throw err;
   });
 
   return jsQRLoadPromise;
@@ -217,6 +384,10 @@ function setQrStatus(message, isError = false) {
 
 window.startQrScan = async function () {
   const tr = t();
+  
+  // تمت إزالة قائمة اختيار الخط، لا نحتاج للتحقق منها هنا
+  const selectedLine = null;
+
   const videoBox = document.getElementById('qrVideoBox');
   const video = document.getElementById('qrVideo');
   const startBtn = document.getElementById('qrStartBtn');
@@ -262,6 +433,15 @@ window.startQrScan = async function () {
     }
   }
 
+  // كتالوج الماكينات لازم يكون جاهز قبل أول عملية بحث - لو فشل
+  // التحميل هنا، handleResolvedMachineValue بتحاول تاني قبل ما
+  // تحكم بـ"غير موجودة" (راجع فوق)
+  try {
+    await ensureMachineCatalogReady();
+  } catch (e) {
+    console.warn("Error ensuring machines are loaded:", e);
+  }
+
   const tick = async () => {
     if (!videoStream) return;
 
@@ -274,7 +454,7 @@ window.startQrScan = async function () {
             // موجود/بلا صلاحية (بترجع false) بدل ما تتجمد الكاميرا
             // بصريًا وهي فعليًا متوقفة عن المسح - راجع تعليق
             // handleResolvedMachineValue فوق.
-            if (handleResolvedMachineValue(extractMachineValueFromQrText(codes[0].rawValue))) {
+            if (await handleResolvedMachineValue(parseQrPayload(codes[0].rawValue), selectedLine)) {
               return;
             }
           }
@@ -285,7 +465,7 @@ window.startQrScan = async function () {
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = window.jsQR(imageData.data, imageData.width, imageData.height);
           if (code && code.data) {
-            if (handleResolvedMachineValue(extractMachineValueFromQrText(code.data))) {
+            if (await handleResolvedMachineValue(parseQrPayload(code.data), selectedLine)) {
               return;
             }
           }

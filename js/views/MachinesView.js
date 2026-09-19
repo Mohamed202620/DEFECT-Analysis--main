@@ -24,7 +24,9 @@ import {
 import {
   DEFAULT_MACHINE_TYPES,
   refreshMachineTypesCache,
-  getMachinesForUser
+  getMachinesForUser,
+  normalizeLine,
+  formatLineLabel
 } from "../machines.js";
 
 import { getCurrentRole, isAdminRole } from "../permissions.js";
@@ -112,6 +114,26 @@ export const MachinesView = () => `
             </div>
         </div>
 
+        <!-- خط الإنتاج (Line) - نفس الحقل والقيم المستخدمة في باقي
+             مسارات التطبيق (البلاغات/الكايزن/فاحص الأعطال): "1" أو
+             "2" وبتتعرض كـ Line 1 / Line 2. اختياري: الماكينات
+             المشتركة بين الخطين تفضل بدون خط محدد. تعديله مقصور
+             على الأدمن زي القسم بالظبط (راجع updateMachineTypeApi) -->
+        <div>
+            <label class="block text-[10px] font-bold mb-1 text-gray-400">خط الإنتاج (Line)</label>
+            <select
+                id="machineLineInput"
+                class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition appearance-none">
+                <option value="">— غير محدد —</option>
+                <option value="1">🏭 Line 1</option>
+                <option value="2">🏭 Line 2</option>
+            </select>
+            <div id="machineLineReadonly" class="hidden mt-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
+                🔒 تعديل خط الإنتاج مقصور على الأدمن فقط - الخط الحالي:
+                <span id="machineLineReadonlyValue" class="text-white"></span>
+            </div>
+        </div>
+
         <div>
             <input
                 id="machineUnitsInput"
@@ -157,8 +179,8 @@ export const MachinesView = () => `
 
 
     <!-- القائمة -->
-    <div id="machinesContainer" class="space-y-2.5">
-        <div class="text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
+    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="col-span-full text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     </div>
 
 
@@ -238,6 +260,10 @@ window.loadMachinesAdmin = async function () {
                             ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">🖥️ Frontend</span>`
                             : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">🛠️ Backend</span>`
                         }
+                        ${formatLineLabel(m.line)
+                            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">🏭 ${formatLineLabel(m.line)}</span>`
+                            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400">🏭 بدون خط</span>`
+                        }
                     </div>
                     ${m.units && m.units.length
                         ? `<div class="flex flex-wrap gap-1 mt-1.5">
@@ -312,9 +338,22 @@ window.saveMachineType = async function () {
         department = current?.department === "frontend" ? "frontend" : "backend";
     }
 
+    // خط الإنتاج (Line): نفس سياسة القسم بالظبط - في وضع "إضافة"
+    // أو مع أدمن بناخد قيمة الفورم، وغير كده بنبعت القيمة الحالية
+    // كما هي (و updateMachineTypeApi أصلاً بيتجاهل أي تعديل للخط
+    // من غير أدمن)
+    let line;
+
+    if (!editingMachineTypeId || canEditMachineDepartment()) {
+        line = normalizeLine(document.getElementById("machineLineInput")?.value || "");
+    } else {
+        const currentItem = (window.__machinesAdminCache || []).find(m => m.id === editingMachineTypeId);
+        line = normalizeLine(currentItem?.line || "");
+    }
+
     const result = editingMachineTypeId
-        ? await updateMachineTypeApi(editingMachineTypeId, key, units, department)
-        : await addMachineTypeApi(key, units, department);
+        ? await updateMachineTypeApi(editingMachineTypeId, key, units, department, line)
+        : await addMachineTypeApi(key, units, department, line);
 
     if (result.status !== "success") {
         alert("❌ " + (result.message || "حدث خطأ أثناء الحفظ."));
@@ -347,6 +386,24 @@ window.editMachineType = function (machineTypeId) {
     const cancelBtn = document.getElementById("machineCancelBtn");
 
     const currentDept = item.department === "frontend" ? "frontend" : "backend";
+    const currentLine = normalizeLine(item.line);
+
+    const lineSelect = document.getElementById("machineLineInput");
+    const lineReadonly = document.getElementById("machineLineReadonly");
+    const lineReadonlyValue = document.getElementById("machineLineReadonlyValue");
+
+    if (lineSelect) lineSelect.value = currentLine;
+
+    if (canEditMachineDepartment()) {
+        lineSelect?.classList.remove("hidden");
+        if (lineSelect) lineSelect.disabled = false;
+        lineReadonly?.classList.add("hidden");
+    } else {
+        lineSelect?.classList.add("hidden");
+        if (lineSelect) lineSelect.disabled = true;
+        if (lineReadonlyValue) lineReadonlyValue.textContent = formatLineLabel(currentLine) || "غير محدد";
+        lineReadonly?.classList.remove("hidden");
+    }
 
     if (keyInput) keyInput.value = item.key;
     if (unitsInput) unitsInput.value = (item.units || []).join(",");
@@ -396,6 +453,16 @@ window.cancelEditMachineType = function () {
         deptSelect.classList.remove("hidden");
     }
     deptReadonly?.classList.add("hidden");
+
+    // خط الإنتاج: وضع "إضافة" دايماً قابل للاختيار (اختياري)
+    const lineSelect = document.getElementById("machineLineInput");
+    if (lineSelect) {
+        lineSelect.value = "";
+        lineSelect.disabled = false;
+        lineSelect.classList.remove("hidden");
+    }
+    document.getElementById("machineLineReadonly")?.classList.add("hidden");
+
     if (title) title.textContent = "➕ إضافة نوع ماكينة جديد";
     if (saveBtn) saveBtn.textContent = "➕ إضافة";
     if (cancelBtn) cancelBtn.classList.add("hidden");

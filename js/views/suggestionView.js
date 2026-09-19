@@ -73,13 +73,17 @@ export const SuggestionView = () => {
         submitBtn.innerHTML = originalText;
       }
 
-      if (result.status !== 'success') {
+      if (result.status !== 'success' && result.status !== 'queued') {
         alert((isEn ? 'Error: ' : 'خطأ: ') + (result.message || (isEn ? 'Failed to submit' : 'فشل الإرسال')));
         return;
       }
 
       resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
-      alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
+      if (result.status === 'queued') {
+        alert(isEn ? '📴 Offline - Suggestion saved locally and will be synced when online' : '📴 لا يوجد اتصال حالياً - تم حفظ المقترح محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت');
+      } else {
+        alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
+      }
       window.goBack('home'); // أو يمكن توجيهه إلى maintenance
     } catch (err) {
       if (submitBtn) {

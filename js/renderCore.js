@@ -113,16 +113,13 @@ app.style.opacity = "1";
 const sidebarContainer = document.getElementById("sidebarContainer");
 
 if (sidebarContainer) {
-  const isMobile = typeof window !== "undefined" && (
-    window.innerWidth < 1024 ||
-    window.matchMedia("(orientation: portrait)").matches
-  );
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
 
   if (currentPage === "login" || currentPage === "register" || isMobile) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
   } else {
-    sidebarContainer.className = "hidden lg:landscape:block";
+    sidebarContainer.className = "hidden lg:block";
     sidebarContainer.innerHTML = Sidebar(currentPage);
   }
 }
@@ -253,16 +250,16 @@ if (currentPage === "machineProfile") {
 // ========================================================
 // DAILY AM FORM AUTO LOAD
 // (تفعيل مكوّنات اختيار الصور لكل بند "Not OK" - راجع
-// DailyAMView.js: initDailyAmAttachments)
+// DailyAMView.js: initDailyAmView)
 // ========================================================
 
 if (currentPage === "dailyAM") {
 
   setTimeout(() => {
 
-    if (typeof window.initDailyAmAttachments === "function") {
+    if (typeof window.initDailyAmView === "function") {
 
-      window.initDailyAmAttachments();
+      window.initDailyAmView();
 
     }
 
@@ -480,6 +477,8 @@ if (
 // NAVIGATION
 // ============================================================
 
+let internalNavCount = 0;
+
 export function navigateTo(
 page,
 addToHistory = true
@@ -489,13 +488,10 @@ currentPage =
 page;
 
 if (addToHistory) {
-
-history.pushState(  
-  { page },  
-  "",  
-  `#${page}`  
-);
-
+  internalNavCount++;
+  history.pushState({ page }, "", `#${page}`);
+} else {
+  history.replaceState({ page }, "", `#${page}`);
 }
 
 render();
@@ -505,14 +501,12 @@ render();
 window.navigateTo =
 navigateTo;
 
-
 export function goBack(fallbackPage = 'home') {
-  if (history.state && history.state.page) {
-    history.back();
-  } else if (history.length > 2) {
+  if (internalNavCount > 0) {
+    internalNavCount--;
     history.back();
   } else {
-    navigateTo(fallbackPage, true);
+    navigateTo(fallbackPage, false);
   }
 }
 window.goBack = goBack;
@@ -622,6 +616,7 @@ render();
 );
 
 window.addEventListener("popstate", (e) => {
+  if (internalNavCount > 0) internalNavCount--;
   if (e.state && e.state.page) {
     if (e.state.page !== currentPage) {
       currentPage = e.state.page;

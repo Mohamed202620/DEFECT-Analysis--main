@@ -12,16 +12,19 @@ import {
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
+import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { hasFullDataAccess } from '../permissions.js';
+import { db, doc, getDoc } from '../providers/backend/index.js';
 
-// بنود الفحص اليومي الثابتة (نفس فكرة PMFormFields الثابتة في
-// pmView.js - لا يوجد حالياً نظام Templates ديناميكي في المشروع)
-const AM_ITEMS = [
-  { id: 'cleanliness', ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks' },
-  { id: 'guards', ar: 'أغطية وحواجز الأمان في مكانها وسليمة', en: 'Safety guards in place and intact' },
-  { id: 'emergencyStop', ar: 'زر الإيقاف الطارئ يعمل بكفاءة', en: 'Emergency stop button functional' },
-  { id: 'noise', ar: 'لا يوجد صوت أو اهتزاز غير طبيعي', en: 'No abnormal noise or vibration' },
-  { id: 'pressure', ar: 'ضغط الهواء/الهيدروليك ضمن المعدل الطبيعي', en: 'Air/hydraulic pressure normal' },
-  { id: 'panel', ar: 'اللوحة الكهربائية مغلقة وآمنة', en: 'Electrical panel closed and secure' }
+// بنود الفحص اليومي الافتراضية
+const DEFAULT_AM_ITEMS = [
+  { id: 'cleanliness', role: 'operator', ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks' },
+  { id: 'guards', role: 'operator', ar: 'أغطية وحواجز الأمان في مكانها وسليمة', en: 'Safety guards in place and intact' },
+  { id: 'emergencyStop', role: 'operator', ar: 'زر الإيقاف الطارئ يعمل بكفاءة', en: 'Emergency stop button functional' },
+  { id: 'noise', role: 'operator', ar: 'عدم وجود أصوات غير طبيعية', en: 'No abnormal noise or vibration' },
+  { id: 'pressure', role: 'maintainer', type: 'numeric', unit: 'Bar', ar: 'ضغط الهواء/الهيدروليك ضمن المعدل الطبيعي', en: 'Air/hydraulic pressure normal' },
+  { id: 'temperature', role: 'maintainer', type: 'numeric', unit: '°C', ar: 'حرارة الماكينة ضمن المعدل الطبيعي', en: 'Machine temperature normal' },
+  { id: 'panel', role: 'maintainer', ar: 'اللوحة الكهربائية مغلقة وآمنة', en: 'Electrical panel closed and secure' }
 ];
 
 function t() {
@@ -34,15 +37,19 @@ function t() {
     na: isEn ? 'N/A' : 'لا ينطبق',
     noteLabel: isEn ? 'Note (required)' : 'ملاحظة (إجبارية)',
     notePlaceholder: isEn ? 'Describe the issue...' : 'اوصف المشكلة...',
-    createTicket: isEn ? 'Create a ticket for this item' : 'إنشاء بلاغ لهذا البند',
-    submit: isEn ? 'Save & Submit ✅' : 'حفظ وإرسال ✅',
+    createTicket: isEn ? 'Create Maintenance Ticket' : 'إنشاء بلاغ صيانة',
+    submit: isEn ? 'Save & Submit ✅' : 'إرسال الفحص ✅',
     missingAnswers: isEn ? '⚠️ Please evaluate all items' : '⚠️ يرجى تقييم جميع البنود',
     missingNotes: isEn ? '⚠️ Please add a note for every "Not OK" item' : '⚠️ يرجى إضافة ملاحظة لكل بند "غير سليم"',
     noMachine: isEn ? 'No machine selected.' : 'لم يتم اختيار ماكينة.',
+    noPermissionTitle: isEn ? '🔒 No Permission' : '🔒 لا توجد صلاحية',
+    noPermissionDesc: isEn ? 'This machine belongs to a department you do not have access to.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     saving: isEn ? 'Saving...' : 'جاري الحفظ...',
     success: isEn ? 'Daily AM checklist saved successfully ✅' : 'تم حفظ فحص اليومي بنجاح ✅',
     ticketsCreated: isEn ? ' (tickets created for flagged items)' : ' (تم إنشاء بلاغات للبنود المطلوبة)',
-    error: isEn ? 'Error: ' : 'خطأ: '
+    error: isEn ? 'Error: ' : 'خطأ: ',
+    progressLabel: isEn ? 'Completed' : 'بنود مكتملة',
+    readingLabel: isEn ? 'Reading' : 'القراءة'
   };
 }
 
@@ -63,8 +70,25 @@ export const DailyAMView = () => {
     </div>`;
   }
 
+  const department = getDepartmentForMachineValue(machine);
+  const userDept = normalizeDepartment(localStorage.getItem('machineDepartment'));
+  const allowed = hasFullDataAccess() || (department && department === userDept);
+
+  if (!allowed) {
+    return `
+    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
+      <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+        ${isEn ? '← Back' : '← رجوع'}
+      </button>
+      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+        <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
+        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
+      </div>
+    </div>`;
+  }
+
   return `
-  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl mx-auto pb-16">
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl mx-auto pb-24">
     <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
       ${isEn ? '← Back' : '← رجوع'}
     </button>
@@ -74,60 +98,137 @@ export const DailyAMView = () => {
       <p class="text-[11px] text-gray-400 mt-1">${machine} • ${tr.subtitle}</p>
     </div>
 
-    <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-3">
-      ${AM_ITEMS.map(item => `
-        <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-2" data-am-item="${item.id}">
-          <div class="text-xs font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+    <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-4">
+      <div id="dailyAmItemsContainer" class="space-y-4">
+        <div class="text-center text-sm text-gray-500 py-6">${isEn ? 'Loading checklist...' : 'جاري تحميل الفحص...'}</div>
+      </div>
 
-          <div class="grid grid-cols-3 gap-1.5">
-            <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.ok}
+      <!-- Floating Bottom Bar -->
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0F172A] border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 hidden" id="dailyAmBottomBar">
+         <div class="max-w-md sm:max-w-xl md:max-w-3xl mx-auto flex items-center justify-between">
+            <div class="flex flex-col">
+               <span class="text-[10px] text-gray-400 font-medium tracking-wider">${tr.progressLabel}</span>
+               <div class="flex items-baseline gap-1">
+                 <span id="amFloatingProgressText" class="text-xl font-black text-blue-400">0/0</span>
+               </div>
+            </div>
+            <button type="submit" id="dailyAmSubmitBtn" class="bg-blue-600 hover:bg-blue-500 active:scale-95 px-6 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg shadow-blue-900/20">
+               ${tr.submit}
             </button>
-            <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.notOk}
-            </button>
-            <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
-              class="am-result-btn py-2 rounded-lg text-[11px] font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition">
-              ${tr.na}
-            </button>
-          </div>
-
-          <input type="hidden" id="amResult_${item.id}" value="">
-
-          <div id="amNotOkBox_${item.id}" class="hidden space-y-2 pt-2 border-t border-gray-800">
-            <label class="block text-[10px] font-bold text-red-300">${tr.noteLabel}</label>
-            <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none"></textarea>
-
-            ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
-
-            <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer">
-              <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600">
-              ${tr.createTicket}
-            </label>
-          </div>
-        </div>
-      `).join('')}
-
-      <button type="submit" class="w-full p-3 mt-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-xl font-bold text-xs text-white transition-all">
-        ${tr.submit}
-      </button>
+         </div>
+      </div>
     </form>
   </div>
   `;
 };
 
-// ============================================================
-// تفعيل مكوّنات اختيار الصور لكل بند بعد إدراج الفورم في الصفحة
-// (يُستدعى من renderCore.js AUTO LOAD)
-// ============================================================
-export function initDailyAmAttachments() {
-  AM_ITEMS.forEach(item => {
-    initAttachmentPicker(`amPhoto_${item.id}`, { maxFileSizeMB: 10 });
+window.initDailyAmView = async function() {
+  const machine = localStorage.getItem('activeMachine') || '';
+  if (!machine) return;
+  const isEn = (window.currentLang || 'ar') === 'en';
+  const tr = t();
+
+  // Role-Based dynamic form
+  const isMaintainer = hasFullDataAccess() || /maintenance|صيانة|مهندس/i.test(localStorage.getItem('job') || '') || /maintenance/i.test(localStorage.getItem('role') || '');
+
+  let items = [...DEFAULT_AM_ITEMS];
+  try {
+    const docSnap = await getDoc(doc(db, 'machineAmTemplates', machine));
+    if (docSnap.exists() && docSnap.data().items && docSnap.data().items.length > 0) {
+      items = docSnap.data().items;
+    }
+  } catch (err) {
+    console.error("Failed to load custom AM template, using default:", err);
+  }
+
+  // Filter based on role
+  if (!isMaintainer) {
+    items = items.filter(i => !i.role || i.role === 'operator');
+  }
+
+  window._activeAmItems = items;
+  window.updateAmProgress();
+
+  const container = document.getElementById('dailyAmItemsContainer');
+  if (container) {
+    container.innerHTML = items.map(item => `
+      <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 shadow-sm" data-am-item="${item.id}">
+        <div class="text-sm font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+
+        ${item.type === 'numeric' ? `
+          <div class="flex items-center gap-3 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
+             <input type="number" id="amReading_${item.id}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
+             <span class="text-xs text-gray-400 font-bold px-2">${item.unit || ''}</span>
+          </div>
+        ` : ''}
+
+        <div class="grid grid-cols-3 gap-2 pt-1">
+          <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            ${tr.ok}
+          </button>
+          <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            ${tr.notOk}
+          </button>
+          <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            ${tr.na}
+          </button>
+        </div>
+
+        <input type="hidden" id="amResult_${item.id}" value="">
+
+        <div id="amNotOkBox_${item.id}" class="hidden space-y-3 pt-3 border-t border-gray-800">
+          <div class="space-y-1">
+             <label class="block text-[10px] font-bold text-red-400">${tr.noteLabel}</label>
+             <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
+          </div>
+
+          <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
+             ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
+          </div>
+
+          <!-- يظهر فوراً زر فرعي "إنشاء بلاغ صيانة" -->
+          <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
+            <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
+            <span class="font-medium text-red-300">${tr.createTicket}</span>
+          </label>
+        </div>
+      </div>
+    `).join('');
+
+    // Initialize attachments for all loaded items
+    items.forEach(item => {
+      initAttachmentPicker(`amPhoto_${item.id}`, { maxFileSizeMB: 10 });
+    });
+
+    const bottomBar = document.getElementById('dailyAmBottomBar');
+    if (bottomBar) bottomBar.classList.remove('hidden');
+    
+    window.updateAmProgress();
+  }
+};
+
+window.updateAmProgress = function() {
+  const activeItems = window._activeAmItems || [];
+  let answered = 0;
+  
+  activeItems.forEach(item => {
+    const val = document.getElementById(`amResult_${item.id}`)?.value;
+    if (val) answered++;
   });
-}
-window.initDailyAmAttachments = initDailyAmAttachments;
+
+  const progressText = document.getElementById('amFloatingProgressText');
+  if (progressText) {
+    progressText.textContent = `${answered}/${activeItems.length}`;
+    if (answered === activeItems.length && activeItems.length > 0) {
+       progressText.className = 'text-xl font-black text-emerald-400 transition-colors';
+    } else {
+       progressText.className = 'text-xl font-black text-blue-400 transition-colors';
+    }
+  }
+};
 
 window.selectAmResult = function (itemId, value) {
   const hidden = document.getElementById(`amResult_${itemId}`);
@@ -137,9 +238,14 @@ window.selectAmResult = function (itemId, value) {
     const btn = document.getElementById(`amBtn_${itemId}_${v}`);
     if (!btn) return;
     const active = v === value;
-    btn.classList.toggle('bg-blue-600', active && v === 'ok');
+    
+    // سليم -> أخضر
+    // غير سليم -> أحمر
+    // لا ينطبق -> رمادي
+    btn.classList.toggle('bg-emerald-600', active && v === 'ok');
     btn.classList.toggle('bg-red-600', active && v === 'not_ok');
     btn.classList.toggle('bg-gray-600', active && v === 'na');
+    
     btn.classList.toggle('text-white', active);
     btn.classList.toggle('border-transparent', active);
     btn.classList.toggle('text-gray-300', !active);
@@ -148,6 +254,8 @@ window.selectAmResult = function (itemId, value) {
 
   const notOkBox = document.getElementById(`amNotOkBox_${itemId}`);
   if (notOkBox) notOkBox.classList.toggle('hidden', value !== 'not_ok');
+  
+  window.updateAmProgress();
 };
 
 window.handleDailyAmSubmit = async function (event) {
@@ -155,9 +263,10 @@ window.handleDailyAmSubmit = async function (event) {
   const isEn = (window.currentLang || 'ar') === 'en';
   const tr = t();
   const machine = localStorage.getItem('activeMachine') || '';
+  const activeItems = window._activeAmItems || DEFAULT_AM_ITEMS;
 
   const items = [];
-  for (const item of AM_ITEMS) {
+  for (const item of activeItems) {
     const result = document.getElementById(`amResult_${item.id}`)?.value || '';
     if (!result) {
       alert(tr.missingAnswers);
@@ -165,6 +274,10 @@ window.handleDailyAmSubmit = async function (event) {
     }
 
     const entry = { id: item.id, label: isEn ? item.en : item.ar, result };
+    
+    if (item.type === 'numeric') {
+       entry.reading = document.getElementById(`amReading_${item.id}`)?.value || '';
+    }
 
     if (result === 'not_ok') {
       const note = document.getElementById(`amNote_${item.id}`)?.value?.trim() || '';
@@ -202,7 +315,7 @@ window.handleDailyAmSubmit = async function (event) {
     }
   };
 
-  const submitBtn = event.target?.querySelector('button[type="submit"]');
+  const submitBtn = document.getElementById('dailyAmSubmitBtn');
   const originalText = submitBtn ? submitBtn.innerHTML : '';
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -218,22 +331,25 @@ window.handleDailyAmSubmit = async function (event) {
       return;
     }
 
-    // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ) - نفس
-    // مسار saveIssueApi المستخدم في تسجيل عطل عادي (workflow.js)
+    // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ)
     const ticketItems = items.filter(i => i.result === 'not_ok' && i.ticketRequested);
     let ticketsCreated = false;
 
     if (ticketItems.length) {
       const { saveIssueApi } = await import('../services/api.js');
       for (const item of ticketItems) {
+        let ticketDesc = `[Daily AM] ${item.label}: ${item.note}`;
+        if (item.reading) {
+           ticketDesc = `[Daily AM] ${item.label} (Reading: ${item.reading}) - ${item.note}`;
+        }
         await saveIssueApi({
           issueId: 'IS-' + Date.now() + '-' + item.id,
           line: '',
           machine,
-          priority: 'Medium',
+          priority: 'High',
           type: 'Breakdown',
-          category: 'أخرى',
-          description: `[Daily AM] ${item.label}: ${item.note}`,
+          category: 'فحص يومي',
+          description: ticketDesc,
           location: '',
           suggestion: '',
           images: item.photo ? [item.photo] : [],
@@ -264,3 +380,4 @@ window.handleDailyAmSubmit = async function (event) {
     }
   }
 };
+

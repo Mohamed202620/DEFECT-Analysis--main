@@ -85,6 +85,22 @@ window.addEventListener("online", async () => {
 });
 
 // لو التطبيق اتفتح والنت مقطوع من الأساس، يظهر البانر فوراً
-if (typeof navigator !== "undefined" && !navigator.onLine) {
-  setBanner(true, t().offlineMsg, "bg-red-600 text-white");
+if (typeof navigator !== "undefined") {
+  if (!navigator.onLine) {
+    setBanner(true, t().offlineMsg, "bg-red-600 text-white");
+  } else {
+    // لو التطبيق اتفتح والنت شغال، نتأكد إن مفيش حاجات عالقة في الطابور من جلسة سابقة
+    setTimeout(async () => {
+      try {
+        const { getQueuedTickets, getQueuedActions } = await import('./services/offlineQueue.js');
+        const [tickets, actions] = await Promise.all([getQueuedTickets(), getQueuedActions()]);
+        if (tickets.length > 0 || actions.length > 0) {
+          console.log("[OfflineSync] Found queued items on startup, triggering sync...");
+          window.dispatchEvent(new Event("online"));
+        }
+      } catch (e) {
+        console.error("Error checking queue on startup:", e);
+      }
+    }, 2000); // تأخير بسيط لضمان تهيئة التطبيق
+  }
 }

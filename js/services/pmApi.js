@@ -90,22 +90,8 @@ export async function fetchPmRecordsApi() {
 
   } catch (error) {
 
-    // لو orderBy فشل لأي سبب (زي عدم وجود createdAt على سجلات قديمة
-    // جداً)، نرجع بدون ترتيب بدل ما نكسر الصفحة بالكامل
-    console.error("Error fetching PM records (with orderBy):", error);
-
-    try {
-      const fallbackSnap = await getDocs(collection(db, "pmRecords"));
-      const records = [];
-      fallbackSnap.forEach(docSnap => {
-        records.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      records.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-      return { status: "success", data: records };
-    } catch (fallbackError) {
-      console.error("Error fetching PM records (fallback):", fallbackError);
-      return { status: "error", message: fallbackError.message };
-    }
+    console.error("Error fetching PM records:", error);
+    return { status: "error", message: error.message };
 
   }
 

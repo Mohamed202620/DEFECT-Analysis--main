@@ -154,7 +154,11 @@ export async function loadDashboardStats() {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  const sampleResult = await fetchTicketsApi({ role, myUid, myName, maxCount: 500 });
+  // Get recent tickets for details, and the accurate total count via aggregation
+  const [sampleResult, countsResult] = await Promise.all([
+    fetchTicketsApi({ role, myUid, myName, maxCount: 500 }),
+    fetchTicketCountsApi({ role, myName })
+  ]);
 
   if (!sampleResult || sampleResult.status !== 'success') {
     console.warn("[loadDashboardStats] Failed to fetch tickets:", sampleResult?.message || "Unknown error");
@@ -162,6 +166,7 @@ export async function loadDashboardStats() {
   }
 
   const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
+  const trueTotal = countsResult?.status === 'success' ? countsResult.data.total : tickets.length;
 
   const todayStr = new Date().toDateString();
 
@@ -209,7 +214,7 @@ export async function loadDashboardStats() {
     closed,
     today,
     overdue,
-    total: tickets.length
+    total: trueTotal
   };
 
   window.dashboardData = stats;

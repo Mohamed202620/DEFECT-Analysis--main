@@ -51,65 +51,70 @@ export const ReportsView = () => {
       </div>
     </div>
 
-    <!-- فلتر الفترة الزمنية للتصدير -->
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3">
-      <div class="flex items-center justify-between">
-        <label class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-          <span>🗓️</span> ${isEn ? 'Date Range Filter' : 'نطاق الفترة الزمنية للتصدير'}
-        </label>
-        <span class="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-medium">
-          ${isEn ? 'Auto Applied' : 'مطبق تلقائياً'}
-        </span>
-      </div>
-
-      <select id="reportDateFilter" onchange="window.handleReportDateFilterChange()"
-        class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
-        <option value="all">${isEn ? 'All Records (Full History)' : 'جميع السجلات (السجل الكامل)'}</option>
-        <option value="today">${isEn ? 'Today' : 'اليوم'}</option>
-        <option value="last7">${isEn ? 'Last 7 Days' : 'آخر 7 أيام'}</option>
-        <option value="month" selected>${isEn ? 'This Month' : 'هذا الشهر'}</option>
-        <option value="year">${isEn ? 'This Year' : 'هذه السنة'}</option>
-        <option value="custom">${isEn ? 'Custom Date Range...' : 'تحديد فترة مخصصة...'}</option>
-      </select>
-
-      <div id="reportCustomDatesRow" class="hidden grid grid-cols-2 gap-2 pt-1">
+    <!-- شبكة فلتر التاريخ وبطاقة التصدير الشامل -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+      <!-- فلتر الفترة الزمنية للتصدير -->
+      <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3 flex flex-col justify-between">
         <div>
-          <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
-          <input id="reportDateFrom" type="date"
-            class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
-        </div>
-        <div>
-          <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
-          <input id="reportDateTo" type="date"
-            class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
-        </div>
-      </div>
-    </div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <span>🗓️</span> ${isEn ? 'Date Range Filter' : 'نطاق الفترة الزمنية للتصدير'}
+            </label>
+            <span class="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-medium">
+              ${isEn ? 'Auto Applied' : 'مطبق تلقائياً'}
+            </span>
+          </div>
 
-    <!-- بطاقة التصدير الشامل (Master Multi-Sheet Report) -->
-    <div class="bg-gradient-to-br from-emerald-950/50 via-slate-900 to-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-xl space-y-3">
-      <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg shrink-0">
-          📁
+          <select id="reportDateFilter" onchange="window.handleReportDateFilterChange()"
+            class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            <option value="all">${isEn ? 'All Records (Full History)' : 'جميع السجلات (السجل الكامل)'}</option>
+            <option value="today">${isEn ? 'Today' : 'اليوم'}</option>
+            <option value="last7">${isEn ? 'Last 7 Days' : 'آخر 7 أيام'}</option>
+            <option value="month" selected>${isEn ? 'This Month' : 'هذا الشهر'}</option>
+            <option value="year">${isEn ? 'This Year' : 'هذه السنة'}</option>
+            <option value="custom">${isEn ? 'Custom Date Range...' : 'تحديد فترة مخصصة...'}</option>
+          </select>
         </div>
-        <div>
-          <h3 class="text-xs font-black text-emerald-300">
-            ${isEn ? 'Master Multi-Sheet Operations Report' : 'التقرير الشامل المجمع (متعدد التبويبات)'}
-          </h3>
-          <p class="text-[10px] text-gray-400">
-            ${isEn ? 'Includes Tickets, PM, and Kaizen in a single structured workbook' : 'يجمع البلاغات والصيانة الوقائية والكايزن في ملف إكسيل واحد ذكي'}
-          </p>
+
+        <div id="reportCustomDatesRow" class="hidden grid grid-cols-2 gap-2 pt-1">
+          <div>
+            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
+            <input id="reportDateFrom" type="date"
+              class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
+          </div>
+          <div>
+            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
+            <input id="reportDateTo" type="date"
+              class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
+          </div>
         </div>
       </div>
 
-      <button
-        type="button"
-        id="btnExportMaster"
-        onclick="window.runExcelExport('master')"
-        class="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] rounded-xl font-black text-xs text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer">
-        <span>📊</span>
-        <span>${isEn ? 'Export Full Master Workbook (.xlsx)' : 'تصدير التقرير الشامل المجمع (Excel)'}</span>
-      </button>
+      <!-- بطاقة التصدير الشامل (Master Multi-Sheet Report) -->
+      <div class="bg-gradient-to-br from-emerald-950/50 via-slate-900 to-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-xl space-y-3 flex flex-col justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg shrink-0">
+            📁
+          </div>
+          <div>
+            <h3 class="text-xs font-black text-emerald-300">
+              ${isEn ? 'Master Multi-Sheet Operations Report' : 'التقرير الشامل المجمع (متعدد التبويبات)'}
+            </h3>
+            <p class="text-[10px] text-gray-400">
+              ${isEn ? 'Includes Tickets, PM, and Kaizen in a single structured workbook' : 'يجمع البلاغات والصيانة الوقائية والكايزن في ملف إكسيل واحد ذكي'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          id="btnExportMaster"
+          onclick="window.runExcelExport('master')"
+          class="w-full py-3 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] rounded-xl font-black text-xs text-white transition-all duration-150 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 cursor-pointer">
+          <span>📊</span>
+          <span>${isEn ? 'Export Full Master Workbook (.xlsx)' : 'تصدير التقرير الشامل المجمع (Excel)'}</span>
+        </button>
+      </div>
     </div>
 
     <!-- خيارات التصدير الفردية المخصصة -->
@@ -118,76 +123,78 @@ export const ReportsView = () => {
         ${isEn ? 'Sectional Reports' : 'تقارير الأقسام الفردية'}
       </h3>
 
-      <!-- 1. بلاغات الأعطال -->
-      <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-all duration-150 shadow-md">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center text-base shrink-0">
-            🚨
-          </div>
-          <div>
-            <div class="text-xs font-bold text-white">
-              ${isEn ? 'Breakdown Tickets Log' : 'سجل بلاغات الأعطال والتوقفات'}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- 1. بلاغات الأعطال -->
+        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center text-base shrink-0">
+              🚨
             </div>
-            <div class="text-[10px] text-gray-400">
-              ${isEn ? 'Machine issues, downtime, technician actions' : 'سجل الأعطال والتوقفات وإجراءات المعالجة'}
+            <div>
+              <div class="text-xs font-bold text-white">
+                ${isEn ? 'Breakdown Tickets Log' : 'سجل بلاغات الأعطال والتوقفات'}
+              </div>
+              <div class="text-[10px] text-gray-400">
+                ${isEn ? 'Machine issues, downtime, technician actions' : 'سجل الأعطال والتوقفات وإجراءات المعالجة'}
+              </div>
             </div>
           </div>
+          <button
+            type="button"
+            onclick="window.runExcelExport('tickets')"
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            <span>📤</span>
+            <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onclick="window.runExcelExport('tickets')"
-          class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
-          <span>📤</span>
-          <span>${isEn ? 'Excel' : 'إكسيل'}</span>
-        </button>
-      </div>
 
-      <!-- 2. الصيانة الوقائية -->
-      <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-all duration-150 shadow-md">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center text-base shrink-0">
-            🛠️
-          </div>
-          <div>
-            <div class="text-xs font-bold text-white">
-              ${isEn ? 'Preventive Maintenance (PM)' : 'سجل الصيانة الوقائية والتفتيش'}
+        <!-- 2. الصيانة الوقائية -->
+        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center text-base shrink-0">
+              🛠️
             </div>
-            <div class="text-[10px] text-gray-400">
-              ${isEn ? 'Routine checks, checklists, spare parts' : 'الفحوصات الدورية وقطع الغيار'}
+            <div>
+              <div class="text-xs font-bold text-white">
+                ${isEn ? 'Preventive Maintenance (PM)' : 'سجل الصيانة الوقائية والتفتيش'}
+              </div>
+              <div class="text-[10px] text-gray-400">
+                ${isEn ? 'Routine checks, checklists, spare parts' : 'الفحوصات الدورية وقطع الغيار'}
+              </div>
             </div>
           </div>
+          <button
+            type="button"
+            onclick="window.runExcelExport('pm')"
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            <span>📤</span>
+            <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onclick="window.runExcelExport('pm')"
-          class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
-          <span>📤</span>
-          <span>${isEn ? 'Excel' : 'إكسيل'}</span>
-        </button>
-      </div>
 
-      <!-- 3. مقترحات كايزن -->
-      <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-all duration-150 shadow-md">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-base shrink-0">
-            💡
-          </div>
-          <div>
-            <div class="text-xs font-bold text-white">
-              ${isEn ? 'Kaizen Improvement Log' : 'سجل مقترحات كايزن والتطوير'}
+        <!-- 3. مقترحات كايزن -->
+        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-base shrink-0">
+              💡
             </div>
-            <div class="text-[10px] text-gray-400">
-              ${isEn ? 'Suggestions, reviews, implementation' : 'أفكار التحسين ومراحل المراجعة والاعتماد'}
+            <div>
+              <div class="text-xs font-bold text-white">
+                ${isEn ? 'Kaizen Improvement Log' : 'سجل مقترحات كايزن والتطوير'}
+              </div>
+              <div class="text-[10px] text-gray-400">
+                ${isEn ? 'Suggestions, reviews, implementation' : 'أفكار التحسين ومراحل المراجعة والاعتماد'}
+              </div>
             </div>
           </div>
+          <button
+            type="button"
+            onclick="window.runExcelExport('suggestions')"
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            <span>📤</span>
+            <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onclick="window.runExcelExport('suggestions')"
-          class="shrink-0 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
-          <span>📤</span>
-          <span>${isEn ? 'Excel' : 'إكسيل'}</span>
-        </button>
       </div>
     </div>
 

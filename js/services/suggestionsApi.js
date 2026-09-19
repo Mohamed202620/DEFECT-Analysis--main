@@ -56,7 +56,21 @@ import {
 /**
  * حفظ مقترح كايزن في مجموعة "suggestions"
  */
-export async function saveSuggestionApi(payload) {
+export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = {}) {
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const { queueOfflineAction } = await import("./offlineQueue.js");
+      const localId = await queueOfflineAction({ type: "new_suggestion", payload });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - تم حفظ المقترح محلياً وسيتم إرساله تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline suggestion:", error);
+      return { status: "error", message: "تعذر حفظ المقترح محلياً" };
+    }
+  }
 
   try {
 

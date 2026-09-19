@@ -39,6 +39,8 @@ import {
   extractMachineDepartment
 } from "../utils/departmentUtils.js";
 
+import { normalizeLine, extractMachineLine } from "../utils/lineUtils.js";
+
 
 // ============================================================
 // FETCH
@@ -85,7 +87,11 @@ export async function fetchMachineTypesApi(filterDept = null) {
         units: Array.isArray(data.units) ? data.units : [],
         active: data.active !== false,
         order: typeof data.order === "number" ? data.order : 0,
-        department: mDept
+        department: mDept,
+        // خط الإنتاج ("1" / "2" / "") - بيتقرأ بمرونة من أي تسمية
+        // حقل قديمة (line / lineNumber / productionLine) وبيترجّع
+        // دايماً بالصيغة المعيارية (راجع utils/lineUtils.js)
+        line: extractMachineLine(data)
       });
     });
 
@@ -119,7 +125,7 @@ export async function fetchMachineTypesApi(filterDept = null) {
  *   واجهة "إضافة ماكينة" - راجع MachinesView.js). أي قيمة تانية أو
  *   فاضية تتعامل كـ "backend" افتراضياً.
  */
-export async function addMachineTypeApi(key, units = [], department = "backend") {
+export async function addMachineTypeApi(key, units = [], department = "backend", line = "") {
 
   try {
 
@@ -160,6 +166,9 @@ export async function addMachineTypeApi(key, units = [], department = "backend")
         key: cleanKey,
         units: cleanUnits,
         department: normalizeDepartment(department),
+        // "1" / "2" / "" - نفس الحقل والقيم المستخدمة في باقي
+        // مسارات التطبيق (راجع utils/lineUtils.js)
+        line: normalizeLine(line),
         active: true,
         order: maxOrder + 1,
         createdAt: new Date().toISOString(),
@@ -198,7 +207,7 @@ export async function addMachineTypeApi(key, units = [], department = "backend")
  *   مستوى التطبيق قبل الوصول لـ Firestore أصلاً). لو الباراميتر ده
  *   اتسيب undefined (مش متبعت خالص)، حقل department ميتلمسش نهائياً.
  */
-export async function updateMachineTypeApi(machineTypeId, key, units = [], department = undefined) {
+export async function updateMachineTypeApi(machineTypeId, key, units = [], department = undefined, line = undefined) {
 
   try {
 
@@ -243,6 +252,15 @@ export async function updateMachineTypeApi(machineTypeId, key, units = [], depar
       }
       // غير أدمن: تجاهل صامت لقيمة department المتبعة - القسم يفضل
       // كما هو محفوظ حالياً في Firestore
+    }
+
+    // خط الإنتاج (Line): نفس سياسة department بالظبط - تعديله
+    // مقصور على الأدمن، ولو الباراميتر مش متبعت خالص (undefined)
+    // الحقل ميتلمسش نهائياً
+    if (line !== undefined) {
+      if (isAdminRole(getCurrentRole())) {
+        updateData.line = normalizeLine(line);
+      }
     }
 
     await updateDoc(
@@ -355,7 +373,7 @@ export async function seedDefaultMachineTypesApi(defaultTypes) {
     );
 
     for (const m of toAdd) {
-      await addMachineTypeApi(m.key, m.units || [], m.department || "backend");
+      await addMachineTypeApi(m.key, m.units || [], m.department || "backend", m.line || "");
     }
 
     return { status: "success", added: toAdd.length };

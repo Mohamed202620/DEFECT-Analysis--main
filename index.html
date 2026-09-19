@@ -143,8 +143,8 @@
       padding-top: var(--app-header-h, 90px);
     }
 
-    /* إخفاء القائمة الجانبية بالكامل على جميع الموبايلات والشاشات الرأسية (Portrait) */
-    @media (max-width: 1023px), (orientation: portrait) {
+    /* إخفاء القائمة الجانبية على الموبايل والشاشات الصغيرة (< 768px) */
+    @media (max-width: 767px) {
       #sidebarContainer {
         display: none !important;
       }
@@ -157,16 +157,43 @@
       }
     }
 
-    /* القائمة الجانبية مخصصة لشاشات الكمبيوتر واللابتوب فقط (1024px فما فوق بالوضع العرضي) */
-    @media (min-width: 1024px) and (orientation: landscape) {
+    /* تحسين تجاوب شاشات التابلت (768px إلى 1023px) */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      #sidebarContainer {
+        display: none !important;
+      }
       #appShell {
-        display: flex;
-        align-items: stretch;
+        display: block !important;
+      }
+      #app {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .app-page {
+        max-width: 96% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 5.5rem !important;
+      }
+    }
+
+    /* شاشات الكمبيوتر واللابتوب والشاشات الكبيرة (1024px فما فوق) */
+    @media (min-width: 1024px) {
+      #sidebarContainer {
+        display: block !important;
+      }
+
+      #appShell {
+        display: flex !important;
+        align-items: stretch !important;
       }
 
       #app {
-        flex: 1 1 0%;
-        min-width: 0;
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
       }
 
       .app-page {
@@ -184,7 +211,7 @@
       }
     }
 
-    @media (min-width: 1280px) and (orientation: landscape) {
+    @media (min-width: 1280px) {
       .app-page {
         max-width: 1600px !important;
         margin-left: auto !important;
@@ -244,6 +271,42 @@
         padding-block: 0.25rem;
       }
     }
+
+    /* إصلاح (زر "🖨️ طباعة" في ملف الماكينة - MachineProfileView.js):
+       window.print() كان بيطبع الصفحة بالكامل (الهيدر + الشريط
+       الجانبي/السفلي + كل الأزرار) بدل ما يطبع بس بطاقة QR
+       والاسم المطلوبين فعلياً للصق على الماكينة - فالزرار كان "شغال"
+       تقنياً لكن نتيجته غير قابلة للاستخدام عملياً. دلوقتي بيتم إخفاء
+       كل شيء عدا #machineQrPrintBox وقت الطباعة فقط (نفس نمط
+       Print Isolation القياسي)، بدون أي تأثير على العرض العادي على
+       الشاشة. */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #machineQrPrintBox,
+      #machineQrPrintBox * {
+        visibility: visible !important;
+      }
+      #machineQrPrintBox {
+        position: fixed;
+        inset: 0;
+        display: flex !important;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fff !important;
+      }
+      /* اسم الماكينة أسفل الـQR كان بلون text-white (أبيض على أبيض
+         مع خلفية الطباعة البيضاء) فكان يختفي تماماً في الورقة
+         المطبوعة رغم ظهوره بوضوح على الشاشة */
+      #machineQrPrintBox * {
+        color: #000 !important;
+      }
+      #machineQrPrintBox button {
+        display: none !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -287,22 +350,19 @@
           '<p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">' + (errorMsg || 'خطأ غير معروف أثناء الإقلاع') + '</p>' +
           '<div class="flex flex-col gap-2 pt-2">' +
           '<button onclick="location.reload();" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">إعادة المحاولة</button>' +
-          '<button onclick="sessionStorage.clear(); if(\'caches\' in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload()); else location.reload();" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">مسح الذاكرة المؤقتة وإعادة التشغيل</button>' +
+          '<button onclick="localStorage.clear(); sessionStorage.clear(); if(\'caches\' in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload()); else location.reload();" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">مسح الذاكرة المؤقتة وإعادة التشغيل</button>' +
           '</div></div></div>';
       }
     }
 
     window.addEventListener("error", function (e) {
       console.error("Application Error:", e.error || e.message);
-      var msg = e.message || String(e.error);
-      if (typeof msg === 'string' && (msg.toLowerCase().includes('vite') || msg.toLowerCase().includes('websocket'))) return;
-      showFatalError(msg);
+      showFatalError(e.message || String(e.error));
     });
 
     window.addEventListener("unhandledrejection", function (e) {
       console.error("Promise Error:", e.reason);
       var reasonMsg = e.reason && (e.reason.message || String(e.reason));
-      if (typeof reasonMsg === 'string' && (reasonMsg.toLowerCase().includes('vite') || reasonMsg.toLowerCase().includes('websocket'))) return;
       showFatalError(reasonMsg);
     });
 

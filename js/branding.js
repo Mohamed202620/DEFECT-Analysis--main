@@ -196,13 +196,13 @@ export function renderHeader() {
       class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md overflow-hidden"
       style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1400px] mx-auto px-3 sm:px-4 py-1.5 flex flex-col gap-1.5 overflow-hidden w-full">
+      <div class="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-1.5 md:py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-4 overflow-hidden w-full">
 
-        <!-- السطر الأول: شعار الشركة واضح وكامل (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
-        <div class="app-header-row-top flex items-center justify-between gap-2.5 pb-1 border-b min-w-0 w-full" style="border-color: rgba(148,163,184,0.1);">
+        <!-- السطر الأول: شعار الشركة (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
+        <div class="app-header-row-top flex items-center justify-between gap-2.5 pb-1 md:pb-0 border-b md:border-b-0 min-w-0 md:flex-initial" style="border-color: rgba(148,163,184,0.1);">
 
           <!-- شعار الشركة واضح وكامل -->
-          <div class="app-header-brand flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
+          <div class="app-header-brand flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 md:flex-initial overflow-hidden">
             <img
               src="${LOGO_ICON_DATA_URL}"
               alt="${COMPANY_SHORT}"
@@ -256,15 +256,15 @@ export function renderHeader() {
 
         </div>
 
-        <!-- السطر الثاني: المستخدم واضح في جهة (يمين/بداية) | زر اللغة في الجهة المقابلة (يسار/نهاية) -->
-        <div class="app-header-row-bottom flex items-center justify-between gap-2.5 min-w-0 w-full">
+        <!-- السطر الثاني: المستخدم واضح في جهة | زر اللغة في الجهة المقابلة -->
+        <div class="app-header-row-bottom flex items-center justify-between md:justify-end gap-2.5 min-w-0 md:flex-1 md:gap-4">
 
           <!-- المستخدم واضح وكامل -->
-          <div class="min-w-0 flex-1 overflow-hidden">
+          <div class="min-w-0 flex-1 md:flex-initial overflow-hidden">
             ${profileMeta}
           </div>
 
-          <!-- الجهة المقابلة بالسطر الثاني: كبسولة زر اللغة (AR / EN) -->
+          <!-- الجهة المقابلة: كبسولة زر اللغة (AR / EN) -->
           <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5 shrink-0" style="${glassChip}">
             <button
               type="button"

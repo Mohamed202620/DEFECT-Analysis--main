@@ -112,6 +112,13 @@ export async function syncOfflineTicketsApi() {
       if (result.status === "success") {
         await removeQueuedTicket(item.localId);
         synced++;
+      } else {
+        const msg = (result.message || "").toLowerCase();
+        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
+        if (!isNetworkError) {
+          console.warn(`[Sync] Permanent error for offline ticket ${item.localId}, removing from queue:`, msg);
+          await removeQueuedTicket(item.localId);
+        }
       }
     } catch (error) {
       console.error("Error syncing offline ticket:", item.localId, error);
@@ -124,9 +131,7 @@ export async function syncOfflineTicketsApi() {
 // دورة حياة التذكرة (بدء تنفيذ/تم الإصلاح/تأكيد الإغلاق) المخزّنة
 // محلياً وقت انقطاع الإنترنت - بنفس نمط syncOfflineTicketsApi فوق
 // بالظبط، بترتيب زمني (الأقدم أولاً) عشان دورة حياة كل تذكرة تتنفذ
-// بنفس التسلسل اللي حصل بيه فعلياً. أي إجراء يفشل (مثلاً التذكرة
-// اتحذفت أو تغيّرت حالتها من جهة تانية في الأثناء) بيفضل في الطابور
-// للمحاولة تاني، ومفيش أي إجراء بيتفوّت صامتاً
+// بنفس التسلسل اللي حصل بيه فعلياً.
 export async function syncOfflineTicketActionsApi() {
   const queued = await getQueuedActions();
   if (!queued.length) {
@@ -156,14 +161,34 @@ export async function syncOfflineTicketActionsApi() {
           { assignedTo: payload?.assignedTo, assignedToUid: payload?.assignedToUid },
           { skipOfflineQueue: true }
         );
+      } else if (type === "new_suggestion") {
+        const { saveSuggestionApi } = await import("./suggestionsApi.js");
+        result = await saveSuggestionApi(payload, { skipOfflineQueue: true });
+      } else if (type === "new_defect") {
+        const { saveDefectApi } = await import("./defectsApi.js");
+        result = await saveDefectApi(payload, { skipOfflineQueue: true });
+      } else if (type === "new_machine_error") {
+        const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
+        result = await saveMachineErrorApi(payload, { skipOfflineQueue: true });
+      } else if (type === "log_machine_error") {
+        const { logMachineErrorOccurrenceApi } = await import("./machineErrorsApi.js");
+        result = await logMachineErrorOccurrenceApi(payload, { skipOfflineQueue: true });
       } else {
         console.error("Unknown queued action type:", type);
+        await removeQueuedAction(item.localId);
         continue;
       }
 
       if (result.status === "success") {
         await removeQueuedAction(item.localId);
         synced++;
+      } else {
+        const msg = (result.message || "").toLowerCase();
+        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
+        if (!isNetworkError) {
+          console.warn(`[Sync] Permanent error for offline action ${item.localId}, removing from queue:`, msg);
+          await removeQueuedAction(item.localId);
+        }
       }
     } catch (error) {
       console.error("Error syncing offline ticket action:", item.localId, error);
@@ -190,9 +215,10 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
     const ticketsRef = collection(db, "tickets");
     const isFullAccess = hasFullDataAccess(role);
     
+    const clauses = [orderBy("createdAt", "desc")];
+    if (maxCount) clauses.push(limit(maxCount));
+
     if (isFullAccess || !myName) {
-      const clauses = [orderBy("createdAt", "desc")];
-      if (maxCount) clauses.push(limit(maxCount));
       const q = query(ticketsRef, ...clauses);
       const querySnapshot = await getDocs(q);
       const tickets = [];
@@ -202,8 +228,8 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
       return { status: "success", data: tickets };
     } else {
       const [reportedSnap, assignedSnap] = await Promise.all([
-        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...clauses)),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...clauses))
       ]);
 
       const merged = new Map();
@@ -218,21 +244,9 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
     }
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
-    try {
-      const fallbackSnap = await getDocs(collection(db, "tickets"));
-      const tickets = [];
-      fallbackSnap.forEach(docSnap => {
-        tickets.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-      if (maxCount && tickets.length > maxCount) {
-        return { status: "success", data: tickets.slice(0, maxCount) };
-      }
-      return { status: "success", data: tickets };
-    } catch (fallbackError) {
-      console.error("Error in fallback fetchTicketsApi:", fallbackError);
-      return { status: "error", message: fallbackError.message };
-    }
+    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsApi");
+    if (fallback) return fallback;
+    return { status: "error", message: error.message };
   }
 }
 
@@ -241,44 +255,30 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
 // بدقة وسرعة من البيانات المحدثة
 // ============================================================
 
-export async function fetchTicketCountsApi() {
+export async function fetchTicketCountsApi({ role, myName } = {}) {
   try {
-    const ticketsRes = await fetchTicketsApi();
-    if (ticketsRes.status !== "success") {
-      return ticketsRes;
-    }
-    const tickets = ticketsRes.data || [];
-    const todayStr = new Date().toDateString();
-    let open = 0;
-    let closed = 0;
-    let today = 0;
-    let overdue = 0;
+    const ticketsRef = collection(db, "tickets");
+    const isFullAccess = hasFullDataAccess(role);
+    let totalCount = 0;
 
-    tickets.forEach(ticket => {
-      if (isClosedStatus(ticket.status)) {
-        closed++;
-      } else {
-        open++;
-      }
-      if (ticket.createdAt) {
-        const d = new Date(ticket.createdAt);
-        if (!isNaN(d.getTime()) && d.toDateString() === todayStr) {
-          today++;
-        }
-      }
-      if (isOverdueTicket(ticket)) {
-        overdue++;
-      }
-    });
+    if (isFullAccess || !myName) {
+      const snap = await getCountFromServer(ticketsRef);
+      totalCount = snap.data().count;
+    } else {
+      // For limited access, count both reported and assigned
+      const [reportedSnap, assignedSnap] = await Promise.all([
+        getCountFromServer(query(ticketsRef, where("reportedBy", "==", myName))),
+        getCountFromServer(query(ticketsRef, where("assignedTo", "==", myName)))
+      ]);
+      // Note: This might count a ticket twice if reportedBy == assignedTo == myName,
+      // but it's a fast approximation for the dashboard total.
+      totalCount = reportedSnap.data().count + assignedSnap.data().count;
+    }
 
     return {
       status: "success",
       data: {
-        total: tickets.length,
-        open,
-        closed,
-        today,
-        overdue
+        total: totalCount
       }
     };
   } catch (error) {

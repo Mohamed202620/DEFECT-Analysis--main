@@ -154,27 +154,30 @@ export const StatsView = () => {
     </div>
   </div>
 
-  <!-- توزيع الأعطال حسب خطوط الإنتاج -->
-  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
-    <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-black text-gray-200 flex items-center gap-1.5">
-        <span>🏗️</span> ${t.lineDist || (currentLang === 'en' ? 'Defect Density by Production Line' : 'كثافة الأعطال حسب خطوط الإنتاج')}
-      </span>
+  <!-- شبكة توزيع خطوط الإنتاج وأداء الفنيين -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- توزيع الأعطال حسب خطوط الإنتاج -->
+    <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+        <span class="text-xs font-black text-gray-200 flex items-center gap-1.5">
+          <span>🏗️</span> ${t.lineDist || (currentLang === 'en' ? 'Defect Density by Production Line' : 'كثافة الأعطال حسب خطوط الإنتاج')}
+        </span>
+      </div>
+      <div id="statsLineBreakdown" class="space-y-2.5">
+        <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+      </div>
     </div>
-    <div id="statsLineBreakdown" class="space-y-2.5">
-      <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
-    </div>
-  </div>
 
-  <!-- أداء الفنيين وسجل الإنجازات -->
-  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
-    <div class="flex items-center justify-between border-b border-gray-800 pb-2">
-      <span class="text-xs font-black text-gray-200 flex items-center gap-1.5">
-        <span>🧑‍🔧</span> ${t.techPerf || (currentLang === 'en' ? 'Technicians Performance' : 'سجل إنجازات الفنيين المعتمدة')}
-      </span>
-    </div>
-    <div id="statsTechBox" class="space-y-2.5">
-      <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+    <!-- أداء الفنيين وسجل الإنجازات -->
+    <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] border border-gray-800 p-4 rounded-2xl space-y-3 shadow-md">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+        <span class="text-xs font-black text-gray-200 flex items-center gap-1.5">
+          <span>🧑‍🔧</span> ${t.techPerf || (currentLang === 'en' ? 'Technicians Performance' : 'سجل إنجازات الفنيين المعتمدة')}
+        </span>
+      </div>
+      <div id="statsTechBox" class="space-y-2.5">
+        <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+      </div>
     </div>
   </div>
 

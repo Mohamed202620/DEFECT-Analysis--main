@@ -24,8 +24,22 @@ import {
  * روابطها فقط داخل المستند بدل الـ Base64 الكامل)
  */
 export async function saveDefectApi(
-  payload
+  payload, { skipOfflineQueue = false } = {}
 ) {
+  if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
+    try {
+      const { queueOfflineAction } = await import("./offlineQueue.js");
+      const localId = await queueOfflineAction({ type: "new_defect", payload });
+      return {
+        status: "queued",
+        localId,
+        message: "لا يوجد اتصال بالإنترنت - تم حفظ العيب محلياً وسيتم إرساله تلقائياً عند عودة الاتصال"
+      };
+    } catch (error) {
+      console.error("Error queuing offline defect:", error);
+      return { status: "error", message: "تعذر حفظ العيب محلياً" };
+    }
+  }
 
   try {
 

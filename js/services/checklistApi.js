@@ -81,15 +81,16 @@ export async function fetchLatestChecklistApi(machine, type) {
     const q = query(
       collection(db, "machineChecklists"),
       where("machine", "==", machine),
-      where("type", "==", type),
-      orderBy("createdAt", "desc"),
-      limit(1)
+      where("type", "==", type)
     );
 
     const snap = await getDocs(q);
     let latest = null;
     snap.forEach(docSnap => {
-      latest = { id: docSnap.id, ...docSnap.data() };
+      const data = docSnap.data();
+      if (!latest || (data.createdAt || "") > (latest.createdAt || "")) {
+        latest = { id: docSnap.id, ...data };
+      }
     });
 
     return { status: "success", data: latest };
@@ -109,16 +110,15 @@ export async function fetchChecklistHistoryApi(machine, type, maxCount = 10) {
     const q = query(
       collection(db, "machineChecklists"),
       where("machine", "==", machine),
-      where("type", "==", type),
-      orderBy("createdAt", "desc"),
-      limit(maxCount)
+      where("type", "==", type)
     );
 
     const snap = await getDocs(q);
     const records = [];
     snap.forEach(docSnap => records.push({ id: docSnap.id, ...docSnap.data() }));
 
-    return { status: "success", data: records };
+    records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    return { status: "success", data: records.slice(0, maxCount) };
   } catch (error) {
     console.error(`Error fetching ${type} checklist history:`, error);
     return { status: "error", message: error.message, data: [] };
