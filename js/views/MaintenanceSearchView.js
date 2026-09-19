@@ -87,7 +87,7 @@ export const MaintenanceSearchView = () => {
     </div>
 
     <!-- فلاتر إضافية -->
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
 
       <select id="mStatusFilter" onchange="window.applyMaintenanceSearchFilters()"
         class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
@@ -108,7 +108,7 @@ export const MaintenanceSearchView = () => {
       </select>
 
       <select id="mMachineFilter" onchange="window.applyMaintenanceSearchFilters()"
-        class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        class="col-span-2 md:col-span-1 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="all">${t.machineAll || (currentLang === 'en' ? 'All Machines' : 'جميع الماكينات')}</option>
         <!-- إصلاح (بند 1 - توحيد شامل): كانت هذه القائمة نسخة مكررة
              يدوياً من machines.js وممكن تختلف عنها بمرور الوقت.
@@ -126,7 +126,7 @@ export const MaintenanceSearchView = () => {
       </select>
 
       <select id="mSortFilter" onchange="window.applyMaintenanceSearchFilters()"
-        class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        class="col-span-2 md:col-span-1 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="newest">${t.sortNewest || (currentLang === 'en' ? 'Newest First' : 'الأحدث أولاً')}</option>
         <option value="oldest">${t.sortOldest || (currentLang === 'en' ? 'Oldest First' : 'الأقدم أولاً')}</option>
       </select>

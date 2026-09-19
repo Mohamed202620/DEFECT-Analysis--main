@@ -143,8 +143,8 @@
       padding-top: var(--app-header-h, 90px);
     }
 
-    /* إخفاء القائمة الجانبية بالكامل على جميع الموبايلات والشاشات الرأسية (Portrait) */
-    @media (max-width: 1023px), (orientation: portrait) {
+    /* إخفاء القائمة الجانبية على الموبايل والشاشات الصغيرة (< 768px) */
+    @media (max-width: 767px) {
       #sidebarContainer {
         display: none !important;
       }
@@ -157,16 +157,43 @@
       }
     }
 
-    /* القائمة الجانبية مخصصة لشاشات الكمبيوتر واللابتوب فقط (1024px فما فوق بالوضع العرضي) */
-    @media (min-width: 1024px) and (orientation: landscape) {
+    /* تحسين تجاوب شاشات التابلت (768px إلى 1023px) */
+    @media (min-width: 768px) and (max-width: 1023px) {
+      #sidebarContainer {
+        display: none !important;
+      }
       #appShell {
-        display: flex;
-        align-items: stretch;
+        display: block !important;
+      }
+      #app {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .app-page {
+        max-width: 96% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 5.5rem !important;
+      }
+    }
+
+    /* شاشات الكمبيوتر واللابتوب والشاشات الكبيرة (1024px فما فوق) */
+    @media (min-width: 1024px) {
+      #sidebarContainer {
+        display: block !important;
+      }
+
+      #appShell {
+        display: flex !important;
+        align-items: stretch !important;
       }
 
       #app {
-        flex: 1 1 0%;
-        min-width: 0;
+        flex: 1 1 0% !important;
+        min-width: 0 !important;
       }
 
       .app-page {
@@ -184,7 +211,7 @@
       }
     }
 
-    @media (min-width: 1280px) and (orientation: landscape) {
+    @media (min-width: 1280px) {
       .app-page {
         max-width: 1600px !important;
         margin-left: auto !important;

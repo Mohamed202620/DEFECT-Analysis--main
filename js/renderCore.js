@@ -113,16 +113,13 @@ app.style.opacity = "1";
 const sidebarContainer = document.getElementById("sidebarContainer");
 
 if (sidebarContainer) {
-  const isMobile = typeof window !== "undefined" && (
-    window.innerWidth < 1024 ||
-    window.matchMedia("(orientation: portrait)").matches
-  );
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 1024;
 
   if (currentPage === "login" || currentPage === "register" || isMobile) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
   } else {
-    sidebarContainer.className = "hidden lg:landscape:block";
+    sidebarContainer.className = "hidden lg:block";
     sidebarContainer.innerHTML = Sidebar(currentPage);
   }
 }

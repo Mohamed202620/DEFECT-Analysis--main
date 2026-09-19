@@ -22,13 +22,13 @@ export const HomeView = () => {
   return `
   <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1500px] mx-auto pb-24 space-y-4 md:space-y-6">
 
-    <div class="flex flex-col lg:grid lg:grid-cols-12 gap-4 md:gap-6 items-start w-full">
+    <div class="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-6 items-start w-full">
 
       <!-- ========================================================
            1. ملخص المؤشرات الحية والعدادات الذكية
-           الموبايل: ترتيب 2 / الكمبيوتر: أعلى لوحة التحكم بعرض كامل
+           الموبايل: ترتيب 2 / التابلت والكمبيوتر: أعلى لوحة التحكم بعرض كامل
            ======================================================== -->
-      <div class="order-2 lg:order-1 lg:col-span-12 w-full space-y-2.5 sm:space-y-3.5">
+      <div class="order-2 md:order-1 md:col-span-12 w-full space-y-2.5 sm:space-y-3.5">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
             <span>📊</span>
@@ -41,7 +41,7 @@ export const HomeView = () => {
         </div>
 
         <!-- كروت العدادات الخمسة -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-3">
 
           <!-- أعطال مفتوحة -->
           <button
@@ -158,9 +158,9 @@ export const HomeView = () => {
 
       <!-- ========================================================
            2. كارت حضور الوردية الذكي للفنيين (MSCANCO EGYPT)
-           الموبايل: ترتيب 1 في البداية لسرعة التسجيل / الكمبيوتر: عمود متناسق بجوار الإجراءات
+           الموبايل: ترتيب 1 في البداية لسرعة التسجيل / التابلت والكمبيوتر: عمود متناسق بجوار الإجراءات
            ======================================================== -->
-      <div class="order-1 lg:order-2 lg:col-span-6 xl:col-span-6 w-full space-y-2">
+      <div class="order-1 md:order-2 md:col-span-6 xl:col-span-6 w-full space-y-2">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
             <span>⏰</span>
@@ -174,9 +174,9 @@ export const HomeView = () => {
 
       <!-- ========================================================
            3. مركز الإجراءات السريعة والعمليات التشغيلية
-           الموبايل: ترتيب 3 / الكمبيوتر: عمود متناسق بجوار كارت الحضور
+           الموبايل: ترتيب 3 / التابلت والكمبيوتر: عمود متناسق بجوار كارت الحضور
            ======================================================== -->
-      <div class="order-3 lg:order-3 lg:col-span-6 xl:col-span-6 w-full space-y-3">
+      <div class="order-3 md:order-3 md:col-span-6 xl:col-span-6 w-full space-y-3">
         <div class="flex items-center justify-between px-0.5">
           <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
             <span>⚡</span>
@@ -302,9 +302,9 @@ export const HomeView = () => {
 
       <!-- ========================================================
            4. الفوتر وحقوق الملكية
-           الموبايل والكمبيوتر: أسفل الصفحة بعرض كامل
+           الموبايل والتابلت والكمبيوتر: أسفل الصفحة بعرض كامل
            ======================================================== -->
-      <div class="order-4 lg:order-4 lg:col-span-12 w-full pt-4 border-t text-center space-y-1.5" style="border-color: var(--app-border);">
+      <div class="order-4 md:order-4 md:col-span-12 w-full pt-4 border-t text-center space-y-1.5" style="border-color: var(--app-border);">
         <p class="text-[10px] sm:text-xs dyn-text-muted opacity-60 font-medium tracking-wide">
           ${(translations[currentLang] || translations.en).footer}
         </p>

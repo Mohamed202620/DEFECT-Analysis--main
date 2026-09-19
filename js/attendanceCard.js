@@ -948,36 +948,222 @@ export function calculateMonth(userId, yearMonth = null, options = {}) {
 }
 
 /**
- * حساب الجانب المالي كاملاً بناءً على إجماليات الشهر (calculateMonth)
- * وبيانات المرتب المحلية للمستخدم (baseSalary/insurancePercent/otHourRate)
- * ومعاملات الإضافي (rules) - المرتب الأساسي يُصرف كقيمة ثابتة، وسعر
- * ساعة الإضافي اللي أدخله المستخدم هو المستخدَم لحساب كل فئات
- * الإضافي (مش سعر ساعة مشتق من المرتب الأساسي)
+ * حساب المرتب والضرائب والتأمينات حسب معادلة TAX EG المعمول بها من 01-2026
+ * 
+ * المنطق:
+ * 1. الأجر التأميني = الأساسي
+ *    - لو مفعل 30% بدلات مستبعدة: الأجر التأميني = الأساسي * 0.7
+ *    - الحد الأقصى 2026 = 14500
+ *    - التأمينات = الأجر التأميني * 0.11
+ *    - لو مفعل بدون تأمينات: التأمينات = 0
+ * 
+ * 2. حساب الضريبة:
+ *    سنوي = (الأساسي * 12) - (التأمينات * 12) - 20000 (إعفاء شخصي)
+ *    لو سنوي < 0 = 0
+ *    الضريبة السنوية شرائح:
+ *    - من 0 لـ 40000 = معفي (0%)
+ *    - من 40001 لـ 55000 = 10%
+ *    - من 55001 لـ 70000 = 15%
+ *    - من 70001 لـ 200000 = 20%
+ *    - من 200001 لـ 400000 = 22.5%
+ *    - فوق 400000 = 25%
+ *    الضريبة الشهرية = السنوية / 12
+ * 
+ * 3. الصافي = الأساسي - التأمينات - الضريبة
+ *    صافي بعد الحضور = (الصافي / 30) * أيام الحضور
+ *    مراجعة الإضافي العادي ليضرب في 1.5
  */
-export function computeFinancials(monthData, localConfig, rules = getCachedPayrollRules()) {
-  const baseSalary = Number(localConfig.baseSalary) || 0;
-  const insurancePercent = Number(localConfig.insurancePercent) || 0;
-  const otHourRate = Number(localConfig.otHourRate) || 0;
+export function calculateSalary(param1, param2, param3) {
+  let basicSalary = 0;
+  let attendanceDays = 30;
+  let excludeAllowances30 = false;
+  let noInsurance = false;
+  let otHourRate = 0;
+  let normalOvertimeHours = 0;
+  let offWorkHours = 0;
+  let holidayWorkHours = 0;
+  let normalOvertimeMultiplier = 1.5; // مراجعة الإضافي العادي ليضرب في 1.5
+  let offWorkMultiplier = 2.0;
+  let holidayWorkMultiplier = 1.5;
 
-  const normalOvertimeMoney = Number((monthData.normalOvertimeHours * otHourRate * (Number(rules.normalOvertimeMultiplier) || DEFAULT_PAYROLL_RULES.normalOvertimeMultiplier)).toFixed(2));
-  const offWorkMoney = Number((monthData.offWorkHours * otHourRate * (Number(rules.offWorkMultiplier) || DEFAULT_PAYROLL_RULES.offWorkMultiplier)).toFixed(2));
-  const holidayWorkMoney = Number((monthData.holidayWorkHours * otHourRate * (Number(rules.holidayWorkMultiplier) || DEFAULT_PAYROLL_RULES.holidayWorkMultiplier)).toFixed(2));
+  // نمط 1: calculateSalary(monthData, localConfig, rules)
+  if (param1 && typeof param1 === "object" && (param1.daysList || param1.registeredHours !== undefined || param1.regularHours !== undefined || param2?.baseSalary !== undefined || param2?.basicSalary !== undefined)) {
+    const monthData = param1 || {};
+    const localConfig = param2 || {};
+    const rules = param3 || getCachedPayrollRules();
 
+    basicSalary = Number(localConfig.basicSalary ?? localConfig.baseSalary) || 0;
+    excludeAllowances30 = Boolean(localConfig.excludeAllowances30);
+    noInsurance = Boolean(localConfig.noInsurance);
+    otHourRate = Number(localConfig.otHourRate) || 0;
+
+    normalOvertimeHours = Number(monthData.normalOvertimeHours) || 0;
+    offWorkHours = Number(monthData.offWorkHours) || 0;
+    holidayWorkHours = Number(monthData.holidayWorkHours) || 0;
+
+    normalOvertimeMultiplier = 1.5; // الإضافي العادي يُضرب دائماً في 1.5
+    offWorkMultiplier = Number(rules?.offWorkMultiplier) || 2.0;
+    holidayWorkMultiplier = Number(rules?.holidayWorkMultiplier) || 1.5;
+
+    if (typeof localConfig.attendanceDays === "number" && localConfig.attendanceDays > 0) {
+      attendanceDays = localConfig.attendanceDays;
+    } else if (Array.isArray(monthData.daysList) && monthData.daysList.length > 0) {
+      const attendedCount = monthData.daysList.filter(d => (d.hoursWorked > 0) || (d.bucket === "leave")).length;
+      attendanceDays = attendedCount > 0 ? attendedCount : 30;
+    } else {
+      const sumDays = (monthData.totalWorkDays || 0) + (monthData.totalLeaves || 0) + (monthData.totalOffWorkDays || 0) + (monthData.totalHolidayWorkDays || 0);
+      attendanceDays = sumDays > 0 ? sumDays : 30;
+    }
+  }
+  // نمط 2: calculateSalary({ basicSalary, attendanceDays, ... })
+  else if (param1 && typeof param1 === "object") {
+    const opts = param1;
+    basicSalary = Number(opts.basicSalary ?? opts.baseSalary) || 0;
+    attendanceDays = opts.attendanceDays !== undefined && opts.attendanceDays !== null ? Number(opts.attendanceDays) : 30;
+    excludeAllowances30 = Boolean(opts.excludeAllowances30);
+    noInsurance = Boolean(opts.noInsurance);
+    otHourRate = Number(opts.otHourRate) || 0;
+    normalOvertimeHours = Number(opts.normalOvertimeHours) || 0;
+    offWorkHours = Number(opts.offWorkHours) || 0;
+    holidayWorkHours = Number(opts.holidayWorkHours) || 0;
+    normalOvertimeMultiplier = 1.5;
+    offWorkMultiplier = Number(opts.offWorkMultiplier) || 2.0;
+    holidayWorkMultiplier = Number(opts.holidayWorkMultiplier) || 1.5;
+  }
+  // نمط 3: calculateSalary(basicSalary, attendanceDays, options)
+  else {
+    basicSalary = Number(param1) || 0;
+    attendanceDays = param2 !== undefined && param2 !== null ? Number(param2) : 30;
+    const opts = param3 || {};
+    excludeAllowances30 = Boolean(opts.excludeAllowances30);
+    noInsurance = Boolean(opts.noInsurance);
+    otHourRate = Number(opts.otHourRate) || 0;
+    normalOvertimeHours = Number(opts.normalOvertimeHours) || 0;
+    offWorkHours = Number(opts.offWorkHours) || 0;
+    holidayWorkHours = Number(opts.holidayWorkHours) || 0;
+    normalOvertimeMultiplier = 1.5;
+    offWorkMultiplier = Number(opts.offWorkMultiplier) || 2.0;
+    holidayWorkMultiplier = Number(opts.holidayWorkMultiplier) || 1.5;
+  }
+
+  // 1. الأجر التأميني = الأساسي
+  //    - لو مفعل 30% بدلات مستبعدة: الأجر التأميني = الأساسي * 0.7
+  //    - الحد الأقصى 2026 = 14500
+  //    - التأمينات = الأجر التأميني * 0.11
+  //    - لو مفعل بدون تأمينات: التأمينات = 0
+  let insurableSalary = basicSalary;
+  if (excludeAllowances30) {
+    insurableSalary = basicSalary * 0.7;
+  }
+  const MAX_INSURABLE_SALARY_2026 = 14500;
+  if (insurableSalary > MAX_INSURABLE_SALARY_2026) {
+    insurableSalary = MAX_INSURABLE_SALARY_2026;
+  }
+  if (insurableSalary < 0) {
+    insurableSalary = 0;
+  }
+  insurableSalary = Number(insurableSalary.toFixed(2));
+
+  let insuranceAmount = 0;
+  if (!noInsurance) {
+    insuranceAmount = Number((insurableSalary * 0.11).toFixed(2));
+  }
+
+  // 2. حساب الضريبة:
+  //    سنوي = (الأساسي * 12) - (التأمينات * 12) - 20000 (إعفاء شخصي)
+  //    لو سنوي < 0 = 0
+  //    الضريبة السنوية شرائح:
+  //    - 0 لـ 40000 معفي
+  //    - من 40001 لـ 55000 = 10%
+  //    - من 55001 لـ 70000 = 15%
+  //    - من 70001 لـ 200000 = 20%
+  //    - من 200001 لـ 400000 = 22.5%
+  //    - فوق 400000 = 25%
+  //    الضريبة الشهرية = السنوية / 12
+  const annualGross = basicSalary * 12;
+  const annualInsurance = insuranceAmount * 12;
+  const personalExemption = 20000;
+
+  let annualTaxable = annualGross - annualInsurance - personalExemption;
+  if (annualTaxable < 0) {
+    annualTaxable = 0;
+  }
+
+  let annualTax = 0;
+  if (annualTaxable > 40000) {
+    const tier1 = Math.min(annualTaxable - 40000, 15000); // 40001 لـ 55000 (15000 كحد أقصى)
+    annualTax += tier1 * 0.10;
+  }
+  if (annualTaxable > 55000) {
+    const tier2 = Math.min(annualTaxable - 55000, 15000); // 55001 لـ 70000 (15000 كحد أقصى)
+    annualTax += tier2 * 0.15;
+  }
+  if (annualTaxable > 70000) {
+    const tier3 = Math.min(annualTaxable - 70000, 130000); // 70001 لـ 200000 (130000 كحد أقصى)
+    annualTax += tier3 * 0.20;
+  }
+  if (annualTaxable > 200000) {
+    const tier4 = Math.min(annualTaxable - 200000, 200000); // 200001 لـ 400000 (200000 كحد أقصى)
+    annualTax += tier4 * 0.225;
+  }
+  if (annualTaxable > 400000) {
+    const tier5 = annualTaxable - 400000; // فوق 400000
+    annualTax += tier5 * 0.25;
+  }
+
+  annualTax = Number(annualTax.toFixed(2));
+  const monthlyTax = Number((annualTax / 12).toFixed(2));
+
+  // 3. الصافي = الأساسي - التأمينات - الضريبة
+  //   . صافي بعد الحضور = (الصافي / 30) * أيام الحضور
+  const netSalary = Number((basicSalary - insuranceAmount - monthlyTax).toFixed(2));
+  const netAfterAttendance = Number(((netSalary / 30) * attendanceDays).toFixed(2));
+
+  // حساب سعر ساعة الإضافي تلقائياً من الأساسي إذا لم يُحدد يدوياً ((الأساسي / 30) / 8)
+  const hourlyRate = otHourRate > 0
+    ? otHourRate
+    : (basicSalary > 0 ? Number(((basicSalary / 30) / 8).toFixed(2)) : 0);
+
+  // مراجعة الإضافي العادي ليضرب في 1.5
+  normalOvertimeMultiplier = 1.5;
+  const normalOvertimeMoney = Number((normalOvertimeHours * hourlyRate * normalOvertimeMultiplier).toFixed(2));
+  const offWorkMoney = Number((offWorkHours * hourlyRate * offWorkMultiplier).toFixed(2));
+  const holidayWorkMoney = Number((holidayWorkHours * hourlyRate * holidayWorkMultiplier).toFixed(2));
   const totalOvertimeMoney = Number((normalOvertimeMoney + offWorkMoney + holidayWorkMoney).toFixed(2));
-  const insuranceAmount = Number((baseSalary * (insurancePercent / 100)).toFixed(2));
-  const netExpectedSalary = Number((baseSalary + totalOvertimeMoney - insuranceAmount).toFixed(2));
+
+  // صافي المرتب المتوقع بعد الحضور وإضافة مستحقات الإضافي
+  const netExpectedSalary = Number((netAfterAttendance + totalOvertimeMoney).toFixed(2));
 
   return {
-    baseSalary,
-    insurancePercent,
-    otHourRate,
+    basicSalary,
+    baseSalary: basicSalary,
+    insurableSalary,
+    insuranceAmount,
+    insurancePercent: insurableSalary > 0 ? (noInsurance ? 0 : 11) : 0,
+    annualTaxable: Number(annualTaxable.toFixed(2)),
+    annualTax,
+    monthlyTax,
+    taxAmount: monthlyTax,
+    netSalary,
+    attendanceDays,
+    netAfterAttendance,
+    otHourRate: hourlyRate,
+    normalOvertimeHours,
+    normalOvertimeMultiplier,
     normalOvertimeMoney,
+    offWorkHours,
+    offWorkMultiplier,
     offWorkMoney,
+    holidayWorkHours,
+    holidayWorkMultiplier,
     holidayWorkMoney,
     totalOvertimeMoney,
-    insuranceAmount,
     netExpectedSalary
   };
+}
+
+export function computeFinancials(monthData, localConfig, rules = getCachedPayrollRules()) {
+  return calculateSalary(monthData, localConfig, rules);
 }
 
 // ============================================================
@@ -1088,16 +1274,20 @@ export async function exportPDF(customUserId = null, customReferenceDate = null)
 
   const financialHtml = `
     <div style="background: #0f172a; color: #fff; border-radius: 10px; padding: 14px; margin-bottom: 10px;">
-      <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي</div>
+      <div style="font-size: 12px; font-weight: 900; color: #d4af37; margin-bottom: 8px;">💰 ملخص الحساب المالي (معادلة TAX EG 2026)</div>
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; font-size: 11px;">
-        <div>المرتب الأساسي: <strong>${financials.baseSalary.toLocaleString()} ج.م</strong></div>
+        <div>المرتب الأساسي: <strong>${financials.basicSalary.toLocaleString()} ج.م</strong></div>
+        <div>الأجر التأميني: <strong>${financials.insurableSalary.toLocaleString()} ج.م</strong></div>
+        <div>التأمينات الاجتماعية: <strong style="color:#f87171;">-${financials.insuranceAmount.toLocaleString()} ج.م</strong></div>
+        <div>ضريبة كسب العمل الشهرية: <strong style="color:#f87171;">-${financials.monthlyTax.toLocaleString()} ج.م</strong></div>
+        <div>الصافي الشهري (30 يوم): <strong>${financials.netSalary.toLocaleString()} ج.م</strong></div>
+        <div>صافي بعد الحضور (${financials.attendanceDays} يوم): <strong>${financials.netAfterAttendance.toLocaleString()} ج.م</strong></div>
         <div>سعر ساعة الإضافي: <strong>${financials.otHourRate.toLocaleString()} ج.م</strong></div>
-        <div>قيمة الإضافي العادي: <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-        <div>قيمة عمل OFF: <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
+        <div>قيمة الإضافي العادي (×1.5): <strong>${financials.normalOvertimeMoney.toLocaleString()} ج.م</strong></div>
+        <div>قيمة عمل OFF (×2): <strong>${financials.offWorkMoney.toLocaleString()} ج.م</strong></div>
         <div>قيمة عمل الإجازة الرسمية: <strong>${financials.holidayWorkMoney.toLocaleString()} ج.م</strong></div>
         <div>إجمالي الإضافي: <strong>${financials.totalOvertimeMoney.toLocaleString()} ج.م</strong></div>
-        <div>التأمينات (${financials.insurancePercent}%): <strong style="color:#f87171;">-${financials.insuranceAmount.toLocaleString()} ج.م</strong></div>
-        <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المرتب المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
+        <div style="font-size: 13px; color:#d4af37; font-weight:900;">صافي المستحق المتوقع: ${financials.netExpectedSalary.toLocaleString()} ج.م</div>
       </div>
     </div>
   `;
@@ -1239,6 +1429,7 @@ window.openPayrollSettingsModal = async function () {
 
   closeAnyPayrollModal();
   const config = getPayrollLocalConfig(userId);
+  const currentBasicSalary = config.basicSalary || config.baseSalary || 0;
 
   const overlay = document.createElement("div");
   overlay.id = "payrollModalOverlay";
@@ -1246,17 +1437,33 @@ window.openPayrollSettingsModal = async function () {
   overlay.className = "fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4";
   overlay.innerHTML = `
     <div class="w-full max-w-sm bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-[#D4AF37]/40 rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-      <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>⚙️</span><span>بيانات المرتب (محلية على جهازك فقط)</span></div>
-      <p class="text-[10px] text-slate-400 mb-3">هذه البيانات لا تُخزَّن على أي سيرفر ولا يطّلع عليها الأدمن أو أي مستخدم آخر - محفوظة فقط في متصفح هذا الجهاز.</p>
+      <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>⚙️</span><span>بيانات المرتب (معادلة TAX EG 2026)</span></div>
+      <p class="text-[10px] text-slate-400 mb-3">أدخل الأساسي فقط ويتم حساب التأمينات والضريبة والصافي تلقائياً - البيانات محفوظة محلياً على جهازك فقط.</p>
 
-      <label class="block text-[11px] text-slate-300 mb-1">المرتب الأساسي (ج.م)</label>
-      <input id="cfgBaseSalary" type="number" min="0" step="0.01" value="${config.baseSalary}" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+      <label class="block text-[11px] text-slate-300 mb-1">المرتب الأساسي (ج.م) - basicSalary</label>
+      <input id="cfgBaseSalary" type="number" min="0" step="0.01" value="${currentBasicSalary || ""}" placeholder="أدخل الأساسي فقط..." class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3 focus:border-[#D4AF37] outline-none" />
 
-      <label class="block text-[11px] text-slate-300 mb-1">نسبة التأمينات (%)</label>
-      <input id="cfgInsurancePercent" type="number" min="0" max="100" step="0.01" value="${config.insurancePercent}" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3" />
+      <div class="space-y-2 mb-3 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800">
+        <label class="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer select-none">
+          <input id="cfgExcludeAllowances30" type="checkbox" ${config.excludeAllowances30 ? "checked" : ""} class="accent-[#D4AF37] w-4 h-4 rounded" />
+          <span>استبعاد 30% بدلات (الأجر التأميني = 70% من الأساسي)</span>
+        </label>
+        <label class="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer select-none">
+          <input id="cfgNoInsurance" type="checkbox" ${config.noInsurance ? "checked" : ""} class="accent-[#D4AF37] w-4 h-4 rounded" />
+          <span>بدون تأمينات (التأمينات = 0)</span>
+        </label>
+      </div>
 
-      <label class="block text-[11px] text-slate-300 mb-1">سعر ساعة الإضافي (ج.م)</label>
-      <input id="cfgOtHourRate" type="number" min="0" step="0.01" value="${config.otHourRate}" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4" />
+      <div id="cfgLiveSummary" class="bg-slate-950/80 border border-[#D4AF37]/30 rounded-xl p-2.5 mb-3 text-[10px] space-y-1">
+        <div class="text-[10px] font-bold text-[#D4AF37] mb-1">📊 الحساب التلقائي (TAX EG 2026):</div>
+        <div class="flex justify-between text-slate-400"><span>الأجر التأميني (أقصى 14,500):</span><span id="cfgLiveInsurable" class="font-bold text-white">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-400"><span>التأمينات (11%):</span><span id="cfgLiveInsurance" class="font-bold text-rose-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-400"><span>ضريبة الدخل الشهرية:</span><span id="cfgLiveTax" class="font-bold text-rose-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-300 border-t border-white/10 pt-1"><span>صافي المرتب الشهري (30 يوم):</span><span id="cfgLiveNet" class="font-black text-[#D4AF37]">0 ج.م</span></div>
+      </div>
+
+      <label class="block text-[11px] text-slate-300 mb-1">سعر ساعة الإضافي (ج.م) <span class="text-[10px] text-slate-400">- اختياري</span></label>
+      <input id="cfgOtHourRate" type="number" min="0" step="0.01" value="${config.otHourRate || ""}" placeholder="تلقائي: الأساسي / 240" class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-4 focus:border-[#D4AF37] outline-none" />
 
       <div class="grid grid-cols-2 gap-2 mb-2">
         <button id="payrollCfgCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
@@ -1268,13 +1475,36 @@ window.openPayrollSettingsModal = async function () {
   `;
   document.body.appendChild(overlay);
 
+  const updateLiveSummary = () => {
+    const sal = Number(overlay.querySelector("#cfgBaseSalary").value) || 0;
+    const excl = overlay.querySelector("#cfgExcludeAllowances30").checked;
+    const noIns = overlay.querySelector("#cfgNoInsurance").checked;
+    const calc = calculateSalary(sal, 30, { excludeAllowances30: excl, noInsurance: noIns });
+    overlay.querySelector("#cfgLiveInsurable").textContent = `${calc.insurableSalary.toLocaleString()} ج.م`;
+    overlay.querySelector("#cfgLiveInsurance").textContent = calc.insuranceAmount > 0 ? `-${calc.insuranceAmount.toLocaleString()} ج.م` : "0 ج.م";
+    overlay.querySelector("#cfgLiveTax").textContent = calc.monthlyTax > 0 ? `-${calc.monthlyTax.toLocaleString()} ج.م` : "0 ج.م";
+    overlay.querySelector("#cfgLiveNet").textContent = `${calc.netSalary.toLocaleString()} ج.م`;
+  };
+
+  overlay.querySelector("#cfgBaseSalary").addEventListener("input", updateLiveSummary);
+  overlay.querySelector("#cfgExcludeAllowances30").addEventListener("change", updateLiveSummary);
+  overlay.querySelector("#cfgNoInsurance").addEventListener("change", updateLiveSummary);
+  updateLiveSummary();
+
   overlay.querySelector("#payrollCfgCancel").onclick = () => overlay.remove();
 
   overlay.querySelector("#payrollCfgSave").onclick = () => {
-    const baseSalary = Number(overlay.querySelector("#cfgBaseSalary").value) || 0;
-    const insurancePercent = Number(overlay.querySelector("#cfgInsurancePercent").value) || 0;
+    const basicSalary = Number(overlay.querySelector("#cfgBaseSalary").value) || 0;
+    const excludeAllowances30 = overlay.querySelector("#cfgExcludeAllowances30").checked;
+    const noInsurance = overlay.querySelector("#cfgNoInsurance").checked;
     const otHourRate = Number(overlay.querySelector("#cfgOtHourRate").value) || 0;
-    savePayrollLocalConfig(userId, { baseSalary, insurancePercent, otHourRate });
+    savePayrollLocalConfig(userId, {
+      basicSalary,
+      baseSalary: basicSalary,
+      excludeAllowances30,
+      noInsurance,
+      otHourRate
+    });
     overlay.remove();
     refreshAttendanceCard();
   };
@@ -1494,10 +1724,12 @@ export function renderAttendanceCard(customProfile = null) {
           </div>
         </div>
         <div class="grid grid-cols-2 gap-1 text-[10px]">
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.baseSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.basicSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الإضافي (×1.5)</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
           <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الضريبة</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.monthlyTax, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي (30 يوم)</span><span class="font-bold text-slate-200">${maskMoney(financials.netSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">صافي بعد الحضور</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
@@ -1549,6 +1781,8 @@ export async function refreshAttendanceCard() {
 }
 
 if (typeof window !== "undefined") {
+  window.calculateSalary = calculateSalary;
+  window.computeFinancials = computeFinancials;
   window.checkInShift = checkIn;
   window.checkOutShift = checkOut;
   window.addExtraDayShift = addExtraDay;

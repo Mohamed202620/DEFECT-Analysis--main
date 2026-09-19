@@ -179,8 +179,8 @@ export const MachinesView = () => `
 
 
     <!-- القائمة -->
-    <div id="machinesContainer" class="space-y-2.5">
-        <div class="text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
+    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="col-span-full text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     </div>
 
 

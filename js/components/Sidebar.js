@@ -60,7 +60,7 @@ export const Sidebar = (activeTab) => {
   ];
 
   return `
-    <div class="hidden lg:landscape:flex lg:landscape:flex-col lg:landscape:sticky w-64 shrink-0
+    <div class="hidden lg:flex lg:flex-col lg:sticky w-64 shrink-0
                 dyn-card border-e overflow-y-auto"
          style="border-color: var(--app-border); top: var(--app-header-h, 56px); height: calc(100vh - var(--app-header-h, 56px));">
 
