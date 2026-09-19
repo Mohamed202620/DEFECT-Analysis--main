@@ -31,8 +31,9 @@ export function getPayrollLocalConfig(userId) {
       return {
         baseSalary: 0,
         basicSalary: 0,
-        insurancePercent: 0,
+        insurancePercent: 11,
         otHourRate: 0,
+        transportAllowance: 750,
         excludeAllowances30: false,
         noInsurance: false,
         hasPin: false
@@ -40,13 +41,15 @@ export function getPayrollLocalConfig(userId) {
     }
     const parsed = JSON.parse(raw);
     const sal = Number(parsed.basicSalary ?? parsed.baseSalary) || 0;
+    const autoOtRate = sal > 0 ? Number((sal / 240).toFixed(2)) : 0;
     return {
       baseSalary: sal,
       basicSalary: sal,
-      insurancePercent: Number(parsed.insurancePercent) || 0,
-      otHourRate: Number(parsed.otHourRate) || 0,
-      excludeAllowances30: Boolean(parsed.excludeAllowances30),
-      noInsurance: Boolean(parsed.noInsurance),
+      insurancePercent: 11,
+      otHourRate: autoOtRate,
+      transportAllowance: 750,
+      excludeAllowances30: false,
+      noInsurance: false,
       hasPin: !!(parsed.pinHash && parsed.pinSalt)
     };
   } catch (e) {
@@ -54,8 +57,9 @@ export function getPayrollLocalConfig(userId) {
     return {
       baseSalary: 0,
       basicSalary: 0,
-      insurancePercent: 0,
+      insurancePercent: 11,
       otHourRate: 0,
+      transportAllowance: 750,
       excludeAllowances30: false,
       noInsurance: false,
       hasPin: false
@@ -64,23 +68,25 @@ export function getPayrollLocalConfig(userId) {
 }
 
 /**
- * حفظ بيانات المرتب (المرتب الأساسي basicSalary، بدلات مستبعدة، بدون تأمينات،
- * وسعر ساعة الإضافي) - محلياً فقط، بيحافظ على الـ PIN المخزّن مسبقاً كما هو
+ * حفظ بيانات المرتب (المرتب الأساسي basicSalary) - محلياً فقط
+ * سعر ساعة الإضافي يُحسب أوتوماتيكياً (الأساسي ÷ 240) وبدل الانتقال ثابت 750 ج.م
  */
-export function savePayrollLocalConfig(userId, { baseSalary, basicSalary, insurancePercent, otHourRate, excludeAllowances30, noInsurance }) {
+export function savePayrollLocalConfig(userId, { baseSalary, basicSalary }) {
   try {
     const key = storageKey(userId);
     const existingRaw = localStorage.getItem(key);
     const existing = existingRaw ? JSON.parse(existingRaw) : {};
     const sal = Number(basicSalary ?? baseSalary ?? existing.basicSalary ?? existing.baseSalary) || 0;
+    const autoOtRate = sal > 0 ? Number((sal / 240).toFixed(2)) : 0;
     const updated = {
       ...existing,
       baseSalary: sal,
       basicSalary: sal,
-      insurancePercent: insurancePercent !== undefined ? Number(insurancePercent) || 0 : (existing.insurancePercent || 0),
-      otHourRate: otHourRate !== undefined ? Number(otHourRate) || 0 : (existing.otHourRate || 0),
-      excludeAllowances30: excludeAllowances30 !== undefined ? Boolean(excludeAllowances30) : Boolean(existing.excludeAllowances30),
-      noInsurance: noInsurance !== undefined ? Boolean(noInsurance) : Boolean(existing.noInsurance),
+      insurancePercent: 11,
+      otHourRate: autoOtRate,
+      transportAllowance: 750,
+      excludeAllowances30: false,
+      noInsurance: false,
       updatedAt: new Date().toISOString()
     };
     localStorage.setItem(key, JSON.stringify(updated));
