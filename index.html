@@ -27,8 +27,10 @@
   <meta name="apple-mobile-web-app-title" content="MaintSystem">
   <link rel="apple-touch-icon" href="assets/icons/app-icon.png">
 
+  <!-- سكريبت منع التكبير والتصغير وتثبيت أبعاد التطبيق كـ Native App -->
   <script>
     (function lockMobileViewport() {
+      // 1. منع إيماءات التكبير والتصغير الخاصة بمتصفح سفاري iOS (Gesture Pinch Zoom)
       document.addEventListener('gesturestart', function (e) {
         e.preventDefault();
       }, { passive: false });
@@ -41,12 +43,14 @@
         e.preventDefault();
       }, { passive: false });
 
+      // 2. منع التكبير باللمس المتعدد (Pinch-to-zoom بلمستين)
       document.addEventListener('touchmove', function (e) {
         if (e.touches && e.touches.length > 1) {
           e.preventDefault();
         }
       }, { passive: false });
 
+      // 3. منع تكبير الشاشة بالضغط المزدوج السريع (Double Tap to Zoom)
       var lastTouchEndTime = 0;
       document.addEventListener('touchend', function (e) {
         var now = Date.now();
@@ -174,6 +178,7 @@
       overflow-x: hidden;
     }
 
+    /* السماح بتحديد النصوص فقط داخل حقول الإدخال والتحرير */
     input, textarea, select, [contenteditable="true"] {
       -webkit-user-select: auto;
       user-select: auto;
@@ -183,6 +188,7 @@
       touch-action: manipulation;
     }
 
+    /* منع تكبير الشاشة التلقائي المزعج في هواتف آيفون (iOS Safari) وأندرويد عند التركيز على حقول الإدخال */
     @media screen and (max-width: 768px) {
       input, select, textarea {
         font-size: 16px !important;
