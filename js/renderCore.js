@@ -103,6 +103,12 @@ app.innerHTML =
 
 app.style.opacity = "1";  
 
+try {
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+} catch (_) {
+  window.scrollTo(0, 0);
+}  
+
 // ========================================================
 // DESKTOP SIDEBAR
 // (قائمة جانبية ثابتة تظهر بدل BottomNav من مقاس md: وما فوق -
