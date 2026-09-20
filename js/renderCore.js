@@ -16,9 +16,18 @@ import { auth, onAuthStateChanged } from './providers/backend/index.js';
 import { ensureUserAndMachinesLoaded } from './machines.js';
 
 // إعادة تحميل بيانات لوحة المتابعة وتزامن الماكينات تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
+// إصلاح (سباق عند دخول مرفوض/محذوف): login.js بيعمل signInWithEmailAndPassword
+// بنجاح أولاً، ثم لو الحساب pending/rejected/غير موجود في Firestore بيعمل
+// signOut فوراً. onAuthStateChanged هنا كان بيتنفذ فور نجاح signIn (قبل ما
+// login.js يقرر يعمل signOut)، فكان بيبدأ تحميل بيانات الماكينات لمستخدم
+// هيتم رفضه بعد لحظات - يفشل بـ "Missing or insufficient permissions" في
+// الكونسول بلا أي فائدة. localStorage.userId مابيتخزنش إلا بعد نجاح تسجيل
+// الدخول فعلياً على مستوى التطبيق (authHandlers.js)، فالتحقق منه هنا يمنع
+// هذا التحميل غير الضروري بدون التأثير على أي Refresh عادي لمستخدم مسجّل
+// دخوله فعلاً (userId بيكون موجود بالفعل وقتها).
 if (auth) {
   onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if (user && localStorage.getItem("userId")) {
       ensureUserAndMachinesLoaded().catch(e => console.warn("Sync machines error:", e));
       if (currentPage === 'home' && typeof loadDashboardStats === 'function') {
         loadDashboardStats();
@@ -565,12 +574,27 @@ window.toggleLanguage = function () {
 // INITIAL LOAD & ROUTING LISTENERS
 // ============================================================
 
+// إصلاح (منع الوصول لصفحات التطبيق بدون Authentication): أول تحميل
+// للتطبيق محمي فعلاً (index.html بيتحقق من ensureAuthReady() قبل أي
+// navigateTo)، لكن بعد كده تغيير الـ hash يدوياً من شريط العنوان أو
+// زر Back/Forward في المتصفح كان بيغيّر currentPage ويعمل render()
+// مباشرة من غير أي فحص جلسة تاني - يعني لو المستخدم سجّل خروجه (أو
+// مسحش الجلسة أصلاً) وبدّل الـ hash لـ #home مثلاً، كانت الصفحة
+// المحمية بترتسم كاملة. نفس فحص isLoggedIn المستخدم أصلاً في
+// DOMContentLoaded تحت وفي pageRenderer.js (case 'home' وdefault).
+function isSessionActive() {
+  return !!(localStorage.getItem("phone") || localStorage.getItem("userId"));
+}
+
 window.addEventListener(
 "hashchange",
 () => {
 const hash = window.location.hash.replace("#", "");
 if (hash && hash !== currentPage) {
-currentPage = hash;
+currentPage =
+  (!isSessionActive() && hash !== "login" && hash !== "register")
+    ? "login"
+    : hash;
 render();
 }
 }
@@ -623,15 +647,17 @@ render();
 
 window.addEventListener("popstate", (e) => {
   if (internalNavCount > 0) internalNavCount--;
+  const guard = (page) =>
+    (!isSessionActive() && page !== "login" && page !== "register") ? "login" : page;
   if (e.state && e.state.page) {
     if (e.state.page !== currentPage) {
-      currentPage = e.state.page;
+      currentPage = guard(e.state.page);
       render();
     }
   } else {
     const hash = window.location.hash.replace("#", "");
     if (hash && hash !== currentPage) {
-      currentPage = hash;
+      currentPage = guard(hash);
       render();
     }
   }
