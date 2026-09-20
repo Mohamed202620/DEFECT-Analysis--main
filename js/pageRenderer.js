@@ -60,7 +60,15 @@ case 'register':
 
 case 'home':  
 
-  return HomeView();  
+  // إصلاح (منع الوصول بدون Authentication): كل الصفحات المحمية التانية
+  // بترجع unauthorizedPage/LoginView لو مفيش صلاحية أو جلسة، لكن 'home'
+  // كانت الاستثناء الوحيد اللي بترجع HomeView() دايماً بلا أي فحص - فلو
+  // حد غيّر الـ hash يدوياً لـ #home وهو مش مسجّل دخول (بعد أول تحميل
+  // للتطبيق)، كانت لوحة التحكم الرئيسية بترتسم كاملة. نفس فحص isLoggedIn
+  // المستخدم فعلاً في default/case لباقي الصفحات تحت.
+  return (localStorage.getItem("phone") || localStorage.getItem("userId"))
+    ? HomeView()
+    : LoginView();  
 
 
 case 'maintenance':  
