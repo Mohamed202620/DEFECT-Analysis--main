@@ -1033,10 +1033,20 @@ export async function loadUsersManagement() {
 
     if (!container) {
 
-        console.error(
-            "❌ usersContainer غير موجود في الصفحة"
-        );
-
+        // إصلاح (ضوضاء Console عند حظر صلاحية - مؤكد بالاختبار
+        // العملي لـTest 2): لما مستخدم بلا صلاحية "users"/"requests"
+        // يفتح #users أو #requests، pageRenderer.js بيعرض
+        // unauthorizedPage() (بدون أي #usersContainer فعلي)، لكن
+        // renderCore.js لسه بينادي هذه الدالة تلقائياً كل مرة
+        // (AUTO LOAD - بنفس أسلوب باقي الصفحات: tickets/kaizenBoard/
+        // system، واللي كلها بترجع بصمت لو الحاوية مش موجودة -
+        // راجع loadTicketsBoard في ticketsBoard.js مثلاً). هذه
+        // الدالة وحدها كانت الاستثناء بـ console.error، فكان يظهر
+        // خطأ في الكونسول لكل مستخدم عادي (فني/مهندس/مشغّل...) بمجرد
+        // ما يحاول - أو حتى يمر عرضاً - على هذه الصفحات المحظورة
+        // عليه، رغم إن الحماية الفعلية (UI + Firestore Rules) كانت
+        // شغالة صح من الأساس. تم توحيد السلوك مع باقي الصفحات: رجوع
+        // بصمت بدل console.error.
         return;
     }
 
