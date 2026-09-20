@@ -682,7 +682,22 @@ try {
   console.warn("SignOut error:", err);
 }
 
+// الاحتفاظ فقط بالمفاتيح المحددة قبل مسح التخزين المحلي
+const preservedKeys = ["attendance_card", "salary_data", "last_pdf_export"];
+const preservedData = {};
+preservedKeys.forEach(key => {
+  const value = localStorage.getItem(key);
+  if (value !== null) {
+    preservedData[key] = value;
+  }
+});
+
 localStorage.clear();
+
+// استرجاع البيانات المحفوظة
+Object.entries(preservedData).forEach(([key, value]) => {
+  localStorage.setItem(key, value);
+});
 clearUserAndMachinesCache();
 clearCurrentUserProfileCache();
 
@@ -736,3 +751,7 @@ window.doForgotPassword = async function () {
     }
   }
 };
+
+export async function logout() {
+  return window.logout();
+}
