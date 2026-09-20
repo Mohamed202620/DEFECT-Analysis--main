@@ -384,76 +384,70 @@ const userData = {
 };  
 
 
-const submitButton =  
-  document.querySelector(  
-    'form button[type="submit"]'  
-  );  
+    const submitButton =  
+      document.querySelector(  
+        'form button[type="submit"]'  
+      );  
 
+    if (submitButton) {  
+      submitButton.disabled =  
+        true;  
+      submitButton.innerText =  
+        t().creatingAccount;  
+    }  
 
-if (submitButton) {  
+    try {
+      const result =  
+        await registerUserApi(  
+          userData  
+        );  
 
-  submitButton.disabled =  
-    true;  
+      if (submitButton) {  
+        submitButton.disabled =  
+          false;  
+        submitButton.innerText =  
+          registerLabel();  
+      }  
 
-  submitButton.innerText =  
-    t().creatingAccount;  
+      if (  
+        result.status !==  
+        "success"  
+      ) {  
+        alert(  
+          result.message ||  
+          t().registerErrorGeneric  
+        );  
+        return;  
+      }  
 
-}  
+      alert(  
+        result.message ||  
+        t().registerSuccessDefault  
+      );  
 
+      navigateTo("login");
 
-const result =  
-  await registerUserApi(  
-    userData  
-  );  
+    } finally {
+      if (submitButton) {  
+        submitButton.disabled =  
+          false;  
+        submitButton.innerText =  
+          registerLabel();  
+      }  
+    }
 
+  } catch (error) {
 
-if (submitButton) {  
+    console.error(  
+      "REGISTER ERROR:",  
+      error  
+    );  
 
-  submitButton.disabled =  
-    false;  
+    alert(  
+      t().registerErrorCatch  
+    );
 
-  submitButton.innerText =  
-    registerLabel();  
-
-}  
-
-
-if (  
-  result.status !==  
-  "success"  
-) {  
-
-  alert(  
-    result.message ||  
-    t().registerErrorGeneric  
-  );  
-
-  return;  
-
-}  
-
-
-alert(  
-  result.message ||  
-  t().registerSuccessDefault  
-);  
-
-
-navigateTo("login");
-
-} catch (error) {
-
-console.error(  
-  "REGISTER ERROR:",  
-  error  
-);  
-
-
-alert(  
-  t().registerErrorCatch  
-);
-
-}
+  }
 
 };
 

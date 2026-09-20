@@ -135,7 +135,7 @@ service cloud.firestore {
       allow list: if (isSignedIn()
                       && (myRole() == "admin" || isManagerRole()
                           || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]))
-                  || (!isSignedIn() && request.query.limit <= 1);
+                  || request.query.limit <= 1;
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
       // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions

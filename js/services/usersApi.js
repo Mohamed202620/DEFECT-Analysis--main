@@ -280,29 +280,31 @@ export async function registerUserApi(userData) {
     }
 
 
-    // منع تكرار رقم الهاتف (فحص إضافي قبل محاولة إنشاء حساب Auth،
-    // اللي هيرفض تلقائياً برضه لو الإيميل الداخلي المشتق منه مكرر)
-    const q =
-      query(
-        collection(db, "users"),
-        where("phone", "==", phone)
-      );
+    // فحص مسبق لمنع تكرار رقم الهاتف مع الحسابات القديمة إن وجدت.
+    // نستخدم limit(1) ليتوافق تماماً مع قواعد أمان Firestore (request.query.limit <= 1)،
+    // ونحوطه بـ try/catch حتى لا يفشل التسجيل إذا كانت القواعد تقيد الاستعلام قبل التوثيق،
+    // حيث يتولى Firebase Auth نفسه ضمان عدم التكرار بشكل حاسم عبر createUserWithEmailAndPassword (auth/email-already-in-use).
+    try {
+      const q =
+        query(
+          collection(db, "users"),
+          where("phone", "==", phone),
+          limit(1)
+        );
 
-    const querySnapshot =
-      await getDocs(q);
+      const querySnapshot =
+        await getDocs(q);
 
-    if (!querySnapshot.empty) {
-
-      return {
-
-        status:
-          "error",
-
-        message:
-          "رقم الهاتف مسجل بالفعل."
-
-      };
-
+      if (!querySnapshot.empty) {
+        return {
+          status:
+            "error",
+          message:
+            "رقم الهاتف مسجل بالفعل."
+        };
+      }
+    } catch (checkError) {
+      console.warn("Pre-auth phone check skipped:", checkError?.message || checkError);
     }
 
 
@@ -333,7 +335,7 @@ export async function registerUserApi(userData) {
     // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
     // ========================================================
 
-    const { password: _pw, ...userDataWithoutPassword } = userData;
+    const { password: _pw, passwordHash: _ph, salt: _salt, ...userDataWithoutPassword } = userData;
 
     const rawShift = String(userData.shift || "").trim();
     const shiftLower = rawShift.toLowerCase();
