@@ -1455,12 +1455,12 @@ function codeLabel(code) {
   return "—";
 }
 
-export async function exportPDF(customUserId = null, customReferenceDate = null) {
+export async function exportPDF(customUserId = null, customReferenceDate = null, options = {}) {
   const profile = await getTechnicianProfile(customUserId);
 
-  if (!isPayrollUnlocked()) {
+  if (!options.skipPinCheck && !isPayrollUnlocked()) {
     const unlocked = await requestPayrollUnlock();
-    if (!unlocked) return;
+    if (!unlocked) return false;
   }
 
   const referenceDate = customReferenceDate
@@ -1583,59 +1583,22 @@ function getJsPdfClass() {
 }
 
 /**
- * إنشاء وتحميل ملف PDF يحتوي على بيانات attendance_card و salary_data
- * وتسميته باسم "مرتب-شهر-سنة.pdf" وتحديث last_pdf_export
+ * إنشاء وتحميل ملف PDF يحتوي على بيانات الحضور والمرتب
+ * موحّد تماماً مع محرك exportToPdf المعتمد والمستخدم في زر تصدير التقرير
+ * لتفادي مشاكل ترميز اللغة العربية (Mojibake) ومشاكل مفاتيح التخزين القديمة.
  */
-export function exportMonthlySalaryPDF() {
+export async function exportMonthlySalaryPDF(options = {}) {
   try {
-    const JsPDF = getJsPdfClass();
-    if (!JsPDF) {
-      console.warn("[AttendanceCard] مكتبة jsPDF غير محملة حالياً");
-      return null;
-    }
-
     const now = new Date();
     const currentMonth = String(now.getMonth() + 1);
     const currentYear = String(now.getFullYear());
-    const fileName = `مرتب-${currentMonth}-${currentYear}.pdf`;
 
-    const rawAttendance = localStorage.getItem("attendance_card") || "";
-    const rawSalary = localStorage.getItem("salary_data") || "";
-
-    const doc = new JsPDF();
-
-    doc.setFontSize(16);
-    doc.text("تقرير الحضور وبيانات المرتب الشهري", 105, 20, { align: "center" });
-
-    doc.setFontSize(11);
-    doc.text(`الشهر: ${currentMonth} / السنة: ${currentYear}`, 105, 28, { align: "center" });
-
-    doc.setFontSize(13);
-    doc.text("بيانات الحضور (attendance_card):", 20, 42);
-
-    doc.setFontSize(10);
-    const attText = typeof rawAttendance === "object"
-      ? JSON.stringify(rawAttendance, null, 2)
-      : (rawAttendance ? String(rawAttendance) : "لا توجد بيانات حضور مسجلة (attendance_card)");
-    const attLines = doc.splitTextToSize(attText, 170);
-    doc.text(attLines, 20, 50);
-
-    const nextY = Math.min(220, 50 + (attLines.length * 6) + 14);
-
-    doc.setFontSize(13);
-    doc.text("بيانات المرتب (salary_data):", 20, nextY);
-
-    doc.setFontSize(10);
-    const salText = typeof rawSalary === "object"
-      ? JSON.stringify(rawSalary, null, 2)
-      : (rawSalary ? String(rawSalary) : "لا توجد بيانات مرتب مسجلة (salary_data)");
-    const salLines = doc.splitTextToSize(salText, 170);
-    doc.text(salLines, 20, nextY + 8);
-
-    doc.save(fileName);
-
-    localStorage.setItem("last_pdf_export", currentMonth);
-    return doc;
+    // تصدير التقرير الفعلي المعتمد بنفس التنسيق والجداول والتصميم العربي المعتمد
+    const res = await exportPDF(null, null, options);
+    if (res !== false) {
+      localStorage.setItem("last_pdf_export", `${currentMonth}-${currentYear}`);
+    }
+    return res;
   } catch (err) {
     console.error("[AttendanceCard] خطأ في إنشاء وتحميل PDF المرتب:", err);
     return null;
@@ -1644,18 +1607,21 @@ export function exportMonthlySalaryPDF() {
 
 /**
  * فحص ما إذا كان الشهر الحالي مختلفاً عن last_pdf_export
- * وتوليد ملف الـ PDF تلقائياً في حال الاختلاف
+ * وتوليد ملف الـ PDF تلقائياً في حال الاختلاف وعند تسجيل الدخول فقط
  */
 export function checkAndAutoExportMonthlyPDF() {
   try {
     if (typeof localStorage === "undefined") return;
+    const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
+    if (!isLoggedIn) return;
+
     const now = new Date();
     const currentMonth = String(now.getMonth() + 1);
     const currentYear = String(now.getFullYear());
     const lastExport = localStorage.getItem("last_pdf_export");
 
     if (lastExport !== currentMonth && lastExport !== `${currentMonth}-${currentYear}`) {
-      exportMonthlySalaryPDF();
+      exportMonthlySalaryPDF({ skipPinCheck: true, isAuto: true });
     }
   } catch (e) {
     console.error("[AttendanceCard] فشل فحص التصدير التلقائي لـ PDF:", e);
