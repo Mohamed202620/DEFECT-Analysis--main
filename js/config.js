@@ -70,7 +70,6 @@ const firebaseConfig = {
 
 };
 
-
 // ============================================================
 // ثوابت التطبيق
 // ============================================================
@@ -183,51 +182,47 @@ export const storage =
 export const auth =
   getAuth(app);
 
+// إصلاح (بند حرج مؤكد بالاختبار العملي - Test 3، عزل جلسة التسجيل):
+// createUserWithEmailAndPassword(auth, ...) بتسجّل دخول الحساب
+// الجديد فوراً على نفس كائن Auth الافتراضي (app "[DEFAULT]") - ده
+// نفس كائن Auth المستخدم في كل التطبيق، وبيُخزَّن بمفتاح دائم واحد
+// في IndexedDB/localStorage للمتصفح كله، ومتزامن Real-time عبر كل
+// تابات نفس المتصفح (سلوك Firebase الافتراضي المعروف، مش خطأ في
+// المكتبة). يعني لو أدمن فاتح لوحة "طلبات الانضمام" في تاب، وفي تاب
+// تاني (أو نفس الجهاز) حد سجّل حساب جديد، كان تسجيل الدخول المؤقت
+// لصاحب الحساب الجديد + تسجيل الخروج بعده (في registerUserApi) بيأثر
+// على جلسة الأدمن في التاب الأول كمان (بيتسجّل خروجه فعلياً من غير
+// أي تفاعل مباشر منه) لأنهم بيتشاركوا نفس Auth instance. الحل
+// القياسي الموصى به من Firebase نفسه لهذه الحالة بالضبط: تنفيذ عملية
+// إنشاء الحساب على Firebase App ثانوي منفصل تماماً (اسم مختلف)، له
+// Auth instance و IndexedDB key خاصين به، فمفيش أي تأثير على جلسة
+// المستخدم الأصلية على الإطلاق - بدون أي حاجة لـ Cloud Function أو
+// تعديل في firestore.rules.
+let _registrationApp = null;
+export function getRegistrationAuthContext() {
+  if (!_registrationApp) {
+    _registrationApp =
+      getApps().find(a => a.name === "RegistrationApp") ||
+      initializeApp(firebaseConfig, "RegistrationApp");
+  }
+  return {
+    auth: getAuth(_registrationApp),
+    db: getFirestore(_registrationApp)
+  };
+}
+
 /**
  * دالة للتأكد من استعادة جلسة تسجيل الدخول من Firebase Auth قبل تنفيذ أي استعلام
- * مزودة بمهلة زمنية (Timeout) افتراضية 1200ms لمنع تعليق التطبيق أو تجمده عند انقطاع الإنترنت (Offline-First)
  */
-export function ensureAuthReady(timeoutMs = 1200) {
+export function ensureAuthReady() {
   return new Promise((resolve) => {
-    let resolved = false;
-    const finish = (user) => {
-      if (!resolved) {
-        resolved = true;
-        resolve(user || null);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      finish(auth?.currentUser || null);
-    }, timeoutMs);
-
     if (auth && typeof auth.authStateReady === "function") {
-      auth.authStateReady()
-        .then(() => {
-          clearTimeout(timer);
-          finish(auth.currentUser);
-        })
-        .catch(() => {
-          clearTimeout(timer);
-          finish(auth.currentUser);
-        });
-    } else if (auth && typeof onAuthStateChanged === "function") {
-      try {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-          clearTimeout(timer);
-          if (typeof unsubscribe === "function") unsubscribe();
-          finish(user);
-        }, () => {
-          clearTimeout(timer);
-          finish(null);
-        });
-      } catch (e) {
-        clearTimeout(timer);
-        finish(null);
-      }
+      auth.authStateReady().then(() => resolve(auth.currentUser)).catch(() => resolve(auth.currentUser));
     } else {
-      clearTimeout(timer);
-      finish(null);
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (typeof unsubscribe === "function") unsubscribe();
+        resolve(user);
+      }, () => resolve(null));
     }
   });
 }
