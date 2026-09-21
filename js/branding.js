@@ -163,10 +163,10 @@ export function renderHeader() {
 
   const profileMeta = isLoggedIn
     ? `
-      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800 min-w-0 max-w-full overflow-hidden">
+      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800 min-w-0 max-w-full overflow-hidden" style="display:inline-flex; align-items:center; gap:8px;">
         <div
-          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] sm:text-xs text-white shadow"
-          style="background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
+          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] sm:text-xs text-white shadow app-header-avatar"
+          style="width: 28px; min-width: 28px; max-width: 28px; height: 28px; min-height: 28px; max-height: 28px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
         >${escapeBrandHtml(initial)}</div>
         <div class="app-header-profile-copy min-w-0 flex-1 leading-tight overflow-hidden">
           <div class="flex items-center gap-1 min-w-0">
