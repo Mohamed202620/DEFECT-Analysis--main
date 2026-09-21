@@ -16,6 +16,7 @@
 // config.js - ده تفصيلة تنفيذ داخلية طبيعية لمزود Firebase، مش جزء
 // من الواجهة العامة اللي services المفروض تتعامل معاها)
 export { db, auth } from "../../config.js";
+export { getRegistrationAuthContext } from "../../config.js";
 
 import {
   auth as _auth,

@@ -30,7 +30,8 @@ import {
   query,
   where,
   limit,
-  callCloudFunction
+  callCloudFunction,
+  getRegistrationAuthContext
 } from "../providers/backend/index.js";
 import { isAdminRole } from "../permissions.js";
 
@@ -280,43 +281,65 @@ export async function registerUserApi(userData) {
     }
 
 
-    // فحص مسبق لمنع تكرار رقم الهاتف مع الحسابات القديمة إن وجدت.
-    // نستخدم limit(1) ليتوافق تماماً مع قواعد أمان Firestore (request.query.limit <= 1)،
-    // ونحوطه بـ try/catch حتى لا يفشل التسجيل إذا كانت القواعد تقيد الاستعلام قبل التوثيق،
-    // حيث يتولى Firebase Auth نفسه ضمان عدم التكرار بشكل حاسم عبر createUserWithEmailAndPassword (auth/email-already-in-use).
-    try {
-      const q =
-        query(
-          collection(db, "users"),
-          where("phone", "==", phone),
-          limit(1)
-        );
+    // منع تكرار رقم الهاتف (فحص إضافي قبل محاولة إنشاء حساب Auth،
+    // اللي هيرفض تلقائياً برضه لو الإيميل الداخلي المشتق منه مكرر)
+    //
+    // إصلاح (بند حرج مؤكد بالاختبار العملي - Test 3): هذا الاستعلام
+    // بيتنفذ والمستخدم لسه مش مسجّل دخوله (التسجيل نفسه)، وكان بدون
+    // limit() - firestore.rules بتسمح بقراءة قائمة (list) من users
+    // بدون تسجيل دخول في حالة واحدة بس: request.query.limit <= 1
+    // (استثناء الترحيل التلقائي القديم في auth/login.js). بدون هذا
+    // الـ limit، كانت القاعدة بترفض الاستعلام تماماً (permission-denied)
+    // لأي محاولة تسجيل حساب جديد - يعني التسجيل كان فاشلاً 100% في
+    // بيئة الإنتاج الحقيقية (Firebase)، حتى ببيانات صحيحة تماماً،
+    // ولم يظهر هذا في أي اختبار سابق لأن المحاكاة المحلية للتطوير لا
+    // تطبّق Security Rules الفعلية. رقم الهاتف عمود بحث فريد بالفعل
+    // (registerUserApi نفسها بترفض التسجيل لو رقم الهاتف موجود)،
+    // فـlimit(1) كافٍ تماماً لغرض هذا الفحص - وجود مستند واحد يكفي
+    // لإثبات إن الرقم مسجل بالفعل.
+    const q =
+      query(
+        collection(db, "users"),
+        where("phone", "==", phone),
+        limit(1)
+      );
 
-      const querySnapshot =
-        await getDocs(q);
+    const querySnapshot =
+      await getDocs(q);
 
-      if (!querySnapshot.empty) {
-        return {
-          status:
-            "error",
-          message:
-            "رقم الهاتف مسجل بالفعل."
-        };
-      }
-    } catch (checkError) {
-      console.warn("Pre-auth phone check skipped:", checkError?.message || checkError);
+    if (!querySnapshot.empty) {
+
+      return {
+
+        status:
+          "error",
+
+        message:
+          "رقم الهاتف مسجل بالفعل."
+
+      };
+
     }
 
 
     // ========================================================
     // إنشاء حساب Firebase Authentication حقيقي
     // ========================================================
+    // إصلاح (عزل جلسة التسجيل - راجع الشرح الكامل في config.js
+    // بجانب getRegistrationAuthContext): إنشاء الحساب وكتابة مستنده
+    // وتسجيل خروجه بعدها كلها بتتم هنا على Auth/Firestore instance
+    // منفصل تماماً (Firebase App ثانوي)، عشان محاولة تسجيل حساب
+    // جديد من أي تاب/جهاز ما تأثرش إطلاقاً على جلسة دخول أي مستخدم
+    // تاني مسجّل دخوله فعلاً على نفس المتصفح (كان بيتسجّل خروجه
+    // فجأة بسبب مشاركة نفس Auth instance الافتراضي).
+
+    const { auth: regAuth, db: regDb } = getRegistrationAuthContext();
 
     const email = phoneToAuthEmail(phone);
 
     let cred;
     try {
-      cred = await createUserWithEmailAndPassword(auth, email, password);
+      cred = await createUserWithEmailAndPassword(regAuth, email, password);
     } catch (authError) {
 
       const message =
@@ -335,7 +358,7 @@ export async function registerUserApi(userData) {
     // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
     // ========================================================
 
-    const { password: _pw, passwordHash: _ph, salt: _salt, ...userDataWithoutPassword } = userData;
+    const { password: _pw, ...userDataWithoutPassword } = userData;
 
     const rawShift = String(userData.shift || "").trim();
     const shiftLower = rawShift.toLowerCase();
@@ -346,7 +369,7 @@ export async function registerUserApi(userData) {
     try {
 
       await setDoc(
-        doc(db, "users", cred.user.uid),
+        doc(regDb, "users", cred.user.uid),
         {
           name: String(userData.name || "").trim(),
           phone,
@@ -380,15 +403,15 @@ export async function registerUserApi(userData) {
       console.error("Error saving user profile after auth creation:", firestoreError);
 
       try {
-        if (auth.currentUser) {
-          await deleteUser(auth.currentUser);
+        if (regAuth.currentUser) {
+          await deleteUser(regAuth.currentUser);
         }
       } catch (cleanupError) {
         console.error("Failed to delete orphaned auth user:", cleanupError);
       }
 
       try {
-        await signOut(auth);
+        await signOut(regAuth);
       } catch (signOutError) {
         console.warn("Failed to sign out after cleanup:", signOutError);
       }
@@ -402,7 +425,7 @@ export async function registerUserApi(userData) {
     // بعد إنشاء حساب Auth ومستند المستخدم، نسجل خروج المستخدم من الجلسة
     // لأن الحساب ما زال في حالة pending ولا يجب أن يبقى مسجلاً دخوله.
     try {
-      await signOut(auth);
+      await signOut(regAuth);
     } catch (err) {
       console.warn('Warning: failed to signOut after registration:', err?.message || err);
     }
