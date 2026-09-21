@@ -247,6 +247,39 @@
       color: var(--app-text);
     }
 
+    /* تثبيت أحجام وهيكل الهيدر والأفاتار حتى في وضع عدم الاتصال قبل أو عند تعذر تحميل Tailwind */
+    .app-header-profile {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 0.5rem !important;
+      border-radius: 0.75rem !important;
+      padding: 0.25rem 0.625rem !important;
+      background: rgba(30, 41, 59, 0.8) !important;
+      border: 1px solid rgba(51, 65, 85, 0.6) !important;
+      overflow: hidden !important;
+      max-width: 100% !important;
+    }
+
+    .app-header-avatar {
+      width: 28px !important;
+      min-width: 28px !important;
+      max-width: 28px !important;
+      height: 28px !important;
+      min-height: 28px !important;
+      max-height: 28px !important;
+      border-radius: 9999px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-shrink: 0 !important;
+    }
+
+    .app-header-profile-copy {
+      min-width: 0 !important;
+      flex: 1 1 0% !important;
+      overflow: hidden !important;
+    }
+
      #appShell {
        min-height: 100vh;
        /* مساحة فارغة أعلى المحتوى بارتفاع الهيدر الفعلي. المتغير
@@ -528,16 +561,26 @@
           targetPage = (initialHash === "register") ? "register" : "login";
         } else {
           // انتظار استعادة جلسة Firebase Auth لضمان إرسال رمز المصادقة الصالح مع جميع استعلامات Firestore
-          const authUser = await ensureAuthReady();
+          // مع مهلة زمنية لا تتجاوز 1000ms لمنع تعليق التطبيق نهائياً عند انقطاع الإنترنت (Offline-First)
+          let authUser = null;
+          try {
+            authUser = await ensureAuthReady(1000);
+          } catch (authErr) {
+            console.warn("Auth check failed, using local offline session:", authErr);
+          }
 
-          if (authUser) {
+          const isOnline = typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" ? navigator.onLine : true;
+
+          // إذا تمت استعادة المستخدم أو كان الجهاز أوفلاين أو كانت هناك بيانات جلسة محلية مؤكدة:
+          // يتم فتح الصفحة الأخيرة أو الرئيسية مباشرة دون إجبار المستخدم على تسجيل الدخول
+          if (authUser || !isOnline || savedUid || savedPhone) {
             if (initialHash && initialHash !== "login" && initialHash !== "register") {
               targetPage = initialHash;
             } else {
               targetPage = localStorage.getItem('lastPage') || 'home';
             }
           } else {
-            // الجلسة غير متزامنة مع Firebase Auth - توجيه لصفحة تسجيل الدخول لتوثيق الجلسة
+            // الجلسة غير متزامنة مع Firebase Auth أثناء وجود اتصال فعلي بالإنترنت
             targetPage = (initialHash === "register") ? "register" : "login";
           }
         }

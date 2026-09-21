@@ -185,16 +185,49 @@ export const auth =
 
 /**
  * دالة للتأكد من استعادة جلسة تسجيل الدخول من Firebase Auth قبل تنفيذ أي استعلام
+ * مزودة بمهلة زمنية (Timeout) افتراضية 1200ms لمنع تعليق التطبيق أو تجمده عند انقطاع الإنترنت (Offline-First)
  */
-export function ensureAuthReady() {
+export function ensureAuthReady(timeoutMs = 1200) {
   return new Promise((resolve) => {
+    let resolved = false;
+    const finish = (user) => {
+      if (!resolved) {
+        resolved = true;
+        resolve(user || null);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      finish(auth?.currentUser || null);
+    }, timeoutMs);
+
     if (auth && typeof auth.authStateReady === "function") {
-      auth.authStateReady().then(() => resolve(auth.currentUser)).catch(() => resolve(auth.currentUser));
+      auth.authStateReady()
+        .then(() => {
+          clearTimeout(timer);
+          finish(auth.currentUser);
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          finish(auth.currentUser);
+        });
+    } else if (auth && typeof onAuthStateChanged === "function") {
+      try {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+          clearTimeout(timer);
+          if (typeof unsubscribe === "function") unsubscribe();
+          finish(user);
+        }, () => {
+          clearTimeout(timer);
+          finish(null);
+        });
+      } catch (e) {
+        clearTimeout(timer);
+        finish(null);
+      }
     } else {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        if (typeof unsubscribe === "function") unsubscribe();
-        resolve(user);
-      }, () => resolve(null));
+      clearTimeout(timer);
+      finish(null);
     }
   });
 }

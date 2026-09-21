@@ -1,12 +1,13 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v6.1';
+const CACHE_NAME = 'maint-system-v6.2';
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './assets/icons/app-icon.png'
+  './assets/icons/app-icon.png',
+  './assets/branding/company-banner.png'
 ];
 
 // حدث التثبيت (Install Event)
@@ -48,9 +49,35 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(req.url);
 
-  // هام جداً: تجاهل أي طلب خارجي (Firebase Firestore, Auth, Storage, ImgBB, Google APIs...)
+  // السماح بتكييش مكتبات الواجهة وCDN الأساسية (Tailwind, Chart.js, ExcelJS, dayjs, jsPDF)
+  const isCdnAsset =
+    url.hostname === 'cdn.tailwindcss.com' ||
+    url.hostname === 'cdn.jsdelivr.net' ||
+    url.hostname === 'cdnjs.cloudflare.com' ||
+    url.hostname === 'fonts.googleapis.com' ||
+    url.hostname === 'fonts.gstatic.com';
+
+  // هام جداً: تجاهل أي طلب خارجي آخر (Firebase Firestore, Auth, Storage, ImgBB, Google APIs...)
   // لكي لا يتدخل Service Worker في اتصالات قواعد البيانات والاستعلامات الحية
-  if (url.origin !== self.location.origin) {
+  if (url.origin !== self.location.origin && !isCdnAsset) {
+    return;
+  }
+
+  // إذا كان طلباً لأحد مكتبات CDN الخارجية الأساسية: نستخدم Cache-First مع التحديث في الخلفية
+  if (isCdnAsset) {
+    e.respondWith(
+      caches.match(req).then((cachedRes) => {
+        const fetchPromise = fetch(req).then((networkRes) => {
+          if (networkRes && (networkRes.status === 200 || networkRes.type === 'opaque')) {
+            const clone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+          }
+          return networkRes;
+        }).catch(() => null);
+
+        return cachedRes || fetchPromise;
+      })
+    );
     return;
   }
 

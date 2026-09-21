@@ -1574,6 +1574,96 @@ export async function exportPDF(customUserId = null, customReferenceDate = null)
   });
 }
 
+function getJsPdfClass() {
+  if (typeof window !== "undefined") {
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    if (typeof window.jsPDF === "function") return window.jsPDF;
+  }
+  return null;
+}
+
+/**
+ * إنشاء وتحميل ملف PDF يحتوي على بيانات attendance_card و salary_data
+ * وتسميته باسم "مرتب-شهر-سنة.pdf" وتحديث last_pdf_export
+ */
+export function exportMonthlySalaryPDF() {
+  try {
+    const JsPDF = getJsPdfClass();
+    if (!JsPDF) {
+      console.warn("[AttendanceCard] مكتبة jsPDF غير محملة حالياً");
+      return null;
+    }
+
+    const now = new Date();
+    const currentMonth = String(now.getMonth() + 1);
+    const currentYear = String(now.getFullYear());
+    const fileName = `مرتب-${currentMonth}-${currentYear}.pdf`;
+
+    const rawAttendance = localStorage.getItem("attendance_card") || "";
+    const rawSalary = localStorage.getItem("salary_data") || "";
+
+    const doc = new JsPDF();
+
+    doc.setFontSize(16);
+    doc.text("تقرير الحضور وبيانات المرتب الشهري", 105, 20, { align: "center" });
+
+    doc.setFontSize(11);
+    doc.text(`الشهر: ${currentMonth} / السنة: ${currentYear}`, 105, 28, { align: "center" });
+
+    doc.setFontSize(13);
+    doc.text("بيانات الحضور (attendance_card):", 20, 42);
+
+    doc.setFontSize(10);
+    const attText = typeof rawAttendance === "object"
+      ? JSON.stringify(rawAttendance, null, 2)
+      : (rawAttendance ? String(rawAttendance) : "لا توجد بيانات حضور مسجلة (attendance_card)");
+    const attLines = doc.splitTextToSize(attText, 170);
+    doc.text(attLines, 20, 50);
+
+    const nextY = Math.min(220, 50 + (attLines.length * 6) + 14);
+
+    doc.setFontSize(13);
+    doc.text("بيانات المرتب (salary_data):", 20, nextY);
+
+    doc.setFontSize(10);
+    const salText = typeof rawSalary === "object"
+      ? JSON.stringify(rawSalary, null, 2)
+      : (rawSalary ? String(rawSalary) : "لا توجد بيانات مرتب مسجلة (salary_data)");
+    const salLines = doc.splitTextToSize(salText, 170);
+    doc.text(salLines, 20, nextY + 8);
+
+    doc.save(fileName);
+
+    localStorage.setItem("last_pdf_export", currentMonth);
+    return doc;
+  } catch (err) {
+    console.error("[AttendanceCard] خطأ في إنشاء وتحميل PDF المرتب:", err);
+    return null;
+  }
+}
+
+/**
+ * فحص ما إذا كان الشهر الحالي مختلفاً عن last_pdf_export
+ * وتوليد ملف الـ PDF تلقائياً في حال الاختلاف
+ */
+export function checkAndAutoExportMonthlyPDF() {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const now = new Date();
+    const currentMonth = String(now.getMonth() + 1);
+    const currentYear = String(now.getFullYear());
+    const lastExport = localStorage.getItem("last_pdf_export");
+
+    if (lastExport !== currentMonth && lastExport !== `${currentMonth}-${currentYear}`) {
+      exportMonthlySalaryPDF();
+    }
+  } catch (e) {
+    console.error("[AttendanceCard] فشل فحص التصدير التلقائي لـ PDF:", e);
+  }
+}
+
+export const generateSalaryPDF = exportMonthlySalaryPDF;
+
 // ============================================================
 // 7. تحميل كاش الإعدادات (Pattern + قواعد الإضافي + الإجازات)
 // ============================================================
@@ -1786,6 +1876,9 @@ function maskMoney(value, unlocked) {
 }
 
 export function renderAttendanceCard(customProfile = null) {
+  // فحص ما إذا كان هناك حاجة للتصدير التلقائي لـ PDF عند تحميل كارت الحضور
+  checkAndAutoExportMonthlyPDF();
+
   const userId = customProfile?.userId || localStorage.getItem("userId") || "local_user";
   const name = customProfile?.name || localStorage.getItem("name") || "أحمد محمد";
   const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
@@ -2012,6 +2105,7 @@ export function renderAttendanceCard(customProfile = null) {
         <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>حضور سابق</span></button>
         <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
         <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
+        <button type="button" id="btnExportPdfNow" onclick="window.exportMonthlySalaryPDF()" class="col-span-2 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 hover:from-blue-600/50 hover:to-cyan-600/50 border border-cyan-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📥</span><span>تصدير PDF الآن</span></button>
       </div>
 
       </div>
@@ -2071,6 +2165,22 @@ if (typeof window !== "undefined") {
   window.calculateAttendanceMonth = calculateMonth;
   window.calculateAttendanceCycle = calculateCycle;
   window.renderAttendanceCard = renderAttendanceCard;
+  window.exportMonthlySalaryPDF = exportMonthlySalaryPDF;
+  window.generateSalaryPDF = exportMonthlySalaryPDF;
+  window.checkAndAutoExportMonthlyPDF = checkAndAutoExportMonthlyPDF;
+
+  // فحص التصدير التلقائي لـ PDF عند تحميل الصفحة / السكريبت
+  try {
+    if (typeof document !== "undefined" && document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => {
+        checkAndAutoExportMonthlyPDF();
+      });
+    } else {
+      checkAndAutoExportMonthlyPDF();
+    }
+  } catch (e) {
+    checkAndAutoExportMonthlyPDF();
+  }
 
   // تحميل مبدئي غير معطِّل للإعدادات (Pattern/قواعد الإضافي) عشان
   // أول رسم للكارت (متزامن) يستخدم أحدث كاش متاح بمجرد اكتماله -
