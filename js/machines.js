@@ -379,6 +379,56 @@ export function resolveMachineFromValue(fullValue) {
 
 window.resolveMachineFromValue = resolveMachineFromValue;
 
+// إصلاح (بند مؤكد بالاختبار العملي - Test 5، مسح QR): كتالوج
+// الماكينات المحمّل محلياً لغير الأدمن/غير أصحاب الوصول الكامل
+// (machineTypesCache) مفلتر من الأساس على قسم المستخدم فقط (راجع
+// doLoadMachineTypesFromFirestore فوق: filterDept = userDept)، وهذا
+// صحيح ومطلوب لباقي شاشات التطبيق (القوائم المنسدلة). لكن هذا يعني
+// إن resolveMachineFromValue/findMachineEntryByValue - اللي بتبحث في
+// نفس هذا الكاش المفلتر - مستحيل تلاقي ماكينة من قسم تاني أصلاً،
+// فكانت شاشة مسح QR (QrScannerView.js) بتعرض "❌ الماكينة غير موجودة"
+// لأي QR صحيح لماكينة قسم تاني، بدل الرسالة الصحيحة المقصودة أصلاً
+// في تعليقات نفس الملف: "🔒 لا توجد صلاحية". القرار الأمني نفسه سليم
+// 100% في الحالتين (منع الوصول فعلياً) - المشكلة في دقة الرسالة بس.
+// هذه الدالة بديلة، بتُستخدم فقط في هذا المسار الضيّق (مسح/إدخال QR)
+// لما resolveMachineFromValue ما تلاقيش الماكينة في الكاش المفلتر:
+// بتعمل قراءة إضافية غير مفلترة (مسموحة لأي مستخدم مفعّل - راجع
+// firestore.rules: machineTypes.read) للتأكد هل القيمة موجودة في أي
+// قسم تاني فعلاً، بدون أي تعديل على machineTypesCache المشترك أو أي
+// شاشة تانية في التطبيق (Dropdown القوائم يفضل مفلتر زي ما هو تماماً).
+export async function machineExistsInAnyDepartment(fullValue) {
+  const raw = String(fullValue == null ? "" : fullValue).trim();
+  const target = canonicalToken(raw);
+  if (!target) return false;
+
+  try {
+    const result = await fetchMachineTypesApi(null);
+    if (result.status !== "success") return false;
+
+    if (result.data.some(m => m.id && String(m.id).trim() === raw)) return true;
+
+    for (const m of result.data) {
+      const keyToken = canonicalToken(m.key);
+      if (!keyToken) continue;
+
+      const units = Array.isArray(m.units) ? m.units : [];
+      for (const u of units) {
+        if (canonicalToken(`${m.key} ${u}`) === target) return true;
+      }
+      if (keyToken === target) return true;
+
+      if (units.length && target.startsWith(keyToken + " ")) {
+        const rest = target.slice(keyToken.length + 1).trim();
+        if (units.some(u => canonicalUnitToken(u) === canonicalUnitToken(rest))) return true;
+      }
+    }
+  } catch (err) {
+    console.warn("machineExistsInAnyDepartment: lookup failed", err);
+  }
+
+  return false;
+}
+
 export function parseMachineValue(fullValue) {
   if (!fullValue) return { type: "", unit: "" };
   const found = findMachineEntryByValue(fullValue);
