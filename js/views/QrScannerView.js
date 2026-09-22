@@ -37,7 +37,8 @@ import {
   formatLineLabel,
   isMachineTypesLoaded,
   ensureMachineCatalogReady,
-  findMachineEntryByValue
+  findMachineEntryByValue,
+  machineExistsInAnyDepartment
 } from '../machines.js';
 import { hasFullDataAccess, isAdminRole, getCurrentRole } from '../permissions.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
@@ -267,6 +268,22 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   const machine = resolveMachineFromValue(scannedValue);
 
   if (!machine.found) {
+    // إصلاح (مؤكد بالاختبار العملي - Test 5): كتالوج الماكينات
+    // المحمّل لغير الأدمن/غير أصحاب الوصول الكامل مفلتر مسبقاً على
+    // قسم المستخدم فقط (راجع machines.js: doLoadMachineTypesFromFirestore
+    // وتعليق machineExistsInAnyDepartment بالتفصيل) - فماكينة قسم
+    // تاني موجودة فعلاً كانت بتظهر هنا كـ"غير موجودة" بدل "لا توجد
+    // صلاحية" رغم إن القرار الأمني (منع الوصول) سليم في الحالتين.
+    // فحص إضافي هنا فقط (بدون أي تعديل على الكاش المشترك) لعرض
+    // الرسالة الصحيحة، ولمستخدمي الوصول الكامل بس مفيش داعي له
+    // أصلاً لأن كتالوجهم غير مفلتر من الأساس.
+    if (!hasFullDataAccess() && await machineExistsInAnyDepartment(scannedValue)) {
+      window.stopQrScan();
+      alert(tr.noPermissionDesc);
+      renderQrMessage({ tone: 'warn', title: tr.noPermission, desc: tr.noPermissionDesc });
+      return false;
+    }
+
     window.stopQrScan();
     alert(tr.notFoundDesc);
     renderQrMessage({

@@ -86,6 +86,33 @@ export const MachineProfileView = () => {
   // resolveMachineFromValue) - الوجود والقسم وخط الإنتاج من مصدر
   // واحد، مفيش منطق منفصل لكل شاشة
   const resolved = resolveMachineFromValue(machine);
+
+  // إصلاح (مؤكد بالاختبار العملي - Test 5): لو الماكينة المحفوظة في
+  // activeMachine (من مسح QR سابق) بقت مش موجودة في الكتالوج الحالي
+  // (اتحذفت أو اتغيّر اسمها بعد كده)، resolved.found بترجع false -
+  // ونصوص "notFoundTitle/notFoundDesc" فوق كانت معرّفة أصلاً بالظبط
+  // لهذه الحالة لكن مالهاش أي استخدام فعلي هنا؛ الصفحة كانت بترسم
+  // بروفايل كامل (بأزرار تسجيل بلاغ/فحوصات شغّالة) لاسم ماكينة مش
+  // موجودة فعلياً (قسم فاضي "-")، بدل رسالة "الماكينة غير موجودة"
+  // الواضحة. هذا الفحص لازم يجي قبل فحص الصلاحية تحت مباشرة، لأن
+  // "الماكينة مش موجودة أصلاً" أسبق منطقياً من "مالكش صلاحية عليها"
+  // (ونفس الترتيب المستخدم في resolveMachineFromValue/QrScannerView.js).
+  if (!resolved.found) {
+    return `
+    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
+      <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
+        ${isEn ? '← Back' : '← رجوع'}
+      </button>
+      <div class="bg-[#1E293B] rounded-xl p-6 border border-red-500/30 text-center space-y-4">
+        <div class="text-sm font-bold text-red-400">${tr.notFoundTitle}</div>
+        <div class="text-[11px] text-gray-400">${tr.notFoundDesc}</div>
+        <button onclick="window.navigateTo('qr')" class="w-full p-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition">
+          ${tr.scanQr}
+        </button>
+      </div>
+    </div>`;
+  }
+
   const department = resolved.department;
 
   // خط الإنتاج: القيمة اللي اتحفظت وقت فتح الماكينة (من الـQR) لها
