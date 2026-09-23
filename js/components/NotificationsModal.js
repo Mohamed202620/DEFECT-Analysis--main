@@ -84,20 +84,25 @@ function notificationItemHtml(n) {
 export async function refreshNotificationsBadge() {
 
   const badge = document.getElementById("headerNotifBadge");
+  const sidebarBadge = document.getElementById("sidebarNotifBadge");
   const myUid = localStorage.getItem("userId") || "";
-  if (!badge || !myUid) return;
+  if ((!badge && !sidebarBadge) || !myUid) return;
 
   const result = await fetchMyNotificationsApi(myUid);
   if (!result || result.status !== "success" || !Array.isArray(result.data)) return;
 
   const unread = result.data.filter(n => !n.read).length;
+  const countText = unread > 9 ? "9+" : String(unread);
 
-  if (unread > 0) {
-    badge.textContent = unread > 9 ? "9+" : String(unread);
-    badge.classList.remove("hidden");
-  } else {
-    badge.classList.add("hidden");
-  }
+  [badge, sidebarBadge].forEach(b => {
+    if (!b) return;
+    if (unread > 0) {
+      b.textContent = countText;
+      b.classList.remove("hidden");
+    } else {
+      b.classList.add("hidden");
+    }
+  });
 
 }
 

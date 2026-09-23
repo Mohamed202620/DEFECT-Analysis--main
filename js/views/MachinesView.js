@@ -59,7 +59,7 @@ function canEditMachineDepartment() {
 
 export const MachinesView = () => `
 
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
 
     <!-- Header & Back Button -->
     <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -179,7 +179,7 @@ export const MachinesView = () => `
 
 
     <!-- القائمة -->
-    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
         <div class="col-span-full text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     </div>
 

@@ -13,7 +13,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     }[backTarget] || (isEn ? "Back" : "رجوع");
 
     return `
-    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 sm:pb-20">
+    <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 sm:pb-20 lg:pb-8">
         <!-- زر الرجوع -->
         <button
             type="button"

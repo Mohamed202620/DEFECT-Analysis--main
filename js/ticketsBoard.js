@@ -104,51 +104,53 @@ function ticketCardHtml(ticket) {
   ` : "";
 
   return `
-    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 mb-3 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all">
+    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all flex flex-col justify-between h-full">
       <!-- شريط الحالة الجانبي عالي التباين لتحديد نوع العطل فورا بالعين -->
       <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 w-2 ${accentClass} shadow-sm"></div>
 
-      <div class="rtl:pr-2.5 ltr:pl-2.5 space-y-2.5">
-        <div class="flex justify-between items-center gap-2">
-          <div class="flex items-center gap-2">
-            ${bulkCheckboxHtml}
-            <span class="font-black text-sm text-slate-100">${machineName}</span>
-            ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
+      <div class="rtl:pr-2.5 ltr:pl-2.5 space-y-2.5 flex-1 flex flex-col justify-between">
+        <div class="space-y-2.5">
+          <div class="flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2">
+              ${bulkCheckboxHtml}
+              <span class="font-black text-sm text-slate-100">${machineName}</span>
+              ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
+            </div>
+            <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
+              ${tr.status[status] || status}
+            </span>
           </div>
-          <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
-            ${tr.status[status] || status}
-          </span>
+
+          <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+            ${ticket.description || ""}
+          </p>
+
+          <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
+            ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
+            ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
+            ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
+            ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
+              ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
+              ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+              'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            }">⚡ ${ticket.priority}</span>` : ""}
+            ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
+          </div>
+
+          ${ticket.mechanicNotes ? `
+            <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
+              🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${ticket.mechanicNotes}
+            </div>
+          ` : ""}
+
+          ${ticket.operatorFeedback ? `
+            <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
+              ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${ticket.operatorFeedback}
+            </div>
+          ` : ""}
         </div>
 
-        <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
-          ${ticket.description || ""}
-        </p>
-
-        <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
-          ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
-          ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
-          ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
-          ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
-            ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
-            ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-            'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-          }">⚡ ${ticket.priority}</span>` : ""}
-          ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
-        </div>
-
-        ${ticket.mechanicNotes ? `
-          <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
-            🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${ticket.mechanicNotes}
-          </div>
-        ` : ""}
-
-        ${ticket.operatorFeedback ? `
-          <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
-            ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${ticket.operatorFeedback}
-          </div>
-        ` : ""}
-
-        ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">${actionsHtml}</div>` : ""}
+        ${actionsHtml ? `<div class="flex flex-wrap gap-2 pt-2.5 border-t border-slate-800/80 mt-2">${actionsHtml}</div>` : ""}
       </div>
     </div>
   `;
@@ -167,7 +169,7 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
     return;
   }
 
-  container.innerHTML = tickets.map(ticketCardHtml).join("");
+  container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${tickets.map(ticketCardHtml).join("")}</div>`;
 
 }
 
@@ -185,7 +187,7 @@ function renderBoardPage(containerId, emptyMessage) {
 
   const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
   const listHtml = visibleItems.length
-    ? visibleItems.map(ticketCardHtml).join("")
+    ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${visibleItems.map(ticketCardHtml).join("")}</div>`
     : `<div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>`;
 
   const loaderHtml = boardVisibleCount < boardAllTickets.length 

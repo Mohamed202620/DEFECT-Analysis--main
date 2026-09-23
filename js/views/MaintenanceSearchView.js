@@ -16,7 +16,7 @@ export const MaintenanceSearchView = () => {
   const common = (translations[currentLang] || translations.ar).common;
 
   return `
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
 
   <!-- زر الرجوع والعنوان -->
   <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -149,7 +149,7 @@ export const MaintenanceSearchView = () => {
     </div>
 
     <!-- النتائج -->
-    <div id="mResultsBox" class="space-y-2"></div>
+    <div id="mResultsBox" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
 
   </div>
 </div>
