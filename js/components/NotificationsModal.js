@@ -31,6 +31,7 @@
 
 import {
   fetchMyNotificationsApi,
+  countUnreadNotificationsApi,
   markNotificationReadApi,
   markAllNotificationsAsRead
 } from '../services/api.js';
@@ -84,25 +85,20 @@ function notificationItemHtml(n) {
 export async function refreshNotificationsBadge() {
 
   const badge = document.getElementById("headerNotifBadge");
-  const sidebarBadge = document.getElementById("sidebarNotifBadge");
   const myUid = localStorage.getItem("userId") || "";
-  if ((!badge && !sidebarBadge) || !myUid) return;
+  if (!badge || !myUid) return;
 
-  const result = await fetchMyNotificationsApi(myUid);
-  if (!result || result.status !== "success" || !Array.isArray(result.data)) return;
+  const result = await countUnreadNotificationsApi(myUid);
+  if (!result || result.status !== "success") return;
 
-  const unread = result.data.filter(n => !n.read).length;
-  const countText = unread > 9 ? "9+" : String(unread);
+  const unread = result.count;
 
-  [badge, sidebarBadge].forEach(b => {
-    if (!b) return;
-    if (unread > 0) {
-      b.textContent = countText;
-      b.classList.remove("hidden");
-    } else {
-      b.classList.add("hidden");
-    }
-  });
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.classList.remove("hidden");
+  } else {
+    badge.classList.add("hidden");
+  }
 
 }
 
@@ -210,6 +206,25 @@ window.handleGlobalNotificationClick = async function (notificationId, ticketId,
   } else if (suggestionId) {
     if (typeof window.navigateTo === "function") {
       window.navigateTo("kaizenBoard");
+
+      // إصلاح (بند مؤكد بالاختبار العملي - Test 11): على عكس
+      // التذاكر (openTicketDetailsModal بيجيب بيانات التذكرة طازة
+      // بمعرّفها من Firestore مباشرة، فبيشتغل من أي صفحة)،
+      // openKaizenSuggestionDetails بيعتمد على كاش داخلي
+      // (kaizenItemsById) بيتملى بس لما لوحة الكايزن نفسها تتحمّل -
+      // فكان الضغط على إشعار مقترح بيوصّل المستخدم للوحة العامة بس،
+      // من غير ما يفتح المقترح المحدد اللي جه بسببه الإشعار أصلاً،
+      // فيضطر يدوّر عليه يدوياً بين كل المقترحات. الحل: انتظار قصير
+      // (نفس فكرة تأخير AUTO LOAD المستخدم بالفعل في renderCore.js)
+      // لحد ما window.loadKaizenBoard التلقائي يملى الكاش، وبعدين
+      // فتح تفاصيل المقترح المحدد فوق اللوحة مباشرة. أسوأ حالة (لو
+      // التحميل اتأخر لأي سبب): نفس السلوك الحالي بالظبط (يوصل للوحة
+      // العامة بس) - بدون أي تراجع عن الوظيفة الموجودة.
+      setTimeout(() => {
+        if (typeof window.openKaizenSuggestionDetails === "function") {
+          window.openKaizenSuggestionDetails(suggestionId);
+        }
+      }, 400);
     }
   }
 
