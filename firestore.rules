@@ -135,7 +135,7 @@ service cloud.firestore {
       allow list: if (isSignedIn()
                       && (myRole() == "admin" || isManagerRole()
                           || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]))
-                  || request.query.limit <= 1;
+                  || (!isSignedIn() && request.query.limit <= 1);
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
       // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
@@ -544,6 +544,28 @@ service cloud.firestore {
                     && (myRole() in ["admin", "manager", "engineer"]
                         || request.resource.data.department == myProfile().machineDepartment);
       allow update, delete: if myRole() == "admin";
+    }
+
+    // ==========================================================
+    // machineAmTemplates - تخصيص بنود فحص Daily AM لكل ماكينة على
+    // حدة (تُدار من زر "✏️ Edit Checklist" في ملف الماكينة -
+    // MachineProfileView.js/window.openManageAmModal، ومعروضة فقط
+    // للأدمن هناك - راجع adminRights = isAdminRole()). القراءة
+    // مفتوحة لأي مستخدم مفعّل (كل مستخدم محتاج يقرأ البنود
+    // المخصصة وقت تعبئة الفحص اليومي - DailyAMView.js).
+    //
+    // إصلاح (بند أمني مؤكد بالاختبار العملي - Test 6): هذه
+    // المجموعة لم يكن لها match block مخصص، فكانت بتقع تحت قاعدة
+    // الحماية العامة في آخر الملف (allow read, write: if isActive())
+    // - يعني أي مستخدم مفعّل (فني عادي مثلاً) كان يقدر يكتب/يتلاعب
+    // مباشرة ببنود فحص أي ماكينة عبر Firestore مباشرة (تجاوزاً
+    // للواجهة)، رغم إن التعديل مقصود يكون للأدمن فقط. نفس نمط
+    // الحماية المستخدم بالظبط في machineTypes (create/update/delete
+    // admin-only، read مفتوح للجميع النشطين).
+    // ==========================================================
+    match /machineAmTemplates/{machineId} {
+      allow read: if isActive();
+      allow create, update, delete: if myRole() == "admin";
     }
 
     // ==========================================================
