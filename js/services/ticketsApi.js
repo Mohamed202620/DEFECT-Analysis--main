@@ -7,7 +7,7 @@
 // ============================================================
 
 import { ensureAuthReady } from "../config.js";
-import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
+import { uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
@@ -765,6 +765,33 @@ export async function fetchMyNotificationsApi(uid) {
   }
 }
 
+// إصلاح (بند مؤكد بالاختبار العملي - Test 11): fetchMyNotificationsApi
+// بترجع أحدث 30 إشعار بس (مقصود - عشان قائمة "الإشعارات" في الواجهة
+// متبقاش بلا حدود). لكن رقم الجرس (refreshNotificationsBadge) كان
+// بيحسب "غير المقروء" من نفس الـ30 دول بالظبط - يعني لأدمن/مدير نشط
+// بيوصله إشعار على كل تذكرة/مقترح جديد، أي إشعار غير مقروء أقدم من
+// أحدث 30 إشعار (سهل الحصول عليه خلال أسبوع أو اتنين نشاط عادي) كان
+// بيختفي تماماً: مش معدود في رقم الجرس، ومش ظاهر في القائمة - يعني
+// فقدان فعلي لتنبيه مهم بدون ما المستخدم يعرف إنه موجود أصلاً. هذه
+// الدالة الصغيرة بتحسب العدد الحقيقي الكامل لغير المقروء (بدون أي
+// حد أقصى) - بنفس الاستعلام الأساسي (forUid فقط، زي ما هو مستخدم
+// بالفعل)، وتُستخدم في مكان واحد بس (رقم الجرس)، من غير أي تغيير في
+// قائمة الإشعارات المعروضة نفسها أو سلوكها الحالي.
+export async function countUnreadNotificationsApi(uid) {
+  try {
+    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
+    const querySnapshot = await getDocs(q);
+    let count = 0;
+    querySnapshot.forEach(docSnap => { if (!docSnap.data().read) count += 1; });
+    return { status: "success", count };
+  } catch (error) {
+    const fallback = emptyResultOnMissingIndex(error, "countUnreadNotificationsApi");
+    if (fallback) return { status: "success", count: 0 };
+    console.error("Error counting unread notifications:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 // اشتراك لحظي (Realtime) في إشعارات المستخدم - يُستخدم لتحديث
 // الجرس والقائمة المنبثقة تلقائياً بدون إعادة تحميل
 export function subscribeToMyNotificationsApi(uid, callback) {
@@ -1022,9 +1049,26 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
   }
 
   try {
-    const afterImageUrls = (
-      await Promise.all(images.map((img, i) => uploadBase64Image(img, `${ticketId}_after_${i + 1}`)))
-    ).filter(Boolean);
+    // إصلاح (بند مؤكد بالاختبار العملي - Test 8، نفس جذر مشكلة
+    // Test 7 في saveIssueApi/uploadBase64Images لكن في نقطة استدعاء
+    // مختلفة تماماً هنا): كان الكود بيستخدم Promise.all خام مباشرة
+    // على uploadBase64Image لكل صورة، فبمجرد فشل رفع صورة واحدة (من
+    // ضمن حتى 3 صور) - شبكة متقطعة أو تعطل ImgBB مؤقت - يرفض الكل،
+    // فتُفقد ملاحظات الفني (mechanicNotes) والتذكرة بالكامل تفضل
+    // عالقة "قيد التنفيذ" رغم إن الإصلاح تم فعلياً. استخدام
+    // uploadBase64Images المشتركة (المُصلَحة بالفعل - كل صورة
+    // بمحاولتها الخاصة) بيحل نفس المشكلة هنا بدون تكرار المنطق. مع
+    // الحفاظ على قاعدة "صورة واحدة على الأقل مطلوبة" (تحقق فوق) عبر
+    // فحص نتيجة الرفع الفعلي كمان: لو كل الصور المرفوعة فشلت (نادر
+    // جداً - يعني الصورة الوحيدة أو كل الصور فشلت معاً)، بترجع خطأ
+    // واضح بدل ما تحفظ التذكرة بمصفوفة صور فاضية تخالف نفس القاعدة.
+    const afterImageUrls = await uploadBase64Images(images, `${ticketId}_after`);
+    if (!afterImageUrls.length) {
+      return {
+        status: "error",
+        message: "تعذر رفع صور ما بعد الإصلاح - تحقق من الاتصال بالإنترنت وحاول مرة أخرى"
+      };
+    }
 
     await updateDoc(
       doc(db, "tickets", ticketId),
