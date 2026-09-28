@@ -80,6 +80,14 @@ export const MachinesView = () => `
                 </p>
             </div>
         </div>
+
+        <button
+            type="button"
+            onclick="window.openAmBulkImportModal()"
+            class="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
+            <span>📊</span>
+            <span>تغذية قوالب AM بالإكسيل</span>
+        </button>
     </div>
 
 
