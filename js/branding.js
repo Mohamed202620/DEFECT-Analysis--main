@@ -172,8 +172,22 @@ export function renderHeader() {
     >
       <div class="max-w-[1600px] h-full mx-auto px-4 md:px-6 flex items-center justify-between gap-3">
 
-        <!-- المنطقة 1: الشعار والهوية الرسمية -->
-        <div class="flex items-center gap-3 shrink-0">
+        <!-- المنطقة 1: الشعار والهوية الرسمية وزر طي/توسيع القائمة -->
+        <div class="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <button
+            type="button"
+            id="btnHeaderToggleSidebar"
+            onclick="window.toggleSidebarCollapse()"
+            class="hidden lg:flex w-8.5 h-8.5 rounded-lg items-center justify-center text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition active:scale-90 cursor-pointer shadow-sm"
+            aria-label="${isEn ? 'Toggle sidebar' : 'طي وتوسيع القائمة الجانبية'}"
+            title="${isEn ? 'Toggle sidebar ( [ )' : 'طي وتوسيع القائمة الجانبية ( [ )'}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
           <a href="#home" onclick="if(window.navigateTo) window.navigateTo('home');" class="flex items-center gap-2.5 group cursor-pointer text-start">
             <img
               src="${LOGO_ICON_DATA_URL}"
@@ -657,10 +671,11 @@ export function buildCsvHeaderLines(reportTitle) {
 let _headerResizeObserver = null;
 
 function syncHeaderHeightVar(headerEl) {
-  if (!headerEl) return;
+  if (!headerEl || !document?.documentElement?.style?.setProperty) return;
+  const height = headerEl.offsetHeight || 64;
   document.documentElement.style.setProperty(
     "--app-header-h",
-    headerEl.offsetHeight + "px"
+    height + "px"
   );
 }
 

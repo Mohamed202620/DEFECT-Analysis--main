@@ -301,14 +301,21 @@ export async function loadDashboardStats(requestedPeriod) {
   };
 
   setText('statOpenCount', stats.open);
+  setText('statOpenValue', stats.open);
   setText('statClosedCount', stats.closed);
+  setText('statClosedValue', stats.closed);
   setText('statTodayCount', stats.today);
+  setText('statTodayValue', stats.today);
   setText('statTotalCount', stats.total);
+  setText('statTotalValue', stats.total);
   setText('statOverdueCount', stats.overdue);
+  setText('statOverdueValue', stats.overdue);
 
   setText('statMttrValue', mttrValue);
   setText('statTopMachineName', topMachineValue);
+  setText('statTopMachineValue', topMachineValue);
   setText('statTopTechName', topTechValue);
+  setText('statTopTechValue', topTechValue);
 
   // تحديث وقت المزامنة الحية
   const updateTimeEl = document.getElementById('lastUpdateTime');

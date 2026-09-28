@@ -168,20 +168,29 @@ export const Sidebar = (activeTab) => {
       style="background: var(--app-card-bg); border-color: var(--app-border); top: var(--app-header-h, 64px); height: calc(100vh - var(--app-header-h, 64px));"
     >
       <!-- رأس الشريط الجانبي مع زر طي/توسيع -->
-      <div class="h-12 px-3 flex items-center justify-between border-b shrink-0" style="border-color: var(--app-border);">
+      <div class="h-12 px-2.5 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between px-3'} border-b shrink-0" style="border-color: var(--app-border);">
         ${!isCollapsed ? `
-          <span class="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-            ${isAr ? 'نظام الصيانة والتشغيل' : 'Navigation'}
-          </span>
-        ` : '<div></div>'}
+          <div class="flex items-center gap-2 overflow-hidden">
+            <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+            <span class="text-[11px] font-bold tracking-wider text-slate-300 uppercase truncate">
+              ${isAr ? 'نظام الصيانة والتشغيل' : 'Navigation'}
+            </span>
+          </div>
+        ` : ''}
 
         <button
           type="button"
+          id="btnToggleSidebar"
           onclick="window.toggleSidebarCollapse()"
-          class="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition active:scale-90"
-          title="${isCollapsed ? (isAr ? 'توسيع القائمة' : 'Expand Sidebar') : (isAr ? 'طي القائمة' : 'Collapse Sidebar')}">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200 ${isCollapsed ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="${isAr ? '9 18 15 12 9 6' : '15 18 9 12 15 6'}"></polyline>
+          class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 transition active:scale-90 cursor-pointer shadow-sm"
+          title="${isCollapsed ? (isAr ? 'توسيع القائمة الجانبية ( [ )' : 'Expand Sidebar ( [ )') : (isAr ? 'طي القائمة الجانبية ( [ )' : 'Collapse Sidebar ( [ )')}"
+          aria-label="${isCollapsed ? (isAr ? 'توسيع القائمة الجانبية' : 'Expand Sidebar') : (isAr ? 'طي القائمة الجانبية' : 'Collapse Sidebar')}">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="${
+              isAr
+                ? (isCollapsed ? '15 18 9 12 15 6' : '9 18 15 12 9 6')
+                : (isCollapsed ? '9 18 15 12 9 6' : '15 18 9 12 15 6')
+            }"></polyline>
           </svg>
         </button>
       </div>
@@ -191,7 +200,7 @@ export const Sidebar = (activeTab) => {
         ${groups.map(group => `
           <div class="space-y-1">
             ${!isCollapsed ? `
-              <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-70">
+              <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-80">
                 ${group.title}
               </div>
             ` : `
@@ -209,8 +218,8 @@ export const Sidebar = (activeTab) => {
                     isCollapsed ? 'justify-center' : ''
                   } ${
                     active
-                      ? 'bg-blue-600/15 text-blue-400 font-bold border border-blue-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60 font-medium'
+                      ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-500/40 shadow-sm'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/70 font-medium'
                   }">
                   <span class="inline-flex items-center justify-center w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-slate-400'}">
                     ${item.iconSvg}
@@ -236,7 +245,7 @@ export const Sidebar = (activeTab) => {
           <span class="text-[10px] font-mono text-slate-400">v2.4</span>
         ` : `
           <div class="w-full flex justify-center">
-            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="${isAr ? 'متصل بالسيرفر' : 'Connected'}"></span>
           </div>
         `}
       </div>
@@ -244,15 +253,42 @@ export const Sidebar = (activeTab) => {
   `;
 };
 
+// ============================================================
+// دالة طي وتوسيع الشريط الجانبي للشاشات الكبيرة (Desktop >= 1024px)
+// ============================================================
 if (typeof window !== "undefined") {
+  /**
+   * طي أو توسيع الشريط الجانبي للشاشات الكبيرة فقط
+   */
   window.toggleSidebarCollapse = function() {
     const isCurrentlyCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
-    localStorage.setItem('sidebar_collapsed', isCurrentlyCollapsed ? 'false' : 'true');
+    const nextState = !isCurrentlyCollapsed;
+    localStorage.setItem('sidebar_collapsed', nextState ? 'true' : 'false');
+    
     const container = document.getElementById("sidebarContainer");
-    if (container && typeof window.currentPage === "string") {
-      container.innerHTML = Sidebar(window.currentPage);
+    const activeTab = window.currentPage || localStorage.getItem('lastPage') || 'home';
+    if (container) {
+      container.className = `hidden lg:block shrink-0 ${nextState ? 'w-16' : 'w-64 xl:w-72'}`;
+      container.innerHTML = Sidebar(activeTab);
+    }
+
+    // إشعار فوري لـ Chart.js وباقي الجداول المتجاوبة للتكيف مع العرض الجديد للشاشات الكبيرة
+    window.dispatchEvent(new Event('resize'));
+    if (typeof window.refreshManagerDashboardCharts === 'function') {
+      setTimeout(window.refreshManagerDashboardCharts, 80);
     }
   };
+
+  // اختصار لوحة المفاتيح: [ أو Ctrl+B لطي وتوسيع القائمة على أجهزة الكمبيوتر
+  window.addEventListener('keydown', (e) => {
+    if (
+      (e.key === '[' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) ||
+      ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')
+    ) {
+      e.preventDefault();
+      window.toggleSidebarCollapse();
+    }
+  });
 }
 
 

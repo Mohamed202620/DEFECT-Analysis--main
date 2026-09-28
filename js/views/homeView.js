@@ -24,6 +24,7 @@ export const HomeView = () => {
   const savedMode = localStorage.getItem("home_view_mode");
   const activeMode = savedMode ? savedMode : (isManagerRole ? "manager" : "technician");
 
+  const savedPeriod = localStorage.getItem('home_period') || 'week';
   const stats = window.dashboardData || {
     open: 0,
     closed: 0,
@@ -42,7 +43,19 @@ export const HomeView = () => {
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(t.waMessage || "Hello")}`;
 
   return `
-  <div class="app-page w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 space-y-6">
+  <!-- ============================================================ -->
+  <!-- 1. واجهة الموبايل الأصلية بالكامل (Mobile View < 1024px) -->
+  <!-- التصميم الأصلي المألوف كما كان: بطاقة الترحيب، كارت الحضور، الكروت الحية، الوصول السريع -->
+  <!-- ============================================================ -->
+  <div class="lg:hidden w-full max-w-lg mx-auto px-3.5 py-4 pb-24 space-y-4">
+    ${renderMobileHomeView(stats, isEn, t, waUrl, currentLang, userName, userRole)}
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 2. واجهة الشاشات الكبيرة المتطورة (Large Screens Dashboard >= 1024px) -->
+  <!-- 12 عمود مخصصة للشاشات الكبيرة (1440px / 1920px / 2560px) -->
+  <!-- ============================================================ -->
+  <div class="hidden lg:block app-page w-full max-w-[1600px] mx-auto px-6 lg:px-8 py-5 pb-24 space-y-6">
 
     <!-- شريط الرأس وتحديد المنظور والفلترة الزمنية -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b" style="border-color: var(--app-border);">
@@ -67,13 +80,13 @@ export const HomeView = () => {
       <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <!-- أزرار الفترات الزمنية -->
         <div class="inline-flex items-center p-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold" id="homePeriodGroup">
-          <button type="button" onclick="window.setHomePeriod('today')" class="home-period-btn px-2.5 py-1 rounded-md transition text-slate-300 hover:text-white" data-period="today">
+          <button type="button" onclick="window.setHomePeriod('today')" class="home-period-btn px-2.5 py-1 rounded-md transition ${savedPeriod === 'today' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-slate-300 hover:text-white'}" data-period="today">
             ${isEn ? 'Today' : 'اليوم'}
           </button>
-          <button type="button" onclick="window.setHomePeriod('week')" class="home-period-btn px-2.5 py-1 rounded-md transition bg-blue-600 text-white font-bold shadow-sm" data-period="week">
+          <button type="button" onclick="window.setHomePeriod('week')" class="home-period-btn px-2.5 py-1 rounded-md transition ${savedPeriod === 'week' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-slate-300 hover:text-white'}" data-period="week">
             ${isEn ? '7 Days' : '7 أيام'}
           </button>
-          <button type="button" onclick="window.setHomePeriod('month')" class="home-period-btn px-2.5 py-1 rounded-md transition text-slate-300 hover:text-white" data-period="month">
+          <button type="button" onclick="window.setHomePeriod('month')" class="home-period-btn px-2.5 py-1 rounded-md transition ${savedPeriod === 'month' ? 'bg-blue-600 text-white font-bold shadow-sm' : 'text-slate-300 hover:text-white'}" data-period="month">
             ${isEn ? '30 Days' : '30 يوم'}
           </button>
         </div>
@@ -100,7 +113,7 @@ export const HomeView = () => {
           <button
             type="button"
             onclick="if(window.loadDashboardStats) window.loadDashboardStats();"
-            class="p-1 text-slate-400 hover:text-white transition"
+            class="p-1 text-slate-400 hover:text-white transition cursor-pointer"
             title="${isEn ? 'Refresh' : 'تحديث البيانات'}">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -127,6 +140,163 @@ export const HomeView = () => {
   ${BottomNav("home")}
   `;
 };
+
+// ============================================================
+// 0. واجهة الموبايل الأصلية بالكامل (Original Mobile Screen)
+// مطابقة تماماً للتصميم الأصلي المألوف على شاشات الهواتف والتابلت
+// ============================================================
+function renderMobileHomeView(stats, isEn, t, waUrl, currentLang, userName, userRole) {
+  const openCount = stats.open || 0;
+  const closedCount = stats.closed || 0;
+  const todayCount = stats.today || 0;
+  const overdueCount = stats.overdue || 0;
+  const totalCount = stats.total || 0;
+
+  return `
+    <div class="space-y-4">
+      <!-- 1. بطاقة المستخدم والترحيب الأصلية للموبايل -->
+      <div class="dyn-card border rounded-2xl p-4 flex items-center justify-between shadow-sm" style="background: var(--app-card-bg); border-color: var(--app-border);">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center text-lg shadow-md shadow-blue-900/40 shrink-0">
+            ${(userName.trim().charAt(0) || "M").toUpperCase()}
+          </div>
+          <div class="leading-tight">
+            <div class="text-xs text-slate-400 font-medium">${t.welcome || "مرحباً،"}</div>
+            <div class="text-sm font-bold text-white">${userName || t.defaultName || "المستخدم"}</div>
+            <div class="text-[11px] text-blue-400 font-medium">${userRole}</div>
+          </div>
+        </div>
+        <button type="button" onclick="if(window.loadDashboardStats) window.loadDashboardStats();" class="p-2 text-slate-400 hover:text-white transition cursor-pointer" title="${isEn ? 'Refresh' : 'تحديث'}">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        </button>
+      </div>
+
+      <!-- 2. كارت الحضور والانصراف بالوردية -->
+      <div id="attendanceCardContainerMobile" class="w-full">
+        ${renderAttendanceCard()}
+      </div>
+
+      <!-- 3. كروت المؤشرات الحية الأصلية للموبايل -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-xs font-bold text-slate-300">${t.statsOverview || 'ملخص المؤشرات الحية'}</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <!-- أعطال مفتوحة -->
+          <div onclick="window.openTicketsWithFilter('pending')" class="dyn-card border rounded-xl p-3 flex flex-col justify-between cursor-pointer active:scale-95 transition" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-amber-400">${t.kpiOpen || 'أعطال مفتوحة'}</span>
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            </div>
+            <div class="mt-2 text-2xl font-black text-white font-mono" id="statOpenCount">${openCount}</div>
+          </div>
+
+          <!-- تم إصلاحها -->
+          <div onclick="window.openTicketsWithFilter('resolved')" class="dyn-card border rounded-xl p-3 flex flex-col justify-between cursor-pointer active:scale-95 transition" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-emerald-400">${t.kpiClosed || 'تم إصلاحها'}</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="mt-2 text-2xl font-black text-white font-mono" id="statClosedCount">${closedCount}</div>
+          </div>
+
+          <!-- أعطال اليوم -->
+          <div onclick="window.openTicketsWithFilter('today')" class="dyn-card border rounded-xl p-3 flex flex-col justify-between cursor-pointer active:scale-95 transition" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-blue-400">${t.kpiToday || 'أعطال اليوم'}</span>
+              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+            </div>
+            <div class="mt-2 text-2xl font-black text-white font-mono" id="statTodayCount">${todayCount}</div>
+          </div>
+
+          <!-- بلاغات متأخرة -->
+          <div onclick="window.openTicketsWithFilter('overdue')" class="dyn-card border rounded-xl p-3 flex flex-col justify-between cursor-pointer active:scale-95 transition" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold text-rose-400">${t.kpiOverdue || 'بلاغات متأخرة'}</span>
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+            </div>
+            <div class="mt-2 text-2xl font-black text-white font-mono" id="statOverdueCount">${overdueCount}</div>
+          </div>
+        </div>
+
+        <!-- إجمالي البلاغات -->
+        <div onclick="window.openTicketsWithFilter('all')" class="dyn-card border rounded-xl p-3 flex items-center justify-between cursor-pointer active:scale-95 transition" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span class="text-xs font-bold text-slate-300">${t.kpiTotal || 'إجمالي البلاغات'}</span>
+          </div>
+          <span class="text-xl font-black text-white font-mono" id="statTotalCount">${totalCount}</span>
+        </div>
+      </div>
+
+      <!-- 4. الكروت الثانوية (أفضل فني، أكثر ماكينة، MTTR) -->
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="dyn-card border rounded-xl p-2.5 flex flex-col justify-between" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <span class="text-[10px] text-slate-400 font-medium truncate">${t.topTech || 'أفضل فني'}</span>
+          <span class="text-xs font-bold text-white mt-1 truncate" id="statTopTechName">${stats.topTechs?.[0]?.name || stats.topTechs?.[0]?.[0] || t.noData || '—'}</span>
+        </div>
+        <div class="dyn-card border rounded-xl p-2.5 flex flex-col justify-between" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <span class="text-[10px] text-slate-400 font-medium truncate">${t.topMachine || 'أكثر ماكينة'}</span>
+          <span class="text-xs font-bold text-amber-400 mt-1 truncate" id="statTopMachineName">${stats.topMachines?.[0]?.id || stats.topMachines?.[0]?.[0] || t.noData || '—'}</span>
+        </div>
+        <div class="dyn-card border rounded-xl p-2.5 flex flex-col justify-between" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <span class="text-[10px] text-slate-400 font-medium truncate">${t.mttr || 'متوسط الإصلاح'}</span>
+          <span class="text-xs font-bold text-blue-400 mt-1 font-mono" id="statMttrValue">${stats.mttrFormatted || '—'}</span>
+        </div>
+      </div>
+
+      <!-- 5. الوصول السريع (Quick Access) الأصلي للموبايل -->
+      <div class="space-y-2 pt-1">
+        <span class="text-xs font-bold text-slate-300 px-1">${t.quickAccess || 'الوصول السريع'}</span>
+        <div class="grid grid-cols-2 gap-2.5">
+          <!-- إبلاغ عن عطل -->
+          <button type="button" onclick="window.navigateTo('issue')" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">🚨</span>
+            <span class="text-xs font-bold text-white">${t.reportIssue || 'إبلاغ عن عطل'}</span>
+            <span class="text-[10px] text-slate-400">${t.reportIssueDesc || 'تسجيل بلاغ جديد'}</span>
+          </button>
+
+          <!-- مسح QR -->
+          <button type="button" onclick="window.navigateTo('qr')" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">📷</span>
+            <span class="text-xs font-bold text-white">${isEn ? 'Scan QR' : 'مسح QR'}</span>
+            <span class="text-[10px] text-slate-400">${isEn ? 'Scan machine' : 'فحص كود الماكينة'}</span>
+          </button>
+
+          <!-- فاحص أخطاء الشاشات -->
+          <button type="button" onclick="window.navigateTo('errorScanner')" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">🔍</span>
+            <span class="text-xs font-bold text-white">${isEn ? 'Error Scanner' : 'فاحص الشاشات'}</span>
+            <span class="text-[10px] text-slate-400">${isEn ? 'Capture error code' : 'تصوير رمز العطل'}</span>
+          </button>
+
+          <!-- إرسال مقترح كايزن -->
+          <button type="button" onclick="window.navigateTo('kaizenBoard')" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">💡</span>
+            <span class="text-xs font-bold text-white">${t.kaizenSubmit || 'إرسال مقترح'}</span>
+            <span class="text-[10px] text-slate-400">${t.kaizenSubmitDesc || 'مقترح كايزن جديد'}</span>
+          </button>
+
+          <!-- تواصل مع المطور -->
+          <a href="${waUrl}" target="_blank" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">💬</span>
+            <span class="text-xs font-bold text-white">${t.contactDev || 'تواصل مع المطور'}</span>
+            <span class="text-[10px] text-slate-400">${isEn ? 'Engineering WhatsApp' : 'واتساب الدعم الفني'}</span>
+          </a>
+
+          <!-- تسجيل الخروج -->
+          <button type="button" onclick="if(confirm('${t.logoutConfirm || (isEn ? 'Are you sure you want to logout?' : 'هل أنت متأكد من تسجيل الخروج؟')}')) { window.logout(); }" class="dyn-card border rounded-xl p-3 flex flex-col items-start gap-1 text-start active:scale-95 transition cursor-pointer" style="background: var(--app-card-bg); border-color: var(--app-border);">
+            <span class="text-lg">🚪</span>
+            <span class="text-xs font-bold text-rose-400">${(translations[currentLang] || translations.en).logout || 'تسجيل الخروج'}</span>
+            <span class="text-[10px] text-slate-400">${isEn ? 'Sign out' : 'إنهاء الجلسة'}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 // ============================================================
 // 1. لوحة تحكم المدير (Manager Decision Cockpit)
@@ -822,6 +992,7 @@ if (typeof window !== "undefined") {
   };
 
   window.setHomePeriod = function(period) {
+    localStorage.setItem('home_period', period);
     const btns = document.querySelectorAll('.home-period-btn');
     btns.forEach(b => {
       if (b.dataset.period === period) {
@@ -831,7 +1002,7 @@ if (typeof window !== "undefined") {
       }
     });
     if (typeof window.loadDashboardStats === "function") {
-      window.loadDashboardStats();
+      window.loadDashboardStats(period);
     }
   };
 

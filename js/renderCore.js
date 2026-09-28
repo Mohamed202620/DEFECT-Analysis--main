@@ -37,6 +37,7 @@ if (auth) {
 }
 
 export let currentPage = 'login';
+window.currentPage = currentPage;
 
 // إصلاح: كانت اللغة دايماً 'ar' في كل تحميل صفحة حتى لو المستخدم
 // بدّلها قبل كده - دلوقتي بنقرأ آخر لغة محفوظة (نفس أسلوب حفظ
@@ -102,6 +103,7 @@ if (
 }
 
 activePage = currentPage;
+window.currentPage = currentPage;
 
 app.style.opacity = "0.4";
 
@@ -134,7 +136,8 @@ if (sidebarContainer) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
   } else {
-    sidebarContainer.className = "hidden lg:block";
+    const isCollapsed = localStorage.getItem("sidebar_collapsed") === "true";
+    sidebarContainer.className = `hidden lg:block shrink-0 ${isCollapsed ? 'w-16' : 'w-64 xl:w-72'}`;
     sidebarContainer.innerHTML = Sidebar(currentPage);
   }
 }
