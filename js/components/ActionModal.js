@@ -30,7 +30,9 @@ function escapeModalAttr(str) {
     .replace(/>/g, "&gt;");
 }
 
-export function openActionModal({ title, fields = [], submitLabel = "تأكيد" }) {
+export function openActionModal({ title, fields = [], submitLabel = (window.currentLang === "en" ? "Confirm" : "تأكيد") }) {
+
+  const isEn = window.currentLang === "en";
 
   return new Promise(resolve => {
 
@@ -79,11 +81,11 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
 
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label} (حتى 3 صور)</label>
+            <label class="block text-[11px] text-gray-400 mb-1">${field.label} ${isEn ? "(up to 3 images)" : "(حتى 3 صور)"}</label>
             ${buildAttachmentPickerHtml(groupId, {
-              cameraLabel: "📷 التقاط",
-              galleryLabel: "🖼️ المعرض",
-              emptyText: "لا توجد صور مرفقة",
+              cameraLabel: isEn ? "📷 Camera" : "📷 التقاط",
+              galleryLabel: isEn ? "🖼️ Gallery" : "🖼️ المعرض",
+              emptyText: isEn ? "No images attached" : "لا توجد صور مرفقة",
               buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-2",
               cameraButtonClass: "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2 text-blue-400 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
               galleryButtonClass: "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2 text-gray-300 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
@@ -112,7 +114,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
         <div class="flex gap-2 mt-2">
           <button id="modal_cancel_btn"
             class="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2.5 rounded-lg">
-            إلغاء
+            ${isEn ? "Cancel" : "إلغاء"}
           </button>
           <button id="modal_submit_btn"
             class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg">
@@ -136,7 +138,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
       initAttachmentPicker(field._attachmentGroupId, {
         maxFiles: 3,
         maxFileSizeMB: 10,
-        emptyText: "لا توجد صور مرفقة"
+        emptyText: isEn ? "No images attached" : "لا توجد صور مرفقة"
       });
     });
 
@@ -155,7 +157,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
 
       const submitBtn = overlay.querySelector("#modal_submit_btn");
       submitBtn.disabled = true;
-      submitBtn.textContent = "جاري المعالجة...";
+      submitBtn.textContent = isEn ? "Processing..." : "جاري المعالجة...";
 
       const values = {};
 
@@ -168,7 +170,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
           const dataUrls = getAttachmentFiles(field._attachmentGroupId);
 
           if (field.required && !dataUrls.length) {
-            showError(`${field.label}: لازم صورة واحدة على الأقل`);
+            showError(`${field.label}: ${isEn ? "at least one image is required" : "لازم صورة واحدة على الأقل"}`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;
@@ -181,7 +183,7 @@ export function openActionModal({ title, fields = [], submitLabel = "تأكيد"
           const value = el ? el.value.trim() : "";
 
           if (field.required && !value) {
-            showError(`${field.label}: مطلوب`);
+            showError(`${field.label}: ${isEn ? "required" : "مطلوب"}`);
             submitBtn.disabled = false;
             submitBtn.textContent = submitLabel;
             return;

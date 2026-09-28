@@ -59,7 +59,7 @@ const NOTIFICATION_ICONS = {
 function formatDate(iso) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("ar-EG", {
+    return new Date(iso).toLocaleString((window.currentLang === "en" ? "en-US" : "ar-EG"), {
       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
     });
   } catch {
