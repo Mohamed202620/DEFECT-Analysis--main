@@ -432,9 +432,9 @@ export function buildCsvHeaderLines(reportTitle) {
   const now = new Date();
 
   const exportedAt =
-    now.toLocaleDateString("ar-EG") +
+    now.toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")) +
     " " +
-    now.toLocaleTimeString("ar-EG");
+    now.toLocaleTimeString((window.currentLang === "en" ? "en-US" : "ar-EG"));
 
   return [
     [`"${COMPANY_NAME_AR}"`],

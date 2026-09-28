@@ -309,7 +309,7 @@ window.openMaintenanceSearchTicketDetails = function (ticketId) {
 function formatSuggestionDetailsDate(iso) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("ar-EG", {
+    return new Date(iso).toLocaleString((window.currentLang === "en" ? "en-US" : "ar-EG"), {
       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
     });
   } catch {
@@ -836,7 +836,7 @@ function ticketResultCard(t) {
         ${t.priority ? `<span>${PRIORITY_LABELS[t.priority] || escapeHtml(t.priority)}</span>` : ''}
         ${t.reportedBy ? `<span>👤 بلّغ: ${escapeHtml(t.reportedBy)}</span>` : ''}
         ${t.assignedTo ? `<span>🛠️ مُسندة إلى: ${escapeHtml(t.assignedTo)}</span>` : ''}
-        ${t.createdAt ? `<span>🕓 ${escapeHtml(new Date(t.createdAt).toLocaleDateString('ar-EG'))}</span>` : ''}
+        ${t.createdAt ? `<span>🕓 ${escapeHtml(new Date(t.createdAt).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")))}</span>` : ''}
       </div>
 
       <button
@@ -873,7 +873,7 @@ function pmResultCard(p) {
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
         ${p.reporter?.name ? `<span>👤 الفني: ${escapeHtml(p.reporter.name)}</span>` : ''}
         ${p.reporter?.shift ? `<span>🕒 الوردية: ${escapeHtml(p.reporter.shift)}</span>` : ''}
-        ${p.createdAt ? `<span>🕓 ${escapeHtml(new Date(p.createdAt).toLocaleDateString('ar-EG'))}</span>` : ''}
+        ${p.createdAt ? `<span>🕓 ${escapeHtml(new Date(p.createdAt).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")))}</span>` : ''}
       </div>
     </div>
   `;
@@ -905,7 +905,7 @@ function suggestionResultCard(s) {
         ${s.machine ? `<span>🏭 ${escapeHtml(s.machine)}</span>` : ''}
         <span>👤 ${escapeHtml(s.anonymous ? 'مجهول' : (s.name || '-'))}</span>
         ${s.assignedTo ? `<span>🔧 الفني: ${escapeHtml(s.assignedTo)}</span>` : ''}
-        ${s.createdAt ? `<span>🕓 ${escapeHtml(new Date(s.createdAt).toLocaleDateString('ar-EG'))}</span>` : ''}
+        ${s.createdAt ? `<span>🕓 ${escapeHtml(new Date(s.createdAt).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")))}</span>` : ''}
       </div>
 
       <button

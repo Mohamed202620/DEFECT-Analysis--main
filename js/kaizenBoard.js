@@ -546,7 +546,7 @@ window.cleanupKaizenBoard = function () {
 function formatKaizenDetailsDate(iso) {
   if (!iso) return "-";
   try {
-    return new Date(iso).toLocaleDateString("ar-EG", {
+    return new Date(iso).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), {
       year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit"
     });
@@ -783,7 +783,7 @@ const KAIZEN_REPORT_PAGE_WIDTH_PX = 794; // عرض صفحة A4 تقريباً ب
 
 function formatKaizenReportDate(iso) {
   try {
-    return new Date(iso).toLocaleDateString("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Date(iso).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch (error) {
     return iso || "-";
   }

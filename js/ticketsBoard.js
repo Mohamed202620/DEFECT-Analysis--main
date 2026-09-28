@@ -928,7 +928,7 @@ window.generateMonthlyReport = async function () {
     
     const tickets = result.data;
     if (!tickets.length) {
-      alert(t().reportNoData);
+      alert(t().noTicketsForReport);
       return;
     }
     

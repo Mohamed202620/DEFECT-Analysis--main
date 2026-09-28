@@ -58,7 +58,7 @@ import {
  */
 function formatHolidayDate(dateStr) {
   try {
-    return new Date(`${dateStr}T00:00:00`).toLocaleDateString("ar-EG", {
+    return new Date(`${dateStr}T00:00:00`).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), {
       weekday: "long", year: "numeric", month: "long", day: "numeric"
     });
   } catch (e) {
@@ -120,7 +120,7 @@ window.loadHolidays = async function () {
 function formatSyncTimestamp(iso) {
   if (!iso) return "لم تتم أي مزامنة بعد";
   try {
-    return new Date(iso).toLocaleString("ar-EG");
+    return new Date(iso).toLocaleString((window.currentLang === "en" ? "en-US" : "ar-EG"));
   } catch (e) {
     return iso;
   }
