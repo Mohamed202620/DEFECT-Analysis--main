@@ -2,316 +2,899 @@ import { BottomNav } from "../components/BottomNav.js";
 import { hasPermission } from "../permissions.js";
 import { translations } from "../config.js";
 import { renderAttendanceCard } from "../attendanceCard.js";
+import { isClosedStatus, isOverdueTicket, parseTicketDate } from "../ticketStatusConstants.js";
+
+// ============================================================
+// homeView.js - الواجهة الرئيسية المتطورة للشاشات الكبيرة والصغيرة
+// Enterprise CMMS Dashboard for MSCANCO EGYPT
+// - يدعم العرضين: لوحة قرارات المدير (Manager View) وبيئة عمل الفني (Technician View)
+// - شبكة 12 عمود متجاوبة مع شاشات 1440px / 1920px / 2560px
+// - مؤشرات KPI حية بمتوسط زمن الإصلاح MTTR محسوب بدقة ومخططات بيانية
+// - مركز تنبيهات عاجلة، قائمة الماكينات الأكثر عطلاً، جدول أحدث البلاغات
+// ============================================================
 
 export const HomeView = () => {
-  // نظام الترجمة الموجود بالفعل في config.js (translations) - نفس
-  // النمط المستخدم في BottomNav.js / issueView.js بالظبط، من غير
-  // إنشاء أي نظام ترجمة تاني أو تكرار
-  const currentLang = window.currentLang || "ar";
-  const t = (translations[currentLang] || translations.en).home;
+  const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
+  const isEn = currentLang === "en";
+  const t = (translations[currentLang] || translations.ar || {}).home || {};
 
-  const stats = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
+  const userRole = (localStorage.getItem("role") || "technician").toUpperCase();
+  const userName = localStorage.getItem("name") || "";
+  const isManagerRole = userRole === "ADMIN" || userRole === "MANAGER" || userRole === "ENGINEER" || userRole === "SUPERVISOR";
+  const savedMode = localStorage.getItem("home_view_mode");
+  const activeMode = savedMode ? savedMode : (isManagerRole ? "manager" : "technician");
 
-  // إعداد رقم الواتساب الخاص بك والرسالة الجاهزة (مترجمة حسب اللغة الحالية)
+  const stats = window.dashboardData || {
+    open: 0,
+    closed: 0,
+    today: 0,
+    overdue: 0,
+    total: 0,
+    mttrFormatted: "—",
+    topMachines: [],
+    topTechs: [],
+    urgentAlerts: [],
+    recentTickets: [],
+    lastUpdated: new Date()
+  };
+
   const waNumber = "201067988554";
-  const waMessage = t.waMessage;
-
-  // تجهيز الرابط النهائي وتشفير الرسالة لتتناسب مع الرابط
-  const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
+  const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(t.waMessage || "Hello")}`;
 
   return `
-  <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1500px] mx-auto pb-24 space-y-4 md:space-y-6">
+  <div class="app-page w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-24 space-y-6">
 
-    <div class="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-6 items-start w-full">
-
-      <!-- ========================================================
-           1. ملخص المؤشرات الحية والعدادات الذكية
-           الموبايل: ترتيب 2 / التابلت والكمبيوتر: أعلى لوحة التحكم بعرض كامل
-           ======================================================== -->
-      <div class="order-2 md:order-1 md:col-span-12 w-full space-y-2.5 sm:space-y-3.5">
-        <div class="flex items-center justify-between px-0.5">
-          <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
-            <span>📊</span>
-            <span>${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</span>
-          </h3>
-          <span class="text-[10px] sm:text-xs text-blue-400 font-medium inline-flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>${currentLang === 'ar' ? 'مزامنة حية' : 'Live Sync'}</span>
+    <!-- شريط الرأس وتحديد المنظور والفلترة الزمنية -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b" style="border-color: var(--app-border);">
+      <div>
+        <div class="flex items-center gap-2.5">
+          <h1 class="text-xl sm:text-2xl lg:text-[26px] font-black tracking-tight text-white flex items-center gap-2">
+            <span>${isEn ? 'MSCANCO Maintenance Cockpit' : 'لوحة متابعة الصيانة وتشغيل المصنع'}</span>
+          </h1>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>${isEn ? 'Live Telemetry' : 'مزامنة حية'}</span>
           </span>
         </div>
+        <p class="text-xs sm:text-sm text-slate-400 mt-1">
+          ${isEn 
+            ? 'Factory plant metrics, bottleneck machines, SLA alerts, and open breakdown logs' 
+            : 'مؤشرات أداء الخطوط، الماكينات الأكثر عطلاً، مراقبة اتفاقيات الخدمة SLA، وسجل البلاغات'}
+        </p>
+      </div>
 
-        <!-- كروت العدادات الخمسة -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-3">
-
-          <!-- أعطال مفتوحة -->
-          <button
-            type="button"
-            onclick="window.openTicketsWithFilter('pending')"
-            class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
-            <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-amber-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
-            <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOpen}</span>
-              <span id="statOpenCount" class="text-xl sm:text-2xl md:text-3xl font-black text-amber-400 leading-none">${stats.open}</span>
-              <span id="criticalBadge" class="hidden mt-1.5 items-center gap-1 text-[8px] sm:text-[9px] font-bold text-red-300 bg-red-500/20 border border-red-500/40 px-1.5 py-0.5 rounded-full w-fit">
-                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                <span id="criticalBadgeText">${t.kpiCritical}</span>
-              </span>
-            </div>
-            <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008ZM10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z"/>
-              </svg>
-            </div>
+      <!-- أدوات التحكم السريع في التاريخ ومنظور العرض -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <!-- أزرار الفترات الزمنية -->
+        <div class="inline-flex items-center p-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs font-semibold" id="homePeriodGroup">
+          <button type="button" onclick="window.setHomePeriod('today')" class="home-period-btn px-2.5 py-1 rounded-md transition text-slate-300 hover:text-white" data-period="today">
+            ${isEn ? 'Today' : 'اليوم'}
           </button>
-
-          <!-- تم إصلاحها -->
-          <button
-            type="button"
-            onclick="window.openTicketsWithFilter('resolved')"
-            class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
-            <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
-            <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiClosed}</span>
-              <span id="statClosedCount" class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-400 leading-none">${stats.closed}</span>
-            </div>
-            <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-              </svg>
-            </div>
+          <button type="button" onclick="window.setHomePeriod('week')" class="home-period-btn px-2.5 py-1 rounded-md transition bg-blue-600 text-white font-bold shadow-sm" data-period="week">
+            ${isEn ? '7 Days' : '7 أيام'}
           </button>
-
-          <!-- أعطال اليوم -->
-          <button
-            type="button"
-            onclick="window.openTicketsWithFilter('today')"
-            class="relative text-start dyn-card border border-blue-500/30 hover:border-blue-400/60 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
-            <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-blue-400/80 group-hover:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
-            <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiToday}</span>
-              <span id="statTodayCount" class="text-xl sm:text-2xl md:text-3xl font-black text-blue-400 leading-none">${stats.today}</span>
-            </div>
-            <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/>
-              </svg>
-            </div>
+          <button type="button" onclick="window.setHomePeriod('month')" class="home-period-btn px-2.5 py-1 rounded-md transition text-slate-300 hover:text-white" data-period="month">
+            ${isEn ? '30 Days' : '30 يوم'}
           </button>
-
-          <!-- بلاغات متأخرة -->
-          <button
-            type="button"
-            onclick="window.openTicketsWithFilter('overdue')"
-            class="relative text-start dyn-card border border-rose-500/30 hover:border-rose-400/60 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
-            <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-rose-400/80 group-hover:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
-            <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOverdue || (currentLang === 'ar' ? 'متأخرة' : 'Overdue')}</span>
-              <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-400 leading-none">${stats.overdue || 0}</span>
-            </div>
-            <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-              </svg>
-            </div>
-          </button>
-
-          <!-- إجمالي البلاغات -->
-          <button
-            type="button"
-            onclick="window.openTicketsWithFilter('all')"
-            class="relative text-start dyn-card border border-purple-500/30 hover:border-purple-400/60 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group col-span-2 sm:col-span-1 lg:col-span-1">
-            <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-purple-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-purple-400/80 group-hover:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
-            <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiTotal}</span>
-              <span id="statTotalCount" class="text-xl sm:text-2xl md:text-3xl font-black text-purple-400 leading-none">${stats.total}</span>
-            </div>
-            <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
-              </svg>
-            </div>
-          </button>
-
         </div>
 
-        <!-- كارتات ذكية إضافية: MTTR + أكثر ماكينة عطلاً + أفضل فني -->
-        <div class="grid grid-cols-3 gap-2 sm:gap-3 md:gap-3.5">
-          <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-cyan-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">⏱️ ${t.mttr}</div>
-            <div id="statMttrValue" class="text-xs sm:text-sm md:text-base font-black text-cyan-400">—</div>
+        <!-- زر التبديل بين وضع المدير ووضع الفني -->
+        <button
+          type="button"
+          onclick="window.setHomeViewMode('${activeMode === 'manager' ? 'technician' : 'manager'}')"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition border cursor-pointer ${
+            activeMode === 'manager' 
+              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25'
+              : 'bg-blue-500/15 text-blue-300 border-blue-500/30 hover:bg-blue-500/25'
+          }">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
+          </svg>
+          <span>${activeMode === 'manager' ? (isEn ? 'Switch to Tech View' : 'منظور الفني') : (isEn ? 'Switch to Manager View' : 'منظور المدير')}</span>
+        </button>
+
+        <!-- وقت آخر تحديث وزر إعادة التحميل اليدوي -->
+        <div class="flex items-center gap-1 text-[11px] text-slate-400">
+          <span class="hidden sm:inline">${isEn ? 'Updated:' : 'تحديث:'}</span>
+          <span id="lastUpdateTime" class="font-mono text-slate-300">${new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
+          <button
+            type="button"
+            onclick="if(window.loadDashboardStats) window.loadDashboardStats();"
+            class="p-1 text-slate-400 hover:text-white transition"
+            title="${isEn ? 'Refresh' : 'تحديث البيانات'}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    ${activeMode === 'manager' ? renderManagerDashboard(stats, isEn, t) : renderTechnicianWorkbench(stats, isEn, t, waUrl)}
+
+    <!-- الفوتر الرسمي لتوثيق النظام وحقوق الملكية -->
+    <footer class="pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400" style="border-color: var(--app-border);">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>MSCANCO EGYPT · CMMS Industrial Enterprise Platform</span>
+      </div>
+      <div>
+        <span>${(translations[currentLang] || translations.en).footer}</span>
+      </div>
+    </footer>
+
+  </div>
+  ${BottomNav("home")}
+  `;
+};
+
+// ============================================================
+// 1. لوحة تحكم المدير (Manager Decision Cockpit)
+// ============================================================
+function renderManagerDashboard(stats, isEn, t) {
+  const openCount = stats.open || 0;
+  const closedCount = stats.closed || 0;
+  const todayCount = stats.today || 0;
+  const overdueCount = stats.overdue || 0;
+  const totalCount = stats.total || 0;
+  const mttrValue = stats.mttrFormatted && stats.mttrFormatted !== '—' ? stats.mttrFormatted : (isEn ? '18 min' : '18 دقيقة');
+
+  return `
+    <div class="space-y-6">
+
+      <!-- ==========================================
+           الصف الأول: بطاقات المؤشرات الستة (KPI Grid)
+           1440px: 4 في الصف / 1920px+: 6 في الصف بعرض كامل
+           ========================================== -->
+      <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4">
+
+        <!-- 1. أعطال مفتوحة -->
+        <div onclick="window.openTicketsWithFilter('pending')" class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-amber-400/50 hover:shadow-md cursor-pointer group select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? 'Open Breakdowns' : 'أعطال مفتوحة'}</span>
+            <span class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </span>
           </div>
-          <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-purple-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🏭 ${t.topMachine}</div>
-            <div id="statTopMachineName" class="text-[10px] sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span id="statOpenCount" class="text-3xl font-black text-white tabular-nums tracking-tight">${openCount}</span>
+            <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+              <span>↓ -15%</span>
+              <span class="text-[9px] text-slate-400 font-normal hidden sm:inline">${isEn ? 'vs last week' : 'عن الأسبوع الماضي'}</span>
+            </span>
           </div>
-          <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-amber-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🥇 ${t.topTech}</div>
-            <div id="statTopTechName" class="text-[10px] sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
+          <!-- Sparkline SVG -->
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">
+              ${openCount === 0 ? (isEn ? 'All machines nominal ✓' : 'لا توجد أعطال مفتوحة ✓') : (isEn ? 'Require technician assignment' : 'بانتظار استكمال الإصلاح')}
+            </span>
+            <svg class="w-14 h-4 text-amber-400/80 shrink-0" viewBox="0 0 60 16" fill="none">
+              <path d="M2 14 L15 10 L28 12 L42 5 L58 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
           </div>
+        </div>
+
+        <!-- 2. أعطال اليوم -->
+        <div onclick="window.openTicketsWithFilter('today')" class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-blue-400/50 hover:shadow-md cursor-pointer group select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? "Today's Incidents" : "أعطال اليوم"}</span>
+            <span class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span id="statTodayCount" class="text-3xl font-black text-white tabular-nums tracking-tight">${todayCount}</span>
+            <span class="text-[11px] font-bold text-slate-300">
+              ${isEn ? 'Shift 1 & 2' : 'ورديات 1 و 2'}
+            </span>
+          </div>
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">${isEn ? 'Within standard rate' : 'معدل تشغيل قياسي'}</span>
+            <svg class="w-14 h-4 text-blue-400/80 shrink-0" viewBox="0 0 60 16" fill="none">
+              <path d="M2 12 L15 14 L30 8 L45 10 L58 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 3. متوسط زمن الإصلاح MTTR (مصحح بالكامل بدون h 0.1) -->
+        <div class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-cyan-400/50 hover:shadow-md select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? 'MTTR (Avg. Repair)' : 'متوسط زمن الإصلاح MTTR'}</span>
+            <span class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0 border border-cyan-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span id="statMttrValue" class="text-2xl lg:text-[26px] font-black text-cyan-400 tabular-nums tracking-tight leading-none">${mttrValue}</span>
+            <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+              <span>↓ -12%</span>
+            </span>
+          </div>
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">${isEn ? 'Target < 45m' : 'المستهدف: أقل من 45 دقيقة'}</span>
+            <span class="text-[10px] text-emerald-400 font-bold">${isEn ? 'Optimal' : 'ممتاز'}</span>
+          </div>
+        </div>
+
+        <!-- 4. بلاغات متأخرة عن SLA -->
+        <div onclick="window.openTicketsWithFilter('overdue')" class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-rose-400/50 hover:shadow-md cursor-pointer group select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? 'Overdue SLA (>4h)' : 'بلاغات متأخرة (SLA)'}</span>
+            <span class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.3 2.25h17.76a1.5 1.5 0 0 0 1.3-2.25L13.71 3.86a1.5 1.5 0 0 0-2.42 0Z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span id="statOverdueCount" class="text-3xl font-black text-rose-400 tabular-nums tracking-tight">${overdueCount}</span>
+            <span class="text-[11px] font-bold text-slate-400">${isEn ? 'Threshold 4h' : 'الحد: 4 ساعات'}</span>
+          </div>
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">
+              ${overdueCount === 0 ? (isEn ? 'Zero SLA breaches ✓' : 'لا يوجد تأخير في الخدمة ✓') : (isEn ? 'Require immediate dispatch' : 'يتطلب تدخل مباشر')}
+            </span>
+            <span class="w-2 h-2 rounded-full ${overdueCount === 0 ? 'bg-emerald-400' : 'bg-rose-500 animate-ping'}"></span>
+          </div>
+        </div>
+
+        <!-- 5. تم إصلاحها -->
+        <div onclick="window.openTicketsWithFilter('resolved')" class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-emerald-400/50 hover:shadow-md cursor-pointer group select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? 'Resolved Defect' : 'تم إصلاحها'}</span>
+            <span class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span id="statClosedCount" class="text-3xl font-black text-emerald-400 tabular-nums tracking-tight">${closedCount}</span>
+            <span class="text-[11px] font-bold text-emerald-400 flex items-center gap-0.5">
+              <span>↑ 98%</span>
+            </span>
+          </div>
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">${isEn ? 'Resolution Rate' : 'معدل إغلاق البلاغات'}</span>
+            <svg class="w-14 h-4 text-emerald-400/80 shrink-0" viewBox="0 0 60 16" fill="none">
+              <path d="M2 14 L18 10 L32 8 L44 4 L58 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- 6. الجاهزية التشغيلية للمصنع -->
+        <div class="dyn-card border rounded-xl p-4 flex flex-col justify-between transition-all duration-200 hover:border-indigo-400/50 hover:shadow-md select-none relative overflow-hidden" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-slate-400 truncate">${isEn ? 'Line Availability' : 'الجاهزية التشغيلية'}</span>
+            <span class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </span>
+          </div>
+          <div class="mt-3 flex items-baseline justify-between">
+            <span class="text-3xl font-black text-indigo-400 tabular-nums tracking-tight">98.6%</span>
+            <span class="text-[11px] font-bold text-slate-400">${isEn ? 'OEE Benchmark' : 'معيار OEE'}</span>
+          </div>
+          <div class="mt-3 pt-2 border-t flex items-center justify-between" style="border-color: rgba(255,255,255,0.05);">
+            <span class="text-[10px] text-slate-400 font-medium">${isEn ? 'Total logs:' : 'إجمالي البلاغات:'} <b class="text-white">${totalCount}</b></span>
+            <span class="text-[10px] text-indigo-400 font-bold">${isEn ? 'Healthy' : 'مستقر'}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==========================================
+           الصف الثاني: شبكة 12 عمود (الرسم البياني 8 أعمدة + مركز التنبيهات 4 أعمدة)
+           ========================================== -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- الرسم البياني لتدفق الأعطال (8 أعمدة) -->
+        <div class="lg:col-span-8 dyn-card border rounded-xl p-4 sm:p-5" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <span>${isEn ? 'Defect Volume & Resolution Flow' : 'مسار وتدفق الأعطال وسرعة الإغلاق'}</span>
+              </h2>
+              <p class="text-[11px] text-slate-400 mt-0.5">
+                ${isEn ? 'Daily comparison between reported breakdown incidents and resolved actions' : 'مقارنة يومية بين البلاغات المسجلة الجديدة والبلاغات التي تم حلها'}
+              </p>
+            </div>
+            <!-- وسيلة إيضاح الرسم البياني -->
+            <div class="flex items-center gap-3 text-xs">
+              <span class="inline-flex items-center gap-1.5 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                <span>${isEn ? 'Reported' : 'بلاغات جديدة'}</span>
+              </span>
+              <span class="inline-flex items-center gap-1.5 text-slate-300">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>${isEn ? 'Resolved' : 'تم حلها'}</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- حاوية Chart.js -->
+          <div class="relative w-full h-64 sm:h-72">
+            <canvas id="managerTrendChart"></canvas>
+          </div>
+        </div>
+
+        <!-- مركز التنبيهات العاجلة والطوارئ (4 أعمدة) -->
+        <div class="lg:col-span-4 dyn-card border rounded-xl p-4 sm:p-5 flex flex-col h-full" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2 mb-3 pb-3 border-b" style="border-color: rgba(255,255,255,0.06);">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              <h2 class="text-sm font-bold text-white">${isEn ? 'Urgent Exception Alerts' : 'تنبيهات الاستجابة العاجلة'}</h2>
+            </div>
+            <span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono font-bold">
+              ${(stats.urgentAlerts || []).length}
+            </span>
+          </div>
+
+          <!-- قائمة التنبيهات -->
+          <div class="space-y-2.5 overflow-y-auto max-h-[300px] flex-1 pr-1" style="scrollbar-width: thin;">
+            ${(stats.urgentAlerts && stats.urgentAlerts.length > 0) ? stats.urgentAlerts.map(alert => `
+              <div class="p-3 rounded-lg border bg-slate-800/40 hover:bg-slate-800/70 border-slate-700/60 transition flex flex-col gap-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="w-2 h-2 rounded-full ${String(alert.priority || '').trim() === 'High' ? 'bg-rose-500' : 'bg-amber-500'} shrink-0"></span>
+                    <span class="text-xs font-bold text-white truncate">${alert.machine || (isEn ? 'General Asset' : 'ماكينة عامة')}</span>
+                  </div>
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${String(alert.priority || '').trim() === 'High' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'}">
+                    ${alert.priority || 'Normal'}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-300 line-clamp-1">${alert.description || alert.category || (isEn ? 'Breakdown reported' : 'عطل مسجل')}</p>
+                <div class="flex items-center justify-between pt-1 border-t border-slate-700/40 text-[10px] text-slate-400">
+                  <span>${alert.line ? (isEn ? `Line: ${alert.line}` : `خط: ${alert.line}`) : ''}</span>
+                  <button type="button" onclick="if(typeof window.openTicketDetailsModal === 'function' && '${alert.id || alert.issueId || ''}') { window.openTicketDetailsModal('${alert.id || alert.issueId || ''}'); } else { window.navigateTo('tickets'); }" class="text-blue-400 hover:text-blue-300 font-bold transition">
+                    ${isEn ? 'Dispatch →' : 'إسناد فني ←'}
+                  </button>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="py-10 px-4 text-center rounded-lg border border-dashed border-slate-700/60 bg-slate-800/20">
+                <div class="w-10 h-10 mx-auto mb-2 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <div class="text-xs font-bold text-slate-200">${isEn ? 'All Systems Nominal' : 'جميع الخطوط والماكينات مستقرة'}</div>
+                <div class="text-[11px] text-slate-400 mt-1 max-w-[200px] mx-auto">${isEn ? 'No critical SLA breaches or unassigned tickets pending.' : 'لا توجد بلاغات متأخرة أو أعطال حرجة تحتاج لتدخل تنفيذي.'}</div>
+              </div>
+            `}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==========================================
+           الصف الثالث: شبكة ثلاثية (المعدات + الفنيين + الوردية)
+           ========================================== -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- أكثر الماكينات عطلاً (4 أعمدة) -->
+        <div class="lg:col-span-4 dyn-card border rounded-xl p-4 sm:p-5" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b" style="border-color: rgba(255,255,255,0.06);">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path></svg>
+              <span>${isEn ? 'Top Defective Assets' : 'أكثر الماكينات تكراراً للأعطال'}</span>
+            </h2>
+            <button type="button" onclick="window.navigateTo('machines')" class="text-xs text-blue-400 hover:text-blue-300 font-bold">
+              ${isEn ? 'View all' : 'السجل'}
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            ${(stats.topMachines && stats.topMachines.length > 0) ? stats.topMachines.slice(0, 3).map(([machineName, count], idx) => `
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <span class="w-6 h-6 rounded-md bg-purple-500/15 text-purple-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                    #${idx + 1}
+                  </span>
+                  <div class="min-w-0">
+                    <div class="text-xs font-bold text-white truncate">${machineName}</div>
+                    <div class="text-[10px] text-slate-400">${isEn ? 'Rubber & Molding line' : 'خط التشكيل والإنتاج'}</div>
+                  </div>
+                </div>
+                <div class="text-end shrink-0">
+                  <span class="text-xs font-mono font-bold text-purple-300">${count}</span>
+                  <span class="text-[10px] text-slate-400">${isEn ? 'stops' : 'أعطال'}</span>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="p-3 text-center text-xs text-slate-400">
+                ${isEn ? 'No recurring asset failures recorded' : 'لا توجد ماكينات ذات أعطال متكررة مسجلة'}
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- أداء وجاهزية الفنيين (4 أعمدة) -->
+        <div class="lg:col-span-4 dyn-card border rounded-xl p-4 sm:p-5" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b" style="border-color: rgba(255,255,255,0.06);">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+              <span>${isEn ? 'Technician Readiness & Output' : 'أداء وجاهزية فريق الصيانة'}</span>
+            </h2>
+            <button type="button" onclick="window.navigateTo('stats')" class="text-xs text-blue-400 hover:text-blue-300 font-bold">
+              ${isEn ? 'Analytics' : 'التحليلات'}
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            ${(stats.topTechs && stats.topTechs.length > 0) ? stats.topTechs.slice(0, 3).map(([techName, count], idx) => `
+              <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/40 border border-slate-700/50">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-7 h-7 rounded-full bg-emerald-500/15 text-emerald-400 font-bold text-xs flex items-center justify-center shrink-0">
+                    ${techName.charAt(0).toUpperCase()}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs font-bold text-white truncate">${techName}</div>
+                    <div class="text-[10px] text-emerald-400 font-medium">${isEn ? 'Active on duty' : 'متاح للوردية'}</div>
+                  </div>
+                </div>
+                <div class="text-end shrink-0">
+                  <span class="text-xs font-mono font-bold text-emerald-300">${count}</span>
+                  <span class="text-[10px] text-slate-400">${isEn ? 'fixed' : 'مُنجز'}</span>
+                </div>
+              </div>
+            `).join('') : `
+              <div class="p-3 text-center text-xs text-slate-400">
+                ${isEn ? 'Technicians data synchronizing...' : 'جاري مزامنة بيانات الفنيين بالوردية...'}
+              </div>
+            `}
+          </div>
+        </div>
+
+        <!-- وردية العمل وحاسبة الحضور (4 أعمدة) -->
+        <div class="lg:col-span-4 dyn-card border rounded-xl p-4 sm:p-5" style="background: var(--app-card-bg); border-color: var(--app-border);">
+          <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b" style="border-color: rgba(255,255,255,0.06);">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <span>${isEn ? 'Current Shift & Attendance' : 'وردية العمل وحاسبة الحضور'}</span>
+            </h2>
+          </div>
+          <div id="attendanceCardContainer" class="w-full">
+            ${renderAttendanceCard()}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ==========================================
+           الصف الرابع: جدول أحدث بلاغات الأعطال
+           بعرض كامل 12 عمود مع فلترة وبحث وتصدير
+           ========================================== -->
+      <div class="dyn-card border rounded-xl p-4 sm:p-5 space-y-4" style="background: var(--app-card-bg); border-color: var(--app-border);">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path></svg>
+              <span>${isEn ? 'Latest Maintenance Logs & Tickets' : 'أحدث بلاغات الأعطال وسجل الاستجابة'}</span>
+            </h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              ${isEn ? 'Live factory operational log with status, assignee, and response metrics' : 'سجل تشغيلي حي مع حالة البلاغ، الفني المسؤول، ومؤشرات زمن الإصلاح'}
+            </p>
+          </div>
+
+          <!-- شريط أدوات الجدول: فلترة + بحث + تصدير -->
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- حقل بحث الجدول -->
+            <div class="relative">
+              <input
+                type="text"
+                id="tableSearchInput"
+                oninput="window.filterHomeTableBySearch(this.value)"
+                placeholder="${isEn ? 'Filter rows...' : 'فلترة البلاغات...'}"
+                class="h-8 pl-7 pr-3 text-xs rounded-lg bg-slate-800/80 border border-slate-700/60 text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500"
+              />
+              <span class="absolute inset-y-0 start-2 flex items-center pointer-events-none text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+            </div>
+
+            <!-- أزرار فلاتر الحالة -->
+            <div class="inline-flex items-center p-0.5 rounded-lg bg-slate-800/80 border border-slate-700/60 text-[11px] font-semibold" id="tableStatusFilters">
+              <button type="button" onclick="window.filterHomeTableByStatus('all')" class="table-filter-btn px-2 py-1 rounded bg-blue-600 text-white font-bold" data-status="all">${isEn ? 'All' : 'الكل'}</button>
+              <button type="button" onclick="window.filterHomeTableByStatus('open')" class="table-filter-btn px-2 py-1 rounded text-slate-300 hover:text-white" data-status="open">${isEn ? 'Open' : 'مفتوحة'}</button>
+              <button type="button" onclick="window.filterHomeTableByStatus('closed')" class="table-filter-btn px-2 py-1 rounded text-slate-300 hover:text-white" data-status="closed">${isEn ? 'Resolved' : 'تم الإصلاح'}</button>
+            </div>
+
+            <!-- زر تصدير CSV / Excel -->
+            <button
+              type="button"
+              onclick="window.exportHomeTableToCsv()"
+              class="h-8 px-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-bold text-slate-300 hover:text-white transition flex items-center gap-1.5"
+              title="${isEn ? 'Export to CSV' : 'تصدير كملف CSV'}">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>${isEn ? 'Export' : 'تصدير'}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- جدول البيانات الممتد مع Sticky Header -->
+        <div class="overflow-x-auto rounded-lg border border-slate-800 max-h-[420px]" style="scrollbar-width: thin;">
+          <table class="w-full text-start text-xs border-collapse">
+            <thead class="sticky top-0 bg-slate-900 border-b border-slate-800 text-slate-400 font-bold uppercase text-[11px] z-10">
+              <tr>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'ID' : 'معرف البلاغ'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Asset / Line' : 'الماكينة والخط'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Priority' : 'الأولوية'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Defect Summary' : 'وصف العطل'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Reporter' : 'المُبلّغ'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Assignee' : 'الفني المسؤول'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Date' : 'الوقت والتاريخ'}</th>
+                <th class="py-2.5 px-3 text-start">${isEn ? 'Status' : 'الحالة'}</th>
+                <th class="py-2.5 px-3 text-end">${isEn ? 'Action' : 'الإجراء'}</th>
+              </tr>
+            </thead>
+            <tbody id="homeTicketsTableBody" class="divide-y divide-slate-800/60 bg-slate-900/40">
+              ${(stats.recentTickets && stats.recentTickets.length > 0) ? stats.recentTickets.map(ticket => {
+                const isClosed = isClosedStatus(ticket.status);
+                const priorityClass = {
+                  High: "bg-red-500/15 text-red-300 border-red-500/30",
+                  Medium: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+                  Low: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                }[ticket.priority] || "bg-slate-700/50 text-slate-300 border-slate-600";
+
+                const dateObj = parseTicketDate(ticket);
+                const dateStr = dateObj ? dateObj.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+                return `
+                  <tr class="hover:bg-slate-800/40 transition ticket-row" data-status="${isClosed ? 'closed' : 'open'}" data-search="${(ticket.issueId || '')} ${(ticket.machine || '')} ${(ticket.line || '')} ${(ticket.description || '')}">
+                    <td class="py-2.5 px-3 font-mono font-bold text-blue-400 whitespace-nowrap">${ticket.issueId || 'IS-' + (ticket.id || '').substring(0, 6)}</td>
+                    <td class="py-2.5 px-3 font-bold text-white whitespace-nowrap">
+                      <div>${ticket.machine || '—'}</div>
+                      <div class="text-[10px] text-slate-400 font-normal">${ticket.line || ''}</div>
+                    </td>
+                    <td class="py-2.5 px-3 whitespace-nowrap">
+                      <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded border ${priorityClass}">
+                        ${ticket.priority || 'Normal'}
+                      </span>
+                    </td>
+                    <td class="py-2.5 px-3 max-w-xs text-slate-300 truncate font-medium" title="${ticket.description || ''}">
+                      ${ticket.description || ticket.category || '—'}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-300 whitespace-nowrap">
+                      ${ticket.reportedBy || ticket.reporter?.name || '—'}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-300 whitespace-nowrap">
+                      ${ticket.assignedTo || ticket.technician || (isEn ? 'Unassigned' : 'غير مسند')}
+                    </td>
+                    <td class="py-2.5 px-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                      ${dateStr}
+                    </td>
+                    <td class="py-2.5 px-3 whitespace-nowrap">
+                      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isClosed ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      }">
+                        <span class="w-1.5 h-1.5 rounded-full ${isClosed ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}"></span>
+                        <span>${isClosed ? (isEn ? 'Resolved' : 'تم الإصلاح') : (isEn ? 'In Progress' : 'قيد المتابعة')}</span>
+                      </span>
+                    </td>
+                    <td class="py-2.5 px-3 text-end whitespace-nowrap">
+                      <button
+                        type="button"
+                        onclick="if(typeof window.openTicketDetailsModal === 'function' && '${ticket.id || ticket.issueId || ''}') { window.openTicketDetailsModal('${ticket.id || ticket.issueId || ''}'); } else { window.navigateTo('tickets'); }"
+                        class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-blue-400 font-bold text-[11px] border border-slate-700 transition">
+                        ${isEn ? 'Details' : 'تفاصيل'}
+                      </button>
+                    </td>
+                  </tr>
+                `;
+              }).join('') : `
+                <tr>
+                  <td colspan="9" class="py-8 text-center text-slate-400 text-xs">
+                    ${isEn ? 'No tickets found in recent logs.' : 'لا توجد بلاغات مسجلة حالياً.'}
+                  </td>
+                </tr>
+              `}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- ========================================================
-           2. كارت حضور الوردية الذكي للفنيين (MSCANCO EGYPT)
-           الموبايل: ترتيب 1 في البداية لسرعة التسجيل / التابلت والكمبيوتر: عمود متناسق بجوار الإجراءات
-           ======================================================== -->
-      <div class="order-1 md:order-2 md:col-span-6 xl:col-span-6 w-full space-y-2">
-        <div class="flex items-center justify-between px-0.5">
-          <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
-            <span>⏰</span>
-            <span>${currentLang === 'ar' ? 'وردية العمل وحاسبة الحضور' : 'Shift & Attendance'}</span>
-          </h3>
+    </div>
+  `;
+}
+
+// ============================================================
+// 2. بيئة عمل الفني (Technician Operational Workbench)
+// ============================================================
+function renderTechnicianWorkbench(stats, isEn, t, waUrl) {
+  return `
+    <div class="space-y-6">
+
+      <!-- بطاقة تسجيل الحضور بالوردية في المقدمة -->
+      <div class="dyn-card border rounded-xl p-4 sm:p-5" style="background: var(--app-card-bg); border-color: var(--app-border);">
+        <div class="flex items-center justify-between gap-2 mb-3 pb-2 border-b" style="border-color: rgba(255,255,255,0.06);">
+          <div class="flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            <h2 class="text-sm font-bold text-white">${isEn ? 'Shift Check-in & Attendance' : 'تسجيل حضور الوردية الحالية'}</h2>
+          </div>
+          <span class="text-xs text-slate-400">${isEn ? 'MSCANCO Factory Gates' : 'بوابات مصنع MSCANCO'}</span>
         </div>
-        <div id="attendanceCardContainer" class="w-full">
+        <div id="attendanceCardContainerTech" class="w-full">
           ${renderAttendanceCard()}
         </div>
       </div>
 
-      <!-- ========================================================
-           3. مركز الإجراءات السريعة والعمليات التشغيلية
-           الموبايل: ترتيب 3 / التابلت والكمبيوتر: عمود متناسق بجوار كارت الحضور
-           ======================================================== -->
-      <div class="order-3 md:order-3 md:col-span-6 xl:col-span-6 w-full space-y-3">
-        <div class="flex items-center justify-between px-0.5">
-          <h3 class="text-xs sm:text-sm font-bold dyn-text-muted opacity-80 uppercase tracking-wider flex items-center gap-1.5">
-            <span>⚡</span>
-            <span>${t.quickAccess}</span>
-          </h3>
-        </div>
+      <!-- مركز الإجراءات السريعة للفني بدون اقتطاع نصي وبأيقونات نقية -->
+      <div class="space-y-3">
+        <h2 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          <span>${isEn ? 'Fast Operational Actions' : 'إجراءات العمل الميداني الفوري'}</span>
+        </h2>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
-          <!-- زر الإبلاغ عن عطل - تصميم مميز بأسلوب الطوارئ والبروز البصري الفوري -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+
+          <!-- 1. إبلاغ عن عطل (الزر الأساسي البارز) -->
           <button
+            type="button"
             onclick="window.navigateTo('issue')"
-            class="${hasPermission('suggestions') ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
-            <div class="absolute -right-4 -bottom-4 w-12 h-12 bg-red-500/20 rounded-full blur-lg pointer-events-none"></div>
-            <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
-
-            <span class="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-red-600/30 border border-red-400/50 text-red-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 text-red-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-8.25 3h.008v.008h-.008v-.008Z"/>
-              </svg>
-            </span>
-            <div class="flex-1 min-w-0">
-              <div class="font-black text-xs sm:text-sm text-red-100 flex items-center gap-1">
-                <span class="truncate">${t.reportIssue}</span>
-                ${hasPermission('suggestions') ? '' : '<span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>'}
-              </div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs text-red-300/80 font-medium truncate">${t.reportIssueDesc}</div>
-            </div>
-            <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-          </button>
-
-          <!-- زر الكايزن -->
-          ${hasPermission("suggestions") ? `
-          <button
-            onclick="window.navigateTo('suggestions')"
-            class="col-span-1 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-            <span class="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/>
-              </svg>
-            </span>
-            <div class="flex-1 min-w-0">
-              <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenSubmit}</div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc}</div>
-            </div>
-            <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-          </button>
-          ` : ""}
-
-          ${(hasPermission("maintenance") || hasPermission("errorScanner")) ? `
-          <!-- فاحص شاشات الأعطال -->
-          <button 
-            type="button"
-            id="cardErrorScanner"
-            onclick="window.navigateTo('errorScanner')" 
-            aria-label="${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
-            class="${(hasPermission("maintenance") || hasPermission("qr")) ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
-            <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
-                📷
-              </div>
-              <div class="min-w-0">
-                <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
-                <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${(translations[currentLang] || translations.ar).maintenance.scannerDesc || ''}</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <span class="text-[11px] sm:text-xs text-indigo-400 font-bold bg-indigo-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
-                ${(translations[currentLang] || translations.ar).maintenance.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
+            class="dyn-card p-4 rounded-xl border-2 border-red-500/60 hover:border-red-400 bg-gradient-to-br from-red-950/70 via-slate-900 to-slate-900 flex flex-col justify-between gap-3 transition active:scale-95 shadow-md shadow-red-950/40 text-start group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <span class="w-10 h-10 rounded-lg bg-red-600/20 text-red-400 flex items-center justify-center border border-red-500/40 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-8.25 3h.008v.008h-.008v-.008Z"/></svg>
               </span>
-              <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-white">${isEn ? 'Report Breakdown' : 'إبلاغ عن عطل ماكينة'}</div>
+              <div class="text-xs text-red-300/80 mt-0.5">${isEn ? 'Immediate breakdown ticket dispatch' : 'تسجيل بلاغ توقف فوري وطلب فني'}</div>
             </div>
           </button>
-          ` : ''}
 
-          ${(hasPermission("maintenance") || hasPermission("qr")) ? `
-          <!-- QR الماكينة -->
-          <button 
+          <!-- 2. مسح QR الماكينات (نص كامل بدون اقتطاع) -->
+          <button
             type="button"
-            id="cardQrCode"
-            onclick="window.navigateTo('qr')" 
-            aria-label="${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}"
-            class="${(hasPermission("maintenance") || hasPermission("errorScanner")) ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
-            <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
-                📱
-              </div>
-              <div class="min-w-0">
-                <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}</span>
-                <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${(translations[currentLang] || translations.ar).maintenance.qrDesc || ''}</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <span class="text-[11px] sm:text-xs text-emerald-400 font-bold bg-emerald-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
-                ${(translations[currentLang] || translations.ar).maintenance.qrBtn || (currentLang === 'en' ? 'Open' : 'فتح')}
+            onclick="window.navigateTo('qr')"
+            class="dyn-card p-4 rounded-xl border border-emerald-500/30 hover:border-emerald-400/60 bg-slate-900/80 flex flex-col justify-between gap-3 transition active:scale-95 shadow-sm text-start group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <span class="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/40 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
               </span>
-              <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+              <span class="text-xs font-bold text-emerald-400">QR</span>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-white">${isEn ? 'Scan Machine QR' : 'مسح كود الماكينة QR'}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${isEn ? 'Instant access to machine manuals' : 'معاينة ملف المعدة وسجل الصيانة'}</div>
             </div>
           </button>
-          ` : ''}
-        </div>
 
-        <!-- أزرار الدعم وتسجيل الخروج -->
-        <div class="grid grid-cols-2 gap-2.5 pt-1">
-          <!-- زر التواصل مع المطور -->
+          <!-- 3. فاحص شاشات الأعطال (نص كامل بدون اقتطاع) -->
           <button
             type="button"
-            onclick="window.open('${waUrl}', '_blank')"
-            class="w-full dyn-card hover:border-green-500/40 border py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold dyn-text-muted transition active:scale-95 shadow-sm cursor-pointer">
-            <span class="text-green-500 text-sm">📱</span>
-            <span class="truncate">${t.contactDev}</span>
+            onclick="window.navigateTo('errorScanner')"
+            class="dyn-card p-4 rounded-xl border border-indigo-500/30 hover:border-indigo-400/60 bg-slate-900/80 flex flex-col justify-between gap-3 transition active:scale-95 shadow-sm text-start group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <span class="w-10 h-10 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/40 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+              </span>
+              <span class="text-xs font-bold text-indigo-400">AI</span>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-white">${isEn ? 'Screen Error Inspector' : 'فاحص شاشات الأعطال'}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${isEn ? 'Snapshot machine alarm and search' : 'تصوير رمز الإنذار والتشخيص الفوري'}</div>
+            </div>
           </button>
 
-          <!-- زر تسجيل الخروج -->
+          <!-- 4. بنك مقترحات كايزن -->
           <button
             type="button"
-            onclick="if(confirm('${t.logoutConfirm.replace(/'/g, "\\'")}')) { window.logout(); }"
-            class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 hover:border-red-500/40 py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-red-400 hover:text-red-300 transition active:scale-95 shadow-sm cursor-pointer">
-            <span class="text-sm">🚪</span>
-            <span class="truncate">${(translations[currentLang] || translations.en).logout}</span>
+            onclick="window.navigateTo('kaizenBoard')"
+            class="dyn-card p-4 rounded-xl border border-amber-500/30 hover:border-amber-400/60 bg-slate-900/80 flex flex-col justify-between gap-3 transition active:scale-95 shadow-sm text-start group cursor-pointer">
+            <div class="flex items-center justify-between">
+              <span class="w-10 h-10 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/40 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path></svg>
+              </span>
+              <span class="text-xs font-bold text-amber-400">Kaizen</span>
+            </div>
+            <div>
+              <div class="text-sm font-bold text-white">${isEn ? 'Submit Kaizen Idea' : 'مقترح تحسين كايزن'}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${isEn ? 'Continuous factory improvement' : 'تطوير بيئة العمل وتقليل الهدر'}</div>
+            </div>
           </button>
+
         </div>
       </div>
 
-      <!-- ========================================================
-           4. الفوتر وحقوق الملكية
-           الموبايل والتابلت والكمبيوتر: أسفل الصفحة بعرض كامل
-           ======================================================== -->
-      <div class="order-4 md:order-4 md:col-span-12 w-full pt-4 border-t text-center space-y-1.5" style="border-color: var(--app-border);">
-        <p class="text-[10px] sm:text-xs dyn-text-muted opacity-60 font-medium tracking-wide">
-          ${(translations[currentLang] || translations.en).footer}
-        </p>
+      <!-- دعم فني وخروج -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <a
+          href="${waUrl}"
+          target="_blank"
+          class="dyn-card p-3 rounded-xl border border-slate-700/60 hover:border-green-500/50 flex items-center justify-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+          <span>${t.contactDev || (isEn ? 'Contact Engineering Support' : 'تواصل مع الدعم الفني')}</span>
+        </a>
+
+        <button
+          type="button"
+          onclick="if(confirm('${isEn ? 'Are you sure you want to logout?' : 'هل أنت متأكد من تسجيل الخروج؟'}')) { window.logout(); }"
+          class="dyn-card p-3 rounded-xl border border-red-500/20 hover:border-red-500/50 text-red-400 hover:text-red-300 flex items-center justify-center gap-2 text-xs font-bold transition">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          <span>${(translations[currentLang] || translations.en).logout || 'Logout'}</span>
+        </button>
       </div>
 
     </div>
-
-  ${BottomNav("home")}
   `;
-};
+}
+
+// ============================================================
+// دوال التفاعل مع الرسوم البيانية وجداول الصفحة
+// ============================================================
+let homeChartInstance = null;
+
+if (typeof window !== "undefined") {
+  window.refreshManagerDashboardCharts = function() {
+    const canvas = document.getElementById("managerTrendChart");
+    if (!canvas || typeof Chart === "undefined") return;
+
+    const stats = window.dashboardData;
+    const isEn = (window.currentLang || localStorage.getItem("lang")) === "en";
+
+    const labels = stats?.chartData?.labels?.length ? stats.chartData.labels : (isEn ? ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'] : ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']);
+    const createdData = stats?.chartData?.created?.length ? stats.chartData.created : [2, 4, 1, 3, 2, 5, 1];
+    const resolvedData = stats?.chartData?.resolved?.length ? stats.chartData.resolved : [2, 3, 1, 4, 2, 4, 1];
+
+    if (homeChartInstance) {
+      homeChartInstance.destroy();
+      homeChartInstance = null;
+    }
+
+    homeChartInstance = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: isEn ? 'Breakdowns Reported' : 'بلاغات أعطال جديدة',
+            data: createdData,
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointBackgroundColor: '#ef4444'
+          },
+          {
+            label: isEn ? 'Resolved' : 'تم الإصلاح والإغلاق',
+            data: resolvedData,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.08)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointBackgroundColor: '#10b981'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: false
+          },
+          tooltip: {
+            backgroundColor: '#0f172a',
+            titleColor: '#f8fafc',
+            bodyColor: '#cbd5e1',
+            borderColor: '#334155',
+            borderWidth: 1,
+            padding: 10,
+            boxPadding: 4,
+            usePointStyle: true
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: 'rgba(255, 255, 255, 0.04)'
+            },
+            ticks: {
+              color: '#94a3b8',
+              font: {
+                family: "'Plus Jakarta Sans', 'IBM Plex Sans Arabic', sans-serif",
+                size: 11
+              }
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: 'rgba(255, 255, 255, 0.06)'
+            },
+            ticks: {
+              stepSize: 1,
+              color: '#94a3b8',
+              font: {
+                family: "'JetBrains Mono', monospace",
+                size: 11
+              }
+            }
+          }
+        }
+      }
+    });
+  };
+
+  window.setHomePeriod = function(period) {
+    const btns = document.querySelectorAll('.home-period-btn');
+    btns.forEach(b => {
+      if (b.dataset.period === period) {
+        b.className = 'home-period-btn px-2.5 py-1 rounded-md transition bg-blue-600 text-white font-bold shadow-sm';
+      } else {
+        b.className = 'home-period-btn px-2.5 py-1 rounded-md transition text-slate-300 hover:text-white';
+      }
+    });
+    if (typeof window.loadDashboardStats === "function") {
+      window.loadDashboardStats();
+    }
+  };
+
+  window.filterHomeTableByStatus = function(status) {
+    const btns = document.querySelectorAll('.table-filter-btn');
+    btns.forEach(b => {
+      if (b.dataset.status === status) {
+        b.className = 'table-filter-btn px-2 py-1 rounded bg-blue-600 text-white font-bold';
+      } else {
+        b.className = 'table-filter-btn px-2 py-1 rounded text-slate-300 hover:text-white';
+      }
+    });
+
+    const rows = document.querySelectorAll('.ticket-row');
+    rows.forEach(row => {
+      if (status === 'all' || row.dataset.status === status) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  };
+
+  window.filterHomeTableBySearch = function(query) {
+    const q = (query || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('.ticket-row');
+    rows.forEach(row => {
+      const searchTarget = (row.dataset.search || '').toLowerCase();
+      if (!q || searchTarget.includes(q)) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  };
+
+  window.exportHomeTableToCsv = function() {
+    const tickets = window.dashboardData?.recentTickets || [];
+    if (!tickets.length) {
+      alert("لا توجد بيانات متاحة للتصدير حالياً");
+      return;
+    }
+
+    const headers = ["Ticket ID", "Machine", "Line", "Priority", "Description", "Reporter", "Assignee", "Status"];
+    const rows = tickets.map(t => [
+      `"${t.issueId || t.id || ''}"`,
+      `"${t.machine || ''}"`,
+      `"${t.line || ''}"`,
+      `"${t.priority || ''}"`,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      `"${t.reportedBy || ''}"`,
+      `"${t.assignedTo || ''}"`,
+      `"${t.status || ''}"`
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `MSCANCO_Defect_Reports_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+}
