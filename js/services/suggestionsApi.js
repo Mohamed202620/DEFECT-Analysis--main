@@ -30,8 +30,9 @@
 //     الواجهة - راجع match /suggestions/{suggestionId} هناك)
 // ============================================================
 
-import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
+import { uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole } from "../permissions.js";
+import { fetchManagersAndAdminsApi } from "./usersApi.js";
 
 import {
   db,
@@ -229,6 +230,35 @@ async function createSuggestionNotification(forUid, { type, message, suggestionI
     });
   } catch (error) {
     console.error("Error creating suggestion notification:", error);
+  }
+}
+
+// إصلاح (بند مؤكد بالاختبار العملي - Test 9): كل انتقال حالة تاني في
+// هذا الملف (review/reject/request_revision/return_to_review/
+// assign_approve/implement) بيبعت إشعاراً للطرف المعني - إلا إعادة
+// الإرسال بعد التعديل (resubmit) اللي محدش كان بيتبلّغ بيها إطلاقاً،
+// فكان الأدمن محتاج يفتح لوحة الكايزن يدوياً بشكل دوري عشان يكتشف
+// إن مقترح "طلب تعديل" رجع فعلاً جاهز لمراجعة تانية - بدون أي تنبيه
+// له. نفس فكرة notifyManagersOfNewTicket في ticketsApi.js بالظبط
+// (تُرسل لكل أدمن/مدير نشط، ونفس منطق "يتجاهل بأمان لو فشل" عشان أي
+// مشكلة هنا ما تأثرش على نجاح إعادة الإرسال نفسها اللي أصلاً خلصت
+// قبل ما هذه الدالة تتنادى)
+async function notifyAdminsOfSuggestionResubmission(suggestionId, suggestion) {
+  try {
+    const result = await fetchManagersAndAdminsApi();
+    if (result.status !== "success" || !result.data.length) return;
+
+    await Promise.all(
+      result.data.map(admin =>
+        createSuggestionNotification(admin.id, {
+          type: "resubmitted",
+          message: `تم تعديل وإعادة إرسال مقترح الكايزن "${suggestion?.title || ""}" للمراجعة`,
+          suggestionId
+        })
+      )
+    );
+  } catch (error) {
+    console.error("Error notifying admins of suggestion resubmission:", error);
   }
 }
 
@@ -460,6 +490,8 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
       note: "تم التعديل وإعادة الإرسال للمراجعة من صاحب المقترح"
     });
 
+    notifyAdminsOfSuggestionResubmission(suggestionId, { title: title.trim() });
+
     return { status: "success" };
   } catch (error) {
     console.error("Error resubmitting suggestion:", error);
@@ -536,10 +568,19 @@ export async function implementSuggestionApi(suggestionId, notes = "", afterImag
     // الصور اختيارية تماماً ("عند الحاجة") - لو مفيش صور متبعتش، والرفع
     // بيحصل فقط لو فعلاً فيه صور مختارة (بحد أقصى 3، نفس حد resolveTicketApi)
     const images = (afterImages || []).filter(Boolean).slice(0, 3);
+    // إصلاح (بند مؤكد بالاختبار العملي - Test 9؛ نفس جذر مشكلة
+    // Test 7/8 في imageUpload.js لكن في نقطة استدعاء مختلفة هنا):
+    // كانت الدالة بتستخدم Promise.all خام على uploadBase64Image لكل
+    // صورة، فبمجرد فشل رفع صورة واحدة (شبكة متقطعة/تعطل ImgBB
+    // مؤقت) يرفض الكل - وبما إن صور "ما بعد التنفيذ" هنا اختيارية
+    // تماماً أصلاً (زي ما موضّح فوق)، كان فشل صورة اختيارية بيمنع
+    // تسجيل اكتمال التنفيذ نفسه وملاحظاته بالكامل، رغم إنها مش
+    // مطلوبة أصلاً لإتمام العملية! uploadBase64Images المشتركة
+    // (المُصلَحة بالفعل) بترفع كل صورة بمحاولتها المستقلة وتتجاهل
+    // أي فشل تلقائياً - فمفيش داعي هنا حتى لفحص "نجحت صورة واحدة
+    // على الأقل" زي resolveTicketApi (الصور مش إجبارية من الأصل).
     const implementationImages = images.length
-      ? (await Promise.all(
-          images.map((img, i) => uploadBase64Image(img, `${suggestionId}_impl_${i + 1}`))
-        )).filter(Boolean)
+      ? await uploadBase64Images(images, `${suggestionId}_impl`)
       : [];
 
     await updateDoc(

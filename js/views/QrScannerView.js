@@ -37,7 +37,8 @@ import {
   formatLineLabel,
   isMachineTypesLoaded,
   ensureMachineCatalogReady,
-  findMachineEntryByValue
+  findMachineEntryByValue,
+  machineExistsInAnyDepartment
 } from '../machines.js';
 import { hasFullDataAccess, isAdminRole, getCurrentRole } from '../permissions.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
@@ -267,6 +268,22 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   const machine = resolveMachineFromValue(scannedValue);
 
   if (!machine.found) {
+    // إصلاح (مؤكد بالاختبار العملي - Test 5): كتالوج الماكينات
+    // المحمّل لغير الأدمن/غير أصحاب الوصول الكامل مفلتر مسبقاً على
+    // قسم المستخدم فقط (راجع machines.js: doLoadMachineTypesFromFirestore
+    // وتعليق machineExistsInAnyDepartment بالتفصيل) - فماكينة قسم
+    // تاني موجودة فعلاً كانت بتظهر هنا كـ"غير موجودة" بدل "لا توجد
+    // صلاحية" رغم إن القرار الأمني (منع الوصول) سليم في الحالتين.
+    // فحص إضافي هنا فقط (بدون أي تعديل على الكاش المشترك) لعرض
+    // الرسالة الصحيحة، ولمستخدمي الوصول الكامل بس مفيش داعي له
+    // أصلاً لأن كتالوجهم غير مفلتر من الأساس.
+    if (!hasFullDataAccess() && await machineExistsInAnyDepartment(scannedValue)) {
+      window.stopQrScan();
+      alert(tr.noPermissionDesc);
+      renderQrMessage({ tone: 'warn', title: tr.noPermission, desc: tr.noPermissionDesc });
+      return false;
+    }
+
     window.stopQrScan();
     alert(tr.notFoundDesc);
     renderQrMessage({
@@ -393,6 +410,10 @@ window.startQrScan = async function () {
   const startBtn = document.getElementById('qrStartBtn');
   const stopBtn = document.getElementById('qrStopBtn');
 
+  // Test 16: ضغطة تانية أثناء تشغيل الكاميرا كانت بتفتح Stream ثاني
+  // وتضيّع مرجع الأول (الكاميرا تفضل شغالة بدون طريقة لإيقافها)
+  if (videoStream) return;
+
   try {
     videoStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' }
@@ -402,8 +423,18 @@ window.startQrScan = async function () {
     return;
   }
 
-  video.srcObject = videoStream;
-  await video.play();
+  // Test 16: video.play() كانت خارج أي try - رفضها (مثلاً بعد ما
+  // المستخدم يغادر الصفحة) كان بيسيب الكاميرا شغالة برفض Promise غير معالَج
+  try {
+    if (!video) throw new Error("video element missing");
+    video.srcObject = videoStream;
+    await video.play();
+  } catch (playError) {
+    console.warn("QR video play failed:", playError);
+    window.stopQrScan();
+    setQrStatus(tr.cameraError, true);
+    return;
+  }
 
   videoBox?.classList.remove('hidden');
   startBtn?.classList.add('hidden');

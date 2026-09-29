@@ -99,6 +99,13 @@ service cloud.firestore {
                       ||
                       (
                         "migratedFromId" in request.resource.data
+                        // Security (Test 15): الترحيل مقصور على مستند قديم فعلاً
+                        // (لسه فيه password/passwordHash) وعلى حساب Auth إيميله
+                        // مشتق من نفس رقم الهاتف - يمنع نسخ role/status من
+                        // مستند مستخدم حالي (مثلاً Admin) لحساب جديد
+                        && ("passwordHash" in get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data
+                            || "password" in get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data)
+                        && request.auth.token.email == (request.resource.data.phone.replace("+", "").replace(" ", "").replace("-", "") + "@maintenance-defect-system.local")
                         && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.phone == request.resource.data.phone
                         && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.role == request.resource.data.role
                         && get(/databases/$(database)/documents/users/$(request.resource.data.migratedFromId)).data.status == request.resource.data.status
@@ -135,7 +142,7 @@ service cloud.firestore {
       allow list: if (isSignedIn()
                       && (myRole() == "admin" || isManagerRole()
                           || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]))
-                  || request.query.limit <= 1;
+                  || (!isSignedIn() && request.query.limit <= 1);
 
       // تعديل: صاحب الحساب يقدر يعدّل بياناته الشخصية بس (الاسم/
       // الشيفت/الوظيفة/القسم...) - ممنوع يغيّر role/status/permissions
@@ -166,12 +173,15 @@ service cloud.firestore {
                         && request.resource.data.role == resource.data.role
                         && request.resource.data.status == resource.data.status
                         && request.resource.data.permissions == resource.data.permissions
-                      )
-                      || (
-                        request.auth.uid == userId
-                        && resource.data.name == "mohamed hosien"
+                        // Security (Test 15): قسم الماكينات (بيتحكم في صلاحيات
+                        // machineErrors/pmRecords/machineChecklists) يغيّره الأدمن فقط
+                        && request.resource.data.get("machineDepartment", null) == resource.data.get("machineDepartment", null)
                       )
                     );
+      // Security (Test 15): تم حذف فرع "name == mohamed hosien" - كان
+      // بيسمح لأي حساب يسجّل بالاسم ده (الاسم حقل حر يكتبه أي مستخدم
+      // عند التسجيل أو يعدّله بنفسه) بتعديل role/permissions/status لنفسه
+      // = ترقية نفسه Admin. الترقية تتم فقط عبر Admin/Cloud Function.
 
       // إصلاح (بند A1 + B3 في تقرير المراجعة): حذف مستند مستخدم من
       // كود العميل مباشرة (deleteDoc()) ممنوع تماماً دلوقتي، لسببين
@@ -217,10 +227,12 @@ service cloud.firestore {
                     && request.resource.data.status == "in_progress"
                     && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
 
-      // STEP 4 - in_progress -> resolved: نفس الفني المُسند له
-      // بيسجّل إتمام الإصلاح (مع صور بعد الإصلاح)، أو أدمن
+      // STEP 4 - (in_progress | assigned | reopened) -> resolved: نفس
+      // الفني المُسند له بيسجّل إتمام الإصلاح (مع صور بعد الإصلاح)، أو
+      // أدمن. (assigned و reopened كانوا شغّالين فقط بسبب القاعدة
+      // العامة المحذوفة - الواجهة بتعرض زر "تم الإصلاح" فيهم فعلاً)
       allow update: if isActive()
-                    && resource.data.status == "in_progress"
+                    && resource.data.status in ["in_progress", "assigned", "reopened"]
                     && request.resource.data.status == "resolved"
                     && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
 
@@ -231,6 +243,19 @@ service cloud.firestore {
                     && resource.data.status == "resolved"
                     && request.resource.data.status in ["closed", "in_progress"]
                     && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
+
+      // STEP 5b - resolved -> reopened (رفض المُبلّغ من الواجهة -
+      // reopenTicketApi): صاحب البلاغ الأصلي أو أدمن
+      allow update: if isActive()
+                    && resource.data.status == "resolved"
+                    && request.resource.data.status == "reopened"
+                    && (myRole() == "admin" || resource.data.reportedByUid == request.auth.uid);
+
+      // STEP 6 - إعادة الإسناد (reassignTicketApi): مدير/أدمن فقط، على
+      // تذكرة مفتوحة (assigned | in_progress | reopened) وترجع assigned
+      allow update: if isActive() && (myRole() == "admin" || isManagerRole())
+                    && resource.data.status in ["assigned", "in_progress", "reopened"]
+                    && request.resource.data.status == "assigned";
 
       // سجل التغييرات (Logs) - سجل تلقائي فقط، مفيش تعديل أو حذف
       // (append-only) - أي مستخدم مفعّل يقدر يقرأ سجل تذكرة يقدر
@@ -547,16 +572,36 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // باقي المجموعات (defects ...) - أي مستخدم مفعّل (status ==
-    // active) يقدر يقرأ/يكتب. ملحوظة: مجموعة "defects" (defectsApi.js
-    // -> saveDefectApi) غير مستخدمة فعلياً من أي شاشة في الواجهة حالياً
-    // (كود موجود لكن مفيش أي استدعاء له - راجع ملاحظة منفصلة في
-    // تقرير المراجعة)، فتُركت هنا مؤقتاً تحت الحماية العامة. لو
-    // احتجتوا تفعيلها مستقبلاً، ضيفوا لها match block مخصص بنفس
-    // أسلوب الثلاث مجموعات فوق قبل ربطها بأي شاشة فعلية.
+    // machineAmTemplates - تخصيص بنود فحص Daily AM لكل ماكينة على
+    // حدة (تُدار من زر "✏️ Edit Checklist" في ملف الماكينة -
+    // MachineProfileView.js/window.openManageAmModal، ومعروضة فقط
+    // للأدمن هناك - راجع adminRights = isAdminRole()). القراءة
+    // مفتوحة لأي مستخدم مفعّل (كل مستخدم محتاج يقرأ البنود
+    // المخصصة وقت تعبئة الفحص اليومي - DailyAMView.js).
+    //
+    // إصلاح (بند أمني مؤكد بالاختبار العملي - Test 6): هذه
+    // المجموعة لم يكن لها match block مخصص، فكانت بتقع تحت قاعدة
+    // الحماية العامة في آخر الملف (allow read, write: if isActive())
+    // - يعني أي مستخدم مفعّل (فني عادي مثلاً) كان يقدر يكتب/يتلاعب
+    // مباشرة ببنود فحص أي ماكينة عبر Firestore مباشرة (تجاوزاً
+    // للواجهة)، رغم إن التعديل مقصود يكون للأدمن فقط. نفس نمط
+    // الحماية المستخدم بالظبط في machineTypes (create/update/delete
+    // admin-only، read مفتوح للجميع النشطين).
     // ==========================================================
-    match /{document=**} {
-      allow read, write: if isActive();
+    match /machineAmTemplates/{machineId} {
+      allow read: if isActive();
+      allow create, update, delete: if myRole() == "admin";
     }
+
+    // ==========================================================
+    // Security (Test 15) - تم حذف القاعدة العامة الأخيرة:
+    //     match /{document=**} { allow read, write: if isActive(); }
+    // Firestore بيجمع كل match/allow المطابقة لنفس المسار بمنطق OR،
+    // والقاعدة دي بتطابق كل المسارات (بما فيها users وtickets
+    // وnotifications وsettings...) - يعني كانت بتلغي فعلياً كل
+    // القيود المكتوبة في الأعلى وبتسمح لأي مستخدم مفعّل (حتى فني
+    // عادي) يكتب/يحذف أي مستند ويرقّي نفسه Admin. أي مجموعة بدون
+    // match صريح (زي defects - غير مستخدمة في الواجهة) بقت مرفوضة.
+    // ==========================================================
   }
 }

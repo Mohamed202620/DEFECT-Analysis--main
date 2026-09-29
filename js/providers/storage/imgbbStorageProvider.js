@@ -45,15 +45,32 @@ async function uploadImage(base64, name = "image") {
   formData.append("image", rawBase64);
   formData.append("name", name);
 
-  const response = await fetch(
-    `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`,
-    {
-      method: "POST",
-      body: formData
-    }
-  );
+  // Test 16: fetch بدون مهلة كانت بتعلّق الحفظ للأبد لو الشبكة وقفت
+  // نص الطريق (الزر يفضل "جاري المعالجة"). مهلة 30 ثانية بتحوّل التعليق
+  // لخطأ عادي بيتعامل معاه المتصل (uploadBase64Images بتتجاهل الصورة الفاشلة)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  const result = await response.json();
+  let result;
+  try {
+    const response = await fetch(
+      `https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`,
+      {
+        method: "POST",
+        body: formData,
+        signal: controller.signal
+      }
+    );
+
+    result = await response.json();
+  } catch (uploadError) {
+    if (uploadError && uploadError.name === "AbortError") {
+      throw new Error("انتهت مهلة رفع الصورة - تحقق من الاتصال بالإنترنت");
+    }
+    throw uploadError;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!result || !result.success) {
     throw new Error(

@@ -42,8 +42,22 @@ export async function uploadBase64Images(base64List, namePrefix = "image") {
   const list = Array.isArray(base64List) ? base64List : [];
   if (!list.length) return [];
 
+  // إصلاح (بند مؤكد بالاختبار العملي - Test 7): Promise.all بترفض
+  // بالكامل بمجرد فشل صورة واحدة بس (خطأ شبكة/فشل ImgBB مؤقت)، رغم
+  // إن التعليق فوق (وتوقيع الدالة نفسه) موثّق بوضوح إن أي صورة فشلت
+  // المفروض تتجاهل تلقائياً بدل ما توقف كل حاجة. الأثر الفعلي قبل
+  // هذا الإصلاح: تعليق شبكة على صورة واحدة بس (من عدة صور مرفقة)
+  // كان بيمنع حفظ بلاغ العطل بالكامل - نص الوصف والبيانات الأساسية
+  // معاه - رغم إنه مفيش أي مشكلة في البلاغ نفسه. كل رفع بقى معزول
+  // بمحاولة/التقاط خاصة بيه، فأي فشل فردي يترجم لـnull (ويتفلتر
+  // تحت) بدل ما يوقف رفع باقي الصور أو يمنع حفظ البلاغ.
   const urls = await Promise.all(
-    list.map((base64, index) => uploadBase64Image(base64, `${namePrefix}_${index + 1}`))
+    list.map((base64, index) =>
+      uploadBase64Image(base64, `${namePrefix}_${index + 1}`).catch(err => {
+        console.warn(`uploadBase64Images: image #${index + 1} failed, skipping it`, err);
+        return null;
+      })
+    )
   );
 
   return urls.filter(Boolean);

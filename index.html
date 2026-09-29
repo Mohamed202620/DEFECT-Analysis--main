@@ -72,16 +72,29 @@
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  <!-- Test 17: chart.js/dayjs/jsPDF/html2canvas كانت سكربتات مانعة للرسم في <head> (حوالي مئات KB من CDN قبل ظهور أي شيء، وبتعلّق الشاشة لو الـ CDN بطيء). كلها بتُستخدم بعد تفاعل المستخدم فقط، و defer بيضمن تنفيذها قبل وحدات ES (type=module) بنفس الترتيب -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- dayjs: لحساب دورة الحضور والمرتبات (21 من الشهر إلى 20 من الشهر التالي) بدقة -->
-  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+
+  <!-- ExcelJS: بتتحمّل بشكل كسول (Lazy) عند أول محاولة تصدير إكسيل
+       فعلية فقط - راجع ensureExcelJsLoaded() في
+       js/services/exportUtility.js - بدل تحميلها هنا بشكل إجباري في
+       كل تحميل للتطبيق من مصدر CDN واحد فقط (cdnjs.cloudflare.com).
+       إصلاح (بند مؤكد بالاختبار العملي - Test 10): نفس فئة المشكلة
+       اللي كانت موجودة في مكتبة توليد QR (راجع تعليق js/vendor/
+       qrcode-generator.js) - لو الشبكة اللي المستخدم عليها (واي
+       فاي المصنع/فلتر خصوصية...) بتحجب أو ميوصلهاش لدومين
+       cdnjs.cloudflare.com تحديداً، كانت ميزة "التقارير وتصدير
+       الإكسيل" بالكامل بتتعطّل نهائياً من أول تحميل للصفحة - حتى لو
+       باقي الإنترنت (فايربيز وكل باقي التطبيق) شغّال عادي تماماً -
+       وبدون أي محاولة تحميل بديلة. -->
 
   <!-- jsPDF + html2canvas: لتصدير التقارير PDF (نفس المسار الموحّد
        المستخدم في كل تقارير النظام - راجع js/services/exportUtility.js) -->
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
   
 
@@ -245,39 +258,6 @@
 
     .dyn-text-muted {
       color: var(--app-text);
-    }
-
-    /* تثبيت أحجام وهيكل الهيدر والأفاتار حتى في وضع عدم الاتصال قبل أو عند تعذر تحميل Tailwind */
-    .app-header-profile {
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 0.5rem !important;
-      border-radius: 0.75rem !important;
-      padding: 0.25rem 0.625rem !important;
-      background: rgba(30, 41, 59, 0.8) !important;
-      border: 1px solid rgba(51, 65, 85, 0.6) !important;
-      overflow: hidden !important;
-      max-width: 100% !important;
-    }
-
-    .app-header-avatar {
-      width: 28px !important;
-      min-width: 28px !important;
-      max-width: 28px !important;
-      height: 28px !important;
-      min-height: 28px !important;
-      max-height: 28px !important;
-      border-radius: 9999px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      flex-shrink: 0 !important;
-    }
-
-    .app-header-profile-copy {
-      min-width: 0 !important;
-      flex: 1 1 0% !important;
-      overflow: hidden !important;
     }
 
      #appShell {
@@ -488,6 +468,13 @@
 
   <!-- Error Handlers & SW -->
   <script>
+    // Test 16: رسالة الخطأ كانت بتتحط في innerHTML بدون تهريب
+    function escapeErrHtml(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
     function showFatalError(errorMsg) {
       window.hideSplash();
       var appDiv = document.getElementById("app");
@@ -495,7 +482,7 @@
         appDiv.innerHTML = '<div class="min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono text-white" dir="rtl">' +
           '<div class="bg-red-950/90 border border-red-500 text-red-200 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-3">' +
           '<h3 class="text-base font-bold text-red-400">⚠️ تعذر إقلاع النظام</h3>' +
-          '<p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">' + (errorMsg || 'خطأ غير معروف أثناء الإقلاع') + '</p>' +
+          '<p class="text-xs text-yellow-300 font-mono break-all text-left" style="direction:ltr">' + escapeErrHtml(errorMsg || 'خطأ غير معروف أثناء الإقلاع') + '</p>' +
           '<div class="flex flex-col gap-2 pt-2">' +
           '<button onclick="location.reload();" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white transition">إعادة المحاولة</button>' +
           '<button onclick="localStorage.clear(); sessionStorage.clear(); if(\'caches\' in window) caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).then(() => location.reload()); else location.reload();" class="w-full py-2.5 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold text-white transition">مسح الذاكرة المؤقتة وإعادة التشغيل</button>' +
@@ -561,26 +548,16 @@
           targetPage = (initialHash === "register") ? "register" : "login";
         } else {
           // انتظار استعادة جلسة Firebase Auth لضمان إرسال رمز المصادقة الصالح مع جميع استعلامات Firestore
-          // مع مهلة زمنية لا تتجاوز 1000ms لمنع تعليق التطبيق نهائياً عند انقطاع الإنترنت (Offline-First)
-          let authUser = null;
-          try {
-            authUser = await ensureAuthReady(1000);
-          } catch (authErr) {
-            console.warn("Auth check failed, using local offline session:", authErr);
-          }
+          const authUser = await ensureAuthReady();
 
-          const isOnline = typeof navigator !== "undefined" && typeof navigator.onLine === "boolean" ? navigator.onLine : true;
-
-          // إذا تمت استعادة المستخدم أو كان الجهاز أوفلاين أو كانت هناك بيانات جلسة محلية مؤكدة:
-          // يتم فتح الصفحة الأخيرة أو الرئيسية مباشرة دون إجبار المستخدم على تسجيل الدخول
-          if (authUser || !isOnline || savedUid || savedPhone) {
+          if (authUser) {
             if (initialHash && initialHash !== "login" && initialHash !== "register") {
               targetPage = initialHash;
             } else {
               targetPage = localStorage.getItem('lastPage') || 'home';
             }
           } else {
-            // الجلسة غير متزامنة مع Firebase Auth أثناء وجود اتصال فعلي بالإنترنت
+            // الجلسة غير متزامنة مع Firebase Auth - توجيه لصفحة تسجيل الدخول لتوثيق الجلسة
             targetPage = (initialHash === "register") ? "register" : "login";
           }
         }
@@ -610,7 +587,7 @@
                       ⚠️ تعذر تحميل التطبيق
                   </h3>
                   <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-                      ${errorMsg}
+                      ${String(errorMsg).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}
                   </p>
                   <p class="text-[11px] text-gray-400 mt-3">
                       اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.

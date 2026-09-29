@@ -44,6 +44,14 @@ function setBanner(visible, message, colorClass) {
     (visible ? "translate-y-0 " : "-translate-y-full ") +
     (colorClass || "");
 
+  // إصلاح (بند مؤكد - Test 13، هواتف بها Notch/Dynamic Island): هذا
+  // البانر مثبت أعلى الشاشة تماماً (fixed top-0) بنفس أسلوب الهيدر
+  // الرئيسي في branding.js، لكن كان ناقصه معالجة safe-area-inset -
+  // فكان بيظهر جزئياً أو كلياً خلف نتوء الكاميرا/شريط الحالة على
+  // الهواتف ذات الشاشة المقطوعة (لأن viewport-fit=cover مفعّلة في
+  // index.html). نفس الحل المستخدم بالفعل للهيدر الرئيسي بالحرف.
+  el.style.paddingTop = "env(safe-area-inset-top, 0px)";
+
 }
 
 function hideBanner() {

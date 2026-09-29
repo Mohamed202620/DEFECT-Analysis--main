@@ -236,22 +236,9 @@ export async function login(phone, pass) {
       .join(",")
   };
 
-  // TEMPORARY FIX: Auto-upgrade specific app owner to Admin
-  if (userData.name === "mohamed hosien" && userData.role !== "admin") {
-      try {
-          await updateDoc(doc(db, "users", uid), {
-              role: "admin",
-              permissions: "all",
-              status: "active"
-          });
-          userData.role = "admin";
-          userData.permissions = "all";
-          userData.status = "active";
-          console.log("SUCCESS: Upgraded mohamed hosien to admin!");
-      } catch (e) {
-          console.error("Auto-upgrade failed", e);
-      }
-  }
+  // Security (Test 15): تم حذف كود "TEMPORARY FIX" اللي كان بيرقّي أي
+  // مستخدم اسمه "mohamed hosien" لـ Admin تلقائياً من المتصفح - ثغرة
+  // ترقية صلاحيات (الاسم حقل حر). الترقية بقت عبر Admin فقط.
 
   if (DEBUG) {
     console.log("USER DATA:", userData);

@@ -1879,7 +1879,7 @@ export function renderAttendanceCard(customProfile = null) {
   const financials = computeFinancials(cycleData, localConfig, rules);
 
   const dateOptions = { weekday: "long", year: "numeric", month: "short", day: "numeric" };
-  const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString("ar-EG", dateOptions);
+  const formattedToday = new Date(`${contextDate}T00:00:00`).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), dateOptions);
 
   // هل اليوم إجازة رسمية حسب Google Calendar تحديدًا (القائمة
   // المتزامَنة محليًا) - لتلوين كارت اليوم بالأزرق الفاتح

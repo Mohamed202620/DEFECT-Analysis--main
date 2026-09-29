@@ -7,7 +7,7 @@
 // ============================================================
 
 import { ensureAuthReady } from "../config.js";
-import { uploadBase64Image, uploadBase64Images } from "./imageUpload.js";
+import { uploadBase64Images } from "./imageUpload.js";
 import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
@@ -73,6 +73,18 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, issueId);
 
+    // Test 16: لو المستخدم أرفق صور وكلها فشل رفعها (شبكة/ImgBB) كان البلاغ
+    // بيتحفظ بدون أي صورة والصور بتضيع للأبد (وفي المزامنة بعد Offline
+    // كان البلاغ بيتشال من الطابور بعد "نجاح" ناقص). نفس سلوك
+    // resolveTicketApi: نرجّع خطأ (يحتوي imgbb عشان المزامنة تبقيه في
+    // الطابور) والمستخدم يفضل معاه الفورم ويحاول تاني
+    if (imageList.length > 0 && imageUrls.length === 0) {
+      return {
+        status: "error",
+        message: "تعذر رفع صور البلاغ (imgbb/network) - تحقق من الاتصال بالإنترنت وحاول مرة أخرى"
+      };
+    }
+
     const docRef = await addDoc(collection(db, "tickets"), {
       ...restPayload,
       issueId,
@@ -99,7 +111,19 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
   }
 }
 
-export async function syncOfflineTicketsApi() {
+// Test 16: حماية من التشغيل المتزامن - حدث "online" ممكن يتكرر (شبكة
+// بتقطع وترجع بسرعة) أو يتزامن مع فحص بداية التشغيل، فكانت مزامنتين
+// بيقروا نفس الطابور ويعملوا addDoc مرتين = بلاغات/إجراءات مكررة.
+// دلوقتي أي استدعاء أثناء مزامنة شغّالة بيستنى نفس النتيجة بدل ما يبدأ واحدة تانية
+let _syncOfflineTicketsApiInFlight = null;
+export function syncOfflineTicketsApi() {
+  if (!_syncOfflineTicketsApiInFlight) {
+    _syncOfflineTicketsApiInFlight = _syncOfflineTicketsApiImpl().finally(() => { _syncOfflineTicketsApiInFlight = null; });
+  }
+  return _syncOfflineTicketsApiInFlight;
+}
+
+async function _syncOfflineTicketsApiImpl() {
   const queued = await getQueuedTickets();
   if (!queued.length) {
     return { status: "success", synced: 0, total: 0 };
@@ -132,7 +156,19 @@ export async function syncOfflineTicketsApi() {
 // محلياً وقت انقطاع الإنترنت - بنفس نمط syncOfflineTicketsApi فوق
 // بالظبط، بترتيب زمني (الأقدم أولاً) عشان دورة حياة كل تذكرة تتنفذ
 // بنفس التسلسل اللي حصل بيه فعلياً.
-export async function syncOfflineTicketActionsApi() {
+// Test 16: حماية من التشغيل المتزامن - حدث "online" ممكن يتكرر (شبكة
+// بتقطع وترجع بسرعة) أو يتزامن مع فحص بداية التشغيل، فكانت مزامنتين
+// بيقروا نفس الطابور ويعملوا addDoc مرتين = بلاغات/إجراءات مكررة.
+// دلوقتي أي استدعاء أثناء مزامنة شغّالة بيستنى نفس النتيجة بدل ما يبدأ واحدة تانية
+let _syncOfflineTicketActionsApiInFlight = null;
+export function syncOfflineTicketActionsApi() {
+  if (!_syncOfflineTicketActionsApiInFlight) {
+    _syncOfflineTicketActionsApiInFlight = _syncOfflineTicketActionsApiImpl().finally(() => { _syncOfflineTicketActionsApiInFlight = null; });
+  }
+  return _syncOfflineTicketActionsApiInFlight;
+}
+
+async function _syncOfflineTicketActionsApiImpl() {
   const queued = await getQueuedActions();
   if (!queued.length) {
     return { status: "success", synced: 0, total: 0 };
@@ -765,6 +801,39 @@ export async function fetchMyNotificationsApi(uid) {
   }
 }
 
+// إصلاح (بند مؤكد بالاختبار العملي - Test 11): fetchMyNotificationsApi
+// بترجع أحدث 30 إشعار بس (مقصود - عشان قائمة "الإشعارات" في الواجهة
+// متبقاش بلا حدود). لكن رقم الجرس (refreshNotificationsBadge) كان
+// بيحسب "غير المقروء" من نفس الـ30 دول بالظبط - يعني لأدمن/مدير نشط
+// بيوصله إشعار على كل تذكرة/مقترح جديد، أي إشعار غير مقروء أقدم من
+// أحدث 30 إشعار (سهل الحصول عليه خلال أسبوع أو اتنين نشاط عادي) كان
+// بيختفي تماماً: مش معدود في رقم الجرس، ومش ظاهر في القائمة - يعني
+// فقدان فعلي لتنبيه مهم بدون ما المستخدم يعرف إنه موجود أصلاً. هذه
+// الدالة الصغيرة بتحسب العدد الحقيقي الكامل لغير المقروء (بدون أي
+// حد أقصى) - بنفس الاستعلام الأساسي (forUid فقط، زي ما هو مستخدم
+// بالفعل)، وتُستخدم في مكان واحد بس (رقم الجرس)، من غير أي تغيير في
+// قائمة الإشعارات المعروضة نفسها أو سلوكها الحالي.
+export async function countUnreadNotificationsApi(uid) {
+  try {
+    // Test 16/17: كانت بتقرأ كل إشعارات المستخدم (بلا limit، ومفيش حذف
+    // للإشعارات القديمة) عشان تعدّ غير المقروء - وبتتنادى مع كل render()
+    // (شارة 🔔). العدّ بالـ Aggregation بيقرا فهرس فقط (قراءة واحدة لكل
+    // 1000 إدخال) بدل تحميل كل المستندات، بنفس النتيجة بالظبط
+    const q = query(
+      collection(db, "notifications"),
+      where("forUid", "==", uid),
+      where("read", "==", false)
+    );
+    const countSnap = await getCountFromServer(q);
+    return { status: "success", count: countSnap.data().count };
+  } catch (error) {
+    const fallback = emptyResultOnMissingIndex(error, "countUnreadNotificationsApi");
+    if (fallback) return { status: "success", count: 0 };
+    console.error("Error counting unread notifications:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 // اشتراك لحظي (Realtime) في إشعارات المستخدم - يُستخدم لتحديث
 // الجرس والقائمة المنبثقة تلقائياً بدون إعادة تحميل
 export function subscribeToMyNotificationsApi(uid, callback) {
@@ -1022,9 +1091,26 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
   }
 
   try {
-    const afterImageUrls = (
-      await Promise.all(images.map((img, i) => uploadBase64Image(img, `${ticketId}_after_${i + 1}`)))
-    ).filter(Boolean);
+    // إصلاح (بند مؤكد بالاختبار العملي - Test 8، نفس جذر مشكلة
+    // Test 7 في saveIssueApi/uploadBase64Images لكن في نقطة استدعاء
+    // مختلفة تماماً هنا): كان الكود بيستخدم Promise.all خام مباشرة
+    // على uploadBase64Image لكل صورة، فبمجرد فشل رفع صورة واحدة (من
+    // ضمن حتى 3 صور) - شبكة متقطعة أو تعطل ImgBB مؤقت - يرفض الكل،
+    // فتُفقد ملاحظات الفني (mechanicNotes) والتذكرة بالكامل تفضل
+    // عالقة "قيد التنفيذ" رغم إن الإصلاح تم فعلياً. استخدام
+    // uploadBase64Images المشتركة (المُصلَحة بالفعل - كل صورة
+    // بمحاولتها الخاصة) بيحل نفس المشكلة هنا بدون تكرار المنطق. مع
+    // الحفاظ على قاعدة "صورة واحدة على الأقل مطلوبة" (تحقق فوق) عبر
+    // فحص نتيجة الرفع الفعلي كمان: لو كل الصور المرفوعة فشلت (نادر
+    // جداً - يعني الصورة الوحيدة أو كل الصور فشلت معاً)، بترجع خطأ
+    // واضح بدل ما تحفظ التذكرة بمصفوفة صور فاضية تخالف نفس القاعدة.
+    const afterImageUrls = await uploadBase64Images(images, `${ticketId}_after`);
+    if (!afterImageUrls.length) {
+      return {
+        status: "error",
+        message: "تعذر رفع صور ما بعد الإصلاح - تحقق من الاتصال بالإنترنت وحاول مرة أخرى"
+      };
+    }
 
     await updateDoc(
       doc(db, "tickets", ticketId),

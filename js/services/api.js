@@ -60,6 +60,7 @@ export {
   fetchTicketsForReportApi,
   fetchTicketsForSearchApi,
   fetchMyNotificationsApi,
+  countUnreadNotificationsApi,
   subscribeToMyNotificationsApi,
   markNotificationReadApi,
   markAllNotificationsAsRead,

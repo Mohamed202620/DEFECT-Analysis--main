@@ -9,6 +9,14 @@
 
 import { fetchTicketByIdApi, fetchTicketLogsApi } from '../services/api.js';
 import { getTicketActions } from '../permissions.js';
+import { translations } from '../config.js';
+
+// دعم اللغة (Test 14): كل نصوص المودال كانت ثابتة بالعربي
+const L = (ar, en) => (window.currentLang === "en" ? en : ar);
+const statusLabel = (st) => {
+  const map = (translations[window.currentLang] || translations.ar).ticketsBoard?.status || {};
+  return map[st] || STATUS_LABELS_AR[st];
+};
 // إصلاح (تنظيف/Refactor): كانت دي نسخة رابعة مكررة (يدوياً) من نفس
 // تسميات حالة البلاغ الموجودة أصلاً في ticketStatusConstants.js -
 // موحّدة دلوقتي مع باقي الملفات (workflow.js/statistics.js/
@@ -22,16 +30,16 @@ import { getTicketActions } from '../permissions.js';
 import { STATUS_LABELS as STATUS_LABELS_AR, STATUS_CLASSES as STATUS_BADGE_CLASSES, isClosedStatus } from '../ticketStatusConstants.js';
 
 const PRIORITY_BADGES = {
-  High: { label: "🔴 عالية", cls: "bg-red-500/10 text-red-400 border border-red-500/20" },
-  Medium: { label: "🟡 متوسطة", cls: "bg-amber-500/10 text-amber-400 border border-amber-500/20" },
-  Low: { label: "🟢 منخفضة", cls: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" }
+  High: { get label() { return L("🔴 عالية", "🔴 High"); }, cls: "bg-red-500/10 text-red-400 border border-red-500/20" },
+  Medium: { get label() { return L("🟡 متوسطة", "🟡 Medium"); }, cls: "bg-amber-500/10 text-amber-400 border border-amber-500/20" },
+  Low: { get label() { return L("🟢 منخفضة", "🟢 Low"); }, cls: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" }
 };
 
 const TYPE_LABELS = {
-  Breakdown: "🔧 عطل مفاجئ",
-  Observation: "📋 ملاحظة",
-  PM: "🗓️ صيانة وقائية",
-  Other: "🏷️ أخرى"
+  get Breakdown() { return L("🔧 عطل مفاجئ", "🔧 Breakdown"); },
+  get Observation() { return L("📋 ملاحظة", "📋 Observation"); },
+  get PM() { return L("🗓️ صيانة وقائية", "🗓️ Preventive Maintenance"); },
+  get Other() { return L("🏷️ أخرى", "🏷️ Other"); }
 };
 
 const CATEGORY_ICONS = {
@@ -79,7 +87,7 @@ function escapeHtml(str) {
 function formatDate(iso) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("ar-EG", {
+    return new Date(iso).toLocaleString(L("ar-EG", "en-US"), {
       day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
   } catch {
@@ -97,11 +105,11 @@ function formatDurationHours(totalHours) {
   const minutes = totalMinutes % 60;
 
   const parts = [];
-  if (days > 0) parts.push(`${days} ${days === 1 ? "يوم" : "أيام"}`);
-  if (hours > 0) parts.push(`${hours} ${hours === 1 ? "ساعة" : "ساعات"}`);
-  if (minutes > 0 && days === 0) parts.push(`${minutes} دقيقة`);
+  if (days > 0) parts.push(L(`${days} ${days === 1 ? "يوم" : "أيام"}`, `${days} ${days === 1 ? "day" : "days"}`));
+  if (hours > 0) parts.push(L(`${hours} ${hours === 1 ? "ساعة" : "ساعات"}`, `${hours} ${hours === 1 ? "hour" : "hours"}`));
+  if (minutes > 0 && days === 0) parts.push(L(`${minutes} دقيقة`, `${minutes} min`));
 
-  return parts.length ? parts.join(" و") : "أقل من دقيقة";
+  return parts.length ? parts.join(L(" و", " and ")) : L("أقل من دقيقة", "less than a minute");
 }
 
 // حساب زمن التوقف: من لحظة الإبلاغ (createdAt) وحتى لحظة الإصلاح
@@ -138,7 +146,7 @@ function timelineItemHtml(log) {
       </div>
       <div class="pb-4 flex-1">
         <div class="text-[11px] font-bold text-gray-200">
-          ${STATUS_LABELS_AR[log.toStatus] || log.toStatus || ""}
+          ${statusLabel(log.toStatus) || log.toStatus || ""}
         </div>
         <div class="text-[10px] text-gray-500 mt-0.5">
           ${escapeHtml(log.by || "")} ${log.byRole ? `(${escapeHtml(log.byRole)})` : ""} · ${formatDate(log.at)}
@@ -189,11 +197,11 @@ export async function openTicketDetailsModal(ticketId) {
   overlay.innerHTML = `
     <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md sm:max-w-xl md:max-w-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between p-4 pb-3 border-b border-gray-800 shrink-0">
-        <h3 class="text-sm font-bold text-blue-400">🔍 تفاصيل البلاغ</h3>
+        <h3 class="text-sm font-bold text-blue-400">${L("🔍 تفاصيل البلاغ", "🔍 Ticket Details")}</h3>
         <button id="ticketDetails_close" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>
       </div>
       <div id="ticketDetails_body" class="p-4 flex-1 overflow-y-auto text-center text-gray-500 text-xs py-8">
-        جاري التحميل...
+        ${L("جاري التحميل...", "Loading...")}
       </div>
       <div id="ticketDetails_footer" class="hidden shrink-0 border-t border-gray-800 p-3 flex flex-wrap gap-2 justify-end bg-[#1E293B]"></div>
     </div>
@@ -227,7 +235,7 @@ export async function openTicketDetailsModal(ticketId) {
     ]);
 
     if (ticketResult.status !== "success") {
-      body.innerHTML = `<div class="text-red-400 text-xs py-8">تعذر تحميل بيانات التذكرة${ticketResult.message ? `: ${escapeHtml(ticketResult.message)}` : "."}</div>`;
+      body.innerHTML = `<div class="text-red-400 text-xs py-8">${L("تعذر تحميل بيانات التذكرة", "Could not load ticket data")}${ticketResult.message ? `: ${escapeHtml(ticketResult.message)}` : "."}</div>`;
       footer.classList.add("hidden");
       footer.innerHTML = "";
       return;
@@ -253,32 +261,32 @@ export async function openTicketDetailsModal(ticketId) {
     const downtime = computeDowntime(ticket);
 
     body.innerHTML = `
-      <div class="space-y-4 text-right">
+      <div class="space-y-4 ${window.currentLang === 'en' ? 'text-left' : 'text-right'}">
 
         <!-- رقم البلاغ + الحالة -->
         <div class="flex items-center justify-between">
           <span class="text-[11px] font-mono text-gray-400">#${escapeHtml(ticket.issueId || ticket.id || "-")}</span>
           <span class="text-[11px] px-2 py-1 rounded-full font-bold ${STATUS_BADGE_CLASSES[status] || "bg-gray-500/10 text-gray-400 border border-gray-500/20"}">
-            ${STATUS_LABELS_AR[status] || ticket.status || "-"}
+            ${statusLabel(status) || ticket.status || "-"}
           </span>
         </div>
 
         <!-- بيانات أساسية -->
         <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
-          ${infoRowHtml("الماكينة", escapeHtml(ticket.machine || ticket.machineName || "-"))}
-          ${infoRowHtml("الخط", escapeHtml(ticket.line || "-"))}
-          ${priority ? infoRowHtml("درجة الأولوية", `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${priority.label}</span>`) : ""}
-          ${typeLabel ? infoRowHtml("نوع البلاغ", escapeHtml(typeLabel)) : ""}
-          ${categoryLabel ? infoRowHtml("نوع العطل", escapeHtml(categoryLabel)) : ""}
-          ${infoRowHtml("مكان العطل", ticket.location ? escapeHtml(ticket.location) : "")}
-          ${infoRowHtml("المُبلّغ", ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}
-          ${infoRowHtml("مُسندة إلى", ticket.assignedTo ? escapeHtml(ticket.assignedTo) : "")}
-          ${infoRowHtml("تاريخ الإبلاغ", formatDate(ticket.createdAt))}
-          ${ticket.updatedAt ? infoRowHtml("آخر تحديث", formatDate(ticket.updatedAt)) : ""}
+          ${infoRowHtml(L("الماكينة", "Machine"), escapeHtml(ticket.machine || ticket.machineName || "-"))}
+          ${infoRowHtml(L("الخط", "Line"), escapeHtml(ticket.line || "-"))}
+          ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${priority.label}</span>`) : ""}
+          ${typeLabel ? infoRowHtml(L("نوع البلاغ", "Ticket Type"), escapeHtml(typeLabel)) : ""}
+          ${categoryLabel ? infoRowHtml(L("نوع العطل", "Fault Category"), escapeHtml(categoryLabel)) : ""}
+          ${infoRowHtml(L("مكان العطل", "Fault Location"), ticket.location ? escapeHtml(ticket.location) : "")}
+          ${infoRowHtml(L("المُبلّغ", "Reported By"), ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}
+          ${infoRowHtml(L("مُسندة إلى", "Assigned To"), ticket.assignedTo ? escapeHtml(ticket.assignedTo) : "")}
+          ${infoRowHtml(L("تاريخ الإبلاغ", "Reported On"), formatDate(ticket.createdAt))}
+          ${ticket.updatedAt ? infoRowHtml(L("آخر تحديث", "Last Updated"), formatDate(ticket.updatedAt)) : ""}
           ${ticket.description ? `<div class="text-xs text-gray-400 pt-1.5 border-t border-gray-800 mt-1.5">${escapeHtml(ticket.description)}</div>` : ""}
           ${ticket.suggestion ? `
             <div class="text-[11px] text-gray-400 bg-[#1E293B] rounded-lg p-2 border border-gray-800 mt-1">
-              💡 اقتراح المُبلّغ: ${escapeHtml(ticket.suggestion)}
+              ${L("💡 اقتراح المُبلّغ:", "💡 Reporter suggestion:")} ${escapeHtml(ticket.suggestion)}
             </div>` : ""}
         </div>
 
@@ -287,7 +295,7 @@ export async function openTicketDetailsModal(ticketId) {
           <div class="rounded-xl p-3 border ${downtime.isOpen ? "bg-red-500/5 border-red-500/20" : "bg-emerald-500/5 border-emerald-500/20"}">
             <div class="flex justify-between items-center text-xs">
               <span class="${downtime.isOpen ? "text-red-300" : "text-emerald-300"} font-bold">
-                ${downtime.isOpen ? "⏱️ متوقفة حالياً منذ" : "⏱️ إجمالي زمن التوقف حتى الإصلاح"}
+                ${downtime.isOpen ? L("⏱️ متوقفة حالياً منذ", "⏱️ Down for") : L("⏱️ إجمالي زمن التوقف حتى الإصلاح", "⏱️ Total downtime until repair")}
               </span>
               <span id="${downtimeSpanId}" class="font-bold ${downtime.isOpen ? "text-red-300" : "text-emerald-300"}">
                 ${formatDurationHours(downtime.hours)}
@@ -299,23 +307,23 @@ export async function openTicketDetailsModal(ticketId) {
         <!-- الإجراءات المتخذة -->
         ${ticket.mechanicNotes ? `
           <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5 text-emerald-300">
-            🔧 <span class="font-bold">الإجراء المتخذ (ملاحظات الفني):</span>
+            🔧 <span class="font-bold">${L("الإجراء المتخذ (ملاحظات الفني):", "Action taken (technician notes):")}</span>
             <div class="text-emerald-200/90 mt-1">${escapeHtml(ticket.mechanicNotes)}</div>
           </div>` : ""}
         ${ticket.operatorFeedback ? `
           <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2.5 text-red-300">
-            ⚠️ <span class="font-bold">ملاحظات المُبلّغ (سبب إعادة الفتح):</span>
+            ⚠️ <span class="font-bold">${L("ملاحظات المُبلّغ (سبب إعادة الفتح):", "Reporter notes (reason for reopening):")}</span>
             <div class="text-red-200/90 mt-1">${escapeHtml(ticket.operatorFeedback)}</div>
           </div>` : ""}
 
         <!-- الصور المرفقة -->
-        ${imagesGridHtml("📷 صور البلاغ", beforeImages)}
-        ${imagesGridHtml("📷 صور بعد الإصلاح", afterImages)}
+        ${imagesGridHtml(L("📷 صور البلاغ", "📷 Ticket images"), beforeImages)}
+        ${imagesGridHtml(L("📷 صور بعد الإصلاح", "📷 After-repair images"), afterImages)}
 
         <!-- التايملاين -->
         <div>
-          <div class="text-[11px] font-bold text-gray-300 mb-2">🕒 سجل الحالات</div>
-          ${logs.length ? logs.map(timelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">لا يوجد سجل بعد.</div>`}
+          <div class="text-[11px] font-bold text-gray-300 mb-2">${L("🕒 سجل الحالات", "🕒 Status History")}</div>
+          ${logs.length ? logs.map(timelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">${L("لا يوجد سجل بعد.", "No history yet.")}</div>`}
         </div>
 
       </div>
@@ -357,13 +365,13 @@ export async function openTicketDetailsModal(ticketId) {
     footer.querySelectorAll(".ticketDetails_actionBtn").forEach(btn => {
       btn.addEventListener("click", async () => {
         if (typeof window.handleTicketAction !== "function") {
-          alert("⚠️ تعذر تنفيذ الإجراء (تحديث الصفحة وحاول مرة أخرى).");
+          alert(L("⚠️ تعذر تنفيذ الإجراء (تحديث الصفحة وحاول مرة أخرى).", "⚠️ Could not perform the action (refresh the page and try again)."));
           return;
         }
 
         footer.querySelectorAll(".ticketDetails_actionBtn").forEach(b => { b.disabled = true; });
         const originalText = btn.innerHTML;
-        btn.innerHTML = "⏳ جاري التنفيذ...";
+        btn.innerHTML = L("⏳ جاري التنفيذ...", "⏳ Processing...");
 
         try {
           await window.handleTicketAction(ticket.id, btn.dataset.actionKey);

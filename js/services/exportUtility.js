@@ -1,6 +1,38 @@
 import { getCurrentRole, hasFullDataAccess } from '../permissions.js';
 import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlockHtml, getCompanyLogoDataUrl } from '../branding.js';
 import { HEADER_COLORS, COMPANY_NAME_AR, COMPANY_NAME_EN } from '../companyHeaderConfig.js';
+import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+
+// إصلاح (بند مؤكد بالاختبار العملي - Test 10): كانت ExcelJS بتتحمّل
+// حصرياً عبر <script> ثابت في index.html من مصدر CDN واحد بس
+// (cdnjs.cloudflare.com)، فحجب/تعطّل هذا الدومين تحديداً (شبكة
+// مصنع مقيّدة مثلاً) كان يعطّل ميزة "التقارير وتصدير الإكسيل"
+// بالكامل من أول تحميل للصفحة - حتى لو باقي الإنترنت شغّال. نفس
+// فئة المشكلة الموثّقة والمُصلَحة بالفعل لمكتبة توليد QR (راجع
+// js/vendor/qrcode-generator.js) ولنفس أداة loadScriptWithFallback
+// المستخدمة أصلاً في QrScannerView.js/MachineProfileView.js. هنا
+// نفس الأداة، لكن بمصادر CDN بديلة بدل نسخة محلية مُخزَّنة (المكتبة
+// أكبر بكثير من مكتبة QR)، وتحميل كسول فقط عند أول محاولة تصدير
+// فعلية (بدل تحميلها إجبارياً في كل تحميل للتطبيق حتى لو المستخدم
+// ما فتحش صفحة التقارير إطلاقاً).
+let exceljsLoadPromise = null;
+function ensureExcelJsLoaded() {
+  if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  if (!exceljsLoadPromise) {
+    exceljsLoadPromise = loadScriptWithFallback(
+      [
+        'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',
+        'https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js',
+        'https://unpkg.com/exceljs@4.3.0/dist/exceljs.min.js'
+      ],
+      () => window.ExcelJS
+    ).catch(err => {
+      exceljsLoadPromise = null; // يسمح بمحاولة تحميل حقيقية جديدة لاحقاً بدل تجميد الفشل للأبد
+      throw err;
+    });
+  }
+  return exceljsLoadPromise;
+}
 
 export const PAGE_BREAK_CLASS = "no-page-break";
 
@@ -234,8 +266,11 @@ export async function exportToPdf(title, rows, htmlContent, filename, sigLabels 
 }
 
 export async function exportToExcel(title, headers, rows, filename, options = {}) {
-  if (typeof window.ExcelJS === "undefined") {
-    alert("❌ مكتبة ExcelJS غير محملة حالياً، تأكد من الاتصال بالإنترنت.");
+  try {
+    await ensureExcelJsLoaded();
+  } catch (err) {
+    console.error('Failed to load ExcelJS from all sources:', err);
+    alert("❌ تعذر تحميل مكتبة الإكسيل من كل المصادر المتاحة، تأكد من الاتصال بالإنترنت وحاول مرة أخرى.");
     return;
   }
 

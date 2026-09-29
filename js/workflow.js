@@ -144,7 +144,22 @@ window.confirmIssue = async function() {
 // تغيير في بنية قاعدة البيانات - فقط قراءة من "tickets" الحالية
 // ==========================================
 
-export async function loadDashboardStats() {
+// Test 17: عند فتح الرئيسية بيتنادى loadDashboardStats مرتين تقريباً في
+// نفس اللحظة (من onAuthStateChanged في renderCore + من render() بعد
+// 100ms) = 500 تذكرة + 3 عدّادات تتحمّل مرتين. الاستدعاء اللي بيجي
+// أثناء تحميل شغّال بيستنى نفس النتيجة بدل ما يبدأ تحميل تاني
+let _dashboardStatsInFlight = null;
+
+export function loadDashboardStats() {
+  if (!_dashboardStatsInFlight) {
+    _dashboardStatsInFlight = _loadDashboardStatsImpl().finally(() => {
+      _dashboardStatsInFlight = null;
+    });
+  }
+  return _dashboardStatsInFlight;
+}
+
+async function _loadDashboardStatsImpl() {
 
   // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
   // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر

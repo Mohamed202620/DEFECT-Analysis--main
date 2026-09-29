@@ -123,7 +123,7 @@ function suggestionCardHtml(suggestion) {
   const imageHtml = suggestionImages.length ? `
     <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"} mt-2">
       ${suggestionImages.map(url => `
-        <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
+        <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
       `).join("")}
     </div>
   ` : "";
@@ -144,33 +144,38 @@ function suggestionCardHtml(suggestion) {
   `;
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-2 mb-3">
-      <div class="flex justify-between items-center">
-        <span class="font-bold text-sm text-gray-100">${suggestion.title || "-"}</span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
-          ${KAIZEN_STATUS_LABELS[status] || status}
-        </span>
-      </div>
-
-      ${suggestion.problem ? `<p class="text-xs text-gray-400">${suggestion.problem}</p>` : ""}
-
-      ${suggestion.solution ? `
-        <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
-          💡 الحل المقترح: ${suggestion.solution}
+    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 flex flex-col justify-between h-full">
+      <div class="space-y-2.5">
+        <div class="flex justify-between items-center gap-2">
+          <span class="font-bold text-sm text-gray-100">${suggestion.title || "-"}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
+            ${KAIZEN_STATUS_LABELS[status] || status}
+          </span>
         </div>
-      ` : ""}
 
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-        <span>👤 ${displayName}</span>
-        ${suggestion.line ? `<span>🏭 ${suggestion.line}</span>` : ""}
-        ${suggestion.machine ? `<span>⚙️ ${suggestion.machine}</span>` : ""}
-        ${suggestion.category ? `<span>🏷️ ${suggestion.category}</span>` : ""}
+        ${suggestion.problem ? `<p class="text-xs text-gray-400 leading-relaxed">${suggestion.problem}</p>` : ""}
+
+        ${suggestion.solution ? `
+          <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
+            💡 الحل المقترح: ${suggestion.solution}
+          </div>
+        ` : ""}
+
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
+          <span>👤 ${displayName}</span>
+          ${suggestion.line ? `<span>🏭 ${suggestion.line}</span>` : ""}
+          ${suggestion.machine ? `<span>⚙️ ${suggestion.machine}</span>` : ""}
+          ${suggestion.category ? `<span>🏷️ ${suggestion.category}</span>` : ""}
+        </div>
+
+        ${extraInfoHtml}
+        ${imageHtml}
       </div>
 
-      ${extraInfoHtml}
-      ${imageHtml}
-      ${detailsButtonHtml}
-      ${statusChangeHtml}
+      <div class="space-y-2 pt-3 border-t border-gray-800/80 mt-3">
+        ${detailsButtonHtml}
+        ${statusChangeHtml}
+      </div>
     </div>
   `;
 
@@ -235,7 +240,7 @@ function renderKaizenPage() {
   `;
 
   const listHtml = pageItems.length
-    ? pageItems.map(suggestionCardHtml).join("")
+    ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${pageItems.map(suggestionCardHtml).join("")}</div>`
     : `<div class="text-center text-gray-500 text-xs py-8">لا توجد مقترحات حالياً في قائمتك.</div>`;
 
   const paginationHtml = totalPages > 1 ? `
@@ -541,7 +546,7 @@ window.cleanupKaizenBoard = function () {
 function formatKaizenDetailsDate(iso) {
   if (!iso) return "-";
   try {
-    return new Date(iso).toLocaleDateString("ar-EG", {
+    return new Date(iso).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), {
       year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit"
     });
@@ -581,7 +586,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
       <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"}">
         ${suggestionImages.map(url => `
           <a href="${url}" target="_blank" rel="noopener">
-            <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
+            <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
           </a>
         `).join("")}
       </div>
@@ -595,7 +600,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
       </div>
       <div class="grid grid-cols-3 gap-1.5">
         ${suggestion.implementationImages.map(url => `
-          <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+          <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
         `).join("")}
       </div>
     </div>
@@ -778,7 +783,7 @@ const KAIZEN_REPORT_PAGE_WIDTH_PX = 794; // عرض صفحة A4 تقريباً ب
 
 function formatKaizenReportDate(iso) {
   try {
-    return new Date(iso).toLocaleDateString("ar-EG", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Date(iso).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG"), { year: "numeric", month: "2-digit", day: "2-digit" });
   } catch (error) {
     return iso || "-";
   }

@@ -154,9 +154,36 @@ function normalizeSearchTerm(term) {
   return String(term || '').trim().toLowerCase();
 }
 
+// Test 17: كل عملية بحث (بالكود أو النص) كانت بتحمّل مجموعة machineErrors
+// كاملة من Firestore من جديد - ومرات بتتكرر في نفس البحث. كاش قصير (60
+// ثانية) بيشارك نفس الطلب الجاري ويتفرّغ فوراً عند أي حفظ/اعتماد/تسجيل
+// ظهور من هذا الجهاز، فالنتائج بتفضل مطابقة للسلوك الحالي
+const ALL_ERRORS_CACHE_TTL_MS = 60000;
+let _allErrorsCache = null; // { at, promise }
+
+function invalidateAllMachineErrorsCache() {
+  _allErrorsCache = null;
+}
+
 async function fetchAllMachineErrors() {
-  const result = await fetchAllMachineErrorsApi();
-  return Array.isArray(result.data) ? result.data : [];
+  const now = Date.now();
+  if (_allErrorsCache && now - _allErrorsCache.at < ALL_ERRORS_CACHE_TTL_MS) {
+    return _allErrorsCache.promise;
+  }
+
+  const promise = fetchAllMachineErrorsApi().then(result => {
+    if (!result || result.status !== 'success') {
+      // ماتتخزنش نتيجة فاشلة - المحاولة الجاية تجلب من جديد
+      if (_allErrorsCache && _allErrorsCache.promise === promise) _allErrorsCache = null;
+    }
+    return Array.isArray(result?.data) ? result.data : [];
+  }).catch(error => {
+    if (_allErrorsCache && _allErrorsCache.promise === promise) _allErrorsCache = null;
+    throw error;
+  });
+
+  _allErrorsCache = { at: now, promise };
+  return promise;
 }
 
 function matchesMachineError(error, searchTerm) {
@@ -522,7 +549,7 @@ function renderNotFound(code) {
 // حفظ عطل جديد
 // ============================================================
 
-window.saveNewMachineError = async function (code) {
+const _saveNewMachineError = async function (code) {
 
   const machine = el('errNewMachine')?.value?.trim() || '';
   const line = el('errNewLine')?.value?.trim() || '';
@@ -553,6 +580,7 @@ window.saveNewMachineError = async function (code) {
   };
 
   const result = await saveMachineErrorApi(payload);
+  invalidateAllMachineErrorsCache(); // Test 17: البحث التالي (تحت) لازم يشوف الكتابة دي فوراً
 
   if (result.status !== 'success') {
     alert('❌ ' + (result.message || t().genericSaveError));
@@ -572,7 +600,7 @@ window.saveNewMachineError = async function (code) {
 // تسجيل ظهور جديد لعطل معروف حالياً
 // ============================================================
 
-window.logErrorOccurrence = async function () {
+const _logErrorOccurrence = async function () {
 
   if (!lastFoundError) return;
 
@@ -588,6 +616,7 @@ window.logErrorOccurrence = async function () {
   };
 
   const result = await logMachineErrorOccurrenceApi(payload);
+  invalidateAllMachineErrorsCache(); // Test 17: البحث التالي (تحت) لازم يشوف الكتابة دي فوراً
 
   if (result.status === 'success') {
     alert(t().occurrenceLogged);
@@ -602,9 +631,10 @@ window.logErrorOccurrence = async function () {
 // اعتماد عطل قيد المراجعة
 // ============================================================
 
-window.verifyMachineError = async function (errorId) {
+const _verifyMachineError = async function (errorId) {
 
   const result = await verifyMachineErrorApi(errorId);
+  invalidateAllMachineErrorsCache(); // Test 17: البحث التالي (تحت) لازم يشوف الكتابة دي فوراً
 
   alert(result.message || (result.status === 'success' ? t().verifiedSuccess : t().genericError));
 
@@ -640,3 +670,30 @@ window.resetErrorScanner = function () {
 
   setStatus(t().readyStatus);
 };
+
+// ============================================================
+// Test 16: حماية من الضغط المتكرر السريع على (حفظ عطل جديد / تسجيل
+// ظهور / اعتماد) - كانت الأزرار دي بلا أي قفل، فالضغط مرتين أثناء
+// الرفع/الحفظ كان بيسجّل ظهور مكرر أو يحفظ نفس العطل مرتين. أي ضغطة
+// أثناء عملية شغّالة بتتجاهل، والقفل بيتفك دايماً (حتى لو حصل خطأ)
+// ============================================================
+let _errorScannerBusy = false;
+
+async function _runErrorScannerOnce(fn) {
+  if (_errorScannerBusy) return;
+  _errorScannerBusy = true;
+  try {
+    return await fn();
+  } catch (error) {
+    invalidateAllMachineErrorsCache();
+    console.error("Error scanner action failed:", error);
+    alert("❌ " + (error && error.message ? error.message : t().genericError));
+  } finally {
+    invalidateAllMachineErrorsCache();
+    _errorScannerBusy = false;
+  }
+}
+
+window.saveNewMachineError = (code) => _runErrorScannerOnce(() => _saveNewMachineError(code));
+window.logErrorOccurrence = () => _runErrorScannerOnce(() => _logErrorOccurrence());
+window.verifyMachineError = (errorId) => _runErrorScannerOnce(() => _verifyMachineError(errorId));

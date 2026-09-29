@@ -16,7 +16,7 @@ const attachmentStore = new Map();
 export function compressImage(file, maxWidth = 900, quality = 0.75) {
   return new Promise((resolve, reject) => {
     if (!file || !file.type.startsWith('image/')) {
-      return reject(new Error('الملف ليس صورة صالحة'));
+      return reject(new Error(window.currentLang === 'en' ? 'The file is not a valid image' : 'الملف ليس صورة صالحة'));
     }
 
     const reader = new FileReader();
@@ -56,9 +56,9 @@ export function compressImage(file, maxWidth = 900, quality = 0.75) {
  * @returns {string}
  */
 export function buildAttachmentPickerHtml(groupId, options = {}) {
-  const cameraLabel = options.cameraLabel || "📷 التقاط صورة";
-  const galleryLabel = options.galleryLabel || "🖼️ من المعرض";
-  const emptyText = options.emptyText || "لا توجد صور مرفقة";
+  const cameraLabel = options.cameraLabel || (window.currentLang === "en" ? "📷 Take photo" : "📷 التقاط صورة");
+  const galleryLabel = options.galleryLabel || (window.currentLang === "en" ? "🖼️ From gallery" : "🖼️ من المعرض");
+  const emptyText = options.emptyText || (window.currentLang === "en" ? "No images attached" : "لا توجد صور مرفقة");
   const buttonsWrapperClass = options.buttonsWrapperClass || "grid grid-cols-2 gap-2 mb-2";
   const cameraButtonClass = options.cameraButtonClass ||
     "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2.5 text-blue-400 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5";
@@ -166,7 +166,7 @@ export function initAttachmentPicker(groupId, options = {}) {
   const maxFileSizeMB = options.maxFileSizeMB || 10;
   const maxWidth = options.maxWidth || 900;
   const quality = options.quality || 0.75;
-  const emptyText = options.emptyText || "لا توجد صور مرفقة";
+  const emptyText = options.emptyText || (window.currentLang === "en" ? "No images attached" : "لا توجد صور مرفقة");
 
   const config = { maxFiles, maxFileSizeMB, maxWidth, quality, emptyText };
 
@@ -187,12 +187,12 @@ export function initAttachmentPicker(groupId, options = {}) {
 
     for (const file of filesArray) {
       if (currentFiles.length >= maxFiles) {
-        alert(`الحد الأقصى للصور هو ${maxFiles} صور.`);
+        alert(window.currentLang === "en" ? `Maximum number of images is ${maxFiles}.` : `الحد الأقصى للصور هو ${maxFiles} صور.`);
         break;
       }
 
       if (file.size > maxFileSizeMB * 1024 * 1024) {
-        alert(`حجم الصورة "${file.name}" يتجاوز ${maxFileSizeMB} ميجابايت.`);
+        alert(window.currentLang === "en" ? `Image "${file.name}" exceeds ${maxFileSizeMB} MB.` : `حجم الصورة "${file.name}" يتجاوز ${maxFileSizeMB} ميجابايت.`);
         continue;
       }
 

@@ -74,4 +74,8 @@ import './holidaysManagement.js';
 // "settings" في pageRenderer.js)
 import './attendancePatternManagement.js';
 
+// استيراد جانبي (Side-effect) لربط دوال إدارة وتغذية قوالب فحص الماكينات (AM)
+// من ملف Excel الموحد (window.downloadAmMasterTemplate / window.openAmBulkImportModal)
+import './amTemplateManager.js';
+
 export { navigateTo, goBack, currentPage, render } from './renderCore.js';
