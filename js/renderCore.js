@@ -220,7 +220,6 @@ if (currentPage === "home" && typeof window.renderNotificationPermissionBanner =
 
 }
 
-
 // ========================================================  
 // HOME AUTO LOAD  
 // ========================================================  
