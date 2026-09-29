@@ -815,11 +815,17 @@ export async function fetchMyNotificationsApi(uid) {
 // قائمة الإشعارات المعروضة نفسها أو سلوكها الحالي.
 export async function countUnreadNotificationsApi(uid) {
   try {
-    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
-    const querySnapshot = await getDocs(q);
-    let count = 0;
-    querySnapshot.forEach(docSnap => { if (!docSnap.data().read) count += 1; });
-    return { status: "success", count };
+    // Test 16/17: كانت بتقرأ كل إشعارات المستخدم (بلا limit، ومفيش حذف
+    // للإشعارات القديمة) عشان تعدّ غير المقروء - وبتتنادى مع كل render()
+    // (شارة 🔔). العدّ بالـ Aggregation بيقرا فهرس فقط (قراءة واحدة لكل
+    // 1000 إدخال) بدل تحميل كل المستندات، بنفس النتيجة بالظبط
+    const q = query(
+      collection(db, "notifications"),
+      where("forUid", "==", uid),
+      where("read", "==", false)
+    );
+    const countSnap = await getCountFromServer(q);
+    return { status: "success", count: countSnap.data().count };
   } catch (error) {
     const fallback = emptyResultOnMissingIndex(error, "countUnreadNotificationsApi");
     if (fallback) return { status: "success", count: 0 };
