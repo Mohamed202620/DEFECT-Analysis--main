@@ -89,7 +89,26 @@ function filterByPeriod(tickets, period) {
 // تهيئة لوحة الداشبورد عند فتحها (تُستدعى من renderCore.js)
 // ============================================================
 
+// Test 17: كل فتح لصفحة الإحصائيات كان بيحمّل مجموعة tickets كاملة (بلا
+// limit - الفترة "all" محتاجاها كلها) حتى لو المستخدم خرج ورجع بعد ثواني.
+// إعادة استخدام آخر تحميل لمدة 90 ثانية لنفس المستخدم فقط (المفتاح =
+// userId، فمستخدم تاني على نفس الجهاز مايشوفش بيانات الأول) - زر التحديث
+// (refreshStatsDashboard) لسه بيجلب من جديد دايماً
+const STATS_REUSE_MS = 90000;
+let statsLoadedAt = 0;
+let statsLoadedForUid = "";
+
 export async function initStatsView() {
+  const currentUid = localStorage.getItem("userId") || "";
+  if (
+    isLoaded &&
+    statsLoadedForUid === currentUid &&
+    Date.now() - statsLoadedAt < STATS_REUSE_MS
+  ) {
+    window.switchStatsPeriod(currentPeriod);
+    return;
+  }
+
   const summaryBox = el('statsSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `<div class="text-center text-gray-400 text-xs py-6 col-span-2 sm:col-span-4 flex items-center justify-center gap-2">
@@ -100,6 +119,9 @@ export async function initStatsView() {
   const result = await fetchTicketsApi();
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
+  // ماتتخزنش نتيجة فاشلة للإعادة - المحاولة الجاية تجلب من جديد
+  statsLoadedAt = result.status === 'success' ? Date.now() : 0;
+  statsLoadedForUid = currentUid;
 
   window.switchStatsPeriod(currentPeriod);
 }
@@ -115,6 +137,8 @@ window.refreshStatsDashboard = async function () {
   const result = await fetchTicketsApi();
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
+  statsLoadedAt = result.status === 'success' ? Date.now() : 0;
+  statsLoadedForUid = localStorage.getItem("userId") || "";
 
   renderAll();
 

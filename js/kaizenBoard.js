@@ -123,7 +123,7 @@ function suggestionCardHtml(suggestion) {
   const imageHtml = suggestionImages.length ? `
     <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"} mt-2">
       ${suggestionImages.map(url => `
-        <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
+        <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
       `).join("")}
     </div>
   ` : "";
@@ -586,7 +586,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
       <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"}">
         ${suggestionImages.map(url => `
           <a href="${url}" target="_blank" rel="noopener">
-            <img src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
+            <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
           </a>
         `).join("")}
       </div>
@@ -600,7 +600,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
       </div>
       <div class="grid grid-cols-3 gap-1.5">
         ${suggestion.implementationImages.map(url => `
-          <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+          <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
         `).join("")}
       </div>
     </div>

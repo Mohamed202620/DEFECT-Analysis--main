@@ -412,7 +412,7 @@ async function openSuggestionDetailsModal(suggestion) {
           <div class="grid grid-cols-3 gap-2">
             ${suggestionImages.map(url => `
               <a href="${url}" target="_blank" rel="noopener">
-                <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+                <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
               </a>
             `).join("")}
           </div>
@@ -426,7 +426,7 @@ async function openSuggestionDetailsModal(suggestion) {
           <div class="grid grid-cols-3 gap-2">
             ${implementationImages.map(url => `
               <a href="${url}" target="_blank" rel="noopener">
-                <img src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+                <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
               </a>
             `).join("")}
           </div>

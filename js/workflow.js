@@ -144,16 +144,32 @@ window.confirmIssue = async function() {
 // تغيير في بنية قاعدة البيانات - فقط قراءة من "tickets" الحالية
 // ==========================================
 
-export async function loadDashboardStats(requestedPeriod) {
-  const period = requestedPeriod || localStorage.getItem('home_period') || 'week';
-  localStorage.setItem('home_period', period);
+// Test 17: عند فتح الرئيسية بيتنادى loadDashboardStats مرتين تقريباً في
+// نفس اللحظة (من onAuthStateChanged في renderCore + من render() بعد
+// 100ms) = 500 تذكرة + 3 عدّادات تتحمّل مرتين. الاستدعاء اللي بيجي
+// أثناء تحميل شغّال بيستنى نفس النتيجة بدل ما يبدأ تحميل تاني
+let _dashboardStatsInFlight = null;
 
-  // جلب دور المستخدم وبياناته الحالية
+export function loadDashboardStats() {
+  if (!_dashboardStatsInFlight) {
+    _dashboardStatsInFlight = _loadDashboardStatsImpl().finally(() => {
+      _dashboardStatsInFlight = null;
+    });
+  }
+  return _dashboardStatsInFlight;
+}
+
+async function _loadDashboardStatsImpl() {
+
+  // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
+  // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر
+  // حسب الصلاحيات (Admin/Manager = الكل، وباقي الأدوار = بلاغاتي +
+  // المُسندة إليّ فقط) بدل ما تجيب كل التذاكر لأي مستخدم
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  // جلب أحدث البلاغات للوحة المتابعة
+  // Get recent tickets for details, and the accurate total count via aggregation
   const [sampleResult, countsResult] = await Promise.all([
     fetchTicketsApi({ role, myUid, myName, maxCount: 500 }),
     fetchTicketCountsApi({ role, myName })
@@ -167,18 +183,7 @@ export async function loadDashboardStats(requestedPeriod) {
   const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
   const trueTotal = countsResult?.status === 'success' ? countsResult.data.total : tickets.length;
 
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-
-  let periodCutoff = new Date();
-  if (period === 'today') {
-    periodCutoff = todayStart;
-  } else if (period === 'month') {
-    periodCutoff.setDate(now.getDate() - 30);
-  } else {
-    // Default 'week'
-    periodCutoff.setDate(now.getDate() - 7);
-  }
+  const todayStr = new Date().toDateString();
 
   let open = 0;
   let closed = 0;
@@ -193,104 +198,38 @@ export async function loadDashboardStats(requestedPeriod) {
     }
 
     const created = parseTicketDate(ticket);
-    if (created && created >= todayStart) {
+    if (created && created.toDateString() === todayStr) {
       today++;
     }
 
-    if (isOverdueTicket(ticket, now)) {
+    if (isOverdueTicket(ticket)) {
       overdue++;
     }
   });
 
-  const periodTickets = tickets.filter(t => {
-    const d = parseTicketDate(t);
-    return d && d >= periodCutoff;
-  });
+  const now = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(now.getDate() - 30);
 
-  // إذا كانت فترة 'today' ولا يوجد بلاغات كافية لـ MTTR/TopMachines، نرجع لآخر 30 يوماً كاحتياطي دلالي
-  const calculationTickets = periodTickets.length >= 3 ? periodTickets : tickets.filter(t => {
+  const thisMonthTickets = tickets.filter(t => {
     const d = parseTicketDate(t);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(now.getDate() - 30);
     return d && d >= thirtyDaysAgo;
   });
 
-  const currentLang = window.currentLang || 'ar';
-  const isAr = currentLang === 'ar';
+  const mttrData = computeMTTR(thisMonthTickets);
+  const topMachines = computeTopMachines(thisMonthTickets, 1);
+  const topTechs = computeTechnicianPerformance(thisMonthTickets, 1);
 
-  const mttrData = computeMTTR(calculationTickets);
-  const topMachines = computeTopMachines(calculationTickets, 4);
-  const topTechs = computeTechnicianPerformance(calculationTickets, 4);
-
-  // تنسيق دقيق لـ MTTR بدون "h 0.1"
-  let mttrValue = '—';
-  if (mttrData.avgHours !== null && !isNaN(mttrData.avgHours)) {
-    if (mttrData.avgHours < 1) {
-      const mins = Math.max(1, Math.round(mttrData.avgHours * 60));
-      mttrValue = isAr ? `${mins} دقيقة` : `${mins} min`;
-    } else {
-      const hrs = mttrData.avgHours.toFixed(1);
-      mttrValue = isAr ? `${hrs} ساعة` : `${hrs} hrs`;
-    }
-  }
-
+  const mttrValue = mttrData.avgHours !== null ? `${mttrData.avgHours.toFixed(1)} h` : '-';
   const topMachineValue = topMachines.length > 0 ? topMachines[0][0] : '-';
   const topTechValue = topTechs.length > 0 ? topTechs[0][0] : '-';
-
-  // حساب البلاغات العاجلة (تنبيهات المديرين)
-  const urgentAlerts = tickets.filter(t => {
-    if (isClosedStatus(t.status)) return false;
-    const isCritical = String(t.priority || '').trim() === 'High';
-    const overdue = isOverdueTicket(t, now);
-    const unassigned = !t.assignedTo && !t.technician;
-    return isCritical || overdue || unassigned;
-  }).slice(0, 5);
-
-  // حساب بيانات آخر 7 أيام للرسم البياني
-  const last7DaysLabels = [];
-  const last7DaysCreated = [];
-  const last7DaysResolved = [];
-
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dayStr = d.toDateString();
-    const label = d.toLocaleDateString(isAr ? 'ar-EG' : 'en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
-    last7DaysLabels.push(label);
-
-    const createdCount = tickets.filter(t => {
-      const cd = parseTicketDate(t);
-      return cd && cd.toDateString() === dayStr;
-    }).length;
-
-    const resolvedCount = tickets.filter(t => {
-      if (!isClosedStatus(t.status)) return false;
-      const cd = parseTicketDate(t);
-      return cd && cd.toDateString() === dayStr;
-    }).length;
-
-    last7DaysCreated.push(createdCount);
-    last7DaysResolved.push(resolvedCount);
-  }
 
   const stats = {
     open,
     closed,
     today,
     overdue,
-    total: trueTotal,
-    mttrFormatted: mttrValue,
-    mttrRaw: mttrData.avgHours,
-    topMachines,
-    topTechs,
-    urgentAlerts,
-    recentTickets: tickets.slice(0, 15),
-    chartData: {
-      labels: last7DaysLabels,
-      created: last7DaysCreated,
-      resolved: last7DaysResolved
-    },
-    lastUpdated: new Date()
+    total: trueTotal
   };
 
   window.dashboardData = stats;
@@ -301,36 +240,20 @@ export async function loadDashboardStats(requestedPeriod) {
   };
 
   setText('statOpenCount', stats.open);
-  setText('statOpenValue', stats.open);
   setText('statClosedCount', stats.closed);
-  setText('statClosedValue', stats.closed);
   setText('statTodayCount', stats.today);
-  setText('statTodayValue', stats.today);
   setText('statTotalCount', stats.total);
-  setText('statTotalValue', stats.total);
   setText('statOverdueCount', stats.overdue);
-  setText('statOverdueValue', stats.overdue);
 
   setText('statMttrValue', mttrValue);
   setText('statTopMachineName', topMachineValue);
-  setText('statTopMachineValue', topMachineValue);
   setText('statTopTechName', topTechValue);
-  setText('statTopTechValue', topTechValue);
-
-  // تحديث وقت المزامنة الحية
-  const updateTimeEl = document.getElementById('lastUpdateTime');
-  if (updateTimeEl) {
-    updateTimeEl.textContent = new Date().toLocaleTimeString(isAr ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // تفعيل وتحديث الرسم البياني وجداول المدير إن وجدت في DOM
-  if (typeof window.refreshManagerDashboardCharts === 'function') {
-    window.refreshManagerDashboardCharts();
-  }
 
   // ============================================================
-  // تنبيه حي: وجود بلاغ حرج
+  // إضافة: تنبيه "بلاغ حرج"
   // ============================================================
+
+  // تنبيه حي: فيه بلاغ مفتوح بأولوية "High"؟ (نستخدم tickets المفلترة هنا لأنها تخص المستخدم)
   const hasCritical = tickets.some(t => {
     const isOpen = !isClosedStatus(t.status);
     return isOpen && String(t.priority || '').trim() === 'High';
