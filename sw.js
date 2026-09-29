@@ -1,5 +1,5 @@
 // تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v6.2';
+const CACHE_NAME = 'maint-system-v6.5'; // ITEMS-EDITOR
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -7,7 +7,9 @@ const CORE_ASSETS = [
   './index.html',
   './manifest.json',
   './assets/icons/app-icon.png',
-  './assets/branding/company-banner.png'
+  './assets/branding/company-banner.png',
+  './css/managerDesktop.css', // MGR-DESKTOP
+  './js/vendor/jsQR.js' // QR-IMPROVE
 ];
 
 // حدث التثبيت (Install Event)

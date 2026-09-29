@@ -2,8 +2,14 @@ import { BottomNav } from "../components/BottomNav.js";
 import { hasPermission } from "../permissions.js";
 import { translations } from "../config.js";
 import { renderAttendanceCard } from "../attendanceCard.js";
+import { isManagerDesktopEligible } from "../managerDesktopCore.js"; // MGR-DESKTOP
+import { renderManagerDesktopHomeHtml } from "./managerDesktop/ManagerDesktopHome.js"; // MGR-DESKTOP
 
 export const HomeView = () => {
+  if (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible()) { // MGR-DESKTOP
+    return renderManagerDesktopHomeHtml(); // MGR-DESKTOP
+  } // MGR-DESKTOP
+
   // نظام الترجمة الموجود بالفعل في config.js (translations) - نفس
   // النمط المستخدم في BottomNav.js / issueView.js بالظبط، من غير
   // إنشاء أي نظام ترجمة تاني أو تكرار
@@ -251,31 +257,58 @@ export const HomeView = () => {
           </button>
           ` : ''}
 
-          ${(hasPermission("maintenance") || hasPermission("qr")) ? `
-          <!-- QR الماكينة -->
-          <button 
-            type="button"
-            id="cardQrCode"
-            onclick="window.navigateTo('qr')" 
-            aria-label="${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}"
-            class="${(hasPermission("maintenance") || hasPermission("errorScanner")) ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
-            <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-              <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
-                📱
+          ${(hasPermission("maintenance") || hasPermission("qr")) ? (() => { // QR-IMPROVE
+            let lastScanned = null; // QR-IMPROVE
+            try { // QR-IMPROVE
+              const raw = localStorage.getItem('lastScannedMachine'); // QR-IMPROVE
+              if (raw) lastScanned = JSON.parse(raw); // QR-IMPROVE
+            } catch (_) {} // QR-IMPROVE
+            const qrTitle = (translations[currentLang] || translations.ar).maintenance?.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات');
+            const qrDesc = (translations[currentLang] || translations.ar).maintenance?.qrDesc || (currentLang === 'en' ? 'Quick camera access to machine data' : 'وصول سريع لبيانات المعدة بالكاميرا');
+            const qrBtnLabel = (translations[currentLang] || translations.ar).maintenance?.qrBtn || (currentLang === 'en' ? 'Scan' : 'مسح');
+            const isTwoCol = hasPermission("maintenance") || hasPermission("errorScanner");
+
+            return `
+          <!-- كارت مسح QR الماكينات -->
+          <div class="${isTwoCol ? 'col-span-1' : 'col-span-1 sm:col-span-2'} flex flex-col gap-1.5">
+            <button 
+              type="button"
+              id="cardQrCode"
+              onclick="window.navigateTo('qr')" 
+              aria-label="${qrTitle}"
+              class="w-full relative text-start dyn-card bg-gradient-to-r from-emerald-950/60 via-[#1E293B] to-[#0F172A] hover:from-emerald-900/60 hover:to-[#1E293B] border border-emerald-500/30 hover:border-emerald-400/60 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+              <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div class="w-10 h-10 sm:w-11 sm:h-11 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-xl sm:text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
+                  📱
+                </div>
+                <div class="min-w-0">
+                  <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${qrTitle}</span>
+                  <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${qrDesc}</span>
+                </div>
               </div>
-              <div class="min-w-0">
-                <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${(translations[currentLang] || translations.ar).maintenance.qrTitle || (currentLang === 'en' ? 'Machine QR Code' : 'مسح QR الماكينات')}</span>
-                <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${(translations[currentLang] || translations.ar).maintenance.qrDesc || ''}</span>
+              <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <span class="text-[11px] sm:text-xs text-emerald-400 font-bold bg-emerald-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
+                  ${qrBtnLabel}
+                </span>
+                <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
               </div>
-            </div>
-            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <span class="text-[11px] sm:text-xs text-emerald-400 font-bold bg-emerald-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
-                ${(translations[currentLang] || translations.ar).maintenance.qrBtn || (currentLang === 'en' ? 'Open' : 'فتح')}
+            </button>
+
+            ${lastScanned && lastScanned.value ? `
+            <button
+              type="button"
+              onclick="localStorage.setItem('activeMachine', '${lastScanned.value}'); if ('${lastScanned.line || ''}') localStorage.setItem('activeMachineLine', '${lastScanned.line}'); window.navigateTo('machineProfile');"
+              class="w-full text-start px-2.5 py-1.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-500/20 hover:border-emerald-500/40 transition active:scale-98 flex items-center justify-between gap-1.5 cursor-pointer">
+              <span class="text-[9px] sm:text-[10px] font-bold text-emerald-300 flex items-center gap-1.5 truncate">
+                <span>⚡</span>
+                <span class="text-gray-400 font-normal">${currentLang === 'en' ? 'Last scanned:' : 'آخر ماكينة ممسوحة:'}</span>
+                <span class="text-emerald-200 font-bold underline underline-offset-2 truncate">${lastScanned.value}</span>
               </span>
-              <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
-            </div>
-          </button>
-          ` : ''}
+              <span class="text-[10px] text-emerald-400 font-bold shrink-0">${currentLang === 'en' ? 'Profile ›' : 'الملف ›'}</span>
+            </button>
+            ` : ''}
+          </div>
+          `; })() : ''}
         </div>
 
         <!-- أزرار الدعم وتسجيل الخروج -->

@@ -14,6 +14,7 @@ import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
 import { auth, onAuthStateChanged } from './providers/backend/index.js';
 import { ensureUserAndMachinesLoaded } from './machines.js';
+import { applyManagerDesktopMode, isManagerDesktopEligible } from './managerDesktopCore.js'; // MGR-DESKTOP
 
 // إعادة تحميل بيانات لوحة المتابعة وتزامن الماكينات تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
 // إصلاح (سباق عند دخول مرفوض/محذوف): login.js بيعمل signInWithEmailAndPassword
@@ -127,6 +128,7 @@ if (
 }
 
 activePage = currentPage;
+applyManagerDesktopMode(); // MGR-DESKTOP
 
 app.style.opacity = "0.4";
 
@@ -227,7 +229,9 @@ if (currentPage === "home") {
 
   setTimeout(() => {  
 
-    if (typeof loadDashboardStats === "function") {  
+    if (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible()) { // MGR-DESKTOP
+      import('./views/managerDesktop/ManagerDesktopHome.js').then(m => m.initManagerDesktopHomeData()).catch(console.warn); // MGR-DESKTOP
+    } else if (typeof loadDashboardStats === "function") {  
 
       loadDashboardStats();  
 
@@ -249,10 +253,37 @@ if (currentPage === "issue") {
   setTimeout(() => {  
 
     if (typeof window.initIssueAttachments === "function") {  
-
       window.initIssueAttachments();  
-
     }  
+
+    // QR-IMPROVE: تعبئة الماكينة والخط تلقائياً عند التوجيه من مسح QR
+    try {
+      const preselectedMachine = localStorage.getItem('preselectedIssueMachine');
+      const preselectedLine = localStorage.getItem('preselectedIssueLine');
+      if (preselectedMachine) {
+        localStorage.removeItem('preselectedIssueMachine');
+        if (preselectedLine) localStorage.removeItem('preselectedIssueLine');
+        import('./machines.js').then(m => {
+          const parsed = m.parseMachineValue(preselectedMachine);
+          const typeSel = document.getElementById('issueMachineType');
+          const unitSel = document.getElementById('issueMachineUnit');
+          const hidden = document.getElementById('issueMachine');
+          if (typeSel && parsed.type) {
+            typeSel.value = parsed.type;
+            if (typeof window.__onMachineTypeChange === 'function') window.__onMachineTypeChange('issueMachine');
+            if (unitSel && parsed.unit) {
+              unitSel.value = parsed.unit;
+              if (typeof window.__onMachineUnitChange === 'function') window.__onMachineUnitChange('issueMachine');
+            } else if (hidden) {
+              hidden.value = preselectedMachine;
+            }
+          }
+        }).catch(() => {});
+        if (preselectedLine && typeof window.selectIssueLine === 'function') {
+          window.selectIssueLine(preselectedLine.includes('2') ? 'Line 2' : 'Line 1');
+        }
+      }
+    } catch (_) {}
 
   }, 100);  
 
@@ -314,6 +345,24 @@ if (currentPage === "dailyAM") {
     if (typeof window.initDailyAmView === "function") {
 
       window.initDailyAmView();
+
+    }
+
+  }, 100);
+
+}
+
+
+// ========================================================
+// CHECKLIST BUILDER AUTO LOAD (ITEMS-EDITOR)
+// ========================================================
+if (currentPage === "checklistBuilder") {
+
+  setTimeout(() => {
+
+    if (typeof window.initChecklistBuilderView === "function") {
+
+      window.initChecklistBuilderView();
 
     }
 
@@ -523,6 +572,9 @@ if (
 
 }
 
+  setTimeout(() => {
+    applyManagerDesktopMode(); // MGR-DESKTOP
+  }, 160);
 }, 150);
 
 }
@@ -703,10 +755,14 @@ window.addEventListener("popstate", (e) => {
 });
 
 let _lastIsMobile = typeof window !== "undefined" ? (window.innerWidth < 1024 || window.matchMedia("(orientation: portrait)").matches) : false;
+let _lastMgrDesktop = typeof window !== "undefined" && typeof isManagerDesktopEligible === "function" ? isManagerDesktopEligible() : false; // MGR-DESKTOP
 window.addEventListener("resize", () => {
   const currentIsMobile = window.innerWidth < 1024 || window.matchMedia("(orientation: portrait)").matches;
-  if (_lastIsMobile !== currentIsMobile) {
+  const currentMgrDesktop = typeof isManagerDesktopEligible === "function" ? isManagerDesktopEligible() : false; // MGR-DESKTOP
+  applyManagerDesktopMode(); // MGR-DESKTOP
+  if (_lastIsMobile !== currentIsMobile || _lastMgrDesktop !== currentMgrDesktop) { // MGR-DESKTOP
     _lastIsMobile = currentIsMobile;
+    _lastMgrDesktop = currentMgrDesktop; // MGR-DESKTOP
     render();
   }
 });

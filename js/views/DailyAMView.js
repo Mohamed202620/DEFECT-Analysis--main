@@ -17,7 +17,7 @@ import { hasFullDataAccess } from '../permissions.js';
 import { db, doc, getDoc } from '../providers/backend/index.js';
 
 // بنود الفحص اليومي الافتراضية
-const DEFAULT_AM_ITEMS = [
+export const DEFAULT_AM_ITEMS = [ // ITEMS-EDITOR
   { id: 'cleanliness', role: 'operator', ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks' },
   { id: 'guards', role: 'operator', ar: 'أغطية وحواجز الأمان في مكانها وسليمة', en: 'Safety guards in place and intact' },
   { id: 'emergencyStop', role: 'operator', ar: 'زر الإيقاف الطارئ يعمل بكفاءة', en: 'Emergency stop button functional' },
@@ -136,14 +136,19 @@ window.initDailyAmView = async function() {
   const isMaintainer = hasFullDataAccess() || /maintenance|صيانة|مهندس/i.test(localStorage.getItem('job') || '') || /maintenance/i.test(localStorage.getItem('role') || '');
 
   let items = [...DEFAULT_AM_ITEMS];
+  let templateVersion = 1; // ITEMS-EDITOR
   try {
     const docSnap = await getDoc(doc(db, 'machineAmTemplates', machine));
     if (docSnap.exists() && docSnap.data().items && docSnap.data().items.length > 0) {
       items = docSnap.data().items;
+      templateVersion = docSnap.data().templateVersion || 1; // ITEMS-EDITOR
     }
   } catch (err) {
     console.error("Failed to load custom AM template, using default:", err);
   }
+
+  // Filter soft-deleted items - ITEMS-EDITOR
+  items = items.filter(i => i.active !== false);
 
   // Filter based on role
   if (!isMaintainer) {
@@ -151,20 +156,58 @@ window.initDailyAmView = async function() {
   }
 
   window._activeAmItems = items;
+  window._activeAmTemplateVersion = templateVersion; // ITEMS-EDITOR
   window.updateAmProgress();
+
+  const getItemLabel = (item) => { // ITEMS-EDITOR
+    if (item.label) return isEn ? (item.label.en || item.label.ar) : (item.label.ar || item.label.en);
+    return isEn ? (item.en || item.ar) : (item.ar || item.en);
+  };
 
   const container = document.getElementById('dailyAmItemsContainer');
   if (container) {
-    container.innerHTML = items.map(item => `
-      <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 shadow-sm" data-am-item="${item.id}">
-        <div class="text-sm font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+    container.innerHTML = items.map(item => {
+      const labelText = getItemLabel(item);
+      const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
+      const criticalBadgeHtml = item.critical
+        ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>`
+        : '';
+      const howToHtml = howToText
+        ? `<div class="text-[11px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${howToText}</div>`
+        : '';
 
-        ${item.type === 'numeric' ? `
+      let inputFieldHtml = '';
+      if (item.type === 'numeric') {
+        const minText = item.min != null ? `${isEn ? 'Min' : 'الحد الأدنى'}: ${item.min} ` : '';
+        const maxText = item.max != null ? `| ${isEn ? 'Max' : 'الحد الأقصى'}: ${item.max}` : '';
+        const limitsHtml = (item.min != null || item.max != null)
+          ? `<div class="text-[10px] text-gray-400 font-mono">${minText}${maxText}</div>`
+          : '';
+        inputFieldHtml = `
           <div class="flex items-center gap-3 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
              <input type="number" id="amReading_${item.id}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
              <span class="text-xs text-gray-400 font-bold px-2">${item.unit || ''}</span>
           </div>
-        ` : ''}
+          ${limitsHtml}
+        `;
+      } else if (item.type === 'text') {
+        inputFieldHtml = `
+          <div class="bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full">
+             <input type="text" id="amReading_${item.id}" placeholder="${isEn ? 'Enter notes/value...' : 'أدخل القيمة أو الملاحظة...'}" class="w-full bg-transparent text-xs text-white focus:outline-none" oninput="window.updateAmProgress()">
+          </div>
+        `;
+      }
+
+      const attachmentPickerHtml = buildAttachmentPickerHtml('amPhoto_' + item.id, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' });
+
+      return `
+      <div class="bg-[#1E293B] p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${item.id}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="text-sm font-bold text-gray-200">${labelText}</div>
+          ${criticalBadgeHtml}
+        </div>
+        ${howToHtml}
+        ${inputFieldHtml}
 
         <div class="grid grid-cols-3 gap-2 pt-1">
           <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
@@ -190,7 +233,7 @@ window.initDailyAmView = async function() {
           </div>
 
           <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
-             ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
+             ${attachmentPickerHtml}
           </div>
 
           <!-- يظهر فوراً زر فرعي "إنشاء بلاغ صيانة" -->
@@ -200,7 +243,8 @@ window.initDailyAmView = async function() {
           </label>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Initialize attachments for all loaded items
     items.forEach(item => {
@@ -308,6 +352,7 @@ window.handleDailyAmSubmit = async function (event) {
   const payload = {
     machine,
     items,
+    templateVersion: window._activeAmTemplateVersion || 1, // ITEMS-EDITOR
     completionRate,
     overallResult: notOkCount > 0 ? 'issues_found' : 'ok',
     createdBy: {

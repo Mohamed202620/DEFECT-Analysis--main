@@ -1,5 +1,6 @@
 import { translations } from '../config.js';
 import { hasPermission } from '../permissions.js';
+import { isManagerDesktopEligible } from '../managerDesktopCore.js'; // MGR-DESKTOP
 
 // ============================================================
 // Sidebar.js
@@ -54,7 +55,48 @@ export const Sidebar = (activeTab) => {
     return false;
   };
 
+  const isMgrDesk = typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible(); // MGR-DESKTOP
+  const overdueCount = window.dashboardData?.overdue || 0; // MGR-DESKTOP
+  const openCount = window.dashboardData?.open || 0; // MGR-DESKTOP
+  const pendingRequestsCount = window.pendingUsersCount || 0; // MGR-DESKTOP
+
   const groups = [
+    ...(isMgrDesk ? [{ // MGR-DESKTOP
+      id: 'manager',
+      title: isAr ? 'الإدارة والتحكم' : 'Management & Command',
+      items: [
+        {
+          id: 'home',
+          iconSvg: ICONS.home,
+          label: isAr ? 'لوحة القيادة التنفيذية' : 'Command Center',
+          badge: overdueCount > 0 ? `${overdueCount} SLA` : (openCount > 0 ? `${openCount}` : null),
+          badgeClass: overdueCount > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30 mgr-badge-pulse' : 'bg-amber-500/20 text-amber-400',
+          action: "window.navigateTo('home')"
+        },
+        {
+          id: 'reports',
+          iconSvg: ICONS.reports,
+          label: isAr ? 'التقارير الإدارية' : 'Executive Reports',
+          action: "window.navigateTo('reports')"
+        },
+        {
+          id: 'tickets',
+          iconSvg: ICONS.tickets,
+          label: isAr ? 'متابعة الفنيين والأعطال' : 'Technicians & Tickets',
+          badge: openCount > 0 ? `${openCount}` : null,
+          badgeClass: 'bg-blue-500/20 text-blue-400',
+          action: "window.navigateTo('tickets')"
+        },
+        {
+          id: 'requests',
+          iconSvg: ICONS.requests,
+          label: isAr ? 'المستخدمون والطلبات' : 'Users & Requests',
+          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+          badgeClass: 'bg-indigo-500/20 text-indigo-400',
+          action: "window.navigateTo('requests')"
+        }
+      ]
+    }] : []), // MGR-DESKTOP
     {
       id: 'ops',
       title: isAr ? 'العمليات والتشغيل' : 'Operations',
@@ -226,6 +268,7 @@ export const Sidebar = (activeTab) => {
                   </span>
                   ${!isCollapsed ? `
                     <span class="truncate flex-1 text-start">${item.label}</span>
+                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}
                 </button>

@@ -588,9 +588,20 @@ service cloud.firestore {
     // الحماية المستخدم بالظبط في machineTypes (create/update/delete
     // admin-only، read مفتوح للجميع النشطين).
     // ==========================================================
+    // ==========================================================
+    // machineAmTemplates & fiveSTemplates - ITEMS-EDITOR
+    // تخصيص وإدارة بنود فحص Daily AM وفحص 5S لكل ماكينة
+    // القراءة متاحة لكل مستخدم نشط، والإنشاء/التعديل/الحذف مقصوران
+    // على الأدمن والمدير (isManagerRole).
+    // ==========================================================
     match /machineAmTemplates/{machineId} {
       allow read: if isActive();
-      allow create, update, delete: if myRole() == "admin";
+      allow create, update, delete: if isActive() && (myRole() == "admin" || isManagerRole());
+    }
+
+    match /fiveSTemplates/{templateId} {
+      allow read: if isActive();
+      allow create, update, delete: if isActive() && (myRole() == "admin" || isManagerRole());
     }
 
     // ==========================================================

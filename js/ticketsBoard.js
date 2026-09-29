@@ -29,6 +29,8 @@ import { translations } from './config.js';
 // "بارزة" مخصصة لشارة الحالة الأكبر هنا في اللوحة، بنفس القيم اللي
 // كانت متعرّفة محلياً هنا بالظبط - بدون أي تغيير في الشكل الظاهري)
 import { STATUS_CLASSES_BOARD, isOverdueTicket, getOverdueThresholdHours } from './ticketStatusConstants.js';
+import { isManagerDesktopEligible } from './managerDesktopCore.js'; // MGR-DESKTOP
+import { renderManagerDesktopTicketsView } from './views/managerDesktop/ManagerDesktopTickets.js'; // MGR-DESKTOP
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه اللوحة (التبويبات، تسميات
 // الحالات، النوافذ المنبثقة، التقرير الشهري) كانت ثابتة بالعربي -
@@ -183,6 +185,12 @@ let boardAllTickets = [];
 function renderBoardPage(containerId, emptyMessage) {
   const container = document.getElementById(containerId);
   if (!container) return;
+
+  if (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible()) { // MGR-DESKTOP
+    renderManagerDesktopTicketsView(containerId, boardAllTickets, emptyMessage); // MGR-DESKTOP
+    return; // MGR-DESKTOP
+  } // MGR-DESKTOP
+
   const tr = t();
 
   const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
@@ -254,6 +262,7 @@ let unsubscribeTicketsListener = null;
 // ============================================================
 let bulkSelectMode = false;
 let selectedTicketIds = new Set();
+window.selectedTicketIds = selectedTicketIds; // MGR-DESKTOP
 
 function isBulkActionsRole(role) {
   return role === "admin" || role === "manager";

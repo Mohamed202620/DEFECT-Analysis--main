@@ -118,7 +118,7 @@ export const MachineProfileView = () => {
   const canRun = hasPermission('maintenance') || hasPermission('qr');
   const canSeeHistory = hasFullDataAccess() || isManagerRole(getCurrentRole());
   const canPrintQr = isAdminRole(getCurrentRole());
-  const adminRights = isAdminRole(getCurrentRole());
+  const canManageChecklists = isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole()); // ITEMS-EDITOR
 
   return `
   <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
@@ -156,15 +156,20 @@ export const MachineProfileView = () => {
       </button>
     </div>
 
-    ${adminRights ? `
+    ${canManageChecklists ? `
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-blue-500/30 space-y-2 mb-4">
       <div class="flex items-center justify-between">
-        <div class="text-xs font-bold text-blue-400">${tr.manageAm}</div>
-        <button onclick="window.openManageAmModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold text-white transition">
-          ${isEn ? 'Edit Checklist' : 'تعديل الفحص'}
-        </button>
+        <div class="text-xs font-bold text-blue-400">🛠️ ${tr.manageAm}</div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="window.navigateTo('checklistBuilder')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold text-white transition active:scale-95 shadow-sm">
+            ${isEn ? 'Open Editor ✏️' : 'محرر البنود ✏️'}
+          </button>
+          <button onclick="window.openManageAmModal()" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] font-bold border border-gray-700 transition" title="${isEn ? 'Excel Import' : 'استيراد إكسيل'}">
+            📊
+          </button>
+        </div>
       </div>
-      <div class="text-[10px] text-gray-400">${isEn ? 'Customize AM checklist items for this specific machine.' : 'تخصيص بنود فحص AM لهذه الماكينة تحديداً.'}</div>
+      <div class="text-[10px] text-gray-400">${isEn ? 'Customize AM & 5S checklist items for this specific machine.' : 'تخصيص بنود فحص AM وتقييم 5S لهذه الماكينة وتعديلها مباشرة.'}</div>
     </div>
     ` : ''}
 

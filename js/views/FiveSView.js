@@ -14,7 +14,7 @@ import {
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
 
-const FIVE_S_PILLARS = [
+export const FIVE_S_PILLARS = [ // ITEMS-EDITOR
   { id: 'sort', ar: 'Sort - الفرز/التنظيم', en: 'Sort', desc: { ar: 'التخلص من الأدوات/المواد غير الضرورية حول الماكينة', en: 'Unnecessary items removed from the area' } },
   { id: 'setInOrder', ar: 'Set in Order - الترتيب', en: 'Set in Order', desc: { ar: 'الأدوات والمواد مرتبة في أماكنها المحددة', en: 'Tools and parts organized in designated places' } },
   { id: 'shine', ar: 'Shine - النظافة', en: 'Shine', desc: { ar: 'الماكينة والمنطقة المحيطة نظيفة', en: 'Machine and surrounding area are clean' } },
@@ -291,6 +291,7 @@ window.handleFiveSSubmit = async function (event) {
   const payload = {
     machine,
     items: items.map(i => ({ pillar: i.pillar, label: i.label, rating: i.rating, note: i.note, photo: i.photo })), // save without ticketRequested for checklists collection
+    templateVersion: window._activeFiveSTemplateVersion || 1, // ITEMS-EDITOR
     score,
     createdBy: {
       name: localStorage.getItem('name') || '',
