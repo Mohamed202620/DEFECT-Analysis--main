@@ -136,6 +136,7 @@ export function buildPdfBrandHeaderHtml(logoSrc = COMPANY_BANNER_DATA_URL) {
 // translations من config.js) عشان تفضل متطابقة مع باقي الواجهة من
 // غير أي نظام ترجمة أو تخزين موازٍ جديد.
 export function renderHeader() {
+
   const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
   const isEn = currentLang === "en";
   const t = (translations[currentLang] || translations.ar || {}).home || {};
@@ -144,350 +145,146 @@ export function renderHeader() {
   const isLoggedIn = !!(localStorage.getItem("phone") || localStorage.getItem("userId"));
 
   const name = localStorage.getItem("name") || t.defaultName || (isEn ? "User" : "المستخدم");
-  const job = localStorage.getItem("job") || t.defaultJob || (isEn ? "Technician" : "فني صيانة");
-  const role = (localStorage.getItem("role") || "technician").toUpperCase();
+  const job = localStorage.getItem("job") || t.defaultJob || (isEn ? "Maintenance Technician" : "فني صيانة");
   const initial = (name.trim().charAt(0) || "M").toUpperCase();
+  const welcomeWord = t.welcome || (isEn ? "Welcome," : "مرحباً،");
 
-  const activeHomeMode = localStorage.getItem("home_view_mode") || (role === 'ADMIN' || role === 'MANAGER' || role === 'ENGINEER' || role === 'SUPERVISOR' ? 'manager' : 'technician');
-
+  // نفس بالظبط سلسلة الاحتياطيات المستخدمة فعلاً في زرار 🔔
+  // بالشريط السفلي (BottomNav.js) عشان الجرس هنا يفتح نفس نافذة
+  // الإشعارات الحقيقية بالظبط
   const notifAction =
     "if (typeof window.openNotificationsModal === 'function') { window.openNotificationsModal(); } " +
     "else if (typeof window.toggleNotifications === 'function') { window.toggleNotifications(); } " +
     "else if (typeof window.showNotificationsModal === 'function') { window.showNotificationsModal(); } " +
     "else { window.navigateTo('notifications'); }";
 
-  const roleBadgeStyle = {
-    ADMIN: "bg-red-500/20 text-red-300 border-red-500/30",
-    MANAGER: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-    SUPERVISOR: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-    ENGINEER: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    TECHNICIAN: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-  }[role] || "bg-slate-700 text-slate-300 border-slate-600";
+  const glassChip =
+    "background: rgba(30,41,59,0.7); border: 1px solid rgba(148,163,184,0.18);";
+
+  const profileMeta = isLoggedIn
+    ? `
+      <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800 min-w-0 max-w-full overflow-hidden" style="display:inline-flex; align-items:center; gap:8px;">
+        <div
+          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] sm:text-xs text-white shadow app-header-avatar"
+          style="width: 28px; min-width: 28px; max-width: 28px; height: 28px; min-height: 28px; max-height: 28px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
+        >${escapeBrandHtml(initial)}</div>
+        <div class="app-header-profile-copy min-w-0 flex-1 leading-tight overflow-hidden">
+          <div class="flex items-center gap-1 min-w-0">
+            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate">
+              ${escapeBrandHtml(welcomeWord)} <span class="text-amber-400 font-extrabold">${escapeBrandHtml(name)}</span>
+            </span>
+            <span class="text-xs shrink-0" aria-hidden="true">👋</span>
+          </div>
+          <div class="flex items-center gap-1.5 mt-0.5 min-w-0">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate">
+              ${escapeBrandHtml(job)}
+            </span>
+          </div>
+        </div>
+      </div>
+    `
+    : `
+      <div class="text-[10px] sm:text-[11px] font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50 truncate">
+        ${isEn ? "Maintenance Portal" : "بوابة نظام الصيانة"}
+      </div>
+    `;
 
   return `
     <header
       id="appHeader"
-      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-200 select-none"
-      style="background: var(--app-header-bg); border-color: var(--app-border); height: 64px;"
+      class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md overflow-hidden"
+      style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1600px] h-full mx-auto px-4 md:px-6 flex items-center justify-between gap-3">
+      <div class="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-1.5 md:py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-4 overflow-hidden w-full">
 
-        <!-- المنطقة 1: الشعار والهوية الرسمية وزر طي/توسيع القائمة -->
-        <div class="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          <button
-            type="button"
-            id="btnHeaderToggleSidebar"
-            onclick="window.toggleSidebarCollapse()"
-            class="hidden lg:flex w-8.5 h-8.5 rounded-lg items-center justify-center text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition active:scale-90 cursor-pointer shadow-sm"
-            aria-label="${isEn ? 'Toggle sidebar' : 'طي وتوسيع القائمة الجانبية'}"
-            title="${isEn ? 'Toggle sidebar ( [ )' : 'طي وتوسيع القائمة الجانبية ( [ )'}">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="3" y1="12" x2="21" y2="12"></line>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <line x1="3" y1="18" x2="21" y2="18"></line>
-            </svg>
-          </button>
+        <!-- السطر الأول: شعار الشركة (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
+        <div class="app-header-row-top flex items-center justify-between gap-2.5 pb-1 md:pb-0 border-b md:border-b-0 min-w-0 md:flex-initial" style="border-color: rgba(148,163,184,0.1);">
 
-          <a href="#home" onclick="if(window.navigateTo) window.navigateTo('home');" class="flex items-center gap-2.5 group cursor-pointer text-start">
+          <!-- شعار الشركة واضح وكامل -->
+          <div class="app-header-brand flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 md:flex-initial overflow-hidden">
             <img
               src="${LOGO_ICON_DATA_URL}"
               alt="${COMPANY_SHORT}"
-              class="h-8 sm:h-9 w-auto object-contain shrink-0 transition-transform duration-200 group-hover:scale-105"
-              onerror="this.src='${LOGO_ICON_PATH}'"
+              class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200"
+              style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
+              onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='${LOGO_ICON_PATH}';}"
             />
-            <div class="leading-tight">
-              <div class="text-[13px] sm:text-[15px] font-black tracking-wide text-white flex items-center gap-1.5">
-                <span>MSCANCO</span>
-                <span class="text-amber-400">EGYPT</span>
+            <div class="app-header-brand-copy min-w-0 flex-1 leading-tight overflow-hidden">
+              <div class="app-header-brand-name text-[12px] sm:text-[14px] md:text-[15px] font-black tracking-wide truncate" style="color:#f8fafc;">
+                MSCANCO <span style="color:#f5a623;">EGYPT</span>
               </div>
-              <div class="text-[9px] sm:text-[10px] text-slate-400 font-medium truncate hidden sm:block">
+              <div class="text-[8.5px] sm:text-[9.5px] md:text-[10.5px] font-medium text-slate-400 truncate">
                 ${isEn ? COMPANY_NAME_EN : COMPANY_NAME_AR}
               </div>
             </div>
-          </a>
-        </div>
-
-        <!-- المنطقة 2: شريط البحث الشامل ومبدل الأدوار (Desktop) -->
-        <div class="hidden lg:flex items-center gap-3 flex-1 max-w-lg mx-4">
-          <!-- حقل البحث السريع مع اختصار لوحة المفاتيح [/] -->
-          <div class="relative w-full">
-            <input
-              type="text"
-              id="globalSearchInput"
-              placeholder="${isEn ? 'Quick search tickets, assets, lines... ( / )' : 'بحث سريع في البلاغات، الماكينات، الخطوط... ( / )'}"
-              onkeydown="if(event.key === 'Enter') { window.executeGlobalSearch(this.value); }"
-              class="w-full h-9 pl-9 pr-9 text-xs rounded-lg bg-slate-800/80 border border-slate-700/70 text-slate-200 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 transition-all font-sans"
-            />
-            <span class="absolute inset-y-0 start-2.5 flex items-center pointer-events-none text-slate-400">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
-            </span>
-            <kbd class="absolute inset-y-0 end-2.5 my-auto h-5 px-1.5 flex items-center text-[10px] font-mono text-slate-400 bg-slate-900/60 border border-slate-700 rounded shadow-sm pointer-events-none">
-              /
-            </kbd>
           </div>
 
-          <!-- زر التبديل السريع لمنظور العرض (مدير / فني) -->
-          <div class="flex items-center p-0.5 rounded-lg bg-slate-800/90 border border-slate-700/80 shrink-0 text-xs font-semibold">
+          <!-- الجهة المقابلة بالسطر الأول: جرس الإشعارات + الثيم -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <!-- جرس الإشعارات + شارة العدد غير المقروء -->
             <button
               type="button"
-              onclick="window.setHomeViewMode('manager')"
-              class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                activeHomeMode === 'manager'
-                  ? 'bg-blue-600 text-white shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="9"></rect>
-                <rect x="14" y="3" width="7" height="5"></rect>
-                <rect x="14" y="12" width="7" height="9"></rect>
-                <rect x="3" y="16" width="7" height="5"></rect>
-              </svg>
-              <span>${isEn ? 'Manager' : 'لوحة المدير'}</span>
+              onclick="${notifAction}"
+              aria-label="${isEn ? "Notifications" : "الإشعارات"}"
+              title="${isEn ? "Notifications" : "الإشعارات"}"
+              class="app-header-button relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >
+              🔔
+              <span
+                id="headerNotifBadge"
+                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center"
+                style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
+              >0</span>
             </button>
+
+            <!-- زر تبديل الثيم (شمس/قمر) -->
             <button
               type="button"
-              onclick="window.setHomeViewMode('technician')"
-              class="px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5 ${
-                activeHomeMode === 'technician'
-                  ? 'bg-amber-600 text-white shadow-sm font-bold'
-                  : 'text-slate-400 hover:text-slate-200'
-              }">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-              </svg>
-              <span>${isEn ? 'Technician' : 'لوحة الفني'}</span>
-            </button>
+              onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
+              aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
+              class="app-header-button w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              style="${glassChip}"
+              onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
+              onmouseout="this.style.boxShadow='none'"
+            >${isDark ? "🌙" : "☀️"}</button>
           </div>
+
         </div>
 
-        <!-- المنطقة 3: الإجراءات وأدوات التحكم وقائمة المستخدم -->
-        <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <!-- السطر الثاني: المستخدم واضح في جهة | زر اللغة في الجهة المقابلة -->
+        <div class="app-header-row-bottom flex items-center justify-between md:justify-end gap-2.5 min-w-0 md:flex-1 md:gap-4">
 
-          <!-- زر الإبلاغ الفوري عن عطل (الزر الأساسي الأوحد) -->
-          <button
-            type="button"
-            onclick="window.navigateTo('issue')"
-            class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-bold rounded-lg border border-red-500/50 shadow-sm shadow-red-950/40 transition active:scale-95 cursor-pointer">
-            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            <span>${isEn ? 'Report Breakdown' : 'تسجيل بلاغ عطل'}</span>
-          </button>
+          <!-- المستخدم واضح وكامل -->
+          <div class="min-w-0 flex-1 md:flex-initial overflow-hidden">
+            ${profileMeta}
+          </div>
 
-          <!-- زر الإشعارات -->
-          <button
-            type="button"
-            onclick="${notifAction}"
-            aria-label="${isEn ? 'Notifications' : 'الإشعارات'}"
-            title="${isEn ? 'Notifications' : 'الإشعارات'}"
-            class="relative w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition active:scale-95 cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-            </svg>
-            <span
-              id="headerNotifBadge"
-              class="hidden absolute -top-1 -end-1 min-w-[16px] h-4 px-1 rounded-full text-white text-[9px] font-bold bg-red-600 border border-slate-900 flex items-center justify-center">0</span>
-          </button>
-
-          <!-- زر تبديل الثيم -->
-          <button
-            type="button"
-            onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
-            aria-label="${isEn ? 'Toggle theme' : 'تبديل الوضع'}"
-            title="${isEn ? 'Toggle theme' : 'تبديل الوضع'}"
-            class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition active:scale-95 cursor-pointer">
-            ${isDark ? `
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-              </svg>
-            ` : `
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-              </svg>
-            `}
-          </button>
-
-          <!-- زر اللغة -->
-          <button
-            type="button"
-            onclick="if (typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-            aria-label="${isEn ? 'عربي' : 'English'}"
-            title="${isEn ? 'عربي' : 'English'}"
-            class="h-8 px-2.5 rounded-lg flex items-center justify-center text-xs font-bold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 transition active:scale-95 cursor-pointer">
-            ${isEn ? 'AR' : 'EN'}
-          </button>
-
-          <!-- بطاقة المستخدم المدمجة وقائمة المستخدم المنسدلة -->
-          ${isLoggedIn ? `
-            <div class="relative">
-              <button
-                type="button"
-                id="userProfileTrigger"
-                onclick="window.toggleUserMenu(event)"
-                class="flex items-center gap-2 p-1 pl-2 rtl:pl-1 rtl:pr-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700/70 transition cursor-pointer">
-                <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-xs text-white shadow-inner">
-                  ${escapeBrandHtml(initial)}
-                </div>
-                <div class="hidden md:block text-start leading-tight">
-                  <div class="text-xs font-bold text-slate-200 truncate max-w-[110px]">${escapeBrandHtml(name)}</div>
-                  <div class="text-[10px] font-semibold text-slate-400 truncate max-w-[110px]">${escapeBrandHtml(role)}</div>
-                </div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M6 9l6 6 6-6"/>
-                </svg>
-              </button>
-
-              <!-- قائمة المستخدم المنسدلة -->
-              <div
-                id="userProfileDropdown"
-                class="hidden absolute end-0 mt-1.5 w-60 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-2 z-50 text-start"
-                style="box-shadow: 0 10px 25px -5px rgba(0,0,0,0.6);"
-              >
-                <div class="px-3.5 py-2.5 border-b border-slate-800">
-                  <div class="font-bold text-xs text-white truncate">${escapeBrandHtml(name)}</div>
-                  <div class="text-[11px] text-slate-400 truncate">${escapeBrandHtml(job)}</div>
-                  <div class="mt-1.5">
-                    <span class="inline-block text-[9px] font-bold px-2 py-0.5 rounded border ${roleBadgeStyle}">
-                      ${role}
-                    </span>
-                  </div>
-                </div>
-
-                <div class="py-1">
-                  <button
-                    type="button"
-                    onclick="window.setHomeViewMode('manager'); window.toggleUserMenu();"
-                    class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="3" y="3" width="7" height="9"></rect>
-                      <rect x="14" y="3" width="7" height="5"></rect>
-                    </svg>
-                    <span>${isEn ? 'Switch to Manager Dashboard' : 'التحويل للوحة الإدارة والقرارات'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onclick="window.setHomeViewMode('technician'); window.toggleUserMenu();"
-                    class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-                    </svg>
-                    <span>${isEn ? 'Switch to Technician Workbench' : 'التحويل لبيئة عمل الفني'}</span>
-                  </button>
-
-                  ${role === 'ADMIN' ? `
-                    <button
-                      type="button"
-                      onclick="window.navigateTo('system'); window.toggleUserMenu();"
-                      class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-300 hover:text-white hover:bg-slate-800/80 transition">
-                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                      </svg>
-                      <span>${isEn ? 'System Settings' : 'لوحة إدارة النظام'}</span>
-                    </button>
-                  ` : ''}
-                </div>
-
-                <div class="border-t border-slate-800 pt-1 mt-1">
-                  <button
-                    type="button"
-                    onclick="if(confirm('${isEn ? 'Are you sure you want to logout?' : 'هل أنت متأكد من تسجيل الخروج؟'}')) { window.logout(); }"
-                    class="w-full flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                      <polyline points="16 17 21 12 16 7"></polyline>
-                      <line x1="21" y1="12" x2="9" y2="12"></line>
-                    </svg>
-                    <span>${isEn ? 'Logout' : 'تسجيل الخروج'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ` : `
+          <!-- الجهة المقابلة: كبسولة زر اللغة (AR / EN) -->
+          <div class="app-header-lang flex items-center rounded-full p-0.5 gap-0.5 shrink-0" style="${glassChip}">
             <button
               type="button"
-              onclick="window.navigateTo('login')"
-              class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition">
-              ${isEn ? 'Login' : 'تسجيل الدخول'}
-            </button>
-          `}
+              onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+            >AR</button>
+            <button
+              type="button"
+              onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
+              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
+            >EN</button>
+          </div>
 
         </div>
 
       </div>
     </header>
   `;
-}
-
-// دالة تبديل قائمة المستخدم المنسدلة
-if (typeof window !== "undefined") {
-  window.toggleUserMenu = function(e) {
-    if (e) e.stopPropagation();
-    const dropdown = document.getElementById("userProfileDropdown");
-    if (dropdown) dropdown.classList.toggle("hidden");
-  };
-
-  document.addEventListener("click", function(e) {
-    const dropdown = document.getElementById("userProfileDropdown");
-    const trigger = document.getElementById("userProfileTrigger");
-    if (dropdown && !dropdown.classList.contains("hidden") && trigger && !trigger.contains(e.target)) {
-      dropdown.classList.add("hidden");
-    }
-  });
-
-  window.setHomeViewMode = function(mode) {
-    localStorage.setItem("home_view_mode", mode);
-    if (window.currentPage === "home") {
-      if (typeof window.render === "function") window.render();
-      if (typeof window.loadDashboardStats === "function") window.loadDashboardStats();
-    }
-    if (typeof window.refreshHeader === "function") {
-      window.refreshHeader();
-    }
-  };
-
-  window.executeGlobalSearch = function(query) {
-    if (!query || !query.trim()) return;
-    localStorage.setItem("maintenance_search_keyword", query.trim());
-    if (typeof window.navigateTo === "function") {
-      window.navigateTo("maintenanceSearch");
-    }
-  };
-
-  // اختصار لوحة المفاتيح [/] للتركيز على البحث الشامل و [N] لتسجيل بلاغ عطل
-  document.addEventListener("keydown", function(e) {
-    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable) {
-      return;
-    }
-    if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      const input = document.getElementById("globalSearchInput");
-      if (input) {
-        input.focus();
-        input.select();
-      }
-    } else if ((e.key === "n" || e.key === "N" || e.key === "ى") && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      if (typeof window.navigateTo === "function") {
-        window.navigateTo("issue");
-      }
-    }
-  });
 }
 
 // ------------------------------------------------------------
@@ -671,11 +468,10 @@ export function buildCsvHeaderLines(reportTitle) {
 let _headerResizeObserver = null;
 
 function syncHeaderHeightVar(headerEl) {
-  if (!headerEl || !document?.documentElement?.style?.setProperty) return;
-  const height = headerEl.offsetHeight || 64;
+  if (!headerEl) return;
   document.documentElement.style.setProperty(
     "--app-header-h",
-    height + "px"
+    headerEl.offsetHeight + "px"
   );
 }
 

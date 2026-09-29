@@ -245,13 +245,6 @@ export async function initMaintenanceSearchView() {
 
   isLoaded = true;
 
-  const savedKeyword = localStorage.getItem('maintenance_search_keyword');
-  if (savedKeyword) {
-    const input = el('mSearchInput');
-    if (input) input.value = savedKeyword;
-    localStorage.removeItem('maintenance_search_keyword');
-  }
-
   updateFilterVisibilityForType(currentType);
   window.switchMaintenanceSearchType(currentType);
 }
