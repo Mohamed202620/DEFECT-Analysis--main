@@ -39,6 +39,7 @@ import { MachineProfileView } from './views/MachineProfileView.js';
 import { DailyAMView } from './views/DailyAMView.js';
 import { FiveSView } from './views/FiveSView.js';
 import { ChecklistBuilderView } from './views/ChecklistBuilderView.js'; // ITEMS-EDITOR
+import { DailyTipsSettingsView } from './views/DailyTipsSettingsView.js';
 
 
 // ============================================================
@@ -355,6 +356,13 @@ case 'machines':
 case 'system':  
 
   return SystemView();  
+
+
+case 'dailyTipsSettings':
+
+  return hasPermission("settings")
+    ? DailyTipsSettingsView()
+    : unauthorizedPage("settings");
 
 
 // ========================================================  

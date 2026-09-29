@@ -531,8 +531,8 @@ export const translations = {
       requestsDesc: "مراجعة المستخدمين الجدد",
       machinesTitle: "الماكينات",
       machinesDesc: "إضافة/تعديل أنواع الماكينات",
-      settingsTitle: "الإعدادات",
-      settingsDesc: "إعدادات النظام",
+      settingsTitle: "إعدادات حاسبة الحضور",
+      settingsDesc: "إعدادات ومحددات حاسبة الحضور والرواتب",
       noAccess: "ليس لديك صلاحيات لإدارة النظام."
     },
 
@@ -1189,8 +1189,8 @@ export const translations = {
       requestsDesc: "Review new users",
       machinesTitle: "Machines",
       machinesDesc: "Add/edit machine types",
-      settingsTitle: "Settings",
-      settingsDesc: "App settings",
+      settingsTitle: "Attendance Calculator Settings",
+      settingsDesc: "Attendance and payroll calculation settings",
       noAccess: "You don't have permission to manage the system."
     },
 

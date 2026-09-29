@@ -3,9 +3,24 @@
 // نظام «معلومة على الماشي» (Daily Insights & Tips)
 // - كارت ثابت في صفحة النظام يتغير يومياً الساعة 12:00 ظهراً
 // - Toast منبثق يظهر مرتين يومياً (بعد 5 ثوانٍ ثم بعد 4 ساعات)
-//   ويختفي بعد 7 ثوانٍ ولا يتكرر في نفس اليوم
-// - 60 معلومة حصرية ومحققة بـ العربية والإنجليزية (دينية، تحفيزية، صناعية، عامة)
+// - 60 معلومة حصرية ومحققة بـ العربية والإنجليزية (دينية، تحفيزية، صناعية، عامة) + إمكانية إضافة وإدارة معلومات مخصصة
 // ============================================================
+
+import { fetchCustomTipsApi, addCustomTipApi, deleteCustomTipApi } from "./services/dailyTipsApi.js";
+
+export let customTips = [];
+
+export async function loadCustomTips(forceRefresh = false) {
+  try {
+    const res = await fetchCustomTipsApi({ forceRefresh });
+    if (res.status === "success" && Array.isArray(res.data)) {
+      customTips = res.data;
+    }
+  } catch (err) {
+    console.warn("Failed to load custom tips:", err);
+  }
+  return customTips;
+}
 
 export const TIPS_AR = [
   {
@@ -854,14 +869,27 @@ export const TIPS_EN = [
 ];
 
 /**
+ * الحصول على قائمة المعلومات المدمجة (الافتراضية + المخصصة)
+ */
+export function getMergedTipsList(lang = 'ar') {
+  const currentLang = lang || window.currentLang || localStorage.getItem('lang') || 'ar';
+  const defaultList = currentLang === 'en' ? TIPS_EN : TIPS_AR;
+  
+  // تصفية المعلومات المخصصة حسب اللغة (إما تطابق اللغة الحالية أو 'both')
+  const matchedCustom = customTips.filter(t => !t.lang || t.lang === 'both' || t.lang === currentLang);
+  return [...matchedCustom, ...defaultList];
+}
+
+/**
  * حساب مؤشر المعلومة اليومية الثابتة مع التبديل التلقائي الساعة 12:00 ظهراً كل يوم
  */
-export function getDailyTipIndex(customDate = new Date()) {
+export function getDailyTipIndex(customDate = new Date(), listLength = null) {
   const now = new Date(customDate);
   // إزاحة 12 ساعة لتبدأ اليوم الجديد للمعلومة الساعة 12:00 ظهراً
   const shifted = new Date(now.getTime() - 12 * 60 * 60 * 1000);
   const totalDays = Math.floor(shifted.getTime() / (24 * 60 * 60 * 1000));
-  return Math.abs(totalDays) % TIPS_AR.length;
+  const len = listLength || getMergedTipsList().length || TIPS_AR.length;
+  return Math.abs(totalDays) % len;
 }
 
 /**
@@ -869,11 +897,12 @@ export function getDailyTipIndex(customDate = new Date()) {
  */
 export function getDailyTip(lang = null, tipIndex = null) {
   const currentLang = lang || window.currentLang || localStorage.getItem('lang') || 'ar';
-  const list = currentLang === 'en' ? TIPS_EN : TIPS_AR;
-  const index = tipIndex !== null ? tipIndex : getDailyTipIndex();
-  const safeIndex = Math.abs(index) % list.length;
+  const list = getMergedTipsList(currentLang);
+  const index = tipIndex !== null ? tipIndex : getDailyTipIndex(new Date(), list.length);
+  const safeIndex = Math.abs(index) % (list.length || 1);
+  const selected = list[safeIndex] || TIPS_AR[0];
   return {
-    ...list[safeIndex],
+    ...selected,
     lang: currentLang,
     index: safeIndex
   };
@@ -1378,6 +1407,11 @@ if (typeof window !== 'undefined') {
   window.cycleDailyTipCard = cycleDailyTipCard;
   window.showDailyTipToast = showDailyTipToast;
   window.getDailyTip = getDailyTip;
+  window.loadCustomTips = loadCustomTips;
+  window.getMergedTipsList = getMergedTipsList;
+
+  // تحميل المعلومات المخصصة فورياً
+  loadCustomTips();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initDailyTipsScheduler);
@@ -1391,6 +1425,8 @@ export default {
   TIPS_EN,
   getDailyTipIndex,
   getDailyTip,
+  getMergedTipsList,
+  loadCustomTips,
   renderDailyTipCard,
   cycleDailyTipCard,
   showDailyTipToast,

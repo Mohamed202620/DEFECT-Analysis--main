@@ -605,6 +605,14 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // daily_tips - بنك المعلومات وإدارة معلومة على الماشي
+    // ==========================================================
+    match /daily_tips/{tipId} {
+      allow read: if isActive();
+      allow create, update, delete: if isActive() && (myRole() == "admin" || isManagerRole());
+    }
+
+    // ==========================================================
     // Security (Test 15) - تم حذف القاعدة العامة الأخيرة:
     //     match /{document=**} { allow read, write: if isActive(); }
     // Firestore بيجمع كل match/allow المطابقة لنفس المسار بمنطق OR،
