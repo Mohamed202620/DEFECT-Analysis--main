@@ -32,12 +32,23 @@ if (auth) {
       if (currentPage === 'home' && typeof loadDashboardStats === 'function') {
         loadDashboardStats();
       }
+    } else if (!user && localStorage.getItem("userId")) {
+      // Test 16 (Session expired): لو جلسة Firebase انتهت/اتلغت (حساب اتحذف
+      // أو اتوقف أو التوكن فشل تجديده) والتطبيق لسه فاتح صفحة محمية، كانت
+      // كل الشاشات بتفضل تفشل بـ "Missing or insufficient permissions"
+      // بدون رجوع لشاشة الدخول. التأخير 1 ثانية عشان تسجيل الخروج العادي
+      // (signOut ثم localStorage.clear) والإقلاع مايتحسبوش انتهاء جلسة
+      setTimeout(() => {
+        if (auth.currentUser || !localStorage.getItem("userId")) return;
+        if (currentPage === 'login' || currentPage === 'register') return;
+        console.warn("Auth session ended - redirecting to login");
+        if (typeof window.logout === 'function') window.logout();
+      }, 1000);
     }
   });
 }
 
 export let currentPage = 'login';
-window.currentPage = currentPage;
 
 // إصلاح: كانت اللغة دايماً 'ar' في كل تحميل صفحة حتى لو المستخدم
 // بدّلها قبل كده - دلوقتي بنقرأ آخر لغة محفوظة (نفس أسلوب حفظ
@@ -102,15 +113,41 @@ if (
 
 }
 
+// Test 16: إيقاف الكاميرا لو غادرنا صفحة QR أثناء المسح - قبل كده
+// الكاميرا كانت بتفضل شغّالة (ومؤشرها ظاهر) وحلقة المسح مستمرة في
+// الخلفية بعد التنقل لأي صفحة تانية
+if (
+  activePage === "qr" &&
+  currentPage !== "qr" &&
+  typeof window.stopQrScan === "function"
+) {
+
+  try { window.stopQrScan(); } catch (_) { /* الصفحة اتشالت - مفيش مشكلة */ }
+
+}
+
 activePage = currentPage;
-window.currentPage = currentPage;
 
 app.style.opacity = "0.4";
 
 setTimeout(() => {
 
-app.innerHTML =  
-  renderPage(currentPage);  
+// Test 16: لو renderPage() رمت خطأ (بيانات ناقصة/View فيه bug) كانت
+// الصفحة بتفضل معتمة (opacity 0.4) بمحتوى قديم بلا أي رسالة. دلوقتي
+// بنعرض رسالة واضحة مع زر إعادة المحاولة بدل شاشة عالقة
+try {
+  app.innerHTML =
+    renderPage(currentPage);
+} catch (renderError) {
+  console.error("Page render error (" + currentPage + "):", renderError);
+  const isEnErr = currentLang === "en";
+  app.innerHTML =
+    '<div class="min-h-[60vh] flex items-center justify-center p-4 text-center">' +
+    '<div class="bg-red-950/60 border border-red-500/50 text-red-200 p-6 rounded-2xl max-w-sm w-full space-y-3">' +
+    '<h3 class="text-base font-bold text-red-400">' + (isEnErr ? "⚠️ Could not load this page" : "⚠️ تعذر تحميل هذه الصفحة") + '</h3>' +
+    '<button onclick="location.reload()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white">' +
+    (isEnErr ? "Retry" : "إعادة المحاولة") + '</button></div></div>';
+}
 
 app.style.opacity = "1";  
 
@@ -136,8 +173,7 @@ if (sidebarContainer) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
   } else {
-    const isCollapsed = localStorage.getItem("sidebar_collapsed") === "true";
-    sidebarContainer.className = `hidden lg:block shrink-0 ${isCollapsed ? 'w-16' : 'w-64 xl:w-72'}`;
+    sidebarContainer.className = "hidden lg:block";
     sidebarContainer.innerHTML = Sidebar(currentPage);
   }
 }

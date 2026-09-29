@@ -522,7 +522,7 @@ function renderNotFound(code) {
 // حفظ عطل جديد
 // ============================================================
 
-window.saveNewMachineError = async function (code) {
+const _saveNewMachineError = async function (code) {
 
   const machine = el('errNewMachine')?.value?.trim() || '';
   const line = el('errNewLine')?.value?.trim() || '';
@@ -572,7 +572,7 @@ window.saveNewMachineError = async function (code) {
 // تسجيل ظهور جديد لعطل معروف حالياً
 // ============================================================
 
-window.logErrorOccurrence = async function () {
+const _logErrorOccurrence = async function () {
 
   if (!lastFoundError) return;
 
@@ -602,7 +602,7 @@ window.logErrorOccurrence = async function () {
 // اعتماد عطل قيد المراجعة
 // ============================================================
 
-window.verifyMachineError = async function (errorId) {
+const _verifyMachineError = async function (errorId) {
 
   const result = await verifyMachineErrorApi(errorId);
 
@@ -640,3 +640,28 @@ window.resetErrorScanner = function () {
 
   setStatus(t().readyStatus);
 };
+
+// ============================================================
+// Test 16: حماية من الضغط المتكرر السريع على (حفظ عطل جديد / تسجيل
+// ظهور / اعتماد) - كانت الأزرار دي بلا أي قفل، فالضغط مرتين أثناء
+// الرفع/الحفظ كان بيسجّل ظهور مكرر أو يحفظ نفس العطل مرتين. أي ضغطة
+// أثناء عملية شغّالة بتتجاهل، والقفل بيتفك دايماً (حتى لو حصل خطأ)
+// ============================================================
+let _errorScannerBusy = false;
+
+async function _runErrorScannerOnce(fn) {
+  if (_errorScannerBusy) return;
+  _errorScannerBusy = true;
+  try {
+    return await fn();
+  } catch (error) {
+    console.error("Error scanner action failed:", error);
+    alert("❌ " + (error && error.message ? error.message : t().genericError));
+  } finally {
+    _errorScannerBusy = false;
+  }
+}
+
+window.saveNewMachineError = (code) => _runErrorScannerOnce(() => _saveNewMachineError(code));
+window.logErrorOccurrence = () => _runErrorScannerOnce(() => _logErrorOccurrence());
+window.verifyMachineError = (errorId) => _runErrorScannerOnce(() => _verifyMachineError(errorId));
