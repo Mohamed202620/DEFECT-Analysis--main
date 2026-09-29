@@ -147,12 +147,9 @@ async function doLoadMachineTypesFromFirestore() {
   try {
     const userContext = getCurrentUserMachineContext();
     const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
-    const userDept = extractUserDepartment(userContext);
 
-    // إذا لم يكن المستخدم أدمن، نطلب من Firestore مباشرة استعلام مفلتر لقسمه
-    const filterDept = isAdmin ? null : (userDept || null);
-
-    let result = await fetchMachineTypesApi(filterDept);
+    // جلب جميع الماكينات المعتمدة من Firestore لتخزينها في الكاش الموحد
+    let result = await fetchMachineTypesApi(null);
 
     if (result.status === "success" && result.data.length === 0 && isAdmin) {
       // أول تشغيل: زرع القائمة الافتراضية إذا كانت المجموعة فارغة
@@ -166,8 +163,6 @@ async function doLoadMachineTypesFromFirestore() {
         units: m.units || [],
         active: m.active !== false,
         department: extractMachineDepartment(m),
-        // خط الإنتاج المرتبط بالماكينة ("1" / "2" / "") - نفس الحقل
-        // المستخدم في باقي التطبيق (راجع utils/lineUtils.js)
         line: extractMachineLine(m),
         id: m.id,
         order: typeof m.order === "number" ? m.order : 0
@@ -574,10 +569,10 @@ export function buildMachineDropdownHtml(baseId, {
   const typeRequiredAttr = includePlaceholder ? " required" : "";
 
   return `
-    <select id="${baseId}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${baseId}')" data-machine-dept="${userDept || 'all'}">
+    <select id="${baseId}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${baseId}')" data-machine-dept="${userDept || 'all'}" data-placeholder="${placeholderLabel}">
       ${placeholderHtml}${allHtml}${typesHtml}${extraTypeOptionsHtml}
     </select>
-    <select id="${baseId}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${baseId}')">
+    <select id="${baseId}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${baseId}')" data-unit-placeholder="${unitPlaceholderLabel}">
       ${unitOptionsHtml}
     </select>
     <input type="hidden" id="${baseId}" value="${hiddenValue}"${onchangeAttr}>
@@ -587,36 +582,69 @@ export function buildMachineDropdownHtml(baseId, {
 /**
  * تحديث القوائم المعروضة في DOM فور اكتمال الجلب
  */
-function refreshActiveMachineDropdowns() {
-  // إصلاح: قائمة الاختيار اليدوي للماكينة في شاشة مسح QR
-  // (QrScannerView.js -> baseId="qrManualMachine") كانت غير مُدرجة
-  // هنا، فكانت الأقسام الأخرى (issueMachine/suggestionMachine/
-  // pmMachine/machineTypeSelect) بتتحدّث تلقائياً وتتفعّل بمجرد
-  // اكتمال تحميل قائمة الماكينات الفعلية من Firestore، بينما القائمة
-  // اليدوية في QR كانت تفضل عالقة على حالتها الأولى (المعطّلة أو
-  // القائمة الاحتياطية الافتراضية DEFAULT_MACHINE_TYPES) لو المستخدم
-  // فتح صفحة QR قبل اكتمال التحميل - نفس المسار المفروض يتصرف بنفس
-  // سياق باقي فورمات التطبيق بالظبط.
-  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect", "qrManualMachine", "qrGenMachine"];
+export function refreshActiveMachineDropdowns() {
+  const dropdownBases = [
+    "issueMachine",
+    "suggestionMachine",
+    "pmMachine",
+    "machineTypeSelect",
+    "qrManualMachine",
+    "qrGenMachine",
+    "mMachineFilter"
+  ];
+
+  const userContext = getCurrentUserMachineContext();
+  const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
+  const userDept = extractUserDepartment(userContext);
+  const currentLang = window.currentLang || "ar";
+  const isEn = currentLang === "en";
+
   for (const base of dropdownBases) {
-    const typeSelect = document.getElementById(base + "Type") || (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null);
+    const typeSelect = document.getElementById(base + "Type") || 
+      (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null) ||
+      (base === "mMachineFilter" ? document.getElementById("mMachineFilter") : null);
+
     if (!typeSelect) continue;
 
-    const visibleTypes = getMachineTypeEntries({ includeInactive: false });
-    const userContext = getCurrentUserMachineContext();
-    const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
-    const userDept = extractUserDepartment(userContext);
-
-    if (!isAdmin && !userDept) continue;
-
-    if (visibleTypes.length > 0 && typeSelect.disabled) {
-      typeSelect.disabled = false;
-      const currentLang = window.currentLang || "ar";
-      const isEn = currentLang === "en";
+    // حالة خاصة: فلتر صفحة البحث المتقدم
+    if (base === "mMachineFilter") {
+      const allEntries = getMachineTypeEntries({ includeInactive: true });
+      const currentVal = typeSelect.value || "all";
       typeSelect.innerHTML =
-        `<option value="" disabled selected>${isEn ? 'Select machine type...' : 'اختر نوع الماكينة...'}</option>` +
-        visibleTypes.map(m => `<option value="${m.key}">${m.key}</option>`).join("");
+        `<option value="all">${isEn ? 'All Machines' : 'جميع الماكينات'}</option>` +
+        allEntries.map(m =>
+          `<option value="${m.key}" ${m.key === currentVal ? "selected" : ""}>${m.key}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
+        ).join("") +
+        `<option value="machine2">Machine 2</option><option value="line1">Coating Line 1</option>`;
+      typeSelect.value = currentVal;
+      continue;
     }
+
+    if (!isAdmin && !userDept) {
+      typeSelect.disabled = true;
+      typeSelect.innerHTML = `<option value="" selected>${isEn ? 'No work area assigned' : 'لم يتم تحديد قسم العمل'}</option>`;
+      continue;
+    }
+
+    const visibleTypes = getMachineTypeEntries({ includeInactive: false });
+    const currentVal = typeSelect.value || "";
+    const placeholder = typeSelect.getAttribute("data-placeholder") || (isEn ? 'Select machine type...' : 'اختر نوع الماكينة...');
+
+    if (visibleTypes.length > 0) {
+      typeSelect.disabled = false;
+      typeSelect.innerHTML =
+        `<option value="" disabled ${currentVal ? "" : "selected"}>${placeholder}</option>` +
+        visibleTypes.map(m => `<option value="${m.key}" ${m.key === currentVal ? "selected" : ""}>${m.key}</option>`).join("");
+      
+      if (currentVal && visibleTypes.some(m => m.key === currentVal)) {
+        typeSelect.value = currentVal;
+      }
+    }
+  }
+
+  // تحديث جدول إدارة الماكينات للأدمن إن كانت الشاشة مفتوحة
+  if (typeof window.loadMachinesAdmin === "function" && document.getElementById("machinesContainer")) {
+    window.loadMachinesAdmin();
   }
 }
 

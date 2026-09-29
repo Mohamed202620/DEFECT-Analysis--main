@@ -572,6 +572,18 @@ if (
 
 }
 
+// ========================================================  
+// MACHINES AUTO LOAD  
+// ========================================================  
+
+if (currentPage === "machines") {  
+  setTimeout(() => {  
+    if (typeof window.loadMachinesAdmin === "function") {  
+      window.loadMachinesAdmin();  
+    }  
+  }, 100);  
+}
+
   setTimeout(() => {
     applyManagerDesktopMode(); // MGR-DESKTOP
   }, 160);

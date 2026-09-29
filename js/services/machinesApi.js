@@ -62,13 +62,11 @@ export async function fetchMachineTypesApi(filterDept = null) {
     const cleanFilter = normalizeDepartment(filterDept);
 
     let snapshot;
-    if (cleanFilter) {
-      // استعلام Firestore مباشر ومفلتر للقسم المخصص
-      const q = query(ref, where("department", "==", cleanFilter));
-      snapshot = await getDocs(q);
-    } else {
+    try {
       const q = query(ref, orderBy("order", "asc"));
       snapshot = await getDocs(q);
+    } catch (orderErr) {
+      snapshot = await getDocs(ref);
     }
 
     const types = [];
@@ -88,9 +86,6 @@ export async function fetchMachineTypesApi(filterDept = null) {
         active: data.active !== false,
         order: typeof data.order === "number" ? data.order : 0,
         department: mDept,
-        // خط الإنتاج ("1" / "2" / "") - بيتقرأ بمرونة من أي تسمية
-        // حقل قديمة (line / lineNumber / productionLine) وبيترجّع
-        // دايماً بالصيغة المعيارية (راجع utils/lineUtils.js)
         line: extractMachineLine(data)
       });
     });
