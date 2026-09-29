@@ -73,6 +73,18 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, issueId);
 
+    // Test 16: لو المستخدم أرفق صور وكلها فشل رفعها (شبكة/ImgBB) كان البلاغ
+    // بيتحفظ بدون أي صورة والصور بتضيع للأبد (وفي المزامنة بعد Offline
+    // كان البلاغ بيتشال من الطابور بعد "نجاح" ناقص). نفس سلوك
+    // resolveTicketApi: نرجّع خطأ (يحتوي imgbb عشان المزامنة تبقيه في
+    // الطابور) والمستخدم يفضل معاه الفورم ويحاول تاني
+    if (imageList.length > 0 && imageUrls.length === 0) {
+      return {
+        status: "error",
+        message: "تعذر رفع صور البلاغ (imgbb/network) - تحقق من الاتصال بالإنترنت وحاول مرة أخرى"
+      };
+    }
+
     const docRef = await addDoc(collection(db, "tickets"), {
       ...restPayload,
       issueId,
@@ -99,7 +111,19 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
   }
 }
 
-export async function syncOfflineTicketsApi() {
+// Test 16: حماية من التشغيل المتزامن - حدث "online" ممكن يتكرر (شبكة
+// بتقطع وترجع بسرعة) أو يتزامن مع فحص بداية التشغيل، فكانت مزامنتين
+// بيقروا نفس الطابور ويعملوا addDoc مرتين = بلاغات/إجراءات مكررة.
+// دلوقتي أي استدعاء أثناء مزامنة شغّالة بيستنى نفس النتيجة بدل ما يبدأ واحدة تانية
+let _syncOfflineTicketsApiInFlight = null;
+export function syncOfflineTicketsApi() {
+  if (!_syncOfflineTicketsApiInFlight) {
+    _syncOfflineTicketsApiInFlight = _syncOfflineTicketsApiImpl().finally(() => { _syncOfflineTicketsApiInFlight = null; });
+  }
+  return _syncOfflineTicketsApiInFlight;
+}
+
+async function _syncOfflineTicketsApiImpl() {
   const queued = await getQueuedTickets();
   if (!queued.length) {
     return { status: "success", synced: 0, total: 0 };
@@ -132,7 +156,19 @@ export async function syncOfflineTicketsApi() {
 // محلياً وقت انقطاع الإنترنت - بنفس نمط syncOfflineTicketsApi فوق
 // بالظبط، بترتيب زمني (الأقدم أولاً) عشان دورة حياة كل تذكرة تتنفذ
 // بنفس التسلسل اللي حصل بيه فعلياً.
-export async function syncOfflineTicketActionsApi() {
+// Test 16: حماية من التشغيل المتزامن - حدث "online" ممكن يتكرر (شبكة
+// بتقطع وترجع بسرعة) أو يتزامن مع فحص بداية التشغيل، فكانت مزامنتين
+// بيقروا نفس الطابور ويعملوا addDoc مرتين = بلاغات/إجراءات مكررة.
+// دلوقتي أي استدعاء أثناء مزامنة شغّالة بيستنى نفس النتيجة بدل ما يبدأ واحدة تانية
+let _syncOfflineTicketActionsApiInFlight = null;
+export function syncOfflineTicketActionsApi() {
+  if (!_syncOfflineTicketActionsApiInFlight) {
+    _syncOfflineTicketActionsApiInFlight = _syncOfflineTicketActionsApiImpl().finally(() => { _syncOfflineTicketActionsApiInFlight = null; });
+  }
+  return _syncOfflineTicketActionsApiInFlight;
+}
+
+async function _syncOfflineTicketActionsApiImpl() {
   const queued = await getQueuedActions();
   if (!queued.length) {
     return { status: "success", synced: 0, total: 0 };
