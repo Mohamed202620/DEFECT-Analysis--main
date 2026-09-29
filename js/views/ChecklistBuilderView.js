@@ -3,7 +3,7 @@
 // محرر بنود الفحص الموحد (Daily AM & 5S Assessment Checklist Editor)
 // طبقة عامة بنظام Adapters لإدارة بنود الفحص للمدير والأدمن
 // يدعم: الإضافة السريعة، التعديل Inline، إعادة الترتيب، التعطيل Soft-Delete،
-// النسخ الجماعي، مكتبة البنود الشائعة، المعاينة للفني، وسجل الإصدارات.
+// الحذف النهائي، النسخ الجماعي، مكتبة البنود الشائعة، الفلترة اللحظية، المعاينة للفني، وسجل الإصدارات.
 // ============================================================
 
 import {
@@ -174,13 +174,14 @@ let currentItems = [];
 let loadedTemplateVersion = 1;
 let loadedHistory = [];
 let editingItemId = null;
-let reorderStartIndex = null;
 let allMachineOptions = [];
+let itemSearchQuery = '';
+let itemStatusFilter = 'all'; // 'all', 'active', 'inactive', 'critical'
 
 function t() {
   const isEn = (window.currentLang || 'ar') === 'en';
   return {
-    pageTitle: isEn ? '🛠️ Checklist Items Editor' : '🛠️ محرر بنود الفحص وقوالب الماكينات',
+    pageTitle: isEn ? 'Checklist Items Editor' : 'محرر بنود الفحص وقوالب الماكينات',
     pageSubtitle: isEn
       ? 'Manage and customize AM and 5S inspection points directly'
       : 'إدارة وتخصيص بنود فحص الصيانة الذاتية AM وتقييم 5S مباشرة',
@@ -188,12 +189,12 @@ function t() {
     tab5s: isEn ? '🧹 5S Assessment' : '🧹 تقييم 5S',
     selectMachine: isEn ? 'Select Machine...' : 'اختر الماكينة...',
     noMachineSelected: isEn ? 'Please choose a machine to view or edit its checklist.' : 'يرجى اختيار ماكينة لعرض بنود الفحص وتعديلها.',
-    addItemBtn: isEn ? '+ Add Item' : '+ إضافة بند جديد',
-    presetsBtn: isEn ? '💡 Presets Library' : '💡 مكتبة بنود شائعة',
-    copyFromBtn: isEn ? '📋 Copy from Machine' : '📋 نسخ من ماكينة أخرى',
-    previewBtn: isEn ? '👁️ Preview as Tech' : '👁️ معاينة كفني',
-    historyBtn: isEn ? '🕒 Version History' : '🕒 سجل التغييرات',
-    saveBtn: isEn ? '💾 Save Template' : '💾 حفظ القالب',
+    addItemBtn: isEn ? 'Add Item' : 'إضافة بند جديد',
+    presetsBtn: isEn ? 'Presets Library' : 'مكتبة بنود شائعة',
+    copyFromBtn: isEn ? 'Copy Template' : 'نسخ من ماكينة',
+    previewBtn: isEn ? 'Preview' : 'معاينة كفني',
+    historyBtn: isEn ? 'History' : 'سجل الإصدارات',
+    saveBtn: isEn ? 'Save Template' : 'حفظ القالب',
     itemsCount: isEn ? 'Items' : 'بنود',
     activeLabel: isEn ? 'Active' : 'مفعل',
     inactiveLabel: isEn ? 'Disabled' : 'معطل',
@@ -210,6 +211,7 @@ function t() {
     copySuccess: isEn ? 'Items copied successfully! Remember to save.' : 'تم نسخ البنود بنجاح! لا تنسَ الضغط على حفظ القالب.',
     applySuccess: isEn ? 'Item applied to target machines ✅' : 'تم تطبيق البند على الماكينات المحددة بنجاح ✅',
     confirmSoftDelete: isEn ? 'Disable this item? (It remains archived in past records)' : 'هل تريد تعطيل هذا البند؟ (سيبقى محفوظاً في السجلات التاريخية)',
+    confirmPermanentDelete: isEn ? 'Delete this item permanently from this machine template?' : 'هل تريد حذف هذا البند نهائياً من قالب هذه الماكينة؟',
     offlineQueued: isEn ? 'Offline: Changes saved locally and will sync when reconnected.' : 'أنت غير متصل بالإنترنت: تم حفظ التعديل محلياً وسيتم المزامنة تلقائياً عند عودة الاتصال.'
   };
 }
@@ -232,67 +234,74 @@ export const ChecklistBuilderView = () => {
   }
 
   return `
-  <div class="app-page p-3 sm:p-4 md:p-6 max-w-4xl mx-auto pb-28 text-white">
+  <div class="app-page p-3 sm:p-4 md:p-6 max-w-5xl mx-auto pb-28 text-white space-y-4">
     <!-- الشريط العلوي -->
-    <div class="flex items-center justify-between mb-4">
-      <button onclick="window.goBack('home')" class="bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm min-h-[38px] cursor-pointer">
+    <div class="flex items-center justify-between">
+      <button onclick="window.goBack('home')" class="bg-[#1E293B] hover:bg-[#283548] active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700/80 shadow-sm cursor-pointer">
         <span class="text-amber-400 font-black">${isEn ? '←' : '→'}</span>
         <span>${isEn ? 'Back' : 'رجوع'}</span>
       </button>
 
       <div class="flex items-center gap-2">
-        <span id="cbOnlineBadge" class="hidden text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-          🟢 ${isEn ? 'Connected' : 'متصل'}
+        <span id="cbOnlineBadge" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>${isEn ? 'System Live' : 'مُصلح وقابل للتخصيص'}</span>
         </span>
       </div>
     </div>
 
     <!-- ترويسة الصفحة -->
-    <div class="mb-5 border-b border-gray-800 pb-3">
-      <div class="flex items-center gap-2">
-        <span class="w-8 h-8 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-base">🛠️</span>
-        <h1 class="text-lg sm:text-xl font-bold text-white">${tr.pageTitle}</h1>
+    <div class="bg-gradient-to-r from-[#1E293B] via-[#1E293B] to-[#0F172A] p-4 rounded-2xl border border-slate-800 shadow-lg flex items-center justify-between flex-wrap gap-3">
+      <div class="flex items-center gap-3">
+        <span class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xl shrink-0 shadow-inner">🛠️</span>
+        <div>
+          <h1 class="text-base sm:text-lg font-black text-white leading-tight">${tr.pageTitle}</h1>
+          <p class="text-[11px] text-slate-400 mt-0.5">${tr.pageSubtitle}</p>
+        </div>
       </div>
-      <p class="text-xs text-gray-400 mt-1">${tr.pageSubtitle}</p>
-    </div>
 
-    <!-- التبويبات الرئيسية (AM / 5S) -->
-    <div class="flex border-b border-gray-800 mb-4 gap-2">
-      <button
-        type="button"
-        id="cbTabAmBtn"
-        onclick="window.switchChecklistTab('am')"
-        class="pb-2.5 px-4 text-xs font-bold transition border-b-2 border-blue-500 text-blue-400 cursor-pointer">
-        ${tr.tabAm}
-      </button>
-      <button
-        type="button"
-        id="cbTab5sBtn"
-        onclick="window.switchChecklistTab('5s')"
-        class="pb-2.5 px-4 text-xs font-bold transition border-b-2 border-transparent text-gray-400 hover:text-white cursor-pointer">
-        ${tr.tab5s}
-      </button>
+      <!-- التبويبات الرئيسية (AM / 5S) -->
+      <div class="flex bg-[#0F172A] p-1 rounded-xl border border-slate-800 shrink-0">
+        <button
+          type="button"
+          id="cbTabAmBtn"
+          onclick="window.switchChecklistTab('am')"
+          class="py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-sm cursor-pointer">
+          ${tr.tabAm}
+        </button>
+        <button
+          type="button"
+          id="cbTab5sBtn"
+          onclick="window.switchChecklistTab('5s')"
+          class="py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer">
+          ${tr.tab5s}
+        </button>
+      </div>
     </div>
 
     <!-- شريط التحكم واختيار الماكينة والقالب -->
-    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3 mb-4 shadow-md">
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-        <!-- القائمة المنسدلة لاختيار الماكينة -->
-        <div class="sm:col-span-2">
-          <label class="block text-[11px] font-bold text-gray-300 mb-1">
-            ${isEn ? 'Select Machine Target:' : 'الماكينة المستهدفة:'}
+    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3.5 shadow-xl">
+      
+      <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+        <!-- اختيار الماكينة -->
+        <div class="sm:col-span-8">
+          <label class="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+            <span>🏭 ${isEn ? 'Select Target Machine:' : 'الماكينة المستهدفة للتعود والتخصيص:'}</span>
+            <span id="cbMachineLineTag" class="text-[10px] text-blue-400 font-normal"></span>
           </label>
-          <select
-            id="cbMachineSelect"
-            onchange="window.onChecklistMachineSelected(this.value)"
-            class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
-            <option value="" disabled selected>${tr.selectMachine}</option>
-          </select>
+          <div class="relative">
+            <select
+              id="cbMachineSelect"
+              onchange="window.onChecklistMachineSelected(this.value)"
+              class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner font-medium">
+              <option value="" disabled selected>${tr.selectMachine}</option>
+            </select>
+          </div>
         </div>
 
         <!-- معلومات النسخة وزر الحفظ -->
-        <div class="flex items-center justify-end gap-2 pt-2 sm:pt-4">
-          <span id="cbVersionBadge" class="text-[10px] font-mono text-gray-400 bg-gray-800/80 px-2 py-1 rounded-lg border border-gray-700">
+        <div class="sm:col-span-4 flex items-center justify-end gap-2 pt-1 sm:pt-4">
+          <span id="cbVersionBadge" class="text-[10px] font-mono font-bold text-slate-300 bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shadow-inner">
             v1
           </span>
           <button
@@ -300,7 +309,7 @@ export const ChecklistBuilderView = () => {
             id="cbSaveTemplateBtn"
             onclick="window.saveCurrentChecklistTemplate()"
             disabled
-            class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer">
+            class="flex-1 sm:flex-none px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer">
             <span>💾</span>
             <span>${tr.saveBtn}</span>
           </button>
@@ -308,11 +317,11 @@ export const ChecklistBuilderView = () => {
       </div>
 
       <!-- أزرار الإجراءات السريعة (تظهر عند اختيار ماكينة) -->
-      <div id="cbToolbarActions" class="hidden flex flex-wrap gap-2 pt-2 border-t border-gray-800/80">
+      <div id="cbToolbarActions" class="hidden flex flex-wrap gap-2 pt-3 border-t border-slate-800">
         <button
           type="button"
           onclick="window.openAddItemModal()"
-          class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+          class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer">
           <span>➕</span>
           <span>${tr.addItemBtn}</span>
         </button>
@@ -320,7 +329,7 @@ export const ChecklistBuilderView = () => {
         <button
           type="button"
           onclick="window.openPresetsModal()"
-          class="px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 active:scale-95 text-purple-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+          class="px-3.5 py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 active:scale-95 text-purple-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
           <span>💡</span>
           <span>${tr.presetsBtn}</span>
         </button>
@@ -328,7 +337,7 @@ export const ChecklistBuilderView = () => {
         <button
           type="button"
           onclick="window.openCopyFromModal()"
-          class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-gray-200 border border-gray-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+          class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 text-slate-200 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
           <span>📋</span>
           <span>${tr.copyFromBtn}</span>
         </button>
@@ -336,7 +345,7 @@ export const ChecklistBuilderView = () => {
         <button
           type="button"
           onclick="window.openTechPreviewModal()"
-          class="px-3 py-1.5 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/30 active:scale-95 text-sky-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
+          class="px-3.5 py-2 bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 active:scale-95 text-sky-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer">
           <span>👁️</span>
           <span>${tr.previewBtn}</span>
         </button>
@@ -344,16 +353,42 @@ export const ChecklistBuilderView = () => {
         <button
           type="button"
           onclick="window.openHistoryModal()"
-          class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 active:scale-95 text-gray-300 border border-gray-700 font-bold text-xs rounded-xl transition flex items-center gap-1.5 ms-auto cursor-pointer">
+          class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 text-slate-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 ms-auto cursor-pointer">
           <span>🕒</span>
           <span>${tr.historyBtn}</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- فلتر وبحث البنود داخل الماكينة الحالية -->
+    <div id="cbItemFilterBar" class="hidden bg-[#1E293B] border border-slate-800 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+      <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+        <span class="text-slate-400">🔍</span>
+        <input
+          id="cbItemSearchInput"
+          type="text"
+          oninput="window.filterChecklistItems()"
+          placeholder="${isEn ? 'Search points in current machine...' : 'بحث سريع في بنود الفحص المفتوحة...'}"
+          class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-blue-500 transition">
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0 text-[11px]">
+        <button type="button" onclick="window.setChecklistFilterStatus('all')" id="btnFilterAll" class="px-2.5 py-1 rounded-lg font-bold bg-blue-600 text-white transition">
+          ${isEn ? 'All' : 'الكل'}
+        </button>
+        <button type="button" onclick="window.setChecklistFilterStatus('active')" id="btnFilterActive" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition">
+          🟢 ${isEn ? 'Active' : 'المفعلة'}
+        </button>
+        <button type="button" onclick="window.setChecklistFilterStatus('critical')" id="btnFilterCritical" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition">
+          ⚠️ ${isEn ? 'Critical' : 'الحرجة'}
         </button>
       </div>
     </div>
 
     <!-- حاوية بنود الفحص -->
     <div id="cbItemsContainer" class="space-y-2.5">
-      <div class="bg-[#1E293B] rounded-2xl p-8 border border-gray-800 text-center text-sm text-gray-400">
+      <div class="bg-[#1E293B] rounded-2xl p-10 border border-slate-800 text-center text-xs text-slate-400 shadow-md">
         ${tr.noMachineSelected}
       </div>
     </div>
@@ -414,11 +449,11 @@ window.switchChecklistTab = function (tabKey) {
   const fiveSBtn = document.getElementById('cbTab5sBtn');
 
   if (tabKey === 'am') {
-    amBtn.className = 'pb-2.5 px-4 text-xs font-bold transition border-b-2 border-blue-500 text-blue-400 cursor-pointer';
-    fiveSBtn.className = 'pb-2.5 px-4 text-xs font-bold transition border-b-2 border-transparent text-gray-400 hover:text-white cursor-pointer';
+    amBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-sm cursor-pointer';
+    fiveSBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer';
   } else {
-    fiveSBtn.className = 'pb-2.5 px-4 text-xs font-bold transition border-b-2 border-emerald-500 text-emerald-400 cursor-pointer';
-    amBtn.className = 'pb-2.5 px-4 text-xs font-bold transition border-b-2 border-transparent text-gray-400 hover:text-white cursor-pointer';
+    fiveSBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white shadow-sm cursor-pointer';
+    amBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer';
   }
 
   // إعادة تحميل بنود الماكينة الحالية للتبويب الجديد
@@ -433,13 +468,22 @@ window.onChecklistMachineSelected = async function (machineVal) {
   const isEn = (window.currentLang || 'ar') === 'en';
   const adapter = ADAPTERS[currentTab];
 
+  const mOpt = allMachineOptions.find(m => m.value === machineVal);
+  const lineTag = document.getElementById('cbMachineLineTag');
+  if (lineTag) {
+    lineTag.textContent = mOpt?.line ? formatLineLabel(mOpt.line) : '';
+  }
+
   const toolbar = document.getElementById('cbToolbarActions');
   if (toolbar) toolbar.classList.remove('hidden');
+
+  const filterBar = document.getElementById('cbItemFilterBar');
+  if (filterBar) filterBar.classList.remove('hidden');
 
   const container = document.getElementById('cbItemsContainer');
   if (container) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] rounded-2xl p-8 border border-gray-800 text-center text-xs text-gray-400 animate-pulse">
+      <div class="bg-[#1E293B] rounded-2xl p-8 border border-slate-800 text-center text-xs text-slate-400 animate-pulse">
         ⏳ ${isEn ? 'Loading checklist template...' : 'جاري تحميل بنود الفحص...'}
       </div>
     `;
@@ -480,6 +524,27 @@ window.onChecklistMachineSelected = async function (machineVal) {
   renderItemsList();
 };
 
+window.setChecklistFilterStatus = function(status) {
+  itemStatusFilter = status;
+  ['All', 'Active', 'Critical'].forEach(st => {
+    const btn = document.getElementById(`btnFilter${st}`);
+    if (btn) {
+      if (st.toLowerCase() === status) {
+        btn.className = 'px-2.5 py-1 rounded-lg font-bold bg-blue-600 text-white transition';
+      } else {
+        btn.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition';
+      }
+    }
+  });
+  renderItemsList();
+};
+
+window.filterChecklistItems = function() {
+  const input = document.getElementById('cbItemSearchInput');
+  itemSearchQuery = (input?.value || '').trim().toLowerCase();
+  renderItemsList();
+};
+
 // ============================================================
 // RENDERING ITEMS LIST (INLINE EDIT & REORDER)
 // ============================================================
@@ -492,9 +557,9 @@ function renderItemsList() {
 
   if (!currentItems || currentItems.length === 0) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] rounded-2xl p-8 border border-gray-800 text-center space-y-3">
-        <p class="text-xs text-gray-400">${isEn ? 'No inspection points in this template.' : 'لا توجد بنود فحص في هذا القالب.'}</p>
-        <button onclick="window.openAddItemModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md">
+      <div class="bg-[#1E293B] rounded-2xl p-8 border border-slate-800 text-center space-y-3">
+        <p class="text-xs text-slate-400">${isEn ? 'No inspection points in this template.' : 'لا توجد بنود فحص في هذا القالب.'}</p>
+        <button onclick="window.openAddItemModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer">
           ➕ ${tr.addItemBtn}
         </button>
       </div>
@@ -502,7 +567,32 @@ function renderItemsList() {
     return;
   }
 
-  const itemsHtml = currentItems.map((item, index) => {
+  // فلترة البنود حسب البحث والفلتر الجانبي
+  let filtered = currentItems.filter(item => {
+    const isActive = item.active !== false;
+    if (itemStatusFilter === 'active' && !isActive) return false;
+    if (itemStatusFilter === 'critical' && !item.critical) return false;
+
+    if (itemSearchQuery) {
+      const arLabel = (item.label?.ar || item.ar || '').toLowerCase();
+      const enLabel = (item.label?.en || item.en || '').toLowerCase();
+      const howTo = (item.howTo?.ar || item.howTo?.en || '').toLowerCase();
+      return arLabel.includes(itemSearchQuery) || enLabel.includes(itemSearchQuery) || howTo.includes(itemSearchQuery);
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="bg-[#1E293B] rounded-2xl p-6 border border-slate-800 text-center text-xs text-slate-400">
+        🔍 ${isEn ? 'No inspection points matched your search query.' : 'لم يتم العثور على بنود مطابقة لنتائج الفلترة.'}
+      </div>
+    `;
+    return;
+  }
+
+  const itemsHtml = filtered.map((item, index) => {
+    const originalIndex = currentItems.findIndex(i => i.id === item.id);
     const labelText = item.label ? (isEn ? (item.label.en || item.label.ar) : (item.label.ar || item.label.en)) : (isEn ? item.en : item.ar);
     const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
     const isActive = item.active !== false;
@@ -529,7 +619,7 @@ function renderItemsList() {
     return `
       <div
         id="cbItemRow_${item.id}"
-        class="bg-[#1E293B] rounded-2xl p-3.5 sm:p-4 border ${isActive ? 'border-gray-800' : 'border-red-900/30 opacity-60'} transition hover:border-gray-700 shadow-sm space-y-2.5">
+        class="bg-[#1E293B] rounded-2xl p-3.5 sm:p-4 border ${isActive ? 'border-slate-800' : 'border-red-900/40 opacity-60 bg-slate-900/40'} transition hover:border-slate-700 shadow-md space-y-2.5">
         
         <!-- الصف الرئيسي: الترتيب + العنوان + الإجراءات -->
         <div class="flex items-start justify-between gap-2.5">
@@ -538,38 +628,38 @@ function renderItemsList() {
             <div class="flex flex-col gap-1 shrink-0 pt-0.5">
               <button
                 type="button"
-                onclick="window.moveChecklistItem(${index}, -1)"
-                ${index === 0 ? 'disabled' : ''}
-                class="w-6 h-5 bg-gray-800 hover:bg-gray-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-gray-300 transition cursor-pointer"
+                onclick="window.moveChecklistItem(${originalIndex}, -1)"
+                ${originalIndex === 0 ? 'disabled' : ''}
+                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-slate-300 transition cursor-pointer"
                 title="${isEn ? 'Move Up' : 'تحريك لأعلى'}">▲</button>
               <button
                 type="button"
-                onclick="window.moveChecklistItem(${index}, 1)"
-                ${index === currentItems.length - 1 ? 'disabled' : ''}
-                class="w-6 h-5 bg-gray-800 hover:bg-gray-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-gray-300 transition cursor-pointer"
+                onclick="window.moveChecklistItem(${originalIndex}, 1)"
+                ${originalIndex === currentItems.length - 1 ? 'disabled' : ''}
+                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-slate-300 transition cursor-pointer"
                 title="${isEn ? 'Move Down' : 'تحريك لأسفل'}">▼</button>
             </div>
 
             <!-- اسم البند والبادجات -->
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
-                <span class="text-[10px] font-mono font-bold text-gray-500">#${index + 1}</span>
+                <span class="text-[10px] font-mono font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">#${originalIndex + 1}</span>
                 ${pillarBadge}
                 ${typeBadge}
                 ${criticalBadge}
                 ${photoBadge}
               </div>
-              <h4 class="text-xs sm:text-sm font-bold text-white break-words ${!isActive ? 'line-through text-gray-400' : ''}">
+              <h4 class="text-xs sm:text-sm font-bold text-white break-words ${!isActive ? 'line-through text-slate-400' : ''}">
                 ${escapeHtml(labelText)}
               </h4>
               ${howToText ? `
-                <p class="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                  <span>💡</span>
-                  <span class="truncate">${escapeHtml(howToText)}</span>
-                </p>
+                <div class="text-[10px] text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80 mt-1.5 flex items-start gap-1.5">
+                  <span class="text-amber-400">💡</span>
+                  <span class="leading-relaxed">${escapeHtml(howToText)}</span>
+                </div>
               ` : ''}
               ${item.type === 'numeric' && (item.min != null || item.max != null) ? `
-                <div class="text-[10px] text-blue-300 font-mono mt-0.5">
+                <div class="text-[10px] text-blue-300 font-mono mt-1 bg-blue-950/30 px-2 py-0.5 rounded w-fit border border-blue-500/20">
                   [${item.min != null ? `Min: ${item.min} ` : ''}${item.max != null ? `Max: ${item.max} ` : ''}${item.unit || ''}]
                 </div>
               ` : ''}
@@ -582,7 +672,7 @@ function renderItemsList() {
             <button
               type="button"
               onclick="window.toggleChecklistItemActive('${item.id}')"
-              class="px-2 py-1 rounded-lg text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              class="px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
                   : 'bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25'
@@ -596,7 +686,7 @@ function renderItemsList() {
             <button
               type="button"
               onclick="window.openEditItemModal('${item.id}')"
-              class="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition cursor-pointer text-xs"
+              class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer text-xs active:scale-95"
               title="${isEn ? 'Edit' : 'تعديل'}">
               ✏️
             </button>
@@ -605,9 +695,18 @@ function renderItemsList() {
             <button
               type="button"
               onclick="window.openApplyToOthersModal('${item.id}')"
-              class="p-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 transition cursor-pointer text-xs"
+              class="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 transition cursor-pointer text-xs active:scale-95"
               title="${isEn ? 'Apply to other machines' : 'تطبيق على ماكينات أخرى'}">
               🚀
+            </button>
+
+            <!-- حذف نهائي -->
+            <button
+              type="button"
+              onclick="window.deleteChecklistItemPermanent('${item.id}')"
+              class="p-2 rounded-xl bg-red-600/15 hover:bg-red-600/30 text-red-400 border border-red-500/30 transition cursor-pointer text-xs active:scale-95"
+              title="${isEn ? 'Delete permanently' : 'حذف نهائي'}">
+              🗑️
             </button>
           </div>
         </div>
@@ -616,9 +715,9 @@ function renderItemsList() {
   }).join('');
 
   container.innerHTML = `
-    <div class="flex items-center justify-between px-1 text-xs text-gray-400 font-bold mb-1">
-      <span>${currentItems.length} ${tr.itemsCount}</span>
-      <span class="text-[10px] text-gray-500 font-normal">${isEn ? 'Click ▲▼ to reorder items' : 'استخدم الأسهم ▲▼ لإعادة الترتيب'}</span>
+    <div class="flex items-center justify-between px-1 text-xs text-slate-400 font-bold mb-1">
+      <span>${filtered.length} من أصل ${currentItems.length} ${tr.itemsCount}</span>
+      <span class="text-[10px] text-slate-500 font-normal">${isEn ? 'Use ▲▼ to reorder items' : 'استخدم الأسهم ▲▼ لإعادة ترتيب البنود'}</span>
     </div>
     <div class="space-y-2">
       ${itemsHtml}
@@ -655,6 +754,21 @@ window.toggleChecklistItemActive = function (itemId) {
 
   item.updatedAt = new Date().toISOString();
   item.updatedBy = localStorage.getItem('name') || 'Manager';
+
+  renderItemsList();
+};
+
+window.deleteChecklistItemPermanent = function (itemId) {
+  const item = currentItems.find(i => i.id === itemId);
+  if (!item) return;
+
+  const tr = t();
+  if (!confirm(tr.confirmPermanentDelete)) return;
+
+  currentItems = currentItems.filter(i => i.id !== itemId);
+  currentItems.forEach((it, idx) => {
+    it.order = idx + 1;
+  });
 
   renderItemsList();
 };
@@ -702,18 +816,18 @@ function renderItemFormModal(itemData) {
   const howToEn = itemData.howTo?.en || '';
 
   modalContainer.innerHTML = `
-    <div id="cbItemFormModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
+    <div id="cbItemFormModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
         
         <!-- Header -->
-        <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between shrink-0">
+        <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <span class="text-base">${isEdit ? '✏️' : '➕'}</span>
             <h3 class="font-bold text-white text-sm">
               ${isEdit ? (isEn ? 'Edit Inspection Point' : 'تعديل بند الفحص') : (isEn ? 'Add New Inspection Point' : 'إضافة بند فحص جديد')}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbItemFormModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbItemFormModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <!-- Form Body -->
@@ -729,7 +843,7 @@ function renderItemFormModal(itemData) {
 
             <!-- النص العربي -->
             <div>
-              <label class="block text-[11px] font-bold text-gray-300 mb-1">
+              <label class="block text-[11px] font-bold text-slate-300 mb-1">
                 ${isEn ? 'Description (Arabic) *' : 'نص البند (بالعربية) *'}
               </label>
               <textarea
@@ -737,12 +851,12 @@ function renderItemFormModal(itemData) {
                 required
                 rows="2"
                 placeholder="${isEn ? 'e.g. Check main oil level...' : 'مثال: فحص منسوب الزيت في خزان التزييت الرئيسي...'}"
-                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition resize-none">${escapeHtml(arText)}</textarea>
+                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition resize-none shadow-inner">${escapeHtml(arText)}</textarea>
             </div>
 
             <!-- النص الإنجليزي -->
             <div>
-              <label class="block text-[11px] font-bold text-gray-300 mb-1">
+              <label class="block text-[11px] font-bold text-slate-300 mb-1">
                 ${isEn ? 'Description (English)' : 'نص البند (بالإنجليزي - اختياري)'}
               </label>
               <input
@@ -750,19 +864,19 @@ function renderItemFormModal(itemData) {
                 type="text"
                 value="${escapeHtml(enText)}"
                 placeholder="e.g. Check lubrication oil level..."
-                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
             </div>
 
             <!-- نوع التقييم -->
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[11px] font-bold text-gray-300 mb-1">
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">
                   ${isEn ? 'Evaluation Type' : 'نوع الفحص'}
                 </label>
                 <select
                   id="cbfType"
                   onchange="window.onItemTypeChanged(this.value)"
-                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
                   <option value="ok_nok" ${itemData.type === 'ok_nok' ? 'selected' : ''}>✅ ${isEn ? 'OK / Not OK' : 'سليم / غير سليم'}</option>
                   <option value="numeric" ${itemData.type === 'numeric' ? 'selected' : ''}>🔢 ${isEn ? 'Numeric Reading' : 'قراءة رقمية'}</option>
                   <option value="text" ${itemData.type === 'text' ? 'selected' : ''}>📝 ${isEn ? 'Text Note' : 'ملاحظة نصية'}</option>
@@ -777,7 +891,7 @@ function renderItemFormModal(itemData) {
                 </label>
                 <select
                   id="cbfPillar"
-                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-emerald-500 transition font-bold">
+                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-emerald-500 transition font-bold">
                   ${FIVE_S_PILLARS.map(p => `
                     <option value="${p.id}" ${itemData.pillar === p.id ? 'selected' : ''}>${isEn ? p.en : p.ar}</option>
                   `).join('')}
@@ -785,12 +899,12 @@ function renderItemFormModal(itemData) {
               </div>
               ` : `
               <div>
-                <label class="block text-[11px] font-bold text-gray-300 mb-1">
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">
                   ${isEn ? 'Frequency' : 'الدورية'}
                 </label>
                 <select
                   id="cbfFrequency"
-                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
                   <option value="daily" ${itemData.frequency === 'daily' ? 'selected' : ''}>${isEn ? 'Daily' : 'يومي'}</option>
                   <option value="shift" ${itemData.frequency === 'shift' ? 'selected' : ''}>${isEn ? 'Every Shift' : 'كل وردية'}</option>
                   <option value="weekly" ${itemData.frequency === 'weekly' ? 'selected' : ''}>${isEn ? 'Weekly' : 'أسبوعي'}</option>
@@ -800,52 +914,52 @@ function renderItemFormModal(itemData) {
             </div>
 
             <!-- الحقول الرقمية المخصصة (تظهر فقط عند اختيار numeric) -->
-            <div id="cbfNumericFields" class="${itemData.type === 'numeric' ? '' : 'hidden'} p-3 rounded-xl bg-[#0F172A] border border-gray-800 space-y-2">
+            <div id="cbfNumericFields" class="${itemData.type === 'numeric' ? '' : 'hidden'} p-3 rounded-xl bg-[#0F172A] border border-slate-800 space-y-2">
               <div class="text-[10px] font-bold text-blue-300">⚙️ ${isEn ? 'Numeric Limits & Unit:' : 'الحدود الرقمية ووحدة القياس:'}</div>
               <div class="grid grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[9.5px] text-gray-400 mb-1">${isEn ? 'Min' : 'الحد الأدنى'}</label>
-                  <input id="cbfMin" type="number" step="any" value="${itemData.min != null ? itemData.min : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-white text-xs">
+                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Min' : 'الحد الأدنى'}</label>
+                  <input id="cbfMin" type="number" step="any" value="${itemData.min != null ? itemData.min : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-[9.5px] text-gray-400 mb-1">${isEn ? 'Max' : 'الحد الأقصى'}</label>
-                  <input id="cbfMax" type="number" step="any" value="${itemData.max != null ? itemData.max : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-white text-xs">
+                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Max' : 'الحد الأقصى'}</label>
+                  <input id="cbfMax" type="number" step="any" value="${itemData.max != null ? itemData.max : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-[9.5px] text-gray-400 mb-1">${isEn ? 'Unit' : 'الوحدة'}</label>
-                  <input id="cbfUnit" type="text" value="${escapeHtml(itemData.unit || '')}" placeholder="Bar / °C" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-white text-xs">
+                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Unit' : 'الوحدة'}</label>
+                  <input id="cbfUnit" type="text" value="${escapeHtml(itemData.unit || '')}" placeholder="Bar / °C" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
                 </div>
               </div>
             </div>
           </div>
 
           <!-- STEP 2: خيارات متقدمة قابلة للطي (Collapsible) -->
-          <details class="group rounded-xl border border-gray-800 bg-[#0F172A]/50 overflow-hidden">
-            <summary class="p-3 text-[11px] font-bold text-gray-300 cursor-pointer flex items-center justify-between select-none hover:bg-gray-800/40">
+          <details class="group rounded-xl border border-slate-800 bg-[#0F172A]/50 overflow-hidden" open>
+            <summary class="p-3 text-[11px] font-bold text-slate-300 cursor-pointer flex items-center justify-between select-none hover:bg-slate-800/40">
               <span class="flex items-center gap-1.5">
                 <span>2️⃣</span>
                 <span>${isEn ? 'Advanced Options (Critical, Photos, How-To)' : 'خيارات متقدمة (حرج، صور، إرشادات الفحص)'}</span>
               </span>
-              <span class="text-xs text-gray-500 transition-transform group-open:rotate-180">▼</span>
+              <span class="text-xs text-slate-500 transition-transform group-open:rotate-180">▼</span>
             </summary>
 
-            <div class="p-3 pt-1 space-y-3 border-t border-gray-800/80">
+            <div class="p-3 pt-1 space-y-3 border-t border-slate-800/80">
               <!-- أزرار الاختيار (Checkboxes) -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                <label class="flex items-center gap-2 p-2 rounded-lg bg-[#1E293B] border border-gray-700/60 cursor-pointer">
-                  <input type="checkbox" id="cbfCritical" ${itemData.critical ? 'checked' : ''} class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-gray-800 border-gray-600">
+                <label class="flex items-center gap-2 p-2 rounded-lg bg-[#1E293B] border border-slate-700/60 cursor-pointer">
+                  <input type="checkbox" id="cbfCritical" ${itemData.critical ? 'checked' : ''} class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-600">
                   <span class="text-xs text-amber-300 font-bold">⚠️ ${isEn ? 'Critical Item' : 'بند حرج'}</span>
                 </label>
 
-                <label class="flex items-center gap-2 p-2 rounded-lg bg-[#1E293B] border border-gray-700/60 cursor-pointer">
-                  <input type="checkbox" id="cbfPhotoRequired" ${itemData.photoRequired ? 'checked' : ''} class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 bg-gray-800 border-gray-600">
+                <label class="flex items-center gap-2 p-2 rounded-lg bg-[#1E293B] border border-slate-700/60 cursor-pointer">
+                  <input type="checkbox" id="cbfPhotoRequired" ${itemData.photoRequired ? 'checked' : ''} class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 bg-slate-800 border-slate-600">
                   <span class="text-xs text-sky-300 font-bold">📷 ${isEn ? 'Photo Required if NOT OK' : 'صورة إجبارية عند العطل'}</span>
                 </label>
               </div>
 
               <!-- تعليمات الفحص (How-To) -->
               <div>
-                <label class="block text-[10px] font-bold text-gray-400 mb-1">
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">
                   💡 ${isEn ? 'Inspection Instructions / How-To (Arabic):' : 'تعليمات/إرشادات الفحص السريع للفني:'}
                 </label>
                 <input
@@ -853,11 +967,11 @@ function renderItemFormModal(itemData) {
                   type="text"
                   value="${escapeHtml(howToAr)}"
                   placeholder="${isEn ? 'Short instruction for the technician...' : 'مثال: وجّه مقياس الحرارة لمنتصف محرك السحب...'}"
-                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
               </div>
 
               <div>
-                <label class="block text-[10px] font-bold text-gray-400 mb-1">
+                <label class="block text-[10px] font-bold text-slate-400 mb-1">
                   💡 ${isEn ? 'Inspection Instructions (English):' : 'تعليمات الفحص بالإنجليزي:'}
                 </label>
                 <input
@@ -865,7 +979,7 @@ function renderItemFormModal(itemData) {
                   type="text"
                   value="${escapeHtml(howToEn)}"
                   placeholder="Short instruction in English..."
-                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
               </div>
             </div>
           </details>
@@ -875,7 +989,7 @@ function renderItemFormModal(itemData) {
             <button
               type="button"
               onclick="document.getElementById('cbItemFormModal')?.remove()"
-              class="px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-xs font-bold text-gray-300 transition">
+              class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition cursor-pointer">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
             <button
@@ -982,17 +1096,17 @@ window.openPresetsModal = function () {
   const presets = PRESET_LIBRARY[currentTab] || [];
 
   const categoriesHtml = presets.map((cat, catIdx) => `
-    <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-2">
+    <div class="bg-[#0F172A] border border-slate-800 rounded-xl p-3 space-y-2">
       <h4 class="text-xs font-bold text-purple-400 flex items-center gap-1.5">
         <span>📁</span>
         <span>${cat.categoryAr}</span>
       </h4>
       <div class="space-y-1.5">
         ${cat.items.map((it, itIdx) => `
-          <div class="flex items-center justify-between p-2 rounded-lg bg-[#1E293B] hover:bg-slate-800/80 transition text-xs border border-gray-700/50">
+          <div class="flex items-center justify-between p-2 rounded-lg bg-[#1E293B] hover:bg-slate-800/80 transition text-xs border border-slate-700/50">
             <div class="min-w-0 pr-2">
               <div class="font-bold text-white text-[11px] truncate">${escapeHtml(it.label.ar)}</div>
-              <div class="text-[9.5px] text-gray-400 truncate">${escapeHtml(it.label.en || '')}</div>
+              <div class="text-[9.5px] text-slate-400 truncate">${escapeHtml(it.label.en || '')}</div>
             </div>
             <button
               type="button"
@@ -1007,19 +1121,19 @@ window.openPresetsModal = function () {
   `).join('');
 
   modalContainer.innerHTML = `
-    <div id="cbPresetsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
-        <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between shrink-0">
+    <div id="cbPresetsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+        <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <span>💡</span>
             <h3 class="font-bold text-white text-sm">
               ${isEn ? 'Common Checklist Presets Library' : 'مكتبة بنود الفحص الشائعة'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbPresetsModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbPresetsModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 overflow-y-auto space-y-3">
-          <p class="text-[11px] text-gray-400">
+          <p class="text-[11px] text-slate-400">
             ${isEn ? 'Add ready-made standardized points to your checklist with a single click:' : 'أضف بنود فحص قياسية معتمدة إلى قائمة فحص الماكينة بضغطة واحدة:'}
           </p>
           ${categoriesHtml}
@@ -1061,7 +1175,7 @@ window.addPresetItem = function (catIdx, itIdx) {
   const btn = event?.currentTarget;
   if (btn) {
     btn.textContent = isEn ? 'Added ✅' : 'تمت الإضافة ✅';
-    btn.className = 'px-2.5 py-1 rounded-lg bg-gray-700 text-emerald-400 font-bold text-[10px] shrink-0';
+    btn.className = 'px-2.5 py-1 rounded-lg bg-slate-700 text-emerald-400 font-bold text-[10px] shrink-0';
     setTimeout(() => {
       btn.textContent = isEn ? 'Add' : 'إضافة';
       btn.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] active:scale-95 transition shrink-0 cursor-pointer';
@@ -1080,36 +1194,47 @@ window.openCopyFromModal = function () {
   const otherMachines = allMachineOptions.filter(m => m.value !== currentTargetId);
 
   modalContainer.innerHTML = `
-    <div id="cbCopyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto">
-        <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between">
+    <div id="cbCopyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto">
+        <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span>📋</span>
             <h3 class="font-bold text-white text-sm">
               ${isEn ? 'Copy Template from Another Machine' : 'نسخ القالب من ماكينة أخرى'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 space-y-3">
-          <p class="text-[11px] text-gray-400">
+          <p class="text-[11px] text-slate-400">
             ${isEn
               ? `Select a source machine to copy its ${currentTab.toUpperCase()} inspection points to <strong>${escapeHtml(currentTargetId)}</strong>:`
               : `اختر ماكينة المصدر لنسخ بنود فحص الـ ${currentTab.toUpperCase()} منها إلى <strong>${escapeHtml(currentTargetId)}</strong>:`}
           </p>
 
-          <select id="cbCopySourceSelect" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500">
+          <select id="cbCopySourceSelect" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500">
             <option value="" disabled selected>${isEn ? 'Select Source Machine...' : 'اختر ماكينة المصدر...'}</option>
             ${otherMachines.map(m => `
               <option value="${m.value}">🏭 ${m.value}${m.line ? ` (${formatLineLabel(m.line)})` : ''}</option>
             `).join('')}
           </select>
 
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 space-y-1 text-xs">
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="copyMode" value="replace" checked class="text-blue-600 bg-slate-800 border-slate-700">
+              <span class="text-slate-200 font-bold">${isEn ? 'Replace current items completely' : 'استبدال البنود الحالية بالكامل'}</span>
+            </label>
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="copyMode" value="merge" class="text-blue-600 bg-slate-800 border-slate-700">
+              <span class="text-slate-200 font-bold">${isEn ? 'Merge with current items' : 'دمج البنود الجديدة مع البنود الحالية'}</span>
+            </label>
+          </div>
+
           <div class="pt-2 flex items-center justify-end gap-2">
-            <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-gray-800 text-xs font-bold text-gray-300">
+            <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
-            <button type="button" onclick="window.confirmCopyFromMachine()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition">
+            <button type="button" onclick="window.confirmCopyFromMachine()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
               ${isEn ? 'Copy Points' : 'نسخ البنود'}
             </button>
           </div>
@@ -1124,6 +1249,7 @@ window.confirmCopyFromMachine = async function () {
   const sourceVal = document.getElementById('cbCopySourceSelect')?.value;
   if (!sourceVal) return;
 
+  const copyMode = document.querySelector('input[name="copyMode"]:checked')?.value || 'replace';
   const adapter = ADAPTERS[currentTab];
   try {
     const snap = await getDoc(doc(db, adapter.collection, sourceVal));
@@ -1132,17 +1258,25 @@ window.confirmCopyFromMachine = async function () {
       return;
     }
 
-    if (!confirm(isEn ? `Replace current items with ${snap.data().items.length} points from ${sourceVal}?` : `استبدال البنود الحالية بـ (${snap.data().items.length}) بند من ${sourceVal}؟`)) {
-      return;
-    }
-
-    // نسخ البنود مع تجديد المعرفات لتجنب التضارب
-    currentItems = snap.data().items.map((item, idx) => ({
+    const copiedItems = snap.data().items.map((item, idx) => ({
       ...item,
       id: `item_${Date.now()}_${idx}`,
-      order: idx + 1,
       active: item.active !== false
     }));
+
+    if (copyMode === 'merge') {
+      copiedItems.forEach(item => {
+        if (!currentItems.some(i => i.label?.ar === item.label?.ar)) {
+          currentItems.push({ ...item, order: currentItems.length + 1 });
+        }
+      });
+    } else {
+      if (!confirm(isEn ? `Replace current items with ${copiedItems.length} points from ${sourceVal}?` : `استبدال البنود الحالية بـ (${copiedItems.length}) بند من ${sourceVal}؟`)) {
+        return;
+      }
+      currentItems = copiedItems;
+      currentItems.forEach((it, idx) => { it.order = idx + 1; });
+    }
 
     document.getElementById('cbCopyModal')?.remove();
     renderItemsList();
@@ -1167,51 +1301,51 @@ window.openApplyToOthersModal = function (itemId) {
   const otherMachines = allMachineOptions.filter(m => m.value !== currentTargetId);
 
   modalContainer.innerHTML = `
-    <div id="cbApplyModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
-        <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between">
+    <div id="cbApplyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+        <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span>🚀</span>
             <h3 class="font-bold text-white text-sm">
               ${isEn ? 'Apply Item to Other Machines' : 'تطبيق هذا البند على ماكينات أخرى'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto">
-          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-gray-800 text-xs text-blue-300 font-bold">
+          <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 text-xs text-blue-300 font-bold">
             ${escapeHtml(labelText)}
           </div>
 
-          <p class="text-[11px] text-gray-400">
+          <p class="text-[11px] text-slate-400">
             ${isEn ? 'Select target machines to add or sync this item into:' : 'حدد الماكينات التي ترغب في إضافة أو مزامنة هذا البند إليها:'}
           </p>
 
           <div class="flex items-center justify-between text-[11px] pb-1">
-            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = true)" class="text-blue-400 hover:underline">
+            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = true)" class="text-blue-400 hover:underline cursor-pointer font-bold">
               ${isEn ? 'Select All' : 'تحديد الكل'}
             </button>
-            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = false)" class="text-gray-400 hover:underline">
+            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = false)" class="text-slate-400 hover:underline cursor-pointer font-bold">
               ${isEn ? 'Deselect All' : 'إلغاء التحديد'}
             </button>
           </div>
 
           <div class="max-h-52 overflow-y-auto space-y-1.5 pr-1">
             ${otherMachines.map(m => `
-              <label class="flex items-center gap-2 p-2 rounded-lg bg-[#0F172A] border border-gray-800 hover:border-gray-700 cursor-pointer text-xs">
-                <input type="checkbox" value="${m.value}" class="cb-target-chk w-4 h-4 rounded text-blue-600 bg-gray-800 border-gray-700">
+              <label class="flex items-center gap-2 p-2 rounded-lg bg-[#0F172A] border border-slate-800 hover:border-slate-700 cursor-pointer text-xs">
+                <input type="checkbox" value="${m.value}" class="cb-target-chk w-4 h-4 rounded text-blue-600 bg-slate-800 border-slate-700">
                 <span class="font-medium text-white">${m.value}</span>
-                ${m.line ? `<span class="text-[10px] text-gray-500">(${formatLineLabel(m.line)})</span>` : ''}
+                ${m.line ? `<span class="text-[10px] text-slate-500">(${formatLineLabel(m.line)})</span>` : ''}
               </label>
             `).join('')}
           </div>
 
-          <div class="pt-2 flex items-center justify-end gap-2 border-t border-gray-800">
-            <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-gray-800 text-xs font-bold text-gray-300">
+          <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
+            <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
-            <button type="button" onclick="window.confirmApplyItemToMachines('${item.id}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition">
+            <button type="button" onclick="window.confirmApplyItemToMachines('${item.id}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
               ${isEn ? 'Apply Item' : 'تطبيق البند'}
             </button>
           </div>
@@ -1283,50 +1417,50 @@ window.openTechPreviewModal = function () {
     const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
 
     return `
-      <div class="bg-[#1E293B] p-3.5 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-2.5">
+      <div class="bg-[#1E293B] p-3.5 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-slate-800'} space-y-2.5">
         <div class="flex items-start justify-between gap-2">
-          <div class="text-xs font-bold text-gray-200">
+          <div class="text-xs font-bold text-slate-200">
             <span class="text-blue-400 font-mono">#${idx + 1}</span> ${escapeHtml(labelText)}
           </div>
           ${item.critical ? `<span class="shrink-0 text-[9.5px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>` : ''}
         </div>
-        ${howToText ? `<div class="text-[10px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>` : ''}
+        ${howToText ? `<div class="text-[10px] text-sky-300 bg-sky-950/40 p-2 rounded-xl border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>` : ''}
 
         ${item.type === 'numeric' ? `
-          <div class="flex items-center gap-2 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
+          <div class="flex items-center gap-2 bg-[#0F172A] p-2 rounded-lg border border-slate-700 w-full sm:w-1/2">
             <input type="number" placeholder="${isEn ? 'Enter reading' : 'أدخل القراءة'}" class="w-full bg-transparent text-xs text-white outline-none">
-            <span class="text-xs text-gray-400 font-bold px-1">${item.unit || ''}</span>
+            <span class="text-xs text-slate-400 font-bold px-1">${item.unit || ''}</span>
           </div>
           ${(item.min != null || item.max != null) ? `
-            <div class="text-[9.5px] text-gray-500 font-mono">
+            <div class="text-[9.5px] text-slate-400 font-mono">
               [Min: ${item.min != null ? item.min : '-'} | Max: ${item.max != null ? item.max : '-'}]
             </div>
           ` : ''}
         ` : item.type === 'text' ? `
-          <input type="text" placeholder="${isEn ? 'Notes / Observations...' : 'ملاحظات الفني...'}" class="w-full p-2 bg-[#0F172A] rounded-lg border border-gray-700 text-xs text-white outline-none">
+          <input type="text" placeholder="${isEn ? 'Notes / Observations...' : 'ملاحظات الفني...'}" class="w-full p-2 bg-[#0F172A] rounded-lg border border-slate-700 text-xs text-white outline-none">
         ` : ''}
 
         <div class="grid grid-cols-3 gap-1.5 pt-1">
-          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-emerald-400 hover:bg-emerald-950/30">${isEn ? 'OK' : 'سليم'}</button>
-          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-red-400 hover:bg-red-950/30">${isEn ? 'Not OK' : 'غير سليم'}</button>
-          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-400 hover:bg-gray-800">${isEn ? 'N/A' : 'لا ينطبق'}</button>
+          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-emerald-400 hover:bg-emerald-950/30">${isEn ? 'OK' : 'سليم'}</button>
+          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-red-400 hover:bg-red-950/30">${isEn ? 'Not OK' : 'غير سليم'}</button>
+          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-slate-400 hover:bg-slate-800">${isEn ? 'N/A' : 'لا ينطبق'}</button>
         </div>
       </div>
     `;
   }).join('');
 
   modalContainer.innerHTML = `
-    <div id="cbTechPreviewModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#0F172A] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]">
-        <div class="p-4 bg-[#1E293B] border-b border-gray-800 flex items-center justify-between shrink-0">
+    <div id="cbTechPreviewModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#0F172A] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]">
+        <div class="p-4 bg-[#1E293B] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div>
             <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
               <span>👁️</span>
               <span>${isEn ? 'Technician View Simulation' : 'معاينة شاشة الفحص كما يراها الفني'}</span>
             </h3>
-            <p class="text-[10px] text-gray-400 mt-0.5">${currentTargetId} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">${currentTargetId} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
           </div>
-          <button type="button" onclick="document.getElementById('cbTechPreviewModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbTechPreviewModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 overflow-y-auto space-y-3 bg-[#0F172A]">
           ${previewCards}
@@ -1347,16 +1481,16 @@ window.openHistoryModal = function () {
   const historyEntries = loadedHistory || [];
 
   modalContainer.innerHTML = `
-    <div id="cbHistoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
-        <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between shrink-0">
+    <div id="cbHistoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+        <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <span>🕒</span>
             <h3 class="font-bold text-white text-sm">
               ${isEn ? 'Template Version History' : 'سجل تعديلات وإصدارات القالب'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbHistoryModal')?.remove()" class="p-1.5 text-gray-400 hover:text-white rounded-lg transition">✕</button>
+          <button type="button" onclick="document.getElementById('cbHistoryModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <div class="p-4 overflow-y-auto space-y-2">
@@ -1366,16 +1500,16 @@ window.openHistoryModal = function () {
           </div>
 
           ${historyEntries.length === 0 ? `
-            <div class="text-center py-6 text-xs text-gray-500">
+            <div class="text-center py-6 text-xs text-slate-500">
               ${isEn ? 'No previous revisions recorded yet.' : 'لا توجد إصدارات سابقة مسجلة حتى الآن.'}
             </div>
           ` : `
             <div class="space-y-1.5">
               ${historyEntries.slice().reverse().map(h => `
-                <div class="p-2.5 rounded-xl bg-[#0F172A] border border-gray-800 text-xs flex items-center justify-between">
+                <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 text-xs flex items-center justify-between">
                   <div>
-                    <div class="font-bold text-gray-200">v${h.version} • ${h.itemsCount || 0} ${isEn ? 'items' : 'بند'}</div>
-                    <div class="text-[10px] text-gray-500 mt-0.5">${h.updatedBy || 'Manager'} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
+                    <div class="font-bold text-slate-200">v${h.version} • ${h.itemsCount || 0} ${isEn ? 'items' : 'بند'}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">${h.updatedBy || 'Manager'} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
                   </div>
                 </div>
               `).join('')}
