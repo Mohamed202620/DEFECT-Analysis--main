@@ -410,6 +410,10 @@ window.startQrScan = async function () {
   const startBtn = document.getElementById('qrStartBtn');
   const stopBtn = document.getElementById('qrStopBtn');
 
+  // Test 16: ضغطة تانية أثناء تشغيل الكاميرا كانت بتفتح Stream ثاني
+  // وتضيّع مرجع الأول (الكاميرا تفضل شغالة بدون طريقة لإيقافها)
+  if (videoStream) return;
+
   try {
     videoStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: 'environment' }
@@ -419,8 +423,18 @@ window.startQrScan = async function () {
     return;
   }
 
-  video.srcObject = videoStream;
-  await video.play();
+  // Test 16: video.play() كانت خارج أي try - رفضها (مثلاً بعد ما
+  // المستخدم يغادر الصفحة) كان بيسيب الكاميرا شغالة برفض Promise غير معالَج
+  try {
+    if (!video) throw new Error("video element missing");
+    video.srcObject = videoStream;
+    await video.play();
+  } catch (playError) {
+    console.warn("QR video play failed:", playError);
+    window.stopQrScan();
+    setQrStatus(tr.cameraError, true);
+    return;
+  }
 
   videoBox?.classList.remove('hidden');
   startBtn?.classList.add('hidden');
