@@ -1416,3 +1416,61 @@ export async function reopenTicketApi(ticketId, reason) {
     return { status: "error", message: error.message };
   }
 }
+
+/**
+ * اعتذار الفني المسند إليه وإعادة التذكرة لقائمة الانتظار (pending)
+ */
+export async function declineTicketApi(ticketId, reason) {
+  try {
+    const cleanReason = String(reason || "").trim() || "اعتذر الفني عن الاستلام وسحب العطل لإعادة الإسناد";
+    const myName = localStorage.getItem("name") || "فني";
+
+    await updateDoc(
+      doc(db, "tickets", ticketId),
+      stampUpdate({
+        status: "pending",
+        assignedTo: null,
+        assignedToUid: null,
+        declineReason: cleanReason,
+        declinedBy: myName,
+        declinedAt: new Date().toISOString()
+      })
+    );
+
+    addTicketLog(ticketId, {
+      action: "decline",
+      fromStatus: "assigned",
+      toStatus: "pending",
+      note: cleanReason
+    });
+
+    notifyManagersOfTicketDecline(ticketId, cleanReason).catch(err => {
+      console.error("Error notifying managers of ticket decline:", err);
+    });
+
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error declining ticket:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+async function notifyManagersOfTicketDecline(ticketId, reason) {
+  try {
+    const managersRes = await fetchManagersAndAdminsApi();
+    if (managersRes.status === "success" && Array.isArray(managersRes.data)) {
+      const myName = localStorage.getItem("name") || "الفني";
+      for (const mgr of managersRes.data) {
+        if (mgr.id) {
+          createNotification(mgr.id, {
+            type: "declined",
+            message: `اعتذر الفني (${myName}) عن التذكرة وأعادها لقائمة الانتظار: ${reason}`,
+            ticketId
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Could not notify managers of decline:", err);
+  }
+}

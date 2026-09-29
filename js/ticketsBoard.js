@@ -19,6 +19,7 @@ import {
   closeTicketApi,
   bulkCloseTicketsApi,
   reopenTicketApi,
+  declineTicketApi,
   fetchMyNotificationsApi,
   markNotificationReadApi,
   fetchTicketsForReportApi
@@ -705,6 +706,58 @@ window.handleTicketAction = async function (ticketId, action) {
     if (!values || !values.operatorFeedback) return;
 
     result = await reopenTicketApi(ticketId, values.operatorFeedback);
+
+  } else if (action === "decline") {
+
+    const isEn = window.currentLang === "en";
+    const values = await openActionModal({
+      title: isEn ? "↩️ Decline Ticket & Revert to Pending" : "↩️ الاعتذار عن العطل وإعادته لقائمة الانتظار",
+      submitLabel: isEn ? "Decline Ticket" : "تأكيد الاعتذار والإعادة",
+      fields: [
+        {
+          id: "declineReason",
+          label: isEn ? "Reason for declining or unavailability" : "سبب الاعتذار أو عدم المتاحة للإصلاح",
+          type: "textarea",
+          placeholder: isEn ? "Write why you are unable to handle this ticket..." : "اكتب سبب الاعتذار أو التعذر عن تنفيذ العطل...",
+          required: true
+        }
+      ]
+    });
+
+    if (!values || !values.declineReason) return;
+
+    result = await declineTicketApi(ticketId, values.declineReason);
+
+  } else if (action === "self_resolve") {
+
+    const isEn = window.currentLang === "en";
+    const values = await openActionModal({
+      title: isEn ? "🛠️ Self-Resolved by Reporter" : "🛠️ إصلاح ذاتي بواسطة المُبلغ",
+      submitLabel: isEn ? "Confirm Fix" : "تأكيد الإصلاح الذاتي",
+      fields: [
+        {
+          id: "mechanicNotes",
+          label: isEn ? "Repair details & steps taken" : "تفاصيل وطريقة الإصلاح الذاتي التي قمت بها",
+          type: "textarea",
+          placeholder: isEn ? "Describe how you resolved the breakdown..." : "اكتب كيف قمت بإصلاح العطل فورياً...",
+          required: true
+        },
+        {
+          id: "afterImages",
+          label: isEn ? "After-repair photos (optional)" : "صور بعد الإصلاح (اختياري)",
+          type: "images",
+          required: false
+        }
+      ]
+    });
+
+    if (!values || !values.mechanicNotes) return;
+
+    result = await resolveTicketApi(
+      ticketId,
+      (isEn ? "Self-resolved by reporter: " : "تم الإصلاح ذاتياً بواسطة المُبلغ: ") + values.mechanicNotes,
+      values.afterImages
+    );
 
   } else {
     return;

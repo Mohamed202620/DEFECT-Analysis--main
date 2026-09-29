@@ -70,6 +70,9 @@ window.confirmIssue = async function() {
     btn.innerHTML = "⏳ جاري الإرسال...";
   }
 
+  const isSelfResolved = document.getElementById('isSelfResolved')?.checked || false;
+  const selfResolvedNotes = document.getElementById('selfResolvedNotes')?.value?.trim() || "";
+
   const payload = {
     // ✅ 4. تم إزالة action: "saveIssue"
     issueId,
@@ -97,10 +100,13 @@ window.confirmIssue = async function() {
       shift: localStorage.getItem("shift") || ""
     },
 
-    // دورة حياة التذكرة تبدأ دائماً بـ pending (كانت "open" سابقاً -
-    // تم تصحيحها لتطابق حالات: pending -> assigned -> resolved ->
-    // closed | reopened)
-    status: "pending",
+    status: isSelfResolved ? "resolved" : "pending",
+    ...(isSelfResolved && {
+      isSelfResolved: true,
+      mechanicNotes: "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): " + (selfResolvedNotes || "تم الفحص والتصليح الميداني مباشرة"),
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: localStorage.getItem("name") || "المُبلغ"
+    }),
     createdAt: new Date().toISOString()
   };
 

@@ -199,21 +199,33 @@ export function getTicketActions(ticket) {
       if (isManagerRole(role) || isAdmin) {
         actions.push({ key: "assign", label: ta().assign });
       }
+      // إمكانية إصلاح العطل ذاتياً بواسطة صاحب البلاغ
+      if (isReporter) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
+      }
       break;
 
     case "assigned":
-      // الفني المُسند إليه يظهر له زر بدء التنفيذ، وزر تم الإصلاح مباشرة للتسهيل
+      // الفني المُسند إليه يظهر له زر بدء التنفيذ، تم الإصلاح، والاعتذار/إعادة للانتظار
       if (isAssignee) {
         actions.push({ key: "start", label: ta().start });
         actions.push({ key: "resolve", label: ta().resolve });
+        actions.push({ key: "decline", label: ta().decline || "↩️ اعتذار / إعادة للانتظار" });
+      }
+      if (isReporter && !isAssignee) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
       break;
 
     case "in_progress":
     case "reopened":
-      // الفني المُسند إليه فقط يقدر ينهي المعالجة ويحوله لـ resolved
+      // الفني المُسند إليه يقدر ينهي المعالجة أو يعتذر ويعيد البلاغ للانتظار
       if (isAssignee) {
         actions.push({ key: "resolve", label: ta().resolve });
+        actions.push({ key: "decline", label: ta().decline || "↩️ اعتذار / إعادة للانتظار" });
+      }
+      if (isReporter && !isAssignee) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
       break;
 

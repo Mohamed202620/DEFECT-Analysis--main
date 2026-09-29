@@ -257,6 +257,17 @@ window.selectIssueType = function(typeVal) {
   }
 };
 
+window.toggleSelfResolvedFields = function(checked) {
+  const box = document.getElementById('selfResolvedBox');
+  if (box) {
+    if (checked) {
+      box.classList.remove('hidden');
+    } else {
+      box.classList.add('hidden');
+    }
+  }
+};
+
 window.selectIssueCategory = function(catVal) {
   const hiddenInput = document.getElementById('issueCategory');
   if (hiddenInput) hiddenInput.value = catVal;
@@ -475,6 +486,22 @@ export const IssueView = () => {
           galleryButtonClass: "bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg py-1.5 px-2.5 text-slate-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
           buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-1"
         })}
+      </div>
+
+      <!-- 9.5. خيار الإصلاح الذاتي بواسطة المُبلغ -->
+      <div class="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input type="checkbox" id="isSelfResolved" onchange="window.toggleSelfResolvedFields(this.checked)" class="w-4 h-4 rounded border-gray-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 cursor-pointer">
+          <span class="text-xs font-bold text-emerald-300">🛠️ ${isAr ? "تم إصلاح العطل فورياً (صيانة ذاتية بواسطة المُبلغ)" : "Fixed immediately (Self-resolved by reporter)"}</span>
+        </label>
+        <div id="selfResolvedBox" class="hidden space-y-2 pt-1 border-t border-emerald-500/20">
+          <div>
+            <label class="block text-[11px] font-bold text-slate-300 mb-1">
+              ${isAr ? "خطوات وطريقة الإصلاح الذاتي" : "Self-repair steps"}
+            </label>
+            <input id="selfResolvedNotes" type="text" placeholder="${isAr ? "اكتب باختصار كيف تم إصلاح العطل..." : "Describe how the breakdown was resolved..."}" class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500 transition">
+          </div>
+        </div>
       </div>
 
       <!-- 10. زر الحفظ والإرسال الميداني -->

@@ -809,6 +809,8 @@ export const translations = {
       confirm: "✔️ تأكيد الإغلاق",
       reject: "❌ رفض ورجوع للفني",
       reassign: "🔄 إعادة إسناد",
+      decline: "↩️ اعتذار / إعادة للانتظار",
+      selfResolve: "🛠️ إصلاح ذاتي",
       details: "🔍 تفاصيل"
     },
 
@@ -1450,6 +1452,8 @@ export const translations = {
       confirm: "✔️ Confirm Closure",
       reject: "❌ Reject & Return to Technician",
       reassign: "🔄 Reassign",
+      decline: "↩️ Decline / Revert",
+      selfResolve: "🛠️ Self Resolved",
       details: "🔍 Details"
     },
 

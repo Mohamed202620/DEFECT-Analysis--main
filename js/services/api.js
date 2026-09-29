@@ -55,6 +55,7 @@ export {
   closeTicketApi,
   bulkCloseTicketsApi,
   reopenTicketApi,
+  declineTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
   fetchActiveTicketForMachineApi,

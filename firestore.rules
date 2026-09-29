@@ -209,16 +209,21 @@ service cloud.firestore {
 
       allow read: if isActive();
 
-      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة، لازم تبدأ
-      // pending وتكون منسوبة له فعلياً (reportedByUid)
+      // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة (pending أو resolved عند الإصلاح الذاتي)
       allow create: if isActive()
-                    && request.resource.data.status == "pending"
+                    && request.resource.data.status in ["pending", "resolved"]
                     && request.resource.data.reportedByUid == request.auth.uid;
 
       // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
       allow update: if isActive() && (myRole() == "admin" || isManagerRole())
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned";
+
+      // STEP 2b - (assigned | in_progress) -> pending: اعتذار الفني المُسند إليه وإعادة العطل لقائمة الانتظار
+      allow update: if isActive()
+                    && resource.data.status in ["assigned", "in_progress"]
+                    && request.resource.data.status == "pending"
+                    && (myRole() == "admin" || isManagerRole() || resource.data.assignedToUid == request.auth.uid);
 
       // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة
       // بالتحديد (assignedToUid) بيبدأ التنفيذ فعلياً، أو أدمن
@@ -227,14 +232,11 @@ service cloud.firestore {
                     && request.resource.data.status == "in_progress"
                     && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
 
-      // STEP 4 - (in_progress | assigned | reopened) -> resolved: نفس
-      // الفني المُسند له بيسجّل إتمام الإصلاح (مع صور بعد الإصلاح)، أو
-      // أدمن. (assigned و reopened كانوا شغّالين فقط بسبب القاعدة
-      // العامة المحذوفة - الواجهة بتعرض زر "تم الإصلاح" فيهم فعلاً)
+      // STEP 4 - (pending | in_progress | assigned | reopened) -> resolved: الفني المُسند له أو صاحب البلاغ عند الإصلاح الذاتي
       allow update: if isActive()
-                    && resource.data.status in ["in_progress", "assigned", "reopened"]
+                    && resource.data.status in ["pending", "in_progress", "assigned", "reopened"]
                     && request.resource.data.status == "resolved"
-                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid);
+                    && (myRole() == "admin" || resource.data.assignedToUid == request.auth.uid || resource.data.reportedByUid == request.auth.uid);
 
       // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض مع
       // سبب - الاستثناء الوحيد المسموح للرجوع للخلف): صاحب البلاغ
