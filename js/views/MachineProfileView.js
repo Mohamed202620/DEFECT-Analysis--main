@@ -86,33 +86,6 @@ export const MachineProfileView = () => {
   // resolveMachineFromValue) - الوجود والقسم وخط الإنتاج من مصدر
   // واحد، مفيش منطق منفصل لكل شاشة
   const resolved = resolveMachineFromValue(machine);
-
-  // إصلاح (مؤكد بالاختبار العملي - Test 5): لو الماكينة المحفوظة في
-  // activeMachine (من مسح QR سابق) بقت مش موجودة في الكتالوج الحالي
-  // (اتحذفت أو اتغيّر اسمها بعد كده)، resolved.found بترجع false -
-  // ونصوص "notFoundTitle/notFoundDesc" فوق كانت معرّفة أصلاً بالظبط
-  // لهذه الحالة لكن مالهاش أي استخدام فعلي هنا؛ الصفحة كانت بترسم
-  // بروفايل كامل (بأزرار تسجيل بلاغ/فحوصات شغّالة) لاسم ماكينة مش
-  // موجودة فعلياً (قسم فاضي "-")، بدل رسالة "الماكينة غير موجودة"
-  // الواضحة. هذا الفحص لازم يجي قبل فحص الصلاحية تحت مباشرة، لأن
-  // "الماكينة مش موجودة أصلاً" أسبق منطقياً من "مالكش صلاحية عليها"
-  // (ونفس الترتيب المستخدم في resolveMachineFromValue/QrScannerView.js).
-  if (!resolved.found) {
-    return `
-    <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
-      <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
-        ${isEn ? '← Back' : '← رجوع'}
-      </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-red-500/30 text-center space-y-4">
-        <div class="text-sm font-bold text-red-400">${tr.notFoundTitle}</div>
-        <div class="text-[11px] text-gray-400">${tr.notFoundDesc}</div>
-        <button onclick="window.navigateTo('qr')" class="w-full p-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition">
-          ${tr.scanQr}
-        </button>
-      </div>
-    </div>`;
-  }
-
   const department = resolved.department;
 
   // خط الإنتاج: القيمة اللي اتحفظت وقت فتح الماكينة (من الـQR) لها
@@ -411,29 +384,9 @@ window.openManageAmModal = async function() {
             <span>⚙️</span>
             ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${machine}
           </h3>
-          <div class="flex items-center gap-2">
-            <button onclick="window.openAmBulkImportModal()" class="px-2.5 py-1 bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 rounded-lg text-[10px] font-bold transition flex items-center gap-1">
-              <span>📊</span>
-              <span>${isEn ? 'Excel Import' : 'استيراد إكسيل'}</span>
-            </button>
-            <button onclick="document.getElementById('manageAmModal').remove()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
-              ✕
-            </button>
-          </div>
-        </div>
-        <div class="px-4 py-2 bg-[#1E293B]/70 border-b border-gray-800 flex items-center justify-between gap-2">
-          <span class="text-[11px] text-gray-400 font-medium">${isEn ? 'Quick add from standard library:' : 'إضافة سريعة من بنود الفحص الشائعة:'}</span>
-          <select id="quickAmPointSelect" onchange="window.addQuickAmPoint(this.value); this.value='';" class="bg-[#0F172A] border border-gray-700 text-xs text-blue-300 px-2.5 py-1 rounded-lg outline-none font-bold">
-            <option value="">➕ ${isEn ? 'Select standard item...' : 'اختر بند جاهز...'}</option>
-            <option value="leak">💧 ${isEn ? 'No Oil/Water Leaks' : 'خلو الماكينة من تسريب الزيت/الماء'}</option>
-            <option value="emergency">🛑 ${isEn ? 'Emergency Stop Functional' : 'زر الإيقاف الطارئ يعمل بكفاءة'}</option>
-            <option value="guards">🛡️ ${isEn ? 'Safety Guards Intact' : 'أغطية وحواجز الأمان سليمة'}</option>
-            <option value="air">💨 ${isEn ? 'Pneumatic Pressure (Bar)' : 'ضغط الهواء المضغوط (بار)'}</option>
-            <option value="temp">🌡️ ${isEn ? 'Motor Temperature (°C)' : 'درجة حرارة المحرك (°C)'}</option>
-            <option value="chain">⛓️ ${isEn ? 'Chain/Belt Tension' : 'شد وخلوص السيور والجنازير'}</option>
-            <option value="lubrication">🛢️ ${isEn ? 'Lubrication Oil Level' : 'مستوى زيت التزييت الهيدروليكي'}</option>
-            <option value="sensors">👁️ ${isEn ? 'Sensors Clean & Aligned' : 'نظافة وضبط الحساسات والخلايا الضوئية'}</option>
-          </select>
+          <button onclick="document.getElementById('manageAmModal').remove()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
+            ✕
+          </button>
         </div>
         <div class="p-4 overflow-y-auto flex-1 space-y-3" id="amTemplateItemsContainer">
           <div class="text-center text-xs text-gray-500">${isEn ? 'Loading...' : 'جاري التحميل...'}</div>
@@ -482,79 +435,30 @@ window.renderAmTemplateItems = function() {
   const isEn = (window.currentLang || 'ar') === 'en';
   
   if (!window._currentAmTemplateItems || window._currentAmTemplateItems.length === 0) {
-    container.innerHTML = `<div class="text-center text-xs text-gray-500 py-6">${isEn ? 'No items in checklist.' : 'لا توجد بنود في الفحص.'}</div>`;
+    container.innerHTML = `<div class="text-center text-xs text-gray-500">${isEn ? 'No items in checklist.' : 'لا توجد بنود في الفحص.'}</div>`;
     return;
   }
 
   container.innerHTML = window._currentAmTemplateItems.map((item, index) => `
     <div class="bg-[#0F172A] p-3 rounded-xl border border-gray-800 space-y-2 relative group">
-      <div class="flex items-center justify-between pb-1 border-b border-gray-800/80">
-        <span class="text-[10px] font-bold text-gray-400">#${index + 1}</span>
-        <button onclick="window.removeAmTemplateItem(${index})" class="text-red-400 hover:text-red-300 text-xs px-1.5 py-0.5 rounded hover:bg-red-500/10 transition" title="${isEn ? 'Delete' : 'حذف'}">
-          🗑️ ${isEn ? 'Remove' : 'حذف'}
-        </button>
+      <button onclick="window.removeAmTemplateItem(${index})" class="absolute top-2 right-2 text-red-500 hover:text-red-400 p-1 opacity-50 hover:opacity-100 transition" title="${isEn ? 'Delete' : 'حذف'}">
+        ✕
+      </button>
+      <div>
+        <label class="block text-[10px] text-gray-400 mb-1">AR Text</label>
+        <input type="text" value="${item.ar || ''}" onchange="window._currentAmTemplateItems[${index}].ar = this.value" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
       </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
-          <label class="block text-[10px] font-bold text-gray-400 mb-1">${isEn ? 'Inspection Point (AR) *' : 'بند الفحص (عربي) *'}</label>
-          <input type="text" value="${item.ar || ''}" onchange="window._currentAmTemplateItems[${index}].ar = this.value" placeholder="${isEn ? 'e.g. Check for oil leaks' : 'مثال: نظافة الماكينة وخلوها من التسريب'}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
-        </div>
-        <div>
-          <label class="block text-[10px] font-bold text-gray-400 mb-1">${isEn ? 'Inspection Point (EN)' : 'بند الفحص (إنجليزي)'}</label>
-          <input type="text" value="${item.en || ''}" onchange="window._currentAmTemplateItems[${index}].en = this.value" placeholder="${isEn ? 'Optional English translation' : 'ترجمة إنجليزية اختيارية'}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
-        </div>
-      </div>
-
-      <div class="grid grid-cols-3 gap-2 pt-1">
-        <div>
-          <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'Type' : 'النوع'}</label>
-          <select onchange="window._currentAmTemplateItems[${index}].type = this.value; window.renderAmTemplateItems();" class="w-full p-1.5 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none">
-            <option value="boolean" ${item.type !== 'numeric' ? 'selected' : ''}>${isEn ? 'OK / Not OK' : 'سليم / غير سليم'}</option>
-            <option value="numeric" ${item.type === 'numeric' ? 'selected' : ''}>${isEn ? 'Numeric Reading' : 'قراءة رقمية'}</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'Unit' : 'الوحدة'}</label>
-          <input type="text" value="${item.unit || ''}" onchange="window._currentAmTemplateItems[${index}].unit = this.value" placeholder="Bar / °C / mm" class="w-full p-1.5 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none">
-        </div>
-        <div>
-          <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'Assigned Role' : 'المسؤول'}</label>
-          <select onchange="window._currentAmTemplateItems[${index}].role = this.value;" class="w-full p-1.5 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none">
-            <option value="operator" ${item.role !== 'maintainer' ? 'selected' : ''}>👷 ${isEn ? 'Operator' : 'مشغل'}</option>
-            <option value="maintainer" ${item.role === 'maintainer' ? 'selected' : ''}>🛠️ ${isEn ? 'Maintenance' : 'صيانة'}</option>
-          </select>
-        </div>
+      <div>
+        <label class="block text-[10px] text-gray-400 mb-1">EN Text</label>
+        <input type="text" value="${item.en || ''}" onchange="window._currentAmTemplateItems[${index}].en = this.value" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
       </div>
     </div>
   `).join('');
 };
 
-window.addQuickAmPoint = function(presetKey) {
-  if (!presetKey) return;
-  const presets = {
-    leak: { ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks', type: 'boolean', unit: '', role: 'operator' },
-    emergency: { ar: 'زر الإيقاف الطارئ يعمل بكفاءة وسرعة استجابة', en: 'Emergency stop functional', type: 'boolean', unit: '', role: 'operator' },
-    guards: { ar: 'أغطية وحواجز الأمان والحساسات في مكانها وسليمة', en: 'Safety guards in place and intact', type: 'boolean', unit: '', role: 'operator' },
-    air: { ar: 'ضغط الهواء المضغوط الرئيسي', en: 'Main pneumatic air pressure', type: 'numeric', unit: 'Bar', role: 'maintainer' },
-    temp: { ar: 'درجة حرارة المحرك الرئيسي', en: 'Main motor temperature', type: 'numeric', unit: '°C', role: 'maintainer' },
-    chain: { ar: 'فحص شد واستقامة السيور والجنازير وسلاسة الحركة', en: 'Chain & belt tension normal', type: 'boolean', unit: '', role: 'maintainer' },
-    lubrication: { ar: 'مستوى زيت التزييت ونظافة الفلتر', en: 'Lubrication oil level and filter', type: 'boolean', unit: '', role: 'operator' },
-    sensors: { ar: 'نظافة وضبط الحساسات والخلايا الضوئية', en: 'Sensors clean and aligned', type: 'boolean', unit: '', role: 'operator' }
-  };
-  const preset = presets[presetKey];
-  if (!preset) return;
-  if (!window._currentAmTemplateItems) window._currentAmTemplateItems = [];
-  window._currentAmTemplateItems.push({
-    id: 'item_' + Date.now(),
-    ...preset
-  });
-  window.renderAmTemplateItems();
-};
-
 window.addAmTemplateItem = function() {
   if (!window._currentAmTemplateItems) window._currentAmTemplateItems = [];
-  window._currentAmTemplateItems.push({ id: 'item_' + Date.now(), ar: '', en: '', type: 'boolean', unit: '', role: 'operator' });
+  window._currentAmTemplateItems.push({ id: 'item_' + Date.now(), ar: '', en: '' });
   window.renderAmTemplateItems();
 };
 
@@ -570,15 +474,7 @@ window.saveAmTemplate = async function() {
   if (!machine) return;
   const isEn = (window.currentLang || 'ar') === 'en';
 
-  const items = (window._currentAmTemplateItems || []).filter(i => (i.ar && i.ar.trim()) || (i.en && i.en.trim())).map(i => ({
-    ...i,
-    ar: i.ar?.trim() || i.en?.trim() || '',
-    en: i.en?.trim() || i.ar?.trim() || '',
-    type: i.type === 'numeric' ? 'numeric' : 'boolean',
-    unit: i.unit?.trim() || '',
-    role: i.role === 'maintainer' ? 'maintainer' : 'operator'
-  }));
-
+  const items = window._currentAmTemplateItems.filter(i => i.ar.trim() || i.en.trim());
   if (items.length === 0) {
     alert(isEn ? 'Cannot save empty checklist.' : 'لا يمكن حفظ فحص فارغ.');
     return;

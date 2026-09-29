@@ -59,7 +59,7 @@ function canEditMachineDepartment() {
 
 export const MachinesView = () => `
 
-<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
 
     <!-- Header & Back Button -->
     <div class="flex items-center justify-between border-b border-gray-800 pb-3">
@@ -80,14 +80,6 @@ export const MachinesView = () => `
                 </p>
             </div>
         </div>
-
-        <button
-            type="button"
-            onclick="window.openAmBulkImportModal()"
-            class="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
-            <span>📊</span>
-            <span>تغذية قوالب AM بالإكسيل</span>
-        </button>
     </div>
 
 
@@ -187,7 +179,7 @@ export const MachinesView = () => `
 
 
     <!-- القائمة -->
-    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+    <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div class="col-span-full text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     </div>
 
