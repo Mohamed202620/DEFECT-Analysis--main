@@ -57,6 +57,8 @@ export {
   reopenTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
+  fetchActiveTicketForMachineApi,
+  appendShiftNoteToTicketApi,
   fetchTicketsForReportApi,
   fetchTicketsForSearchApi,
   fetchMyNotificationsApi,

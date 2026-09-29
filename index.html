@@ -531,6 +531,7 @@
     import { refreshHeader } from './js/branding.js';
     import { navigateTo, currentPage, render } from './js/router.js';
     import { auth, ensureAuthReady } from './js/config.js';
+    import { ensureUserAndMachinesLoaded } from './js/machines.js';
 
     async function initApp() {
       // بناء الهيدر فور تحميل الصفحة
@@ -554,6 +555,9 @@
           const authUser = await ensureAuthReady();
 
           if (authUser) {
+            // تحميل استباقي فوري لبيانات المستخدم والماكينات لضمان ظهورها دون أي تأخير
+            ensureUserAndMachinesLoaded().catch(e => console.warn("Pre-load machines error:", e));
+
             if (initialHash && initialHash !== "login" && initialHash !== "register") {
               targetPage = initialHash;
             } else {

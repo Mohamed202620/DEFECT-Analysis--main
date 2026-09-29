@@ -12,7 +12,8 @@ import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.j
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
-import { CLOSED_STATUSES, isOverdueTicket } from "../ticketStatusConstants.js";
+import { CLOSED_STATUSES, isClosedStatus, isOverdueTicket } from "../ticketStatusConstants.js";
+import { normalizeLine } from "../utils/lineUtils.js";
 
 // إضافة (تحسين الأداء - نطاق افتراضي للوحة التذاكر): حد أقصى لعدد
 // التذاكر اللي بتترجع لتبويب "الكل"/"أعطال اليوم"/"بلاغات متأخرة" عند
@@ -732,6 +733,103 @@ export async function fetchTicketByIdApi(ticketId) {
     return { status: "success", data: { id: docSnap.id, ...docSnap.data() } };
   } catch (error) {
     console.error("Error fetching ticket:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+/**
+ * فحص وجود بلاغ مفتوح/نشط للماكينة والخط المحددين لتجنب ازدواجية البلاغات بين الورديات
+ */
+export async function fetchActiveTicketForMachineApi(machine, line = "") {
+  try {
+    await ensureAuthReady();
+    if (!machine) return { status: "success", ticket: null };
+
+    const cleanMachine = String(machine || "").trim();
+    const cleanLine = normalizeLine(line);
+
+    const ticketsRef = collection(db, "tickets");
+    const q = query(
+      ticketsRef,
+      where("machine", "==", cleanMachine),
+      limit(25)
+    );
+
+    const snap = await getDocs(q);
+    const activeTickets = [];
+
+    snap.forEach(docSnap => {
+      const data = docSnap.data();
+      const st = String(data.status || "").toLowerCase();
+      if (!isClosedStatus(st)) {
+        if (!cleanLine || !data.line || normalizeLine(data.line) === cleanLine) {
+          activeTickets.push({ id: docSnap.id, ...data });
+        }
+      }
+    });
+
+    if (!activeTickets.length) {
+      return { status: "success", ticket: null };
+    }
+
+    activeTickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    return { status: "success", ticket: activeTickets[0], totalActive: activeTickets.length };
+  } catch (error) {
+    console.error("Error fetching active ticket for machine:", error);
+    return { status: "error", message: error.message, ticket: null };
+  }
+}
+
+/**
+ * إضافة تحديث/ملاحظات تسليم الوردية لتذكرة قائمة دون إنشاء تذكرة مكررة
+ */
+export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", reporterName = "", reporterUid = "", images = [] } = {}) {
+  try {
+    await ensureAuthReady();
+    if (!ticketId) return { status: "error", message: "معرف التذكرة مطلوب" };
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const snap = await getDoc(ticketRef);
+    if (!snap.exists()) {
+      return { status: "error", message: "التذكرة غير موجودة" };
+    }
+
+    const currentTicket = snap.data();
+    const existingUpdates = Array.isArray(currentTicket.shiftUpdates) ? currentTicket.shiftUpdates : [];
+
+    let imageUrls = [];
+    if (Array.isArray(images) && images.length) {
+      imageUrls = await uploadBase64Images(images, `${ticketId}_shift_${Date.now()}`);
+    }
+
+    const newUpdate = {
+      id: "SH-" + Date.now(),
+      note: String(note || "").trim(),
+      shift: shift || localStorage.getItem("shift") || "",
+      reporterName: reporterName || localStorage.getItem("name") || "فني",
+      reporterUid: reporterUid || localStorage.getItem("userId") || "",
+      createdAt: new Date().toISOString(),
+      ...(imageUrls.length && { images: imageUrls })
+    };
+
+    existingUpdates.push(newUpdate);
+
+    await addTicketLog(ticketId, {
+      action: "shift_update",
+      fromStatus: currentTicket.status,
+      toStatus: currentTicket.status,
+      note: `[تحديث وردية ${newUpdate.shift || ''}]: ${newUpdate.note}`
+    });
+
+    await updateDoc(ticketRef, {
+      shiftUpdates: existingUpdates,
+      lastShiftUpdate: newUpdate,
+      updatedAt: new Date().toISOString()
+    });
+
+    return { status: "success", update: newUpdate };
+  } catch (error) {
+    console.error("Error appending shift note to ticket:", error);
     return { status: "error", message: error.message };
   }
 }

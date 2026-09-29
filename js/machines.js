@@ -90,7 +90,12 @@ export function clearUserAndMachinesCache() {
  */
 export function getCurrentUserMachineContext() {
   const role = getCurrentRole();
-  const rawSavedDept = localStorage.getItem("machineDepartment") || "";
+  const rawSavedDept =
+    localStorage.getItem("machineDepartment") ||
+    localStorage.getItem("department") ||
+    localStorage.getItem("area") ||
+    localStorage.getItem("workArea") ||
+    "";
   const dept = normalizeDepartment(rawSavedDept);
 
   return {
@@ -590,7 +595,8 @@ export function refreshActiveMachineDropdowns() {
     "machineTypeSelect",
     "qrManualMachine",
     "qrGenMachine",
-    "mMachineFilter"
+    "mMachineFilter",
+    "cbMachineSelect"
   ];
 
   const userContext = getCurrentUserMachineContext();
@@ -602,9 +608,18 @@ export function refreshActiveMachineDropdowns() {
   for (const base of dropdownBases) {
     const typeSelect = document.getElementById(base + "Type") || 
       (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null) ||
-      (base === "mMachineFilter" ? document.getElementById("mMachineFilter") : null);
+      (base === "mMachineFilter" ? document.getElementById("mMachineFilter") : null) ||
+      (base === "cbMachineSelect" ? document.getElementById("cbMachineSelect") : null);
 
     if (!typeSelect) continue;
+
+    // حالة خاصة: فلتر صفحة بناء قوائم الفحص (Checklist Builder)
+    if (base === "cbMachineSelect") {
+      if (typeof window.initChecklistBuilderView === "function") {
+        try { window.initChecklistBuilderView(); } catch (_) {}
+      }
+      continue;
+    }
 
     // حالة خاصة: فلتر صفحة البحث المتقدم
     if (base === "mMachineFilter") {
