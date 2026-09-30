@@ -5,20 +5,11 @@ import {
   db,
   auth,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
-  collection,
-  query,
-  where,
-  limit,
-  getDocs,
   doc,
   getDoc,
-  setDoc,
-  updateDoc
+  callPublicCloudFunction
 } from "../providers/backend/index.js";
-
-import { verifyPassword } from '../services/crypto.js';
 
 /**
  * خدمة تسجيل الدخول عبر Firebase Authentication (Email/Password)
@@ -30,11 +21,15 @@ import { verifyPassword } from '../services/crypto.js';
  * ترحيل تلقائي للحسابات القديمة:
  * أي مستخدم اتسجل قبل التفعيل ده لسه عنده فقط مستند فيه
  * passwordHash/salt (أو password Plaintext في حالات قديمة جداً)
- * من غير أي حساب Firebase Auth حقيقي. أول مرة يدخل بعد هذا
- * التحديث: بنتحقق من كلمة سره بالطريقة القديمة، ولو صحيحة بننشئ
- * له حساب Auth حقيقي بنفس كلمة السر اللي كتبها الآن، وننقل بياناته
- * (بدون أي حقول خاصة بكلمة السر) لمستند جديد بمعرّف = uid بتاع
- * Firebase Auth. من المرة الجاية هيدخل عادي عن طريق Auth مباشرة.
+ * من غير أي حساب Firebase Auth حقيقي. لما تسجيل الدخول العادي
+ * يفشل، بننادي Cloud Function (migrateLegacyAccount - functions/
+ * index.js) اللي بتتحقق من كلمة السر القديمة على السيرفر وبتنشئ
+ * حساب Auth حقيقي ومستند users/{uid} نظيف (بدون أي حقول كلمة سر).
+ *
+ * Security review (Auth/Roles): كان الترحيل بيتم هنا في المتصفح:
+ * قراءة المستند القديم (بأسراره) بدون تسجيل دخول، ومقارنة كلمة السر
+ * محلياً، وكتابة المستند الجديد بـ role/status منسوخين - ده كان
+ * بيكشف أسرار الحسابات القديمة لأي زائر وبيفتح باب استيلاء على حساب.
  */
 export async function login(phone, pass) {
 
@@ -85,87 +80,50 @@ export async function login(phone, pass) {
     }
 
     // ==================================================
-    // ترحيل تلقائي من النظام القديم (بدون Firebase Auth)
+    // ترحيل تلقائي من النظام القديم (بدون Firebase Auth) - سيرفري
     // ==================================================
 
-    const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
-    const legacySnapshot = await getDocs(legacyQuery);
-
-    if (legacySnapshot.empty) {
-      return { status: "error", message: "رقم الموبايل غير مسجل بالنظام." };
-    }
-
-    if (legacySnapshot.size > 1) {
-      return {
-        status: "error",
-        message: "يوجد أكثر من حساب بنفس رقم الهاتف."
-      };
-    }
-
-    const legacyDocSnap = legacySnapshot.docs[0];
-    const legacyData = legacyDocSnap.data();
-
-    const isLegacyPlaintext = !legacyData.passwordHash && !!legacyData.password;
-
-    let passwordOk = false;
-
-    if (isLegacyPlaintext) {
-      passwordOk = legacyData.password === cleanPass;
-    } else {
-      passwordOk = await verifyPassword(
-        cleanPass,
-        legacyData.salt,
-        legacyData.passwordHash
-      );
-    }
-
-    if (!passwordOk) {
-      return { status: "error", message: "كلمة السر غير صحيحة." };
-    }
-
-    // كلمة السر صحيحة -> ننشئ حساب Firebase Auth حقيقي الآن
-    let migratedCred;
     try {
-      migratedCred = await createUserWithEmailAndPassword(auth, email, cleanPass);
-    } catch (migrationAuthError) {
-      console.error("Auth migration error:", migrationAuthError);
-      return {
-        status: "error",
-        message: "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى."
-      };
-    }
-
-    uid = migratedCred.user.uid;
-
-    // نقل بيانات المستخدم (بدون أي حقول متعلقة بكلمة السر) لمستند
-    // جديد بمعرّف = uid، بدل المستند القديم بمعرّفه العشوائي.
-    // migratedFromId: معرّف المستند القديم - مطلوب عشان قاعدة
-    // الأمان (firestore.rules) تقدر تتحقق إن role/status المنسوخين
-    // فعلاً جايين من مستند قديم حقيقي بنفس القيم، مش مُلفّقين
-    const {
-      password: _legacyPassword,
-      passwordHash: _legacyHash,
-      salt: _legacySalt,
-      ...safeLegacyData
-    } = legacyData;
-
-    try {
-      await setDoc(doc(db, "users", uid), {
-        ...safeLegacyData,
-        migratedFromId: legacyDocSnap.id
+      await callPublicCloudFunction("migrateLegacyAccount", {
+        phone: cleanPhone,
+        password: cleanPass
       });
-    } catch (migrationWriteError) {
-      console.error("Legacy profile migration error:", migrationWriteError);
+    } catch (migrationError) {
+      // الدالة بترد برسالة موحّدة (رقم/كلمة سر غير صحيحة) لو مفيش حساب
+      // قديم أو كلمة السر غلط - مانكشفش هل الرقم مسجل ولا لأ. أي فشل
+      // تاني (دالة غير منشورة/شبكة) مايظهرش للمستخدم كتفاصيل بنية تحتية
+      // لأن الحالة الأكثر شيوعاً هنا ببساطة كلمة سر غلط لحساب عادي.
+      const knownDenial = [
+        "PERMISSION_DENIED",
+        "RESOURCE_EXHAUSTED",
+        "FAILED_PRECONDITION",
+        "INVALID_ARGUMENT"
+      ].includes(migrationError?.code);
+
+      if (!knownDenial) {
+        console.warn("Legacy migration call failed:", migrationError?.message || migrationError);
+      }
+
       return {
         status: "error",
-        message: "تم ترقية الحساب لكن حدث خطأ أثناء نقل البيانات، يرجى المحاولة مرة أخرى."
+        message:
+          knownDenial && migrationError?.message
+            ? migrationError.message
+            : "رقم الموبايل أو كلمة السر غير صحيحة."
       };
     }
 
-    // ملحوظة: المستند القديم (legacyDocSnap.id) بيفضل موجود عمداً
-    // كنسخة احتياطية بدل حذفه تلقائياً - يُنصح بمراجعته وحذفه يدوياً
-    // بعد التأكد إن الترحيل نجح لكل المستخدمين.
+    // الحساب اترحّل - نسجّل الدخول به الآن
+    try {
+      const migratedCred = await signInWithEmailAndPassword(auth, email, cleanPass);
+      uid = migratedCred.user.uid;
+    } catch (postMigrationError) {
+      console.error("Post-migration sign-in error:", postMigrationError);
+      return {
+        status: "error",
+        message: "تمت ترقية الحساب، يرجى تسجيل الدخول مرة أخرى."
+      };
+    }
   }
 
   // ==================================================
@@ -176,29 +134,22 @@ export async function login(phone, pass) {
   let userDocSnap = await getDoc(doc(db, "users", uid));
 
   if (!userDocSnap.exists()) {
-    // إذا يوجد حساب Auth لكن لا يوجد مستند users/{uid}، حاولنا الترحيل
-    // من بيانات المستخدم القديم برقم الهاتف نفسه إذا كانت موجودة.
-    const usersRef = collection(db, "users");
-    const legacyQuery = query(usersRef, where("phone", "==", cleanPhone), limit(1));
-    const legacySnapshot = await getDocs(legacyQuery);
+    // حساب Auth موجود لكن مستند users/{uid} مفقود: غالباً ترحيل سابق
+    // اتقطع في النص، أو حساب Auth اتحجز قبل صاحبه. بنحاول نفس الترحيل
+    // السيرفري (بيتحقق من كلمة السر القديمة بنفسه - مفيش نسخ للبيانات
+    // من العميل). لو مفيش مستند قديم مناسب بيفشل ونكمل للرسالة تحت.
+    try {
+      await callPublicCloudFunction("migrateLegacyAccount", {
+        phone: cleanPhone,
+        password: cleanPass
+      });
 
-    if (!legacySnapshot.empty) {
-      const legacyDocSnap = legacySnapshot.docs[0];
-      const legacyData = legacyDocSnap.data();
-      const { password: _legacyPassword, passwordHash: _legacyHash, salt: _legacySalt, ...safeLegacyData } = legacyData;
-      try {
-        await setDoc(doc(db, "users", uid), {
-          ...safeLegacyData,
-          migratedFromId: legacyDocSnap.id
-        });
-        userDocSnap = await getDoc(doc(db, "users", uid));
-      } catch (migrationWriteError) {
-        console.error("Legacy profile migration error for missing users/{uid}:", migrationWriteError);
-        return {
-          status: "error",
-          message: "بيانات الحساب غير موجودة. يرجى التواصل مع المسؤول."
-        };
-      }
+      // الدالة بتلغي جلسات الحساب (revokeRefreshTokens) - نعيد الدخول
+      const reCred = await signInWithEmailAndPassword(auth, email, cleanPass);
+      uid = reCred.user.uid;
+      userDocSnap = await getDoc(doc(db, "users", uid));
+    } catch (migrationError) {
+      console.warn("Legacy profile recovery not applicable:", migrationError?.message || migrationError);
     }
   }
 
