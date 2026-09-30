@@ -92,6 +92,48 @@ export async function callCloudFunction(functionName, data) {
 
 }
 
+// استدعاء دالة onCall "عامة" بدون تسجيل دخول مسبق (بدون Authorization).
+// الاستخدام الوحيد الحالي: migrateLegacyAccount من شاشة الدخول (ترحيل
+// الحسابات القديمة) - الدالة نفسها بتتحقق من كلمة السر القديمة على
+// السيرفر وبتطبّق حد محاولات، فمفيش أي صلاحية بتتعطى من العميل.
+export async function callPublicCloudFunction(functionName, data) {
+
+  let response;
+  try {
+    response = await fetch(cloudFunctionUrl(functionName), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: data || {} })
+    });
+  } catch (networkError) {
+    throw new Error(
+      "تعذّر الوصول لخدمة السيرفر المطلوبة. تأكد من نشر Cloud Functions " +
+      `(${functionName}) على مشروع Firebase أولاً، أو من اتصال الإنترنت.`
+    );
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_parseError) {
+    // رد بدون JSON صالح - هيتعامل معاه تحت كـ فشل عام
+  }
+
+  if (!response.ok || !payload || payload.error) {
+    const publicError = new Error(
+      payload?.error?.message ||
+      `فشل تنفيذ العملية على السيرفر (${functionName}).`
+    );
+    // كود HttpsError من الدالة (مثلاً PERMISSION_DENIED) - عشان المُنادي
+    // يفرّق بين رد الدالة الفعلي وبين فشل بنية تحتية (دالة غير منشورة...)
+    publicError.code = payload?.error?.status || "UNAVAILABLE";
+    throw publicError;
+  }
+
+  return payload.result;
+
+}
+
 // أدوات Firestore + Auth الخام المُستخدمة فعلياً عبر كل ملفات
 // services/*.js حالياً (نفس الأسماء والتوقيعات القادمة من Firebase
 // SDK بدون أي تعديل في المنطق)
