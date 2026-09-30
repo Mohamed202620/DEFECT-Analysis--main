@@ -71,6 +71,33 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
     const { image, images, ...restPayload } = payload;
     const issueId = payload.issueId || ("IS-" + Date.now());
+
+    // إصلاح (منع تكرار السجلات - مزامنة Offline): لو addDoc نجح فعلاً على
+    // السيرفر لكن الرد ضاع (انقطاع شبكة لحظة الرد) العنصر بيفضل في
+    // الطابور ويتعاد رفعه = بلاغ مكرر بنفس issueId. في مسار المزامنة
+    // فقط (skipOfflineQueue) بنتأكد الأول إن مفيش بلاغ بنفس issueId
+    // ونفس المُبلّغ، ولو موجود نعتبر الرفع ناجح ونشيله من الطابور.
+    if (skipOfflineQueue && payload.issueId) {
+      try {
+        const dupSnap = await getDocs(
+          query(collection(db, "tickets"), where("issueId", "==", payload.issueId), limit(5))
+        );
+        let existingId = null;
+        dupSnap.forEach(docSnap => {
+          if (existingId) return;
+          const d = docSnap.data();
+          if (!payload.reportedByUid || d.reportedByUid === payload.reportedByUid) {
+            existingId = docSnap.id;
+          }
+        });
+        if (existingId) {
+          return { status: "success", id: existingId, duplicate: true };
+        }
+      } catch (dupError) {
+        console.warn("[saveIssueApi] duplicate check skipped:", dupError);
+      }
+    }
+
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, issueId);
 
@@ -112,6 +139,23 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
   }
 }
 
+// إصلاح (فقدان بيانات - مزامنة Offline): كانت الحلقتين تحت بتحذفا أي
+// عنصر من الطابور لو رسالة الخطأ مفيهاش (fetch/network/offline/imgbb) -
+// يعني أي خطأ مؤقت من Firestore نفسه (unavailable / deadline-exceeded /
+// resource-exhausted ...) كان بيتحسب "خطأ دائم" ويتحذف بلاغ/ملاحظات
+// إصلاح/صور من الجهاز للأبد قبل ما يوصلوا للسيرفر. دلوقتي القاعدة
+// معكوسة: العنصر بيتحذف فقط لو الخطأ دائم بشكل صريح (صلاحيات/غير
+// موجود/تحقق مدخلات)، وأي خطأ غير معروف بيفضل في الطابور للمحاولة القادمة.
+function isPermanentSyncError(message) {
+  const msg = String(message || "").toLowerCase();
+  const PERMANENT_MARKERS = [
+    "permission", "insufficient", "not-found", "not found", "no document",
+    "already-exists", "invalid-argument", "invalid",
+    "غير موجود", "مطلوب", "مطلوبة", "مطلوبين", "لازم", "متاح", "غير صالح"
+  ];
+  return PERMANENT_MARKERS.some(marker => msg.includes(marker));
+}
+
 // Test 16: حماية من التشغيل المتزامن - حدث "online" ممكن يتكرر (شبكة
 // بتقطع وترجع بسرعة) أو يتزامن مع فحص بداية التشغيل، فكانت مزامنتين
 // بيقروا نفس الطابور ويعملوا addDoc مرتين = بلاغات/إجراءات مكررة.
@@ -130,19 +174,37 @@ async function _syncOfflineTicketsApiImpl() {
     return { status: "success", synced: 0, total: 0 };
   }
 
+  // إصلاح (فقدان بيانات - مزامنة Offline): المزامنة بتتشغّل من حدث
+  // "online" / فحص بداية التشغيل، ممكن قبل ما جلسة Firebase Auth تتسترجع.
+  // وقتها addDoc بيفشل بـ permission-denied (قاعدة create بتطلب
+  // reportedByUid == auth.uid) وده كان بيتصنّف "خطأ دائم" فيتحذف البلاغ من
+  // الجهاز. بننتظر جاهزية الجلسة، ولو مفيش مستخدم مسجّل دخول بنسيب
+  // الطابور زي ما هو للمحاولة القادمة.
+  const authUser = await ensureAuthReady();
+  if (!authUser) {
+    return { status: "success", synced: 0, total: queued.length, skipped: true };
+  }
+
   let synced = 0;
   for (const item of queued) {
     try {
+      // بلاغ محفوظ من مستخدم تاني على نفس الجهاز - مينفعش يترفع باسم
+      // المستخدم الحالي (القاعدة هترفضه)، فبنسيبه في الطابور لحد ما
+      // صاحبه يدخل بدل ما يتحذف كخطأ دائم
+      if (item.payload?.reportedByUid && item.payload.reportedByUid !== authUser.uid) {
+        continue;
+      }
       const result = await saveIssueApi(item.payload, { skipOfflineQueue: true });
       if (result.status === "success") {
         await removeQueuedTicket(item.localId);
         synced++;
       } else {
         const msg = (result.message || "").toLowerCase();
-        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
-        if (!isNetworkError) {
+        if (isPermanentSyncError(msg)) {
           console.warn(`[Sync] Permanent error for offline ticket ${item.localId}, removing from queue:`, msg);
           await removeQueuedTicket(item.localId);
+        } else {
+          console.warn(`[Sync] Transient/unknown error for offline ticket ${item.localId}, keeping in queue:`, msg);
         }
       }
     } catch (error) {
@@ -175,6 +237,13 @@ async function _syncOfflineTicketActionsApiImpl() {
     return { status: "success", synced: 0, total: 0 };
   }
 
+  // نفس حماية _syncOfflineTicketsApiImpl: من غير جلسة Auth جاهزة أي
+  // إجراء (إصلاح/إغلاق/مقترح...) كان بيفشل بـ permission-denied ويتحذف
+  const authUser = await ensureAuthReady();
+  if (!authUser) {
+    return { status: "success", synced: 0, total: queued.length, skipped: true };
+  }
+
   let synced = 0;
   for (const item of queued) {
     try {
@@ -188,7 +257,11 @@ async function _syncOfflineTicketActionsApiImpl() {
           ticketId,
           payload?.mechanicNotes,
           payload?.afterImages,
-          { skipOfflineQueue: true }
+          {
+            skipOfflineQueue: true,
+            allowNoImages: !!payload?.allowNoImages,
+            selfResolved: !!payload?.selfResolved
+          }
         );
       } else if (type === "close") {
         result = await closeTicketApi(ticketId, { skipOfflineQueue: true });
@@ -221,10 +294,11 @@ async function _syncOfflineTicketActionsApiImpl() {
         synced++;
       } else {
         const msg = (result.message || "").toLowerCase();
-        const isNetworkError = msg.includes("fetch") || msg.includes("network") || msg.includes("offline") || msg.includes("imgbb");
-        if (!isNetworkError) {
+        if (isPermanentSyncError(msg)) {
           console.warn(`[Sync] Permanent error for offline action ${item.localId}, removing from queue:`, msg);
           await removeQueuedAction(item.localId);
+        } else {
+          console.warn(`[Sync] Transient/unknown error for offline action ${item.localId}, keeping in queue:`, msg);
         }
       }
     } catch (error) {
@@ -795,6 +869,13 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     }
 
     const currentTicket = snap.data();
+
+    // إصلاح: مفيش إضافة ملاحظات وردية على تذكرة مغلقة (حالة نهائية) -
+    // كمان قاعدة Firestore (تحديث ملاحظات الوردية) بترفضها للمغلقة
+    if (String(currentTicket.status || "").trim().toLowerCase() === "closed") {
+      return { status: "error", message: "التذكرة مغلقة - لا يمكن إضافة ملاحظات وردية عليها" };
+    }
+
     const existingUpdates = Array.isArray(currentTicket.shiftUpdates) ? currentTicket.shiftUpdates : [];
 
     let imageUrls = [];
@@ -814,17 +895,20 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
 
     existingUpdates.push(newUpdate);
 
+    // إصلاح: كان الـ Log بيتكتب قبل updateDoc - فلو التحديث فشل (أو اتمنع
+    // من القواعد) كان بيفضل سجل "shift_update" لتحديث محصلش فعلاً على
+    // التذكرة. دلوقتي التحديث الأول، والـ Log بعد نجاحه فقط.
+    await updateDoc(ticketRef, {
+      shiftUpdates: existingUpdates,
+      lastShiftUpdate: newUpdate,
+      updatedAt: new Date().toISOString()
+    });
+
     await addTicketLog(ticketId, {
       action: "shift_update",
       fromStatus: currentTicket.status,
       toStatus: currentTicket.status,
       note: `[تحديث وردية ${newUpdate.shift || ''}]: ${newUpdate.note}`
-    });
-
-    await updateDoc(ticketRef, {
-      shiftUpdates: existingUpdates,
-      lastShiftUpdate: newUpdate,
-      updatedAt: new Date().toISOString()
     });
 
     return { status: "success", update: newUpdate };
@@ -1156,12 +1240,22 @@ export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}
   }
 }
 
-export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = [], { skipOfflineQueue = false } = {}) {
+// إصلاح: الإصلاح الذاتي من المُبلّغ (self_resolve في ticketsBoard.js)
+// بيعرض حقل الصور "اختياري" في النافذة، لكن الدالة كانت بتفرض صورة
+// واحدة على الأقل دايماً - فأي إصلاح ذاتي بدون صور كان بيفشل برسالة
+// "لازم صورة واحدة". الخيار allowNoImages بيخلّي الصور اختيارية للإصلاح
+// الذاتي فقط، وباقي الحالات (فني) لسه بتفرض صورة إجبارية زي ما هي.
+export async function resolveTicketApi(
+  ticketId,
+  mechanicNotes,
+  afterImages = [],
+  { skipOfflineQueue = false, allowNoImages = false, selfResolved = false } = {}
+) {
   if (!mechanicNotes || !mechanicNotes.trim()) {
     return { status: "error", message: "ملاحظات الفني مطلوبة" };
   }
   const images = (afterImages || []).filter(Boolean).slice(0, 3);
-  if (!images.length) {
+  if (!images.length && !allowNoImages) {
     return { status: "error", message: "لازم صورة واحدة على الأقل بعد الإصلاح (بحد أقصى 3)" };
   }
 
@@ -1175,7 +1269,7 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
       const localId = await queueOfflineAction({
         type: "resolve",
         ticketId,
-        payload: { mechanicNotes: mechanicNotes.trim(), afterImages: images }
+        payload: { mechanicNotes: mechanicNotes.trim(), afterImages: images, allowNoImages, selfResolved }
       });
       return {
         status: "queued",
@@ -1202,32 +1296,55 @@ export async function resolveTicketApi(ticketId, mechanicNotes, afterImages = []
     // فحص نتيجة الرفع الفعلي كمان: لو كل الصور المرفوعة فشلت (نادر
     // جداً - يعني الصورة الوحيدة أو كل الصور فشلت معاً)، بترجع خطأ
     // واضح بدل ما تحفظ التذكرة بمصفوفة صور فاضية تخالف نفس القاعدة.
-    const afterImageUrls = await uploadBase64Images(images, `${ticketId}_after`);
-    if (!afterImageUrls.length) {
+    // إصلاح: قراءة التذكرة قبل الكتابة - (1) عشان الـ Log يسجّل الحالة
+    // السابقة الفعلية بدل "in_progress" ثابتة (كانت غلط للإسناد المباشر
+    // والإصلاح الذاتي من pending)، (2) ومنع "إحياء" تذكرة اتقفلت أو
+    // اتحلت بالفعل - مثلاً إجراء resolve متخزّن Offline بعد ما التذكرة
+    // اتقفلت/اتحلت من حد تاني - برسالة واضحة بدل رفض صامت من القواعد
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "التذكرة غير موجودة" };
+    }
+    const beforeData = ticketSnap.data();
+    const fromStatus = String(beforeData.status || "").trim().toLowerCase();
+    if (!["pending", "assigned", "in_progress", "reopened"].includes(fromStatus)) {
+      return { status: "error", message: "لا يمكن تسجيل الإصلاح - حالة التذكرة الحالية غير صالحة لذلك" };
+    }
+
+    const afterImageUrls = images.length
+      ? await uploadBase64Images(images, `${ticketId}_after`)
+      : [];
+    if (images.length && !afterImageUrls.length) {
       return {
         status: "error",
         message: "تعذر رفع صور ما بعد الإصلاح - تحقق من الاتصال بالإنترنت وحاول مرة أخرى"
       };
     }
 
+    const resolvedAtISO = new Date().toISOString();
     await updateDoc(
-      doc(db, "tickets", ticketId),
+      ticketRef,
       stampUpdate({
         status: "resolved",
         mechanicNotes: mechanicNotes.trim(),
-        afterImages: afterImageUrls
+        afterImages: afterImageUrls,
+        // وقت الحل الفعلي - بيُستخدم في حساب MTTR بدل updatedAt اللي
+        // بيتحدّث تاني عند تأكيد المُبلّغ (فكان بيزوّد وقت الانتظار)
+        resolvedAt: resolvedAtISO,
+        ...(selfResolved && { isSelfResolved: true, resolvedBy: localStorage.getItem("name") || "" })
       })
     );
     addTicketLog(ticketId, {
       action: "resolve",
-      fromStatus: "in_progress",
+      fromStatus,
       toStatus: "resolved",
       note: mechanicNotes.trim()
     });
 
-    const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
-    const reportedByUid = ticketSnap.exists() ? ticketSnap.data().reportedByUid : null;
-    if (reportedByUid) {
+    const reportedByUid = beforeData.reportedByUid || null;
+    // مفيش داعي نبعت إشعار "تم إصلاح بلاغك" للمُبلّغ لو هو نفسه اللي عمل الإصلاح
+    if (reportedByUid && reportedByUid !== (localStorage.getItem("userId") || "")) {
       createNotification(reportedByUid, {
         type: "resolved",
         message: `تم إصلاح بلاغك - برجاء التأكد والتأكيد`,
@@ -1389,6 +1506,8 @@ export async function reopenTicketApi(ticketId, reason) {
   }
   try {
     const ticketRef = doc(db, "tickets", ticketId);
+    const beforeSnap = await getDoc(ticketRef);
+    const beforeData = beforeSnap.exists() ? beforeSnap.data() : {};
 
     // إصلاح (تصحيح Workflow - رفض المُبلّغ): البلاغ المرفوض بيرجع
     // مباشرة لنفس الفني المُسند إليه بحالة "reopened" (بدل "pending")
@@ -1398,7 +1517,13 @@ export async function reopenTicketApi(ticketId, reason) {
     // محدش كان بيحطها فعلياً - كانت بترجع pending دايماً
     await updateDoc(
       ticketRef,
-      stampUpdate({ status: "reopened" })
+      stampUpdate({
+        status: "reopened",
+        // سبب الرفض كان بيتسجل في الـ Log فقط (وفشل كتابته بيتبلع) فالفني
+        // مكانش عنده أي مكان واضح يشوف فيه ليه اتّرفض إصلاحه
+        reopenReason: reason.trim(),
+        reopenedAt: new Date().toISOString()
+      })
     );
 
     addTicketLog(ticketId, {
@@ -1410,11 +1535,44 @@ export async function reopenTicketApi(ticketId, reason) {
       note: reason.trim()
     });
 
+    // إصلاح (إشعارات): إعادة الفتح كانت الانتقال الوحيد اللي مبيبعتش أي
+    // إشعار - الفني المُسند كان بيكتشف إن إصلاحه اترفض بس لو فتح اللوحة
+    // بالصدفة (rejectTicketApi القديمة كانت بتبعت لكنها مش مستخدمة).
+    // لو مفيش فني مُسند (مثلاً إصلاح ذاتي اتّرفض) بنبلّغ المدراء عشان
+    // التذكرة ماتفضلش "معاد فتحها" بدون مسؤول.
+    const rejectMessage = `تم رفض إصلاح البلاغ وإعادة فتحه - السبب: ${reason.trim()}`;
+    if (beforeData.assignedToUid) {
+      createNotification(beforeData.assignedToUid, {
+        type: "reopened",
+        message: rejectMessage,
+        ticketId
+      });
+    } else {
+      notifyManagersOfReopenedUnassigned(ticketId, beforeData, reason.trim()).catch(err => {
+        console.error("Error notifying managers of reopened ticket:", err);
+      });
+    }
+
     return { status: "success" };
   } catch (error) {
     console.error("Error reopening ticket:", error);
     return { status: "error", message: error.message };
   }
+}
+
+async function notifyManagersOfReopenedUnassigned(ticketId, ticketData, reason) {
+  const managersRes = await fetchManagersAndAdminsApi();
+  if (managersRes.status !== "success" || !Array.isArray(managersRes.data)) return;
+  const machineLabel = ticketData?.machine ? ` على "${ticketData.machine}"` : "";
+  await Promise.all(
+    managersRes.data.map(mgr =>
+      createNotification(mgr.id, {
+        type: "reopened",
+        message: `تم رفض إصلاح بلاغ${machineLabel} وهو بدون فني مُسند - برجاء إعادة الإسناد. السبب: ${reason}`,
+        ticketId
+      })
+    )
+  );
 }
 
 /**
@@ -1425,8 +1583,20 @@ export async function declineTicketApi(ticketId, reason) {
     const cleanReason = String(reason || "").trim() || "اعتذر الفني عن الاستلام وسحب العطل لإعادة الإسناد";
     const myName = localStorage.getItem("name") || "فني";
 
+    // إصلاح: الـ Log كان بيسجّل fromStatus = "assigned" ثابتة حتى لو الاعتذار
+    // من "in_progress" أو "reopened"، فبنقرا الحالة الفعلية الأول
+    const declineRef = doc(db, "tickets", ticketId);
+    const declineSnap = await getDoc(declineRef);
+    if (!declineSnap.exists()) {
+      return { status: "error", message: "التذكرة غير موجودة" };
+    }
+    const declineFromStatus = String(declineSnap.data().status || "").trim().toLowerCase();
+    if (!["assigned", "in_progress", "reopened"].includes(declineFromStatus)) {
+      return { status: "error", message: "الاعتذار متاح فقط للتذاكر المُسندة أو قيد التنفيذ" };
+    }
+
     await updateDoc(
-      doc(db, "tickets", ticketId),
+      declineRef,
       stampUpdate({
         status: "pending",
         assignedTo: null,
@@ -1439,7 +1609,7 @@ export async function declineTicketApi(ticketId, reason) {
 
     addTicketLog(ticketId, {
       action: "decline",
-      fromStatus: "assigned",
+      fromStatus: declineFromStatus,
       toStatus: "pending",
       note: cleanReason
     });

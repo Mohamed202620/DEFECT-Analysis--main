@@ -515,7 +515,10 @@ export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
     const q =
       query(
         collection(db, "users"),
-        where("role", "in", ["admin", "manager"])
+        // إصلاح: "supervisor" بيتعامل كمدير في الصلاحيات وقواعد Firestore
+        // (isManagerRole) لكنه كان مستبعد من هنا - فمكانش بيوصله أي إشعار
+        // (بلاغ جديد / اعتذار فني / إعادة إرسال مقترح) رغم إنه بيقدر يسند
+        where("role", "in", ["admin", "manager", "supervisor"])
       );
 
     const querySnapshot = await getDocs(q);
