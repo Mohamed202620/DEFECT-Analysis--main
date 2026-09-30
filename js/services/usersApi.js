@@ -7,6 +7,7 @@
 
 import {
   DEFAULT_USER_PERMISSIONS,
+  ALL_PERMISSIONS,
   phoneToAuthEmail
 } from "../config.js";
 import {
@@ -33,7 +34,7 @@ import {
   callCloudFunction,
   getRegistrationAuthContext
 } from "../providers/backend/index.js";
-import { isAdminRole } from "../permissions.js";
+import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
 
 // إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
 // قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
@@ -281,46 +282,15 @@ export async function registerUserApi(userData) {
     }
 
 
-    // منع تكرار رقم الهاتف (فحص إضافي قبل محاولة إنشاء حساب Auth،
-    // اللي هيرفض تلقائياً برضه لو الإيميل الداخلي المشتق منه مكرر)
+    // منع تكرار رقم الهاتف: Firebase Auth نفسه بيرفض تلقائياً الإيميل
+    // الداخلي المكرر (auth/email-already-in-use - راجع تحت).
     //
-    // إصلاح (بند حرج مؤكد بالاختبار العملي - Test 3): هذا الاستعلام
-    // بيتنفذ والمستخدم لسه مش مسجّل دخوله (التسجيل نفسه)، وكان بدون
-    // limit() - firestore.rules بتسمح بقراءة قائمة (list) من users
-    // بدون تسجيل دخول في حالة واحدة بس: request.query.limit <= 1
-    // (استثناء الترحيل التلقائي القديم في auth/login.js). بدون هذا
-    // الـ limit، كانت القاعدة بترفض الاستعلام تماماً (permission-denied)
-    // لأي محاولة تسجيل حساب جديد - يعني التسجيل كان فاشلاً 100% في
-    // بيئة الإنتاج الحقيقية (Firebase)، حتى ببيانات صحيحة تماماً،
-    // ولم يظهر هذا في أي اختبار سابق لأن المحاكاة المحلية للتطوير لا
-    // تطبّق Security Rules الفعلية. رقم الهاتف عمود بحث فريد بالفعل
-    // (registerUserApi نفسها بترفض التسجيل لو رقم الهاتف موجود)،
-    // فـlimit(1) كافٍ تماماً لغرض هذا الفحص - وجود مستند واحد يكفي
-    // لإثبات إن الرقم مسجل بالفعل.
-    const q =
-      query(
-        collection(db, "users"),
-        where("phone", "==", phone),
-        limit(1)
-      );
-
-    const querySnapshot =
-      await getDocs(q);
-
-    if (!querySnapshot.empty) {
-
-      return {
-
-        status:
-          "error",
-
-        message:
-          "رقم الهاتف مسجل بالفعل."
-
-      };
-
-    }
-
+    // Security review (Auth/Roles): كان هنا استعلام على users برقم الهاتف
+    // قبل التسجيل (بدون تسجيل دخول) معتمد على استثناء "list بدون
+    // Authentication" في firestore.rules - الاستثناء ده اتشال لأنه كان
+    // بيكشف أي مستند users (بما فيه أسرار الحسابات القديمة) لأي زائر.
+    // الحسابات القديمة اللي لسه ماترحّلتش بتتعامل معاها Cloud Function
+    // migrateLegacyAccount وقت أول دخول لصاحبها.
 
     // ========================================================
     // إنشاء حساب Firebase Authentication حقيقي
@@ -835,11 +805,41 @@ export async function fetchCurrentUserProfileApi(forceRefresh = false) {
     const normDept = extractUserDepartment(userObj);
     userObj.machineDepartment = normDept;
 
+    // Security review (Auth/Roles): لو الحساب اتوقف/اترفض/اتغيّرت حالته
+    // بعد الدخول، الجلسة كانت بتفضل شغالة في الواجهة (Firestore rules
+    // بترفض أي قراءة/كتابة فعلياً لكن الواجهة كانت بتفضل بتعرض
+    // الشاشات). نقفل الجلسة فوراً بمجرد ما نتأكد إن الحالة مش active.
+    const profileStatus = String(data.status || "").trim().toLowerCase();
+    if (profileStatus !== "active") {
+      cachedCurrentUserProfile = null;
+      if (typeof window.logout === "function") {
+        window.logout();
+      }
+      return { status: "error", message: "الحساب غير مفعل.", user: null };
+    }
+
     // مزامنة التخزين المحلي (localStorage) بالبيانات الموثقة من Firestore
     if (data.name) localStorage.setItem("name", data.name);
     if (data.phone) localStorage.setItem("phone", data.phone);
-    if (data.role) localStorage.setItem("role", data.role);
     if (data.department) localStorage.setItem("department", data.department);
+
+    // Security review (Auth/Roles): الدور فقط كان بيتزامن، أما الصلاحيات
+    // (permissions) فكانت بتفضل زي ما اتخزنت وقت الدخول - فأدمن اتنزّل
+    // لدور أقل (أو مستخدم اتسحبت منه صلاحيات) كان لسه بيشوف شاشات الإدارة
+    // (all,...) لحد ما يسجّل خروج ودخول. الحماية الفعلية في القواعد
+    // بتمنعه، لكن الواجهة لازم تتطابق مع المصدر الحقيقي (نفس منطق
+    // authHandlers.js وقت الدخول).
+    const syncedRole = String(data.role || "").trim().toLowerCase();
+    let syncedPerms = String(data.permissions || "")
+      .split(",")
+      .map(p => p.trim().toLowerCase())
+      .filter(Boolean)
+      .join(",");
+    if (isAdminRole(syncedRole)) {
+      syncedPerms = syncedPerms ? `all,${syncedPerms}` : ALL_PERMISSIONS.join(",");
+    }
+    setCurrentRole(syncedRole);
+    setCurrentPermissions(syncedPerms);
 
     if (normDept) {
       localStorage.setItem("machineDepartment", normDept);
