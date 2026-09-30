@@ -292,10 +292,10 @@ export function computeMTTR(tickets) {
   const resolvedTickets = (tickets || []).filter(item => {
     const status = String(item.status || '').trim().toLowerCase();
     const created = parseTicketDate(item);
-    // resolvedAt (وقت الحل الفعلي - بيتسجل من resolveTicketApi) أدق من
-    // updatedAt اللي بيتحدّث تاني عند تأكيد المُبلّغ الإغلاق فيزوّد وقت
-    // الانتظار على وقت الإصلاح. التذاكر القديمة (بدون resolvedAt) بترجع
-    // لـ updatedAt زي ما كانت.
+    // إصلاح (Workflow - MTTR): بنستخدم وقت الإصلاح الفعلي (resolvedAt) بدل
+    // updatedAt اللي بيتحدّث عند تأكيد المُبلّغ وملاحظات الشيفت وإعادة الإسناد،
+    // فكان MTTR بيتضخّم بزمن انتظار التأكيد. التذاكر القديمة (بدون resolvedAt)
+    // بترجع لـ updatedAt زي الأول.
     const updated = parseTicketDate(item.resolvedAt || item.updatedAt || item);
     return CLOSED_STATUSES.includes(status) && created && updated;
   });

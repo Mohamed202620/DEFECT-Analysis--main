@@ -76,6 +76,22 @@ window.addEventListener("online", async () => {
       syncOfflineTicketActionsApi()
     ]);
     const synced = (ticketsResult?.synced || 0) + (actionsResult?.synced || 0);
+    // إصلاح (Workflow): إجراءات الأوفلاين اللي فشلت نهائياً وقت المزامنة كانت
+    // بتتمسح بصمت - دلوقتي المستخدم بيتنبه (التفاصيل في localStorage: failedOfflineActions)
+    const failed = actionsResult?.failed || 0;
+
+    if (failed > 0) {
+      const isEn = (window.currentLang || "ar") === "en";
+      setBanner(
+        true,
+        isEn
+          ? `⚠️ ${failed} offline action(s) could not be applied (ticket state changed). Please review the tickets.`
+          : `⚠️ تعذر تنفيذ ${failed} إجراء محفوظ أوفلاين (حالة التذكرة تغيّرت). برجاء مراجعة التذاكر.`,
+        "bg-amber-600 text-white"
+      );
+      setTimeout(hideBanner, 10000);
+      return;
+    }
 
     setBanner(
       true,

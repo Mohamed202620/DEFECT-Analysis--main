@@ -22,7 +22,8 @@ import {
   declineTicketApi,
   fetchMyNotificationsApi,
   markNotificationReadApi,
-  fetchTicketsForReportApi
+  fetchTicketsForReportApi,
+  fetchTicketByIdApi
 } from './services/api.js';
 import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): STATUS_CLASSES بقت مستوردة من ملف ثوابت
@@ -266,7 +267,9 @@ let selectedTicketIds = new Set();
 window.selectedTicketIds = selectedTicketIds; // MGR-DESKTOP
 
 function isBulkActionsRole(role) {
-  return role === "admin" || role === "manager";
+  // إصلاح: "supervisor" بيتعامل كمدير في firestore.rules (isManagerRole) لكنه كان
+  // مستبعد هنا، فمفيش إغلاق/إسناد جماعي ليه رغم إن القواعد بتسمح
+  return role === "admin" || role === "manager" || role === "supervisor";
 }
 
 function renderBulkSelectToggle() {
@@ -606,6 +609,17 @@ window.handleTicketAction = async function (ticketId, action) {
       return;
     }
 
+    // إصلاح (Workflow - تصنيف البلاغ): المُبلّغ ممكن يسجّل "ملاحظة" (Observation)،
+    // لكن نافذة الإسناد كانت بتعرض Breakdown/PM/Other بس والأول مختار افتراضياً،
+    // فأي ملاحظة كانت بتتحول لعطل مفاجئ بمجرد الضغط على "إسناد". دلوقتي بنقرأ نوع
+    // التذكرة الحالي ونعرضه مختار، مع إضافة خيار Observation.
+    let currentTicketType = "";
+    try {
+      const cur = await fetchTicketByIdApi(ticketId);
+      currentTicketType = cur?.data?.type || "";
+    } catch (_) { /* لو فشل الجلب نكمل بالافتراضي */ }
+    const isEnUi = (window.currentLang || "ar") === "en";
+
     const values = await openActionModal({
       title: tr.assignTitle,
       submitLabel: tr.assignSubmit,
@@ -614,9 +628,11 @@ window.handleTicketAction = async function (ticketId, action) {
           id: "type",
           label: tr.typeLabel,
           type: "select",
+          defaultValue: currentTicketType,
           options: [
             { value: "Breakdown", label: tr.typeBreakdown },
             { value: "PM", label: tr.typePM },
+            { value: "Observation", label: tr.typeObservation || (isEnUi ? "Observation" : "ملاحظة (Observation)") },
             { value: "Other", label: tr.typeOther }
           ]
         },

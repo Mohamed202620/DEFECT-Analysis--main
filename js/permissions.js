@@ -215,6 +215,12 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
+      // إصلاح (Workflow - إعادة إسناد): المعالج handleTicketAction("reassign") موجود
+      // في ticketsBoard.js والترجمة ta().reassign موجودة، لكن الزر ماكانش بيتولّد
+      // أبداً من هنا، فمفيش طريقة في الموبايل لنقل تذكرة من فني غايب لفني تاني
+      if (isManagerRole(role) || isAdmin) {
+        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      }
       break;
 
     case "in_progress":
@@ -227,15 +233,27 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
+      if (isManagerRole(role) || isAdmin) {
+        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      }
       break;
 
-    case "resolved":
-      // المُبلّغ (أو الأدمن) يراجع العمل ويأكد الإغلاق أو يرفض مع السبب
-      if (isReporter) {
-        actions.push({ key: "confirm", label: ta().confirm });
+    case "resolved": {
+      // المُبلّغ (أو الأدمن) يراجع العمل ويأكد الإغلاق أو يرفض مع السبب.
+      // إصلاح (Workflow): (1) المدير/المشرف بقوا يقدروا يراجعوا نيابةً عن المُبلّغ
+      // (لو غادر أو انتهى شيفته كانت التذكرة بتعلق للأبد على "بانتظار التأكيد").
+      // (2) لو المُبلّغ هو اللي أصلح العطل (isSelfResolved) التأكيد بيبقى من طرف
+      // آخر (مدير/مشرف/أدمن) - المُبلّغ يقدر يرفض بس. مطابق لـ firestore.rules STEP 5.
+      const canReviewAsManager = isAdmin || isManagerRole(role);
+      const selfResolved = ticket.isSelfResolved === true;
+      if (canReviewAsManager || isReporter) {
+        if (canReviewAsManager || !selfResolved) {
+          actions.push({ key: "confirm", label: ta().confirm });
+        }
         actions.push({ key: "reject", label: ta().reject });
       }
       break;
+    }
 
     // "closed" حالة نهائية - لا تحتوي على أزرار تغيير حالة
   }

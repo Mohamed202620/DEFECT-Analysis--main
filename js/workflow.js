@@ -63,6 +63,29 @@ window.confirmIssue = async function() {
     return;
   }
 
+  // إصلاح (Workflow - منع التكرار): التحذير في شاشة البلاغ (checkActiveTicketForMachine)
+  // استشاري فقط، ومفيش أي فحص وقت الحفظ - فأي مستخدم/شيفت يقدر يسجّل نفس العطل
+  // مرة ثانية (والطابور الأوفلاين بيتخطى الفحص أصلاً). دلوقتي بنعيد الفحص قبل
+  // الإرسال ونطلب تأكيداً صريحاً لو فيه بلاغ مفتوح لنفس الخط والماكينة. لو الفحص
+  // فشل (مثلاً أوفلاين) بنكمل عادي عشان ما نعطّلش تسجيل العطل.
+  try {
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      const { fetchActiveTicketForMachineApi } = await import('./services/api.js');
+      const dup = await fetchActiveTicketForMachineApi(machine, line);
+      if (dup?.status === 'success' && dup.ticket) {
+        const dt = dup.ticket;
+        const proceed = confirm(
+          "⚠️ يوجد بلاغ مفتوح بالفعل لهذه الماكينة" +
+          (dt.issueId ? ` (${dt.issueId})` : "") +
+          (dt.status ? ` - الحالة: ${dt.status}` : "") +
+          "\n\nالأفضل إضافة تحديث الوردية على البلاغ الحالي بدل فتح بلاغ جديد." +
+          "\nهل تريد تسجيل بلاغ جديد رغم ذلك؟"
+        );
+        if (!proceed) return;
+      }
+    }
+  } catch (_) { /* فحص التكرار مساعد فقط - مايمنعش الحفظ */ }
+
   const btn = document.querySelector('button[onclick="window.confirmIssue()"]');
   const originalText = btn ? btn.innerHTML : "💾 حفظ وإرسال البلاغ";
   if (btn) {
@@ -105,7 +128,8 @@ window.confirmIssue = async function() {
       isSelfResolved: true,
       mechanicNotes: "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): " + (selfResolvedNotes || "تم الفحص والتصليح الميداني مباشرة"),
       resolvedAt: new Date().toISOString(),
-      resolvedBy: localStorage.getItem("name") || "المُبلغ"
+      resolvedBy: localStorage.getItem("name") || "المُبلغ",
+      resolvedByUid: localStorage.getItem("userId") || ""
     }),
     createdAt: new Date().toISOString()
   };
