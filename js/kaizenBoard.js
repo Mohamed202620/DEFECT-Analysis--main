@@ -292,13 +292,14 @@ window.loadKaizenBoard = function () {
 
   const role = getCurrentRole();
   const myName = localStorage.getItem("name") || "";
+  const myUid = localStorage.getItem("userId") || "";
 
   container.innerHTML = `
     <div class="text-center text-gray-400 text-xs py-8">جاري تحميل المقترحات...</div>
   `;
 
   unsubscribeKaizenListener = subscribeToSuggestionsBoardApi(
-    { role, myName, status: kaizenCurrentStatusFilter },
+    { role, myName, myUid, status: kaizenCurrentStatusFilter },
     (result) => {
 
       if (!result || result.status !== "success") {

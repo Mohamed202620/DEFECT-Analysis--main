@@ -292,7 +292,11 @@ export function computeMTTR(tickets) {
   const resolvedTickets = (tickets || []).filter(item => {
     const status = String(item.status || '').trim().toLowerCase();
     const created = parseTicketDate(item);
-    const updated = parseTicketDate(item.updatedAt || item);
+    // resolvedAt (وقت الحل الفعلي - بيتسجل من resolveTicketApi) أدق من
+    // updatedAt اللي بيتحدّث تاني عند تأكيد المُبلّغ الإغلاق فيزوّد وقت
+    // الانتظار على وقت الإصلاح. التذاكر القديمة (بدون resolvedAt) بترجع
+    // لـ updatedAt زي ما كانت.
+    const updated = parseTicketDate(item.resolvedAt || item.updatedAt || item);
     return CLOSED_STATUSES.includes(status) && created && updated;
   });
 
@@ -300,7 +304,7 @@ export function computeMTTR(tickets) {
 
   const totalHours = resolvedTickets.reduce((sum, item) => {
     const created = parseTicketDate(item);
-    const updated = parseTicketDate(item.updatedAt || item);
+    const updated = parseTicketDate(item.resolvedAt || item.updatedAt || item);
     if (!created || !updated || updated < created) return sum;
     return sum + (updated - created) / (1000 * 60 * 60);
   }, 0);

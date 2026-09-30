@@ -756,7 +756,10 @@ window.handleTicketAction = async function (ticketId, action) {
     result = await resolveTicketApi(
       ticketId,
       (isEn ? "Self-resolved by reporter: " : "تم الإصلاح ذاتياً بواسطة المُبلغ: ") + values.mechanicNotes,
-      values.afterImages
+      values.afterImages,
+      // إصلاح: النافذة بتقول إن صور الإصلاح الذاتي "اختيارية" لكن
+      // resolveTicketApi كانت بتفرض صورة دايماً فالعملية كانت بتفشل
+      { allowNoImages: true, selfResolved: true }
     );
 
   } else {
