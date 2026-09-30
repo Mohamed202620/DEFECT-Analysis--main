@@ -7,7 +7,7 @@
 import { translations } from '../../config.js';
 import { STATUS_LABELS, STATUS_CLASSES, CLOSED_STATUSES, isOverdueTicket, parseTicketDate } from '../../ticketStatusConstants.js';
 import { fetchTechniciansApi } from '../../services/usersApi.js';
-import { assignTicketApi, reassignTicketApi } from '../../services/ticketsApi.js';
+import { assignTicketApi, reassignTicketApi, fetchTicketByIdApi } from '../../services/ticketsApi.js';
 import { openActionModal } from '../../components/ActionModal.js';
 
 let activeFilteredTickets = [];
@@ -476,12 +476,13 @@ function renderSidePreview(ticket) {
           <span class="font-bold text-gray-800 dark:text-gray-200">
             ${ticket.assignedTo ? `👷 ${ticket.assignedTo}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
           </span>
+          ${['pending', 'assigned', 'in_progress', 'reopened'].includes(String(ticket.status || '').trim().toLowerCase()) ? `
           <button
             type="button"
             onclick="window.mgrPromptAssignTicket('${ticket.id}')"
             class="text-[11px] font-bold text-blue-500 hover:underline">
             ${ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن')}
-          </button>
+          </button>` : ''}
         </div>
       </div>
     </div>
@@ -654,25 +655,36 @@ function attachKeyboardShortcuts(allTickets) {
   });
 }
 
-// نافذة منبثقة لإسناد التذكرة لفني
+// الحالات المسموح فيها بالإسناد (pending) وإعادة الإسناد (الباقي) - مطابقة لـ
+// firestore.rules (STEP 2 / STEP 6) ولـ assignTicketApi / reassignTicketApi
+const MGR_REASSIGNABLE_STATUSES = ["assigned", "in_progress", "reopened"];
+
+// إصلاح (Workflow - إسناد الديسكتوب): openActionModal بيقرأ مفتاح الحقل من
+// "id" ونص الزر من "submitLabel"، لكن الاستدعاءات هنا كانت بتمرّر "name" و
+// "submitText" - فكانت القيم بترجع undefined وأي إسناد بيفشل دايماً برسالة
+// "type و assignedTo مطلوبين". كمان زر "إعادة إسناد" كان بينادي assignTicketApi
+// (اللي بترفض أي تذكرة مش pending) وبيسجّل في الـ log إنها كانت pending.
+// الآن: pending -> assignTicketApi، مفتوحة (assigned/in_progress/reopened) ->
+// reassignTicketApi، وأي حالة تانية بترجع رسالة واضحة.
 window.mgrPromptAssignTicket = async function(ticketId) {
   const currentLang = window.currentLang || "ar";
   const isEn = currentLang === "en";
 
-  // إصلاح: الـ Modal المشترك (ActionModal) بيقرا مفتاح الحقل من "id" ونص الزر
-  // من "submitLabel" - الملف ده كان بيبعتهم كـ "name"/"submitText" فالقيم
-  // (assignedTo/type) كانت بترجع undefined والإسناد من نسخة المدير
-  // (Desktop) كان بيفشل دايماً برسالة "type و assignedTo مطلوبين".
-  // كمان: التذكرة "pending" بتتسند بـ assignTicketApi، وأي تذكرة مُسندة
-  // أصلاً (assigned/in_progress/reopened) بتتنقل بـ reassignTicketApi، وغير
-  // كده (resolved/closed) مفيش إسناد.
-  const targetTicket = activeFilteredTickets.find(tk => tk.id === ticketId);
-  const targetStatus = String(targetTicket?.status || "").trim().toLowerCase();
-  if (targetTicket && !["pending", "assigned", "in_progress", "reopened"].includes(targetStatus)) {
-    alert(isEn ? 'This ticket can no longer be assigned in its current status' : 'لا يمكن إسناد هذه التذكرة في حالتها الحالية');
+  const ticketRes = await fetchTicketByIdApi(ticketId);
+  if (ticketRes.status !== "success") {
+    alert(isEn ? `❌ ${ticketRes.message || 'Ticket not found'}` : `❌ ${ticketRes.message || 'التذكرة غير موجودة'}`);
     return;
   }
-  const isFreshAssign = !targetTicket || targetStatus === "pending";
+  const ticket = ticketRes.data;
+  const status = String(ticket.status || "").trim().toLowerCase();
+  const isNewAssign = status === "pending";
+
+  if (!isNewAssign && !MGR_REASSIGNABLE_STATUSES.includes(status)) {
+    alert(isEn
+      ? '⚠️ Assignment is only available for pending / assigned / in-progress / reopened tickets'
+      : '⚠️ الإسناد متاح فقط للتذاكر (جديد / تم الإسناد / قيد التنفيذ / معاد فتحها)');
+    return;
+  }
 
   const techResult = await fetchTechniciansApi();
   const technicians = techResult.status === "success" ? techResult.data : [];
@@ -682,53 +694,60 @@ window.mgrPromptAssignTicket = async function(ticketId) {
     return;
   }
 
+  const fields = [
+    {
+      id: "assignedTo",
+      label: isEn ? 'Select Technician' : 'اختر الفني المكلف',
+      type: "select",
+      options: technicians.map(t => ({ label: `${t.name} (${t.department || ''})`, value: `${t.id}::${t.name}` })),
+      required: true
+    }
+  ];
+  if (isNewAssign) {
+    fields.push({
+      id: "type",
+      label: isEn ? 'Maintenance Type' : 'نوع التدخل',
+      type: "select",
+      defaultValue: ticket.type || "Breakdown",
+      options: [
+        { label: isEn ? 'Breakdown Repair' : 'إصلاح عطل طارئ', value: 'Breakdown' },
+        { label: isEn ? 'Observation Inspection' : 'معاينة ملاحظة', value: 'Observation' },
+        { label: isEn ? 'Preventive PM' : 'صيانة وقائية', value: 'PM' }
+      ],
+      required: true
+    });
+  }
+
   const values = await openActionModal({
-    title: isEn ? 'Assign Ticket' : 'إسناد البلاغ لفني',
-    fields: [
-      {
-        id: "assignedTo",
-        label: isEn ? 'Select Technician' : 'اختر الفني المكلف',
-        type: "select",
-        options: technicians.map(t => ({ label: `${t.name} (${t.department || ''})`, value: t.name })),
-        required: true
-      },
-      {
-        id: "type",
-        label: isEn ? 'Maintenance Type' : 'نوع التدخل',
-        type: "select",
-        options: [
-          { label: isEn ? 'Breakdown Repair' : 'إصلاح عطل طارئ', value: 'Breakdown' },
-          { label: isEn ? 'Observation Inspection' : 'معاينة ملاحظة', value: 'Observation' },
-          { label: isEn ? 'Preventive PM' : 'صيانة وقائية', value: 'PM' }
-        ],
-        required: true
-      }
-    ],
-    submitLabel: isEn ? 'Assign' : 'إسناد'
+    title: isNewAssign
+      ? (isEn ? 'Assign Ticket' : 'إسناد البلاغ لفني')
+      : (isEn ? 'Reassign Ticket' : 'إعادة إسناد البلاغ لفني'),
+    fields,
+    submitLabel: isNewAssign ? (isEn ? 'Assign' : 'إسناد') : (isEn ? 'Reassign' : 'إعادة الإسناد')
   });
 
   if (!values) return;
 
-  const selectedTech = technicians.find(t => t.name === values.assignedTo);
-  const result = isFreshAssign
-    ? await assignTicketApi(ticketId, {
-        type: values.type,
-        assignedTo: values.assignedTo,
-        assignedToUid: selectedTech?.id || null
-      })
-    : await reassignTicketApi(ticketId, {
-        assignedTo: values.assignedTo,
-        assignedToUid: selectedTech?.id || null
-      });
+  const [assignedToUid, assignedTo] = String(values.assignedTo || "").split("::");
+  if (!assignedTo) return;
+
+  const result = isNewAssign
+    ? await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid: assignedToUid || null })
+    : await reassignTicketApi(ticketId, { assignedTo, assignedToUid: assignedToUid || null });
 
   if (result.status === "success") {
-    alert(isEn ? '✅ Ticket assigned successfully' : '✅ تم إسناد البلاغ بنجاح');
+    alert(isNewAssign
+      ? (isEn ? '✅ Ticket assigned successfully' : '✅ تم إسناد البلاغ بنجاح')
+      : (isEn ? '✅ Ticket reassigned successfully' : '✅ تمت إعادة إسناد البلاغ بنجاح'));
   } else {
     alert(isEn ? `❌ Failed to assign: ${result.message}` : `❌ فشل الإسناد: ${result.message}`);
   }
 };
 
 // إسناد جماعي للمحدد
+// إصلاح: نفس مشكلة المفاتيح (name/submitText) + كان بينادي reassignTicketApi لكل
+// التذاكر (بترفض pending) + بيبلع الأخطاء ويعرض "✅ تم إسناد N" حتى لو N = 0.
+// الآن بيختار الدالة الصح حسب حالة كل تذكرة ويعرض عدد النجاح والفشل وأسبابه.
 window.mgrBulkAssignPrompt = async function() {
   const currentLang = window.currentLang || "ar";
   const isEn = currentLang === "en";
@@ -750,7 +769,7 @@ window.mgrBulkAssignPrompt = async function() {
         id: "assignedTo",
         label: isEn ? 'Select Technician' : 'اختر الفني المكلف',
         type: "select",
-        options: technicians.map(t => ({ label: `${t.name}`, value: t.name })),
+        options: technicians.map(t => ({ label: `${t.name}`, value: `${t.id}::${t.name}` })),
         required: true
       }
     ],
@@ -759,39 +778,53 @@ window.mgrBulkAssignPrompt = async function() {
 
   if (!values) return;
 
-  const selectedTech = technicians.find(t => t.name === values.assignedTo);
+  const [assignedToUid, assignedTo] = String(values.assignedTo || "").split("::");
+  if (!assignedTo) return;
+
   let successCount = 0;
-  let failedCount = 0;
+  const failures = [];
 
   for (const ticketId of window.selectedTicketIds) {
     try {
-      // إصلاح: كان بيستخدم reassignTicketApi لكل التذاكر، وهي بترفض أي
-      // تذكرة "pending" (رسالة: متاحة فقط للتذاكر المُسندة) - يعني الإسناد
-      // الجماعي للبلاغات الجديدة (الغرض الأساسي منه) كان بيفشل 100%
-      // وبيعرض "تم إسناد 0 تذكرة بنجاح". دلوقتي التذكرة pending بتتسند
-      // بـ assignTicketApi (بنوعها الأصلي)، والمُسندة بتتنقل بـ reassignTicketApi.
-      const tk = activeFilteredTickets.find(x => x.id === ticketId);
-      const st = String(tk?.status || "").trim().toLowerCase();
-      const res = st === "pending"
-        ? await assignTicketApi(ticketId, {
-            type: tk?.type || "Breakdown",
-            assignedTo: values.assignedTo,
-            assignedToUid: selectedTech?.id || null
-          })
-        : await reassignTicketApi(ticketId, {
-            assignedTo: values.assignedTo,
-            assignedToUid: selectedTech?.id || null
-          });
-      if (res.status === "success") successCount++; else failedCount++;
-    } catch (_) { failedCount++; }
+      const ticketRes = await fetchTicketByIdApi(ticketId);
+      if (ticketRes.status !== "success") {
+        failures.push(ticketRes.message || (isEn ? 'Ticket not found' : 'التذكرة غير موجودة'));
+        continue;
+      }
+      const ticket = ticketRes.data;
+      const status = String(ticket.status || "").trim().toLowerCase();
+
+      let res;
+      if (status === "pending") {
+        res = await assignTicketApi(ticketId, {
+          type: ticket.type || "Breakdown",
+          assignedTo,
+          assignedToUid: assignedToUid || null
+        });
+      } else if (MGR_REASSIGNABLE_STATUSES.includes(status)) {
+        res = await reassignTicketApi(ticketId, { assignedTo, assignedToUid: assignedToUid || null });
+      } else {
+        failures.push(`${ticket.issueId || ticketId}: ${isEn ? 'status does not allow assignment' : 'حالة التذكرة لا تسمح بالإسناد'}`);
+        continue;
+      }
+
+      if (res.status === "success") successCount++;
+      else failures.push(`${ticket.issueId || ticketId}: ${res.message || ''}`);
+    } catch (err) {
+      failures.push(`${ticketId}: ${err?.message || ''}`);
+    }
   }
 
-  const failNote = failedCount
-    ? (isEn ? ` — ${failedCount} failed (status not eligible)` : ` — فشل ${failedCount} (حالتها لا تسمح بالإسناد)`)
-    : "";
-  alert(
-    (isEn ? `✅ Successfully assigned ${successCount} tickets` : `✅ تم إسناد ${successCount} تذكرة بنجاح`) + failNote
-  );
+  const failedCount = failures.length;
+  let msg = isEn
+    ? `✅ Assigned ${successCount} ticket(s)`
+    : `✅ تم إسناد ${successCount} تذكرة`;
+  if (failedCount) {
+    msg += isEn
+      ? `\n⚠️ Failed: ${failedCount}\n` + failures.slice(0, 5).join("\n")
+      : `\n⚠️ فشل: ${failedCount}\n` + failures.slice(0, 5).join("\n");
+  }
+  alert(msg);
   window.selectedTicketIds.clear();
   updateBulkActionBar();
 };
