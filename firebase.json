@@ -14,7 +14,16 @@
         "firebase.json",
         "**/.*",
         "**/node_modules/**",
-        "functions/**"
+        "functions/**",
+        "firestore.rules",
+        "firestore.indexes.json",
+        "server.js",
+        "package.json",
+        "patch.js",
+        "src-firebase.js",
+        "*.patch",
+        "*.zip",
+        "*.md"
       ],
       "rewrites": [
         {
@@ -30,7 +39,16 @@
         "firebase.json",
         "**/.*",
         "**/node_modules/**",
-        "functions/**"
+        "functions/**",
+        "firestore.rules",
+        "firestore.indexes.json",
+        "server.js",
+        "package.json",
+        "patch.js",
+        "src-firebase.js",
+        "*.patch",
+        "*.zip",
+        "*.md"
       ],
       "rewrites": [
         {
