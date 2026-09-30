@@ -286,7 +286,15 @@ window.loadMachineProfileData = async function () {
     pmRecords = allPmRecords.slice(0, 5);
 
     // Extract last overhaul if exists (assuming checklist has overhaul or notes mention it)
-    const overhaulRecord = pmRecords.find(r => (r.checklist && r.checklist.overhaul === true) || (r.notes && r.notes.toLowerCase().includes('overhaul') || r.notes.includes('عمرة')));
+    // إصلاح: (1) البحث كان محصور في آخر 5 سجلات PM فقط، فأي عمرة أقدم
+    // من كده عمرها ما كانت بتظهر - دلوقتي بنبحث في كل سجلات الماكينة
+    // (مرتبة من الأحدث). (2) الشرط القديم كان بيرمي TypeError لو
+    // r.notes مش موجودة (بسبب أولوية && / ||) فيوقف باقي تحميل الملف.
+    const overhaulRecord = allPmRecords.find(r => {
+      if (r.checklist && r.checklist.overhaul === true) return true;
+      const notesText = String(r.notes || '').toLowerCase();
+      return notesText.includes('overhaul') || notesText.includes('عمرة');
+    });
     if (overhaulRecord && overhaulBox && overhaulContent) {
       overhaulBox.classList.remove('hidden');
       overhaulContent.innerHTML = `
@@ -311,16 +319,34 @@ window.loadMachineProfileData = async function () {
     }
 
     // Fetch active tickets for status
+    // إصلاح (حالة الماكينة غير دقيقة): الحالة كانت بتتحسب من أول 15
+    // تذكرة راجعة من استعلام بدون ترتيب (limit(15) بدون orderBy) - فأي
+    // ماكينة عندها أكتر من 15 تذكرة تاريخية ممكن تظهر "تعمل" 🟢 وعليها
+    // عطل مفتوح مش ضمن الـ15. كمان حالة "reopened" (إصلاح اتّرفض) كانت
+    // مش محسوبة "نشطة". دلوقتي استعلام مخصص للحالات النشطة الأربعة.
+    const ACTIVE_STATUSES = ['pending', 'assigned', 'in_progress', 'reopened'];
     const tq = query(collection(db, 'tickets'), where('machine', '==', machine), limit(15));
     const tSnap = await getDocs(tq);
+    const recentActive = [];
     tSnap.forEach(d => {
       const data = d.data();
-      if (['pending', 'assigned', 'in_progress'].includes(data.status)) {
-        activeTickets.push(data);
-      }
+      if (ACTIVE_STATUSES.includes(data.status)) recentActive.push(data);
       recentTickets.push({ id: d.id, ...data, kind: 'Ticket' });
     });
     recentTickets.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    try {
+      const aq = query(
+        collection(db, 'tickets'),
+        where('machine', '==', machine),
+        where('status', 'in', ACTIVE_STATUSES)
+      );
+      const aSnap = await getDocs(aq);
+      aSnap.forEach(d => activeTickets.push(d.data()));
+    } catch (activeErr) {
+      console.warn('Active tickets query failed, using recent tickets only:', activeErr);
+      activeTickets.push(...recentActive);
+    }
   } catch (err) {
     console.warn("Could not fetch tickets or PMs for machine profile:", err);
   }

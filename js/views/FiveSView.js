@@ -6,7 +6,7 @@
 // + 5S Score إجمالي (متوسط التقييمات كنسبة مئوية).
 // ============================================================
 
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { getDepartmentForMachineValue, getLineForMachineValue, formatLineLabel, normalizeLine, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import {
   buildAttachmentPickerHtml,
@@ -318,16 +318,24 @@ window.handleFiveSSubmit = async function (event) {
       // Create tickets for items that requested one
       const ticketItems = items.filter(i => i.rating <= 2 && i.ticketRequested);
       let ticketsCreated = false;
+      let failedTickets = 0;
 
       if (ticketItems.length) {
         const { saveIssueApi } = await import('../services/api.js');
+        // نفس إصلاح الفحص اليومي: الخط من الـQR/الكتالوج بدل قيمة فاضية
+        const fsLineLabel = formatLineLabel(
+          normalizeLine(localStorage.getItem('activeMachineLine')) || getLineForMachineValue(machine)
+        );
         for (const item of ticketItems) {
-          await saveIssueApi({
+          const ticketResult = await saveIssueApi({
             issueId: 'IS-' + Date.now() + '-' + item.pillar,
-            line: '',
+            line: fsLineLabel,
             machine,
             priority: 'Medium',
-            type: 'Breakdown',
+            // إصلاح: ملاحظة 5S (ترتيب/نظافة/تحسين) كانت بتتسجل نوع "عطل مفاجئ"
+            // Breakdown - فكانت بتخلّي حالة الماكينة في ملفها "متوقفة" 🔴
+            // وبتتحسب في إحصائيات الأعطال و MTTR. النوع الصحيح "ملاحظة".
+            type: 'Observation',
             category: '5S / تحسين',
             description: `[5S - ${item.label}] (Rating: ${item.rating}/5) - ${item.note}`,
             location: '',
@@ -345,11 +353,22 @@ window.handleFiveSSubmit = async function (event) {
             createdAt: new Date().toISOString(),
             source: 'fiveS'
           });
+          if (!ticketResult || (ticketResult.status !== 'success' && ticketResult.status !== 'queued')) {
+            failedTickets += 1;
+          }
         }
-        ticketsCreated = true;
+        ticketsCreated = failedTickets < ticketItems.length;
       }
 
-      alert(tr.success + score + '%' + (ticketsCreated ? tr.ticketsCreated : ''));
+      const fsIsEn = (window.currentLang || 'ar') === 'en';
+      alert(
+        tr.success + score + '%' +
+        (failedTickets > 0
+          ? (fsIsEn
+              ? ` — but ${failedTickets} ticket(s) could NOT be created. Please report them manually.`
+              : ` — لكن تعذّر إنشاء ${failedTickets} بلاغ. برجاء تسجيلها يدوياً.`)
+          : (ticketsCreated ? tr.ticketsCreated : ''))
+      );
       window.goBack('machineProfile');
     } else {
       alert(tr.error + (result.message || ''));

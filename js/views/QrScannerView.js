@@ -68,6 +68,8 @@ function t() {
     invalidQrDesc: isEn ? 'This QR code does not contain a recognized machine identifier.' : 'رمز QR هذا لا يحتوي على كود ماكينة مسجل بالنظام.',
     notFound: isEn ? 'Machine Not Found' : 'الماكينة غير موجودة',
     notFoundDesc: isEn ? 'No machine matches this code in the system catalog.' : 'لا توجد ماكينة مطابقة لهذا الكود في كتالوج النظام.',
+    inactiveMachine: isEn ? 'Machine Disabled' : 'الماكينة معطّلة',
+    inactiveMachineDesc: isEn ? 'This machine is disabled in the catalog, so quick actions are not available. Contact your manager if it should be active.' : 'هذه الماكينة معطّلة في الكتالوج فلا تتوفر لها إجراءات سريعة. تواصل مع المسؤول لو المفروض إنها مفعّلة.',
     noPermission: isEn ? 'No Department Permission' : 'لا توجد صلاحية لهذا القسم',
     noPermissionDesc: isEn ? 'This machine belongs to another department you do not have permission to access.' : 'هذه الماكينة تابعة لقسم لا تملك صلاحية الوصول إليه.',
     yourDept: isEn ? 'Your Department' : 'قسمك الحالي',
@@ -217,23 +219,41 @@ export const QrScannerView = () => {
 // ============================================================
 // تحليل نص QR واستخراج "قيمة الماكينة" منه
 // ============================================================
+function decodeBase64QrPayload(text) {
+  if (!text || /\s/.test(text)) return null;
+  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(text)) return null;
+
+  try {
+    let b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trim();
+    if (/^(\{|mid:|https?:\/\/)/i.test(decoded)) return decoded;
+  } catch (_) {
+    // ليس Base64 صالحاً - النص الأصلي يُستخدم كما هو
+  }
+  return null;
+}
+
 function parseQrPayload(rawText) {
   let text = String(rawText || '').trim();
   if (!text) return { value: '', line: '' };
 
-  // 0) فك التشفير (Base64) لو كان النص مشفر
-  try {
-    const decoded = decodeURIComponent(escape(atob(text)));
-    if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
-      text = decoded;
-    }
-  } catch (e) {
-    try {
-      const decoded = atob(text);
-      if (/[a-zA-Z0-9{}\":,]/.test(decoded)) {
-        text = decoded;
-      }
-    } catch (_) {}
+  // 0) فك التشفير (Base64) - بشروط صارمة.
+  // إصلاح (بند مؤكد - قراءة QR): الفك القديم كان بيجرّب atob() على أي
+  // نص، و atob بيتجاهل المسافات وبيقبل أي نص حروفه/أرقامه فقط، فأي QR
+  // لنص خام زي "Bodymaker 01" أو "Cupper" أو "Spray 03" (وده بالظبط
+  // اللي بيولّده زر توليد QR في ملف الماكينة للماكينات بدون خط) كان
+  // بيتفك لبيانات عشوائية وبيتستبدل بيها النص الأصلي فتظهر "الماكينة
+  // غير موجودة" لمعظم الماكينات الصحيحة. دلوقتي الفك بيتقبل فقط لو:
+  // النص بدون مسافات، وأحرفه Base64 فعلاً، والناتج UTF-8 سليم، وشكله
+  // شكل حمولة QR معروفة (JSON / MID: / رابط) - غير كده النص الأصلي
+  // بيفضل كما هو.
+  const decodedBase64 = decodeBase64QrPayload(text);
+  if (decodedBase64) {
+    text = decodedBase64;
   }
 
   // 1) JSON {"m":"Bodymaker 01","line":"1"}
@@ -357,6 +377,21 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
       });
       return false;
     }
+  }
+
+  // 2b) الماكينة المعطّلة: مخفية من كل فورمات الإنشاء الجديدة، فمسح
+  // ملصق قديم ليها كان بيفتح بطاقة "تم التعرف" بأزرار (AM/5S/بلاغ عطل)
+  // ونموذج البلاغ بيفضل بدون ماكينة (الاختيار المسبق بيفشل بصمت لأن
+  // النوع المعطّل مش في القائمة). غير أصحاب الوصول الكامل بيتوقفوا هنا
+  // برسالة واضحة.
+  if (machine.active === false && !hasFullDataAccess()) {
+    renderQrErrorCard({
+      tone: 'warn',
+      title: tr.inactiveMachine,
+      desc: tr.inactiveMachineDesc,
+      rawCode: scannedValue
+    });
+    return false;
   }
 
   // 3) النجاح: تحديد خط الإنتاج وحفظ الماكينة

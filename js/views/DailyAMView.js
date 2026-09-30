@@ -12,7 +12,7 @@ import {
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { getDepartmentForMachineValue, getLineForMachineValue, formatLineLabel, normalizeLine, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import { db, doc, getDoc } from '../providers/backend/index.js';
 
@@ -383,17 +383,24 @@ window.handleDailyAmSubmit = async function (event) {
     // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ)
     const ticketItems = items.filter(i => i.result === 'not_ok' && i.ticketRequested);
     let ticketsCreated = false;
+    let failedTickets = 0;
 
     if (ticketItems.length) {
       const { saveIssueApi } = await import('../services/api.js');
+      // إصلاح: البلاغ المنشأ من الفحص اليومي كان بيتسجل بـ line فاضي رغم إن
+      // خط الماكينة معروف (من الـQR أو من كتالوج الماكينات) - فبيختفي من
+      // فلاتر/إحصائيات الخط. دلوقتي بنستخدم نفس مصدر الخط المستخدم في ملف الماكينة.
+      const amLineLabel = formatLineLabel(
+        normalizeLine(localStorage.getItem('activeMachineLine')) || getLineForMachineValue(machine)
+      );
       for (const item of ticketItems) {
         let ticketDesc = `[Daily AM] ${item.label}: ${item.note}`;
         if (item.reading) {
            ticketDesc = `[Daily AM] ${item.label} (Reading: ${item.reading}) - ${item.note}`;
         }
-        await saveIssueApi({
+        const ticketResult = await saveIssueApi({
           issueId: 'IS-' + Date.now() + '-' + item.id,
-          line: '',
+          line: amLineLabel,
           machine,
           priority: 'High',
           type: 'Breakdown',
@@ -414,11 +421,26 @@ window.handleDailyAmSubmit = async function (event) {
           createdAt: new Date().toISOString(),
           source: 'dailyAM'
         });
+        // إصلاح: نتيجة saveIssueApi ماكانتش بتتفحص - لو فشل إنشاء البلاغ
+        // (status: error) كان المستخدم بيشوف "تم إنشاء بلاغات" وهي مش اتعملت
+        // فعلاً (بند عطل حقيقي بيضيع). "queued" = محفوظ أوفلاين وهيترفع.
+        if (!ticketResult || (ticketResult.status !== 'success' && ticketResult.status !== 'queued')) {
+          failedTickets += 1;
+        }
       }
-      ticketsCreated = true;
+      ticketsCreated = failedTickets < ticketItems.length;
     }
 
-    alert(tr.success + (ticketsCreated ? tr.ticketsCreated : ''));
+    if (failedTickets > 0) {
+      alert(
+        tr.success +
+        (isEn
+          ? ` — but ${failedTickets} ticket(s) could NOT be created. Please report them manually from the machine profile.`
+          : ` — لكن تعذّر إنشاء ${failedTickets} بلاغ. برجاء تسجيلها يدوياً من ملف الماكينة.`)
+      );
+    } else {
+      alert(tr.success + (ticketsCreated ? tr.ticketsCreated : ''));
+    }
     window.goBack('machineProfile');
   } catch (err) {
     alert(tr.error + err.message);
