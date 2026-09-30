@@ -42,6 +42,19 @@ import {
 import { normalizeLine, extractMachineLine } from "../utils/lineUtils.js";
 
 
+// إصلاح (Dead End - صلاحيات): شاشة إدارة الماكينات بتتفتح لأي مستخدم
+// معاه صلاحية "machines" (مش أدمن بس)، لكن قواعد Firestore
+// (machineTypes: create/update/delete = admin فقط) بترفض أي كتابة منه،
+// فكان بيشوف الفورم وأزرار الإضافة/التعديل/التعطيل/الحذف وكلها بتفشل
+// برسالة خام "Missing or insufficient permissions". دلوقتي أي كتابة من
+// غير الأدمن بتتوقف هنا برسالة واضحة قبل ما توصل لـ Firestore.
+function machineWriteDeniedResult() {
+  return {
+    status: "error",
+    message: "تعديل قائمة الماكينات (إضافة / تعديل / تعطيل / حذف) متاح للأدمن فقط"
+  };
+}
+
 // ============================================================
 // FETCH
 // ============================================================
@@ -121,6 +134,8 @@ export async function fetchMachineTypesApi(filterDept = null) {
  *   فاضية تتعامل كـ "backend" افتراضياً.
  */
 export async function addMachineTypeApi(key, units = [], department = "backend", line = "") {
+
+  if (!isAdminRole(getCurrentRole())) return machineWriteDeniedResult();
 
   try {
 
@@ -203,6 +218,8 @@ export async function addMachineTypeApi(key, units = [], department = "backend",
  *   اتسيب undefined (مش متبعت خالص)، حقل department ميتلمسش نهائياً.
  */
 export async function updateMachineTypeApi(machineTypeId, key, units = [], department = undefined, line = undefined) {
+
+  if (!isAdminRole(getCurrentRole())) return machineWriteDeniedResult();
 
   try {
 
@@ -288,6 +305,8 @@ export async function updateMachineTypeApi(machineTypeId, key, units = [], depar
  */
 export async function setMachineTypeActiveApi(machineTypeId, active) {
 
+  if (!isAdminRole(getCurrentRole())) return machineWriteDeniedResult();
+
   try {
 
     if (!machineTypeId) {
@@ -321,6 +340,8 @@ export async function setMachineTypeActiveApi(machineTypeId, active) {
 // ============================================================
 
 export async function deleteMachineTypeApi(machineTypeId) {
+
+  if (!isAdminRole(getCurrentRole())) return machineWriteDeniedResult();
 
   try {
 
