@@ -24,6 +24,13 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const {
+  phoneToAuthEmail,
+  hasLegacySecrets,
+  verifyLegacyPassword,
+  stripLegacySecrets,
+  LEGACY_SECRET_FIELDS
+} = require("./legacyAuth");
 
 admin.initializeApp();
 
@@ -284,6 +291,251 @@ exports.updateUserRoleAccount = onCall({ region: "us-central1" }, async (request
 
 
 // ============================================================
+// ترحيل حسابات النظام القديم (قبل Firebase Authentication) - سيرفري
+// ============================================================
+// Security review (Auth/Roles): الترحيل كان بيتم من المتصفح: الواجهة
+// كانت بتقرا مستند المستخدم القديم (بما فيه password/passwordHash/salt)
+// برقم الهاتف من غير أي تسجيل دخول (استثناء في firestore.rules)، وتقارن
+// كلمة السر في المتصفح، وتكتب المستند الجديد بنفسها (فرع migratedFromId
+// في القواعد). ده كان بيكشف أسرار الحسابات القديمة لأي زائر مجهول، وبيسمح
+// باستيلاء على حساب قديم (حجز إيميل Auth المشتق من رقم الهاتف قبل صاحبه).
+// الاستثناءين اتشالوا من القواعد، والترحيل هنا بيتم بـ Admin SDK بعد
+// التحقق من كلمة السر القديمة على السيرفر.
+//
+// ⚠️ لازم تتنشر قبل نشر القواعد الجديدة (وإلا المستخدمين القدامى اللي
+// لسه ماترحّلوش مش هيعرفوا يدخلوا) - راجع README.
+
+const LEGACY_MIGRATION_MAX_ATTEMPTS = 10;
+const LEGACY_MIGRATION_WINDOW_MS = 15 * 60 * 1000;
+const LEGACY_GENERIC_ERROR = "رقم الموبايل أو كلمة السر غير صحيحة.";
+
+/**
+ * حد محاولات لكل رقم هاتف (ضد التخمين): تُستهلك المحاولة فقط لو فيه
+ * مستند قديم فعلاً لهذا الرقم (عشان مانكتبش مستندات لأرقام عشوائية).
+ * المجموعة authThrottle مالهاش match في firestore.rules = مرفوضة للعميل،
+ * والدوال بتكتب فيها بـ Admin SDK.
+ */
+async function consumeMigrationAttempt(throttleRef) {
+  const now = Date.now();
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(throttleRef);
+    let count = 0;
+    let windowStart = now;
+    if (snap.exists) {
+      const d = snap.data();
+      if (now - (d.windowStart || 0) <= LEGACY_MIGRATION_WINDOW_MS) {
+        count = d.count || 0;
+        windowStart = d.windowStart;
+      }
+    }
+    if (count >= LEGACY_MIGRATION_MAX_ATTEMPTS) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "محاولات كثيرة جداً، يرجى المحاولة لاحقاً."
+      );
+    }
+    tx.set(throttleRef, { count: count + 1, windowStart, updatedAt: now });
+  });
+}
+
+/**
+ * يجرّد مستند قديم من أسراره ويحوّله لنسخة احتياطية خاملة (بدل ما يفضل
+ * "active" بنفس الدور فيتحسب أدمن تاني في فحص "آخر Admin" ويظهر في قوائم
+ * الفنيين). بنحفظ القيم الأصلية في legacyRole/legacyStatus.
+ */
+async function retireLegacyDoc(legacyRef, legacyData, newUid) {
+  const update = {
+    legacyRole: legacyData.role || "",
+    legacyStatus: legacyData.status || "",
+    role: "migrated",
+    status: "migrated",
+    permissions: "",
+    migratedToUid: newUid || null,
+    migratedAt: new Date().toISOString()
+  };
+  LEGACY_SECRET_FIELDS.forEach((f) => {
+    update[f] = admin.firestore.FieldValue.delete();
+  });
+  await legacyRef.update(update);
+}
+
+/**
+ * ترحيل حساب قديم إلى Firebase Auth. بتتنادى من شاشة الدخول (js/auth/
+ * login.js) لما تسجيل الدخول العادي يفشل - بدون تسجيل دخول مسبق
+ * (callable عام، الحماية بكلمة السر القديمة + حد المحاولات).
+ *
+ * @param {{ phone: string, password: string }} data
+ */
+exports.migrateLegacyAccount = onCall({ region: "us-central1" }, async (request) => {
+
+  const rawPhone = request.data?.phone;
+  const rawPassword = request.data?.password;
+
+  if (
+    typeof rawPhone !== "string" || typeof rawPassword !== "string" ||
+    !rawPhone.trim() || !rawPassword.trim() ||
+    rawPhone.length > 40 || rawPassword.length > 200
+  ) {
+    throw new HttpsError("invalid-argument", "بيانات غير صالحة.");
+  }
+
+  // نفس تنظيف login.js (trim) عشان المطابقة تفضل زي النظام القديم
+  const phone = rawPhone.trim();
+  const password = rawPassword.trim();
+  const email = phoneToAuthEmail(phone);
+  const digits = email.split("@")[0];
+
+  if (!digits) {
+    throw new HttpsError("invalid-argument", "بيانات غير صالحة.");
+  }
+
+  // 1) مستندات قديمة (فيها أسرار) بنفس رقم الهاتف
+  const phoneSnap = await db.collection("users").where("phone", "==", phone).get();
+  const legacyDocs = phoneSnap.docs.filter((d) => hasLegacySecrets(d.data()));
+
+  if (!legacyDocs.length) {
+    // مفيش حاجة تترحّل (رقم غير مسجل، أو اترحّل قبل كده) - رد موحّد
+    throw new HttpsError("permission-denied", LEGACY_GENERIC_ERROR);
+  }
+
+  // 2) حد المحاولات لكل رقم
+  const throttleRef = db.collection("authThrottle").doc(digits);
+  await consumeMigrationAttempt(throttleRef);
+
+  // 3) التحقق من كلمة السر القديمة (على السيرفر)
+  const legacyDoc = legacyDocs.find((d) => verifyLegacyPassword(password, d.data()));
+
+  if (!legacyDoc) {
+    throw new HttpsError("permission-denied", LEGACY_GENERIC_ERROR);
+  }
+
+  const legacyData = legacyDoc.data();
+
+  // 4) حساب Auth: موجود؟ (ممكن حد حجزه، أو ترحيل سابق فشل في نصه)
+  let userRecord = null;
+  try {
+    userRecord = await admin.auth().getUserByEmail(email);
+  } catch (error) {
+    if (error.code !== "auth/user-not-found") {
+      throw new HttpsError("internal", "تعذّر التحقق من الحساب، حاول مرة أخرى.");
+    }
+  }
+
+  if (userRecord) {
+    // حساب Auth موقوف (disabled) عمداً - مانفعّلوش بكلمة سر قديمة
+    if (userRecord.disabled) {
+      throw new HttpsError("permission-denied", LEGACY_GENERIC_ERROR);
+    }
+
+    const existingProfileSnap = await db.collection("users").doc(userRecord.uid).get();
+
+    // حساب اترحّل فعلاً من نفس المستند القديم: كلمة سر Firebase Auth هي
+    // المرجع الوحيد دلوقتي - مانرجّعش كلمة السر القديمة (لو المستخدم غيّرها
+    // أو عمل reset، القديمة ماتفضلش باب خلفي). بننضّف الأسرار بس.
+    if (existingProfileSnap.exists && existingProfileSnap.data().migratedFromId === legacyDoc.id) {
+      await retireLegacyDoc(legacyDoc.ref, legacyData, userRecord.uid);
+      throw new HttpsError("permission-denied", LEGACY_GENERIC_ERROR);
+    }
+  }
+
+  // 5) إنشاء/استرجاع حساب Auth بكلمة السر (اللي اتثبت إنها صحيحة)
+  try {
+    if (userRecord) {
+      // الحساب محجوز بإيميل مشتق من رقم الهاتف لكن مش مرحَّل من المستند
+      // القديم ده: صاحب الرقم الحقيقي أثبت هويته بكلمة السر القديمة، فبناخد
+      // الحساب ونلغي جلسات أي حد كان حاجزه
+      await admin.auth().updateUser(userRecord.uid, { password });
+      await admin.auth().revokeRefreshTokens(userRecord.uid);
+    } else {
+      userRecord = await admin.auth().createUser({ email, password });
+    }
+  } catch (error) {
+    if (error.code === "auth/invalid-password") {
+      throw new HttpsError(
+        "failed-precondition",
+        "كلمة السر القديمة أقصر من الحد الأدنى المطلوب (٦ أحرف) - تواصل مع المسؤول."
+      );
+    }
+    console.error("migrateLegacyAccount auth error:", error);
+    throw new HttpsError("internal", "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى.");
+  }
+
+  // 6) مستند المستخدم الجديد (معرّفه = uid) - نسخة بدون أسرار. الكتابة
+  // قبل تنظيف المستند القديم عشان لو فشلت المحاولة تتكرر بأمان.
+  try {
+    await db.collection("users").doc(userRecord.uid).set({
+      ...stripLegacySecrets(legacyData),
+      migratedFromId: legacyDoc.id,
+      migratedAt: new Date().toISOString()
+    });
+    await retireLegacyDoc(legacyDoc.ref, legacyData, userRecord.uid);
+  } catch (error) {
+    console.error("migrateLegacyAccount profile error:", error);
+    throw new HttpsError(
+      "internal",
+      "تم ترقية الحساب لكن حدث خطأ أثناء نقل البيانات، يرجى المحاولة مرة أخرى."
+    );
+  }
+
+  await throttleRef.delete().catch(() => {});
+
+  return { status: "success" };
+
+});
+
+
+/**
+ * تنظيف بيانات الاعتماد القديمة (password/passwordHash/salt) من مستندات
+ * المستخدمين اللي اترحّلوا فعلاً قبل هذا التحديث (المستند القديم كان بيفضل
+ * موجود بأسراره بعد الترحيل - راجع login.js القديم). Admin نشط فقط.
+ * مبتلمسش المستندات اللي لسه ماترحّلتش (وإلا أصحابها مش هيعرفوا يدخلوا).
+ * بتتنادى مرة واحدة يدوياً بعد النشر (راجع README).
+ */
+exports.purgeLegacyCredentials = onCall({ region: "us-central1" }, async (request) => {
+
+  const callerUid = request.auth?.uid;
+
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+  }
+
+  const callerSnap = await db.collection("users").doc(callerUid).get();
+  const callerData = callerSnap.exists ? callerSnap.data() : null;
+
+  if (!callerData || callerData.role !== "admin" || callerData.status !== "active") {
+    throw new HttpsError("permission-denied", "هذه العملية مقصورة على Admin فقط.");
+  }
+
+  const allSnap = await db.collection("users").get();
+
+  // معرّف المستند القديم -> uid المستند الجديد المرحَّل إليه
+  const migratedTo = new Map();
+  allSnap.forEach((d) => {
+    const from = d.data().migratedFromId;
+    if (from) migratedTo.set(from, d.id);
+  });
+
+  let purged = 0;
+  let stillLegacy = 0;
+
+  for (const d of allSnap.docs) {
+    const data = d.data();
+    if (!hasLegacySecrets(data) && !LEGACY_SECRET_FIELDS.some((f) => f in data)) continue;
+
+    if (migratedTo.has(d.id)) {
+      await retireLegacyDoc(d.ref, data, migratedTo.get(d.id));
+      purged++;
+    } else {
+      stillLegacy++;
+    }
+  }
+
+  return { status: "success", purged, stillLegacy };
+
+});
+
+
+// ============================================================
 // رفع الصور عبر ImgBB - وسيط سيرفر (بند F/الأمان في تقرير المراجعة)
 // ============================================================
 // المشكلة الحالية: IMGBB_API_KEY موجود كنص واضح في js/config.js
@@ -314,6 +566,15 @@ exports.uploadImageViaImgbb = onCall(
 
     if (!request.auth?.uid) {
       throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+    }
+
+    // Security review (Auth/Roles): التسجيل بـ Email/Password مفتوح لأي
+    // حد (registerUserApi) - فوجود request.auth لوحده مايثبتش إن الحساب
+    // اتقبل من الأدمن. أي حساب pending/rejected كان يقدر يستهلك مفتاح
+    // ImgBB السري. لازم الحساب يكون active (نفس isActive() في القواعد).
+    const uploaderSnap = await db.collection("users").doc(request.auth.uid).get();
+    if (!uploaderSnap.exists || uploaderSnap.data().status !== "active") {
+      throw new HttpsError("permission-denied", "حسابك غير مفعّل.");
     }
 
     const { base64, name } = request.data || {};

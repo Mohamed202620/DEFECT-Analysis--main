@@ -56,6 +56,27 @@ Firestore محذوف، بدل ما يسيبه شكلياً "مسجّل دخول"
    على مستوى العميل). هذه الدالة غير مرتبطة بإصلاحات Phase 3 (#4/#5)
    - موجودة هنا من قبل.
 
+4. **`migrateLegacyAccount`** — ترحيل حسابات النظام القديم (قبل Firebase Auth)
+   على السيرفر بدل المتصفح (Security review - Auth/Roles). بتتنادى من
+   `js/auth/login.js` بدون تسجيل دخول مسبق، وبتتحقق من كلمة السر القديمة
+   (PBKDF2 - `functions/legacyAuth.js`) وعليها حد محاولات لكل رقم هاتف
+   (المجموعة `authThrottle` بيكتب فيها Admin SDK فقط، مرفوضة للعميل).
+   بتنشئ حساب Auth ومستند `users/{uid}` نظيف، وبتفرّغ المستند القديم من
+   `password/passwordHash/salt` وتحوّله لـ `status: "migrated"`.
+5. **`purgeLegacyCredentials`** — تنظيف مرة واحدة (Admin نشط فقط): بتشيل
+   بيانات كلمة السر القديمة من المستندات اللي اترحّلت قبل التحديث.
+
+## ⚠️ ترتيب النشر (مهم - Security review)
+
+1. `cd functions && npm install` ثم `firebase deploy --only functions`
+   (لازم **قبل** القواعد، وإلا المستخدمين القدامى اللي ماترحّلوش مش
+   هيعرفوا يدخلوا: القواعد الجديدة شالت استثناء القراءة بدون تسجيل دخول
+   وفرع `migratedFromId`).
+2. نشر الواجهة (Hosting) بنسخة `js/auth/login.js` الجديدة.
+3. `firebase deploy --only firestore:rules`.
+4. من حساب Admin نشط: استدعاء `purgeLegacyCredentials` مرة واحدة
+   (يفضّل من Console المتصفح عبر `callCloudFunction`).
+
 ## خطوات النشر المطلوبة (يدوي - محتاج منكم)
 
 1. **الاشتراك لازم يكون على خطة Blaze** (Pay-as-you-go) - Cloud
