@@ -47,6 +47,21 @@ function cloudFunctionUrl(functionName) {
   return `https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/${functionName}`;
 }
 
+// إصلاح (اتصال): fetch بدون مهلة كان بيعلّق الحفظ للأبد لو الشبكة وقفت نص الطريق
+// (نفس مشكلة Test 16 اللي اتعالجت في imgbbStorageProvider بـ AbortController 30 ثانية).
+// رفع الصور بقى بيمر من هنا (serverProxyStorageProvider) فلازم المهلة تتنقل معاه.
+const CLOUD_FUNCTION_TIMEOUT_MS = 30000;
+
+async function fetchWithTimeout(url, options, timeoutMs = CLOUD_FUNCTION_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function callCloudFunction(functionName, data) {
 
   if (!_auth.currentUser) {
@@ -57,7 +72,7 @@ export async function callCloudFunction(functionName, data) {
 
   let response;
   try {
-    response = await fetch(cloudFunctionUrl(functionName), {
+    response = await fetchWithTimeout(cloudFunctionUrl(functionName), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -100,7 +115,7 @@ export async function callPublicCloudFunction(functionName, data) {
 
   let response;
   try {
-    response = await fetch(cloudFunctionUrl(functionName), {
+    response = await fetchWithTimeout(cloudFunctionUrl(functionName), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: data || {} })
