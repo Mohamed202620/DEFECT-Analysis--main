@@ -14,6 +14,7 @@
 // ============================================================
 
 import { fetchTicketsApi } from './services/api.js';
+import { getCurrentRole } from './permissions.js';
 import { translations } from './config.js';
 import { CLOSED_STATUSES, parseTicketDate } from './ticketStatusConstants.js';
 
@@ -116,7 +117,7 @@ export async function initStatsView() {
     </div>`;
   }
 
-  const result = await fetchTicketsApi();
+  const result = await fetchTicketsApi(getStatsFetchScope());
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
   // ماتتخزنش نتيجة فاشلة للإعادة - المحاولة الجاية تجلب من جديد
@@ -127,6 +128,17 @@ export async function initStatsView() {
 }
 
 // ============================================================
+// إصلاح (اتساق البيانات): الصفحة كانت بتجلب fetchTicketsApi() بدون معاملات،
+// فكانت بتعرض أرقام الشركة كلها حتى لو الدور محدود، بينما الرئيسية والتقارير
+// بتعرض نطاق المستخدم. دلوقتي نفس معاملات النطاق المستخدمة في باقي الشاشات
+function getStatsFetchScope() {
+  return {
+    role: getCurrentRole(),
+    myUid: localStorage.getItem('userId') || '',
+    myName: localStorage.getItem('name') || ''
+  };
+}
+
 // زر تحديث بيانات الداشبورد مباشرة
 // ============================================================
 
@@ -134,7 +146,7 @@ window.refreshStatsDashboard = async function () {
   const btn = el('statsRefreshBtn');
   if (btn) btn.classList.add('animate-spin');
 
-  const result = await fetchTicketsApi();
+  const result = await fetchTicketsApi(getStatsFetchScope());
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
   statsLoadedAt = result.status === 'success' ? Date.now() : 0;
