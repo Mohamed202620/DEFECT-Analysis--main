@@ -616,8 +616,15 @@ window.exportMaintenanceSearchResults = async function () {
     let statusText = String(record.status || '').toLowerCase();
     if (kind === 'ticket') statusText = (isAr ? STATUS_LABELS[statusText] : statusText) || statusText;
     if (kind === 'suggestion') statusText = (isAr ? SUGGESTION_STATUS_LABELS[statusText] : statusText) || statusText;
+    // إصلاح: سجل PM مفيهوش status فكانت الخلية فاضية في الإكسيل، بينما الكارت
+    // على الشاشة بيعرض "عدد بنود الفحص المنفذة x/3" - نفس القيمة هنا
+    if (kind === 'pm' && !statusText) {
+      const cl = record.checklist || {};
+      const done = [cl.hydraulic, cl.filters, cl.lubrication].filter(Boolean).length;
+      statusText = isAr ? `${done}/3 بنود` : `${done}/3 items`;
+    }
 
-    const byText = kind === 'suggestion' ? (record.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : record.name) : (record.reportedBy || record.reporter?.name || '');
+    const byText = kind === 'suggestion' ? (record.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : (record.name || '')) : (record.reportedBy || record.reporter?.name || '');
     const assignedText = record.assignedTo || '';
     const descText = record.description || record.problem || record.notes || '';
     const resolutionText = record.resolutionDetails || record.implementationNotes || '';
@@ -640,7 +647,10 @@ window.exportMaintenanceSearchResults = async function () {
   });
 
   const title = isAr ? 'تقرير البحث والفلترة المتقدمة' : 'Advanced Search Report';
-  const filename = `mscanco-maintenance-search-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  // إصلاح: toISOString() بتدّي تاريخ UTC فالملف بيتسمّى بيوم الأمس بعد منتصف الليل بتوقيت القاهرة
+  const nowD = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const filename = `mscanco-maintenance-search-${nowD.getFullYear()}-${pad2(nowD.getMonth() + 1)}-${pad2(nowD.getDate())}.xlsx`;
   
   await exportToExcel(title, headers, rows, filename);
 };
@@ -654,7 +664,10 @@ const PDF_PAGE_WIDTH_PX = 794;
 function formatPdfDate(iso) {
   const isEn = window.currentLang === 'en';
   try {
-    return new Date(iso).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    // إصلاح: قيمة ناقصة/غير صالحة كانت بتطلع نص "Invalid Date" في الإكسيل والـPDF
+    const d = new Date(iso);
+    if (!iso || isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit' });
   } catch {
     return iso || '-';
   }
