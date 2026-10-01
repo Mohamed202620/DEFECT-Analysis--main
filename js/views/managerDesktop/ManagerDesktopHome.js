@@ -9,7 +9,7 @@ import { fetchPmRecordsApi } from '../../services/pmApi.js';
 import { fetchUsers } from '../../services/usersApi.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
-import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate } from '../../ticketStatusConstants.js';
+import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate, STATUS_LABELS } from '../../ticketStatusConstants.js';
 import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '../../statistics.js';
 import { exportToExcel } from '../../services/exportUtility.js'; // MGR-DESKTOP
 
@@ -334,7 +334,7 @@ export function renderManagerDesktopHomeHtml() {
         <div class="space-y-2 text-xs">
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
             <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Current Shift' : 'الوردية الحالية'}</span>
-            <span id="mgrCurrentShiftName" class="font-bold text-blue-500 font-mono">Shift A (Green)</span>
+            <span id="mgrCurrentShiftName" class="font-bold text-blue-500 font-mono">--</span>
           </div>
 
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
@@ -427,7 +427,8 @@ export async function initManagerDesktopHomeData() {
     });
 
     const mttrData = computeMTTR(tickets);
-    const mttrHours = mttrData.avgHours !== null ? mttrData.avgHours : 1.8;
+    // إصلاح: كان بيرجّع 1.8 ساعة مختلقة لما مفيش بيانات - دلوقتي null ويظهر '--'
+    const mttrHours = mttrData.avgHours !== null ? mttrData.avgHours : null;
     
     // MTBF: تقديري مبني على 720 ساعة تشغيل شهرياً مقسومة على عدد الأعطال
     const monthlyFailures = tickets.filter(t => {
@@ -436,8 +437,10 @@ export async function initManagerDesktopHomeData() {
     }).length || 1;
     const mtbfHours = Math.round(720 / monthlyFailures);
 
-    // نسبة إنجاز الصيانة الوقائية PM
-    const pmComplianceRate = pmRecords.length > 0 ? Math.min(100, Math.round((pmRecords.length / Math.max(1, pmRecords.length + (openCount > 5 ? 3 : 1))) * 100)) : 85;
+    // إصلاح: النسبة كانت صيغة مخترعة (الافتراض إن فيه 1 أو 3 مهام متأخرة بحسب openCount)
+    // وبترجّع 85% ثابتة عند غياب البيانات. مفيش جدول PM مخطط في النظام يتحسب منه
+    // التزام حقيقي، فبنعرض '--' ونكتفي بالعدد الفعلي من السجلات (mgrKpiPmCounts)
+    const pmComplianceRate = null;
 
     // تحديث قيم الـ KPIs في الـ DOM
     const setTxt = (id, val) => {
@@ -447,9 +450,9 @@ export async function initManagerDesktopHomeData() {
 
     setTxt("mgrKpiOpen", openCount);
     setTxt("mgrKpiOverdue", overdueCount);
-    setTxt("mgrKpiMttr", `${mttrHours.toFixed(1)} h`);
+    setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
     setTxt("mgrKpiMtbf", `${mtbfHours} h`);
-    setTxt("mgrKpiPmRate", `${pmComplianceRate}%`);
+    setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
     setTxt("mgrKpiPmCounts", `${pmRecords.length} ${isEn ? 'completed PM tasks' : 'مهمة صيانة منفذة'}`);
     setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
 
@@ -480,7 +483,9 @@ export async function initManagerDesktopHomeData() {
     
     // عدد الماكينات المسجلة
     const machinesList = window.machinesList || [];
-    setTxt("mgrTotalMachinesCount", machinesList.length > 0 ? machinesList.length : '48');
+    // الوردية: من بيانات المستخدم المحفوظة بدل نص ثابت "Shift A (Green)"
+    setTxt("mgrCurrentShiftName", localStorage.getItem('shift') || '--');
+    setTxt("mgrTotalMachinesCount", machinesList.length > 0 ? machinesList.length : '--');
 
   } catch (err) {
     console.error("[ManagerDesktop] Error initializing dashboard data:", err);
@@ -890,6 +895,12 @@ window.refreshManagerDesktopDashboard = async function() {
   await initManagerDesktopHomeData();
 };
 
+function localDateStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 // دالة التصدير التنفيذي
 window.exportManagerExecutiveSummary = async function() {
   const isEn = (window.currentLang || 'ar') === 'en';
@@ -903,29 +914,37 @@ window.exportManagerExecutiveSummary = async function() {
       ? ["Ticket ID", "Line / Area", "Machine", "Priority", "Status", "Assigned Technician", "Reported By", "Logged Time"]
       : ["رقم البلاغ", "الخط / الموقع", "الماكينة", "الأولوية", "الحالة", "الفني المكلف", "المُبلّغ", "وقت البلاغ"];
 
-    const rows = cachedDashboardData.tickets.map(t => [
-      t.id ? t.id.slice(0, 10) : '',
-      t.line || '',
-      t.machine || '',
-      t.priority || (isEn ? 'Normal' : 'عادية'),
-      t.status || 'pending',
-      t.assignedTo || (isEn ? 'Unassigned' : 'غير معين'),
-      t.reportedBy || '',
-      t.createdAt ? new Date(t.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG') : ''
-    ]);
+    // نفس تسميات الشاشات ونفس مصدر التاريخ (parseTicketDate) - والمعرّف كامل
+    // بدل slice(0,10) اللي كان بيقطع رقم البلاغ ويخليه مش قابل للمطابقة
+    const EN_STATUS_LABELS = {
+      pending: 'New', assigned: 'Assigned', in_progress: 'In Progress',
+      resolved: 'Awaiting Reporter Confirmation', closed: 'Closed', reopened: 'In Progress'
+    };
+    const rows = cachedDashboardData.tickets.map(t => {
+      const st = String(t.status || 'pending').toLowerCase().trim();
+      const created = parseTicketDate(t);
+      return [
+        t.issueId || t.id || '',
+        t.line || '',
+        t.machine || '',
+        t.priority || (isEn ? 'Normal' : 'عادية'),
+        (isEn ? (EN_STATUS_LABELS[st] || st) : (STATUS_LABELS[st] || st)),
+        t.assignedTo || (isEn ? 'Unassigned' : 'غير معين'),
+        t.reportedBy || '',
+        created ? created.toLocaleString(isEn ? 'en-US' : 'ar-EG') : '-'
+      ];
+    });
 
-    const sheets = [
+    const title = isEn ? "Executive Breakdown Summary" : "ملخص الأعطال التنفيذي";
+    // إصلاح: التوقيع الصحيح exportToExcel(title, headers, rows, filename, options)
+    // - الاستدعاء القديم (sheets, filename) كان بيرمي TypeError فيسقط على window.print()
+    const ok = await exportToExcel(title, headers, rows,
+      `Executive_Maintenance_Report_${localDateStr()}.xlsx`,
       {
-        title: isEn ? "Executive Breakdown Summary" : "ملخص الأعطال التنفيذي",
-        headers,
-        rows,
-        options: {
-          periodLabel: isEn ? "Live Operations Snapshot" : "لقطة حية لعمليات الصيانة"
-        }
-      }
-    ];
-
-    await exportToExcel(sheets, `Executive_Maintenance_Report_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        sheetName: isEn ? 'Tickets' : 'البلاغات',
+        periodLabel: isEn ? "Live Operations Snapshot" : "لقطة حية لعمليات الصيانة"
+      });
+    if (ok === false) return;
   } catch (err) {
     console.error("Export executive report error:", err);
     window.print();
