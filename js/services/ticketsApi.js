@@ -401,13 +401,15 @@ export async function fetchTicketCountsApi({ role, myName } = {}) {
       totalCount = snap.data().count;
     } else {
       // For limited access, count both reported and assigned
-      const [reportedSnap, assignedSnap] = await Promise.all([
+      // إصلاح: التذكرة اللي المُبلّغ فيها = المُسند إليه كانت بتتعد مرتين فالإجمالي
+      // بيتنفخ. نطرح تقاطع الشرطين (inclusion-exclusion) عشان العدد = عدد
+      // التذاكر المميزة، زي ما fetchTicketsApi بتعمل dedupe
+      const [reportedSnap, assignedSnap, bothSnap] = await Promise.all([
         getCountFromServer(query(ticketsRef, where("reportedBy", "==", myName))),
-        getCountFromServer(query(ticketsRef, where("assignedTo", "==", myName)))
+        getCountFromServer(query(ticketsRef, where("assignedTo", "==", myName))),
+        getCountFromServer(query(ticketsRef, where("reportedBy", "==", myName), where("assignedTo", "==", myName)))
       ]);
-      // Note: This might count a ticket twice if reportedBy == assignedTo == myName,
-      // but it's a fast approximation for the dashboard total.
-      totalCount = reportedSnap.data().count + assignedSnap.data().count;
+      totalCount = reportedSnap.data().count + assignedSnap.data().count - bothSnap.data().count;
     }
 
     return {
@@ -987,8 +989,14 @@ async function notifyManagersOfNewTicket(ticketId, ticketData) {
     return;
   }
 
+  // إصلاح: المُبلّغ نفسه (لو مدير/أدمن) كان بيستلم إشعار "بلاغ جديد" على
+  // بلاغه هو - نفس استثناء notifyAdminsOfNewSuggestion
+  const reporterUid = ticketData?.reportedByUid || "";
+  const recipients = result.data.filter(manager => manager.id && manager.id !== reporterUid);
+  if (!recipients.length) return;
+
   await Promise.all(
-    result.data.map(manager =>
+    recipients.map(manager =>
       createNotification(manager.id, {
         type: "new_ticket",
         message,
@@ -1107,13 +1115,20 @@ export async function markAllNotificationsAsRead(uid) {
       return { status: "success", updated: 0 };
     }
 
-    const batch = writeBatch(db);
-    querySnapshot.forEach(docSnap => {
-      batch.update(docSnap.ref, { read: true });
-    });
-    await batch.commit();
+    // إصلاح: Firestore بيرفض أي batch فيه أكتر من 500 عملية، والإشعارات
+    // مفيهاش حذف في القواعد فبتتراكم - فكانت "تعليم الكل كمقروء" بتفشل كلها.
+    // دلوقتي بتتقسم على دفعات 400
+    const docs = querySnapshot.docs;
+    const CHUNK = 400;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + CHUNK).forEach(docSnap => {
+        batch.update(docSnap.ref, { read: true });
+      });
+      await batch.commit();
+    }
 
-    return { status: "success", updated: querySnapshot.size };
+    return { status: "success", updated: docs.length };
   } catch (error) {
     const fallback = emptyResultOnMissingIndex(error, "markAllNotificationsAsRead");
     if (fallback) return { status: "success", updated: 0 };

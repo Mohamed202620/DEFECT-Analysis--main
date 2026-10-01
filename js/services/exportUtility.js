@@ -271,7 +271,9 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   } catch (err) {
     console.error('Failed to load ExcelJS from all sources:', err);
     alert("❌ تعذر تحميل مكتبة الإكسيل من كل المصادر المتاحة، تأكد من الاتصال بالإنترنت وحاول مرة أخرى.");
-    return;
+    // إصلاح: كان بيرجّع undefined فالمستدعي (reportsView) كان بيعرض
+    // "تم إنشاء التقرير بنجاح" رغم إن مفيش ملف اتنشأ - دلوقتي false صريحة
+    return false;
   }
 
   const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
@@ -527,11 +529,17 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
             const urls = val.split(" | ").filter(u => u.startsWith("http"));
             if (urls.length > 0) {
               const firstUrl = urls[0];
+              // إصلاح (فقد بيانات): كان بيتحفظ رابط أول مرفق بس وباقي الروابط
+              // بتتمسح من الملف. دلوقتي العدد بيظهر في النص وكل الروابط
+              // بتتحفظ في ملاحظة الخلية (Note) بدل ما تضيع
               cell.value = {
-                text: "📎 عرض المرفقات",
+                text: urls.length > 1 ? `📎 عرض المرفقات (${urls.length})` : "📎 عرض المرفقات",
                 hyperlink: firstUrl,
                 tooltip: firstUrl
               };
+              if (urls.length > 1) {
+                cell.note = urls.map((u, i) => `${i + 1}) ${u}`).join("\n");
+              }
               cell.font = { name: "Arial", color: { argb: "FF1D4ED8" }, underline: true, bold: true, size: 9.5 };
             }
           }
@@ -574,7 +582,8 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     finalFilename += ".xlsx";
   }
 
-  downloadBlobFile(blob, finalFilename);
+  await downloadBlobFile(blob, finalFilename);
+  return true;
 }
 /**
  * دالة مساعدة عامة وموثوقة لتنزيل ملفات Blob عبر كل بيئات المتصفحات والأجهزة المحمولة وداخل الـ iframe
