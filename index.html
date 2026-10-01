@@ -15,17 +15,18 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0E1117">
   
-  <script src="/api/config.js"></script>
+  <!-- defer: مش بيعطّل أول رسم للصفحة، وبيفضل بيتنفّذ قبل وحدات ES (type=module) بنفس ترتيب المستند -->
+  <script defer src="/api/config.js"></script>
 
   <!-- أيقونة التبويب في المتصفح (Favicon) -->
-  <link rel="icon" type="image/png" href="assets/icons/app-icon.png">
-  <link rel="shortcut icon" type="image/png" href="assets/icons/app-icon.png">
+  <link rel="icon" type="image/png" href="assets/icons/icon-192.png">
+  <link rel="shortcut icon" type="image/png" href="assets/icons/icon-192.png">
 
   <!-- دعم أجهزة iOS (Apple PWA Tags) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MaintSystem">
-  <link rel="apple-touch-icon" href="assets/icons/app-icon.png">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
 
   <!-- تحسين استجابة اللمس وتسريع التمرير بالكامل وإزالة أي اعتراض لحركة الأصابع -->
   <script>
@@ -93,8 +94,7 @@
 
   <!-- jsPDF + html2canvas: لتصدير التقارير PDF (نفس المسار الموحّد
        المستخدم في كل تقارير النظام - راجع js/services/exportUtility.js) -->
-  <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <!-- (تم نقل jsPDF/html2canvas للتحميل عند أول تصدير PDF - راجع ensurePdfLibsLoaded في exportUtility.js) -->
 
   
 
@@ -445,7 +445,7 @@
   <!-- Splash Screen -->
   <div id="splash" class="fixed inset-0 w-full h-full bg-[#0E1117] flex flex-col items-center justify-center z-50 transition-opacity duration-700">
     <div class="flex-1 flex items-center justify-center p-4 w-full max-w-sm">
-      <img src="assets/icons/app-icon.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
+      <img src="assets/icons/icon-512.png" alt="Splash Icon" class="w-full max-h-[70vh] object-contain rounded-3xl shadow-2xl animate-pulse" onerror="this.style.display='none'"/>
     </div>
 
     <div class="pb-10 flex flex-col items-center gap-5">
@@ -506,11 +506,49 @@
 
     if ('serviceWorker' in navigator) {
       var refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
+      // إصلاح (تشغيل فعلي): sw.js بيعمل skipWaiting() + clients.claim()، فكان
+      // controllerchange بيتطلّق (1) في أول تثبيت للتطبيق (مفيش controller قبله)
+      // فالصفحة كانت بتعمل reload تلقائي وسط تسجيل الدخول/التسجيل، و(2) عند كل
+      // تحديث للـ SW حتى لو المستخدم بيكتب بلاغ - والـ reload بيضيّع اللي اتكتب.
+      // دلوقتي: مفيش reload في أول تثبيت، وفي التحديث بنأجّله لو المستخدم
+      // بيكتب في حقل (ويتنفّذ أول ما الصفحة تتخفى/يخرج من الحقل).
+      var hadController = !!navigator.serviceWorker.controller;
+      var pendingReload = false;
+      function isUserTyping() {
+        var el = document.activeElement;
+        return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      }
+      function reloadWhenSafe() {
+        if (refreshing) return;
+        if (isUserTyping() && document.visibilityState === 'visible') {
+          pendingReload = true;
+          return;
         }
+        refreshing = true;
+        window.location.reload();
+      }
+      document.addEventListener('visibilitychange', function () {
+        if (pendingReload && document.visibilityState === 'hidden') {
+          pendingReload = false;
+          reloadWhenSafe();
+        }
+      });
+      document.addEventListener('focusout', function () {
+        if (pendingReload) {
+          setTimeout(function () {
+            if (pendingReload && !isUserTyping()) {
+              pendingReload = false;
+              reloadWhenSafe();
+            }
+          }, 300);
+        }
+      });
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController) {
+          hadController = true;
+          return;
+        }
+        reloadWhenSafe();
       });
 
       window.addEventListener('load', () => {
