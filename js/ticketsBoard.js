@@ -21,6 +21,7 @@ import {
   reopenTicketApi,
   declineTicketApi,
   fetchMyNotificationsApi,
+  countUnreadNotificationsApi,
   markNotificationReadApi,
   fetchTicketsForReportApi,
   fetchTicketByIdApi
@@ -820,10 +821,13 @@ async function loadNotificationsBadge() {
   const myUid = localStorage.getItem("userId") || "";
   if (!badge || !myUid) return;
 
-  const result = await fetchMyNotificationsApi(myUid);
-  if (result.status !== "success") return;
+  // إصلاح: كان بيحسب غير المقروء من أحدث 30 إشعار بس (fetchMyNotificationsApi
+  // بتقص على 30) فكانت الشارة هنا بتختلف عن شارة الهيدر (refreshNotificationsBadge)
+  // وبتخفي أي إشعار غير مقروء أقدم. دلوقتي نفس مصدر العدّ الكامل
+  const result = await countUnreadNotificationsApi(myUid);
+  if (!result || result.status !== "success") return;
 
-  const unread = result.data.filter(n => !n.read).length;
+  const unread = result.count;
 
   if (unread > 0) {
     badge.textContent = unread > 9 ? "9+" : String(unread);
@@ -858,7 +862,7 @@ window.toggleNotificationsPanel = async function () {
   }
 
   panel.innerHTML = result.data.map(n => `
-    <div onclick="window.handleNotificationClick('${n.id}', '${n.ticketId}')"
+    <div onclick="window.handleNotificationClick('${n.id}', '${n.ticketId || ""}', '${n.suggestionId || ""}')"
       class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
       <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${n.message}</div>
     </div>
@@ -866,14 +870,18 @@ window.toggleNotificationsPanel = async function () {
 
 };
 
-window.handleNotificationClick = async function (notificationId, ticketId) {
+window.handleNotificationClick = async function (notificationId, ticketId, suggestionId) {
 
   await markNotificationReadApi(notificationId);
   document.getElementById("notifPanel")?.classList.add("hidden");
   loadNotificationsBadge();
 
-  if (ticketId) {
+  // إصلاح: إشعارات الكايزن ملهاش ticketId فكان بيتمرر النص 'undefined'
+  // ويحاول يفتح تذكرة باسم "undefined" - دلوقتي بتتوجه للمقترح
+  if (ticketId && ticketId !== 'undefined') {
     openTicketDetailsModal(ticketId);
+  } else if (suggestionId && typeof window.openKaizenSuggestionDetails === 'function') {
+    window.openKaizenSuggestionDetails(suggestionId);
   }
 
 };
