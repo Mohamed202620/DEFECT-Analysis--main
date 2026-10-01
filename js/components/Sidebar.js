@@ -323,15 +323,22 @@ if (typeof window !== "undefined") {
   };
 
   // اختصار لوحة المفاتيح: [ أو Ctrl+B لطي وتوسيع القائمة على أجهزة الكمبيوتر
-  window.addEventListener('keydown', (e) => {
-    if (
-      (e.key === '[' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) ||
-      ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')
-    ) {
-      e.preventDefault();
-      window.toggleSidebarCollapse();
-    }
-  });
+  // إصلاح (تسريب مستمعين + سلوك خاطئ): Sidebar() بتتنادى مع كل تنقّل (renderCore.js)
+  // وكانت بتضيف مستمع keydown جديد على window في كل مرة. بعد N تنقّل كان
+  // الضغط على Ctrl+B / [ بينفّذ toggleSidebarCollapse N مرة - مع عدد زوجي
+  // الشريط الجانبي مابيتغيّرش خالص. دلوقتي بيتسجّل مرة واحدة فقط.
+  if (!window._mscancoSidebarKeyBound) {
+    window._mscancoSidebarKeyBound = true;
+    window.addEventListener('keydown', (e) => {
+      if (
+        (e.key === '[' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')
+      ) {
+        e.preventDefault();
+        window.toggleSidebarCollapse();
+      }
+    });
+  }
 }
 
 
