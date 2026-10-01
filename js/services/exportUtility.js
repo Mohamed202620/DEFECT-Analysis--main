@@ -34,6 +34,39 @@ function ensureExcelJsLoaded() {
   return exceljsLoadPromise;
 }
 
+// إصلاح (أداء بدء التشغيل): jsPDF + html2canvas (~550KB) كانوا بيتحمّلوا مع كل فتح
+// للتطبيق من index.html رغم إنهم مش مستخدمين غير في تصدير PDF. دلوقتي بيتحمّلوا
+// أول مرة يتطلب فيها تصدير PDF (وsw.js بيسخّن كاشهم في الخلفية عند التثبيت عشان
+// التصدير يفضل شغال أوفلاين).
+let pdfLibsLoadPromise = null;
+function ensurePdfLibsLoaded() {
+  if (window.jspdf && window.html2canvas) return Promise.resolve();
+  if (!pdfLibsLoadPromise) {
+    pdfLibsLoadPromise = Promise.all([
+      window.jspdf ? Promise.resolve(window.jspdf) : loadScriptWithFallback(
+        [
+          'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+          'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
+        ],
+        () => window.jspdf
+      ),
+      window.html2canvas ? Promise.resolve(window.html2canvas) : loadScriptWithFallback(
+        [
+          'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+          'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'
+        ],
+        () => window.html2canvas
+      )
+    ]).catch(err => {
+      pdfLibsLoadPromise = null; // نسمح بإعادة المحاولة بعد فشل مؤقت
+      throw err;
+    });
+  }
+  return pdfLibsLoadPromise;
+}
+
 export const PAGE_BREAK_CLASS = "no-page-break";
 
 // عرض ثابت للورقة (بالبكسل) نستخدمه في التقاط كل من الهيدر والجسم بنفس
@@ -97,6 +130,12 @@ function createOffscreenPdfContainer(isAr, paddingCss) {
  * مش موجود بس في الصفحة الأولى زي قبل كده.
  */
 export async function exportToPdf(title, rows, htmlContent, filename, sigLabels = null) {
+  try {
+    await ensurePdfLibsLoaded();
+  } catch (loadError) {
+    console.warn("[exportToPdf] PDF libraries failed to load:", loadError);
+  }
+
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
     alert("❌ مكتبات إنشاء PDF غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
     return;
