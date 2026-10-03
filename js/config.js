@@ -14,6 +14,7 @@ import {
   getAuth,
   onAuthStateChanged
 } from "./firebase.js";
+import { phoneToCanonicalAuthEmail, phoneToLegacyAuthEmail } from "./utils/phoneUtils.js";
 
 
 // ============================================================
@@ -39,7 +40,13 @@ export const GOOGLE_SCRIPT_URL =
 //
 // ============================================================
 
-export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "9e43fc30da5df3c4cdf213f1725504c7";
+// أمان: مفتاح ImgBB كان مكتوب هنا كقيمة احتياطية داخل كود العميل (أي زائر
+// يقدر ياخده من DevTools). اتشال نهائياً - الرفع في الإنتاج بيتم عبر Cloud
+// Function (uploadImageViaImgbb) والمفتاح محفوظ كـ Secret على السيرفر فقط
+// (راجع js/providers/storage/index.js وfunctions/README.md). القيمة هنا بتيجي
+// فقط من window.APP_CONFIG المحقونة في التطوير المحلي (server.js) عبر
+// متغير البيئة IMGBB_API_KEY، وبتكون فاضية على Firebase Hosting.
+export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 
 
 // ============================================================
@@ -50,6 +57,13 @@ export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
 
 export const FIREBASE_PROJECT_ID =
   window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
+
+// عنوان الـ Worker (Cloudflare) البديل المجاني لـ Cloud Functions (خطة Spark).
+// عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
+// الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
+// لـ Cloud Functions الأصلية (خطة Blaze).
+export const BACKEND_WORKER_URL =
+  window.APP_CONFIG?.BACKEND_WORKER_URL || "https://odd-sun-fab8.mom379339.workers.dev";
 
 export const FIREBASE_FUNCTIONS_REGION =
   window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
@@ -241,11 +255,10 @@ export function ensureAuthReady() {
 
 export function phoneToAuthEmail(phone) {
 
-  const digitsOnly =
-    String(phone || "")
-      .replace(/\D/g, "");
-
-  return `${digitsOnly}@maintenance-defect-system.local`;
+  // تطبيع موحّد (أرقام عربية/دولية/0100…/+20100…) - راجع
+  // utils/phoneUtils.js. لو الرقم غير صالح بنرجع الصيغة القديمة (قد تكون
+  // فاضية) والمُنادي مسؤول عن التحقق من صلاحية الرقم قبل الاستخدام.
+  return phoneToCanonicalAuthEmail(phone) || phoneToLegacyAuthEmail(phone);
 
 }
 
@@ -711,10 +724,10 @@ export const translations = {
       showHidePass: "إظهار أو إخفاء كلمة المرور",
       forgotPassword: "نسيت كلمة المرور؟",
       resetPasswordTitle: "استعادة كلمة المرور",
-      resetPasswordDesc: "أدخل رقم الموبايل المسجل لاستلام رابط استعادة كلمة المرور",
-      sendResetLink: "إرسال الرابط",
-      resetLinkSent: "تم الإرسال بنجاح (إذا كان الرقم مسجلاً)",
-      resetError: "حدث خطأ أثناء إرسال الرابط",
+      resetPasswordDesc: "الحسابات تعمل برقم الموبايل (بدون بريد إلكتروني)، لذلك يعيّن لك مسؤول النظام كلمة سر مؤقتة. أدخل رقمك للتأكد منه ثم تواصل مع المسؤول.",
+      sendResetLink: "متابعة",
+      resetLinkSent: "تواصل مع مسؤول النظام ليعيّن لك كلمة سر مؤقتة.",
+      resetError: "تعذّرت العملية",
       backToLogin: "العودة لتسجيل الدخول"
     },
 
@@ -1363,10 +1376,10 @@ export const translations = {
       showHidePass: "Show or hide password",
       forgotPassword: "Forgot Password?",
       resetPasswordTitle: "Reset Password",
-      resetPasswordDesc: "Enter your registered mobile number to receive a password reset link",
-      sendResetLink: "Send Reset Link",
-      resetLinkSent: "Link sent successfully (if number is registered)",
-      resetError: "An error occurred while sending the link",
+      resetPasswordDesc: "Accounts use a mobile number (no email), so a system admin sets a temporary password for you. Enter your number to check it, then contact the admin.",
+      sendResetLink: "Continue",
+      resetLinkSent: "Contact your system admin to set a temporary password for you.",
+      resetError: "Could not complete the request",
       backToLogin: "Back to Login"
     },
 

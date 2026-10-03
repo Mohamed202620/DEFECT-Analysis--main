@@ -6,6 +6,7 @@ import { buildPdfStatsCardsHtml } from './branding.js';
 // ============================================================
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
+import { escapeHtml, escapeJsArg } from './utils/escapeHtml.js';
 import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
@@ -88,9 +89,9 @@ function ticketCardHtml(ticket) {
 
   const actionsHtml = actions.map(a => `
     <button
-      onclick="window.handleTicketAction('${ticket.id}', '${a.key}')"
+      onclick="window.handleTicketAction('${escapeJsArg(ticket.id)}', '${escapeJsArg(a.key)}')"
       class="min-h-[40px] text-xs font-black px-4 py-2 rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5 ${getActionButtonStyle(a.key)}">
-      ${a.label}
+      ${escapeHtml(a.label)}
     </button>
   `).join("");
 
@@ -103,7 +104,7 @@ function ticketCardHtml(ticket) {
   // الـ API، لكن التصدير الجماعي بيشتغل على أي حالة)
   const bulkCheckboxHtml = bulkSelectMode ? `
     <label class="flex items-center shrink-0 cursor-pointer">
-      <input type="checkbox" onchange="window.toggleTicketSelection('${ticket.id}')" ${selectedTicketIds.has(ticket.id) ? "checked" : ""}
+      <input type="checkbox" onchange="window.toggleTicketSelection('${escapeJsArg(ticket.id)}')" ${selectedTicketIds.has(ticket.id) ? "checked" : ""}
         class="w-5 h-5 rounded border-gray-600 bg-slate-800 text-amber-500 focus:ring-amber-500 cursor-pointer">
     </label>
   ` : "";
@@ -118,39 +119,39 @@ function ticketCardHtml(ticket) {
           <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-2">
               ${bulkCheckboxHtml}
-              <span class="font-black text-sm text-slate-100">${machineName}</span>
-              ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${ticket.line}</span>` : ""}
+              <span class="font-black text-sm text-slate-100">${escapeHtml(machineName)}</span>
+              ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(ticket.line)}</span>` : ""}
             </div>
             <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
-              ${tr.status[status] || status}
+              ${escapeHtml(tr.status[status] || status)}
             </span>
           </div>
 
           <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
-            ${ticket.description || ""}
+            ${escapeHtml(ticket.description || "")}
           </p>
 
           <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
-            ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${ticket.reportedBy}</b></span>` : ""}
-            ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${ticket.assignedTo}</b></span>` : ""}
-            ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${ticket.type}</span>` : ""}
+            ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.reportedBy)}</b></span>` : ""}
+            ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.assignedTo)}</b></span>` : ""}
+            ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${escapeHtml(ticket.type)}</span>` : ""}
             ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
               ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
               ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
               'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-            }">⚡ ${ticket.priority}</span>` : ""}
+            }">⚡ ${escapeHtml(ticket.priority)}</span>` : ""}
             ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
           </div>
 
           ${ticket.mechanicNotes ? `
             <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
-              🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${ticket.mechanicNotes}
+              🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${escapeHtml(ticket.mechanicNotes)}
             </div>
           ` : ""}
 
           ${ticket.operatorFeedback ? `
             <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
-              ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${ticket.operatorFeedback}
+              ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${escapeHtml(ticket.operatorFeedback)}
             </div>
           ` : ""}
         </div>
@@ -169,7 +170,7 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 
   if (!tickets.length) {
     container.innerHTML = `
-      <div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>
+      <div class="text-center text-gray-500 text-xs py-8">${escapeHtml(emptyMessage)}</div>
     `;
     return;
   }
@@ -199,7 +200,7 @@ function renderBoardPage(containerId, emptyMessage) {
   const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
   const listHtml = visibleItems.length
     ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${visibleItems.map(ticketCardHtml).join("")}</div>`
-    : `<div class="text-center text-gray-500 text-xs py-8">${emptyMessage}</div>`;
+    : `<div class="text-center text-gray-500 text-xs py-8">${escapeHtml(emptyMessage)}</div>`;
 
   const loaderHtml = boardVisibleCount < boardAllTickets.length 
     ? `<div id="infiniteScrollTarget" class="py-4 text-center text-gray-500 text-[11px] animate-pulse">
@@ -237,11 +238,24 @@ window.loadMoreTickets = function (containerId, emptyMessage) {
 function getTabsForRole(role) {
   const tr = t();
 
-  if (role === 'technician' || role === 'operator' || role === 'engineer') {
+  if (role === 'technician' || role === 'operator') {
     return [
       { key: "assigned_to_me", label: tr.tabAssignedToMe },
       { key: "my_tickets", label: tr.tabMyTickets },
       { key: "awaiting_confirm", label: tr.tabAwaitingConfirm }
+    ];
+  }
+  // المهندس (engineer): صلاحية رؤية كاملة للبيانات (hasFullDataAccess + قواعد
+  // Firestore) فبيشوف تبويبات الإدارة العامة بالإضافة لتبويباته الشخصية
+  if (role === 'engineer') {
+    return [
+      { key: "assigned_to_me", label: tr.tabAssignedToMe },
+      { key: "my_tickets", label: tr.tabMyTickets },
+      { key: "all", label: tr.tabAll },
+      { key: "pending", label: tr.tabPending },
+      { key: "in_progress", label: tr.tabInProgress },
+      { key: "resolved", label: tr.tabResolved },
+      { key: "closed", label: tr.tabClosed }
     ];
   }
   // للأدمن والمدير
@@ -443,13 +457,13 @@ function renderStatusTabs(role) {
 
   container.innerHTML = tabs.map(tab => `
     <button
-      onclick="window.setTicketsStatusFilter('${tab.key}')"
+      onclick="window.setTicketsStatusFilter('${escapeJsArg(tab.key)}')"
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
         highlightKey === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
           : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
       }">
-      ${tab.label}
+      ${escapeHtml(tab.label)}
     </button>
   `).join("");
 
@@ -548,7 +562,7 @@ window.openTicketsWithFilter = function (status) {
     // - "أعطال مفتوحة" (pending/open) -> "المُسندة إليّ" (شغله المفتوح)
     // - "أعطال اليوم" و"إجمالي البلاغات" (all) -> "بلاغاتي" (my_tickets)
     // - "تم إصلاحها" (resolved/fixed/closed) -> "بانتظار تأكيدي"
-    if (role === 'technician' || role === 'operator' || role === 'engineer') {
+    if (role === 'technician' || role === 'operator') {
       const NON_ADMIN_STATUS_MAP = {
         pending: 'assigned_to_me',
         open: 'assigned_to_me',
@@ -641,15 +655,17 @@ window.handleTicketAction = async function (ticketId, action) {
           id: "assignedTo",
           label: tr.assignToLabel,
           type: "select",
-          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+          options: technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
         }
       ]
     });
 
     if (!values) return;
 
-    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
-    if (!assignedTo) return;
+    const pickedTech = technicians.find(tech => tech.id === values.assignedTo);
+    if (!pickedTech || !pickedTech.name) return;
+    const assignedToUid = pickedTech.id;
+    const assignedTo = pickedTech.name;
 
     result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
 
@@ -675,15 +691,17 @@ window.handleTicketAction = async function (ticketId, action) {
           id: "assignedTo",
           label: tr.reassignToLabel,
           type: "select",
-          options: technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+          options: technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
         }
       ]
     });
 
     if (!values) return;
 
-    const [assignedToUid, assignedTo] = (values.assignedTo || "").split("::");
-    if (!assignedTo) return;
+    const pickedTech = technicians.find(tech => tech.id === values.assignedTo);
+    if (!pickedTech || !pickedTech.name) return;
+    const assignedToUid = pickedTech.id;
+    const assignedTo = pickedTech.name;
 
     result = await reassignTicketApi(ticketId, { assignedTo, assignedToUid });
 
@@ -862,9 +880,9 @@ window.toggleNotificationsPanel = async function () {
   }
 
   panel.innerHTML = result.data.map(n => `
-    <div onclick="window.handleNotificationClick('${n.id}', '${n.ticketId || ""}', '${n.suggestionId || ""}')"
+    <div onclick="window.handleNotificationClick('${escapeJsArg(n.id)}', '${escapeJsArg(n.ticketId || "")}', '${escapeJsArg(n.suggestionId || "")}')"
       class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
-      <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${n.message}</div>
+      <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${escapeHtml(n.message)}</div>
     </div>
   `).join("");
 
@@ -961,7 +979,7 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
   const imagesHtml = imageDataUrls.length ? `
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
       ${imageDataUrls.map(src => `
-        <img src="${src}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
+        <img src="${escapeHtml(src)}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
       `).join("")}
     </div>
   ` : "";

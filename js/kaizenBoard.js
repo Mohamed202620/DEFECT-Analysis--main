@@ -31,6 +31,7 @@ import {
   fetchSuggestionLogsApi,
   fetchTechniciansApi
 } from './services/api.js';
+import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
 
 // ============================================================
 // حالات الكايزن - المرحلة النهائية للـWorkflow (راجع
@@ -91,9 +92,9 @@ function suggestionCardHtml(suggestion) {
     <div class="flex flex-wrap gap-1.5 pt-2 border-t border-gray-800 mt-2">
       ${suggestionActions.map(a => `
         <button
-          onclick="window.handleKaizenAction('${suggestion.id}', '${a.key}')"
+          onclick="window.handleKaizenAction('${escapeJsArg(suggestion.id)}', '${escapeJsArg(a.key)}')"
           class="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95 bg-[#0E1117] border-gray-700 text-gray-300 hover:border-blue-500/50 hover:text-blue-400">
-          ${a.label}
+          ${escapeHtml(a.label)}
         </button>
       `).join("")}
     </div>
@@ -104,17 +105,17 @@ function suggestionCardHtml(suggestion) {
   const extraInfoHtml = `
     ${suggestion.assignedTo ? `
       <div class="text-[11px] bg-purple-500/5 border border-purple-500/20 rounded-lg p-2 text-purple-300">
-        🔧 الفني المسؤول: ${suggestion.assignedTo}
+        🔧 الفني المسؤول: ${escapeHtml(suggestion.assignedTo)}
       </div>
     ` : ""}
     ${suggestion.revisionNotes && status === "revision_requested" ? `
       <div class="text-[11px] bg-orange-500/5 border border-orange-500/20 rounded-lg p-2 text-orange-300">
-        ✏️ ملاحظات طلب التعديل: ${suggestion.revisionNotes}
+        ✏️ ملاحظات طلب التعديل: ${escapeHtml(suggestion.revisionNotes)}
       </div>
     ` : ""}
     ${suggestion.rejectionReason && status === "rejected" ? `
       <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2 text-red-300">
-        ❌ سبب الرفض: ${suggestion.rejectionReason}
+        ❌ سبب الرفض: ${escapeHtml(suggestion.rejectionReason)}
       </div>
     ` : ""}
   `;
@@ -123,7 +124,7 @@ function suggestionCardHtml(suggestion) {
   const imageHtml = suggestionImages.length ? `
     <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"} mt-2">
       ${suggestionImages.map(url => `
-        <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
+        <img loading="lazy" decoding="async" src="${escapeHtml(url)}" class="w-full ${suggestionImages.length > 1 ? "h-16" : "max-h-40"} object-cover rounded-lg border border-gray-800" />
       `).join("")}
     </div>
   ` : "";
@@ -133,7 +134,7 @@ function suggestionCardHtml(suggestion) {
   // kaizenItemsById بدل تمريرها داخل الـ HTML نفسه
   const detailsButtonHtml = `
     <button
-      onclick="window.openKaizenSuggestionDetails('${suggestion.id}')"
+      onclick="window.openKaizenSuggestionDetails('${escapeJsArg(suggestion.id)}')"
       class="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border border-gray-700 bg-[#0E1117] text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/5 transition-all active:scale-95">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path>
@@ -147,25 +148,25 @@ function suggestionCardHtml(suggestion) {
     <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 flex flex-col justify-between h-full">
       <div class="space-y-2.5">
         <div class="flex justify-between items-center gap-2">
-          <span class="font-bold text-sm text-gray-100">${suggestion.title || "-"}</span>
+          <span class="font-bold text-sm text-gray-100">${escapeHtml(suggestion.title || "-")}</span>
           <span class="text-[10px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
             ${KAIZEN_STATUS_LABELS[status] || status}
           </span>
         </div>
 
-        ${suggestion.problem ? `<p class="text-xs text-gray-400 leading-relaxed">${suggestion.problem}</p>` : ""}
+        ${suggestion.problem ? `<p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(suggestion.problem)}</p>` : ""}
 
         ${suggestion.solution ? `
           <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
-            💡 الحل المقترح: ${suggestion.solution}
+            💡 الحل المقترح: ${escapeHtml(suggestion.solution)}
           </div>
         ` : ""}
 
         <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
-          <span>👤 ${displayName}</span>
-          ${suggestion.line ? `<span>🏭 ${suggestion.line}</span>` : ""}
-          ${suggestion.machine ? `<span>⚙️ ${suggestion.machine}</span>` : ""}
-          ${suggestion.category ? `<span>🏷️ ${suggestion.category}</span>` : ""}
+          <span>👤 ${escapeHtml(displayName)}</span>
+          ${suggestion.line ? `<span>🏭 ${escapeHtml(suggestion.line)}</span>` : ""}
+          ${suggestion.machine ? `<span>⚙️ ${escapeHtml(suggestion.machine)}</span>` : ""}
+          ${suggestion.category ? `<span>🏷️ ${escapeHtml(suggestion.category)}</span>` : ""}
         </div>
 
         ${extraInfoHtml}
@@ -206,13 +207,13 @@ function renderKaizenTabs() {
 
   container.innerHTML = KAIZEN_TABS.map(tab => `
     <button
-      onclick="window.setKaizenStatusFilter('${tab.key}')"
+      onclick="window.setKaizenStatusFilter('${escapeJsArg(tab.key)}')"
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
         kaizenCurrentStatusFilter === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
           : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
       }">
-      ${tab.label}
+      ${escapeHtml(tab.label)}
     </button>
   `).join("");
 
@@ -566,8 +567,8 @@ function kaizenDetailRowHtml(icon, label, value) {
     <div class="flex gap-2.5 items-start py-2.5 border-b border-gray-800/70 last:border-b-0">
       <span class="text-sm shrink-0 mt-0.5">${icon}</span>
       <div class="min-w-0 flex-1">
-        <div class="text-[10px] font-bold text-gray-500 mb-0.5">${label}</div>
-        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${value}</div>
+        <div class="text-[10px] font-bold text-gray-500 mb-0.5">${escapeHtml(label)}</div>
+        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${escapeHtml(value)}</div>
       </div>
     </div>
   `;
@@ -586,8 +587,8 @@ function buildKaizenDetailsModalHtml(suggestion) {
       </div>
       <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"}">
         ${suggestionImages.map(url => `
-          <a href="${url}" target="_blank" rel="noopener">
-            <img loading="lazy" decoding="async" src="${url}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
+            <img loading="lazy" decoding="async" src="${escapeHtml(url)}" class="w-full ${suggestionImages.length > 1 ? "h-20" : "max-h-64"} object-cover rounded-xl border border-gray-800" />
           </a>
         `).join("")}
       </div>
@@ -601,7 +602,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
       </div>
       <div class="grid grid-cols-3 gap-1.5">
         ${suggestion.implementationImages.map(url => `
-          <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+          <img loading="lazy" decoding="async" src="${escapeHtml(url)}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
         `).join("")}
       </div>
     </div>
@@ -621,7 +622,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
             <div class="text-[10px] font-bold text-amber-400 mb-1 flex items-center gap-1">
               <span>💡</span> تفاصيل مقترح الكايزن
             </div>
-            <h3 class="text-sm font-bold text-gray-100 break-words">${suggestion.title || "-"}</h3>
+            <h3 class="text-sm font-bold text-gray-100 break-words">${escapeHtml(suggestion.title || "-")}</h3>
           </div>
           <button
             onclick="window.closeKaizenSuggestionDetails()"
@@ -731,7 +732,7 @@ async function loadAndRenderKaizenTimeline(suggestionId) {
         <div class="text-[10px] text-gray-500">
           بواسطة ${log.by || "-"} (${log.byRole || "-"}) - ${formatKaizenDetailsDate(log.at)}
         </div>
-        ${log.note ? `<div class="text-[10px] text-gray-400 mt-0.5 whitespace-pre-line">${log.note}</div>` : ""}
+        ${log.note ? `<div class="text-[10px] text-gray-400 mt-0.5 whitespace-pre-line">${escapeHtml(log.note)}</div>` : ""}
       </div>
     </div>
   `).join("");
@@ -843,7 +844,7 @@ function buildKaizenReportBlockHtml(suggestion, imageDataUrl) {
 
   const imageHtml = imageDataUrl ? `
     <div style="margin-top:8px;">
-      <img src="${imageDataUrl}" style="width:140px; height:140px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
+      <img src="${escapeHtml(imageDataUrl)}" style="width:140px; height:140px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
     </div>
   ` : "";
 

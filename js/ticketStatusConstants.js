@@ -17,8 +17,20 @@
 export const CLOSED_STATUSES = ['closed', 'resolved', 'done', 'مغلق', 'تم الإصلاح'];
 
 // نفس فحص "هل الحالة دي مغلقة؟" المستخدم في workflow.js بالظبط
+// ملحوظة (M8): CLOSED_STATUSES = "الإصلاح اكتمل" (مغلق نهائياً + resolved
+// بانتظار تأكيد المُبلّغ). ده تعريف مقصود لكروت "تم إصلاحها" والـ MTTR، لكن
+// معناه إن بلاغ resolved اللي محدش أكّده كان بيختفي من "مفتوحة" ومن
+// "متأخرة" تماماً. الحل: حالة resolved تنتظر تأكيد - لو عدّت
+// CONFIRMATION_OVERDUE_HOURS من وقت الإصلاح بتتحسب متأخرة (isOverdueTicket).
 export function isClosedStatus(status) {
   return CLOSED_STATUSES.includes(String(status || '').trim().toLowerCase());
+}
+
+export const AWAITING_CONFIRMATION_STATUSES = ['resolved', 'تم الإصلاح'];
+export const CONFIRMATION_OVERDUE_HOURS = 24;
+
+export function isAwaitingConfirmationStatus(status) {
+  return AWAITING_CONFIRMATION_STATUSES.includes(String(status || '').trim().toLowerCase());
 }
 
 // تسميات حالات البلاغ بالعربي - نفس النصوص المستخدمة في كروت نتائج
@@ -129,7 +141,17 @@ export function parseTicketDate(ticketOrRaw) {
 // من حد التأخير المناسب لأولويته (getOverdueThresholdHours) من وقت
 // الإبلاغ (createdAt)
 export function isOverdueTicket(ticket, now = new Date()) {
-  if (!ticket || isClosedStatus(ticket.status)) return false;
+  if (!ticket) return false;
+
+  // بلاغ تم إصلاحه وبانتظار تأكيد المُبلّغ/المدير لأكتر من المهلة = متأخر
+  // (مراجعة معلّقة) - كان بيختفي من المفتوحة والمتأخرة (M8)
+  if (isAwaitingConfirmationStatus(ticket.status)) {
+    const resolvedAt = parseTicketDate(ticket.resolvedAtServer || ticket.resolvedAt || ticket.updatedAt);
+    if (!resolvedAt) return false;
+    return (now - resolvedAt) / (1000 * 60 * 60) > CONFIRMATION_OVERDUE_HOURS;
+  }
+
+  if (isClosedStatus(ticket.status)) return false;
   const created = parseTicketDate(ticket);
   if (!created) return false;
   const hoursOpen = (now - created) / (1000 * 60 * 60);

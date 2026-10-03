@@ -1,5 +1,6 @@
 // استيراد قاعدة البيانات ومتغير DEBUG من ملف الإعدادات المركزي
 import { DEBUG, phoneToAuthEmail } from '../config.js';
+import { normalizePhone, phoneAuthEmailCandidates } from '../utils/phoneUtils.js';
 
 import {
   db,
@@ -43,7 +44,18 @@ export async function login(phone, pass) {
     };
   }
 
-  const email = phoneToAuthEmail(cleanPhone);
+  // تطبيع الرقم (أرقام عربية / +20 / 0020 ...) قبل أي محاولة - بدل ما
+  // الأرقام العربية كانت بتتحذف وتنتج إيميل فاضي ورسالة مضللة (بند H2)
+  if (!normalizePhone(cleanPhone).ok) {
+    return {
+      status: "error",
+      message: "رقم الموبايل غير صالح، تأكد من كتابته بشكل صحيح."
+    };
+  }
+
+  // الإيميل القياسي أولاً، وبعده الصيغ القديمة لحسابات اتسجّلت قبل التطبيع
+  const emailCandidates = phoneAuthEmailCandidates(cleanPhone);
+  let email = phoneToAuthEmail(cleanPhone);
   let uid;
 
   try {
@@ -52,7 +64,29 @@ export async function login(phone, pass) {
     // المحاولة الطبيعية: المستخدم عنده حساب Firebase Auth بالفعل
     // ==================================================
 
-    const cred = await signInWithEmailAndPassword(auth, email, cleanPass);
+    let cred = null;
+    let lastAuthError = null;
+
+    for (const candidate of emailCandidates) {
+      try {
+        cred = await signInWithEmailAndPassword(auth, candidate, cleanPass);
+        email = candidate;
+        break;
+      } catch (candidateError) {
+        lastAuthError = candidateError;
+        // فقط "حساب غير موجود / بيانات غير صحيحة" بتخلينا نجرّب الصيغة التالية
+        if (
+          candidateError.code !== "auth/user-not-found" &&
+          candidateError.code !== "auth/invalid-credential" &&
+          candidateError.code !== "auth/invalid-email"
+        ) {
+          break;
+        }
+      }
+    }
+
+    if (!cred) throw lastAuthError;
+
     uid = cred.user.uid;
 
   } catch (authError) {
@@ -115,7 +149,7 @@ export async function login(phone, pass) {
 
     // الحساب اترحّل - نسجّل الدخول به الآن
     try {
-      const migratedCred = await signInWithEmailAndPassword(auth, email, cleanPass);
+      const migratedCred = await signInWithEmailAndPassword(auth, phoneToAuthEmail(cleanPhone), cleanPass);
       uid = migratedCred.user.uid;
     } catch (postMigrationError) {
       console.error("Post-migration sign-in error:", postMigrationError);
@@ -225,30 +259,21 @@ export async function login(phone, pass) {
   };
 }
 
+/**
+ * استعادة كلمة السر (بند H1).
+ * الدخول برقم الموبايل بيستخدم إيميل داخلي (@maintenance-defect-system.local)
+ * غير قابل للاستلام، فإرسال رابط استعادة بالبريد مستحيل (وكانت الواجهة
+ * بتعرض "تم إرسال الرابط" كذباً). المسار الفعلي الوحيد: الأدمن بيعيّن
+ * كلمة سر مؤقتة من شاشة الطلبات/المستخدمين (Cloud Function
+ * adminResetUserPassword). هنا بنرجّع نتيجة صريحة بدل نجاح وهمي.
+ */
 export async function resetPassword(phone) {
-  const { FIREBASE_API_KEY } = await import('../config.js');
-  const email = phoneToAuthEmail(phone);
-  const url = `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`;
-  
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        requestType: 'PASSWORD_RESET',
-        email: email,
-      }),
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      console.error("[Auth] Password reset error:", data.error?.message);
-      return { success: false, message: data.error?.message || "Unknown error" };
-    }
-    return { success: true };
-  } catch (error) {
-    console.error("[Auth] Password reset network error:", error);
-    return { success: false, message: error.message };
+  if (!normalizePhone(phone).ok) {
+    return { success: false, message: "رقم الموبايل غير صالح." };
   }
+  return {
+    success: false,
+    adminRequired: true,
+    message: "لا يمكن إرسال رابط استعادة لهذا النوع من الحسابات. تواصل مع مسؤول النظام ليعيّن لك كلمة سر مؤقتة."
+  };
 }

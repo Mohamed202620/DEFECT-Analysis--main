@@ -6,6 +6,7 @@
 // ============================================================
 
 import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles } from "./attachmentPicker.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 /**
  * يفتح نافذة صغيرة فوق الصفحة الحالية.
@@ -46,14 +47,14 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
         const optionsHtml = (field.options || [])
           .map(opt => {
              const selected = (field.defaultValue && field.defaultValue === opt.value) ? "selected" : "";
-             return `<option value="${opt.value}" ${selected}>${opt.label}</option>`;
+             return `<option value="${escapeHtml(opt.value)}" ${selected}>${escapeHtml(opt.label)}</option>`;
           })
           .join("");
 
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
-            <select id="modal_${field.id}"
+            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <select id="modal_${escapeHtml(field.id)}"
               class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white">
               ${optionsHtml}
             </select>
@@ -64,8 +65,8 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
       if (field.type === "textarea") {
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
-            <textarea id="modal_${field.id}" rows="3"
+            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <textarea id="modal_${escapeHtml(field.id)}" rows="3"
               class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
               placeholder="${escapeModalAttr(field.placeholder)}">${escapeModalAttr(field.defaultValue)}</textarea>
           </div>
@@ -81,7 +82,7 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${field.label} ${isEn ? "(up to 3 images)" : "(حتى 3 صور)"}</label>
+            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)} ${isEn ? "(up to 3 images)" : "(حتى 3 صور)"}</label>
             ${buildAttachmentPickerHtml(groupId, {
               cameraLabel: isEn ? "📷 Camera" : "📷 التقاط",
               galleryLabel: isEn ? "🖼️ Gallery" : "🖼️ المعرض",
@@ -97,10 +98,10 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
       return `
         <div class="mb-3">
-          <label class="block text-[11px] text-gray-400 mb-1">${field.label}</label>
-          <input id="modal_${field.id}" type="text"
+          <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+          <input id="modal_${escapeHtml(field.id)}" type="text"
             class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
-            placeholder="${field.placeholder || ""}" value="${field.defaultValue || ""}" />
+            placeholder="${escapeHtml(field.placeholder || "")}" value="${escapeHtml(field.defaultValue || "")}" />
         </div>
       `;
 
@@ -108,7 +109,7 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
     overlay.innerHTML = `
       <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm sm:max-w-md p-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <h3 class="text-sm font-bold text-blue-400 mb-3">${title}</h3>
+        <h3 class="text-sm font-bold text-blue-400 mb-3">${escapeHtml(title)}</h3>
         <div>${fieldsHtml}</div>
         <div id="modal_error" class="hidden text-[11px] text-red-400 mb-2"></div>
         <div class="flex gap-2 mt-2">
@@ -118,7 +119,7 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
           </button>
           <button id="modal_submit_btn"
             class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2.5 rounded-lg">
-            ${submitLabel}
+            ${escapeHtml(submitLabel)}
           </button>
         </div>
       </div>

@@ -13,6 +13,7 @@ import {
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
 export const FIVE_S_PILLARS = [ // ITEMS-EDITOR
   { id: 'sort', ar: 'Sort - الفرز/التنظيم', en: 'Sort', desc: { ar: 'التخلص من الأدوات/المواد غير الضرورية حول الماكينة', en: 'Unnecessary items removed from the area' } },
@@ -96,7 +97,7 @@ export const FiveSView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-emerald-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${machine} • ${tr.subtitle}</p>
+      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="fiveSForm" onsubmit="window.handleFiveSSubmit(event)" class="space-y-4">
@@ -111,19 +112,19 @@ export const FiveSView = () => {
 
           <div class="grid grid-cols-5 gap-1.5 pt-1">
             ${[1, 2, 3, 4, 5].map(n => `
-              <button type="button" onclick="window.selectFiveSRating('${p.id}', ${n})" id="fsBtn_${p.id}_${n}"
+              <button type="button" onclick="window.selectFiveSRating('${escapeJsArg(p.id)}', ${n})" id="fsBtn_${escapeHtml(p.id)}_${n}"
                 class="fs-rating-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
                 ${n}
               </button>
             `).join('')}
           </div>
-          <input type="hidden" id="fsRating_${p.id}" value="">
+          <input type="hidden" id="fsRating_${escapeHtml(p.id)}" value="">
 
-          <div id="fsExtras_${p.id}" class="space-y-3 hidden pt-2 border-t border-gray-800">
+          <div id="fsExtras_${escapeHtml(p.id)}" class="space-y-3 hidden pt-2 border-t border-gray-800">
              <div class="flex items-start gap-2">
                <div class="flex-1 space-y-1">
-                  <label id="fsNoteLabel_${p.id}" class="block text-[10px] font-bold text-gray-400">${tr.noteLabel}</label>
-                  <textarea id="fsNote_${p.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
+                  <label id="fsNoteLabel_${escapeHtml(p.id)}" class="block text-[10px] font-bold text-gray-400">${tr.noteLabel}</label>
+                  <textarea id="fsNote_${escapeHtml(p.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
                </div>
              </div>
              
@@ -131,9 +132,9 @@ export const FiveSView = () => {
                 ${buildAttachmentPickerHtml(`fsPhoto_${p.id}`, { emptyText: tr.photoEmpty })}
              </div>
 
-             <div id="fsTicketBox_${p.id}" class="hidden">
+             <div id="fsTicketBox_${escapeHtml(p.id)}" class="hidden">
                 <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
-                  <input type="checkbox" id="fsCreateTicket_${p.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
+                  <input type="checkbox" id="fsCreateTicket_${escapeHtml(p.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
                   <span class="font-medium text-red-300">${tr.createTicket}</span>
                 </label>
              </div>

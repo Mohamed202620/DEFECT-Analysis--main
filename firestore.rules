@@ -92,6 +92,31 @@ service cloud.firestore {
     // وصول كامل (admin / manager+supervisor / engineer) - كانت بعض
     // القواعد بتكتب ["admin","manager","engineer"] وبتسيب supervisor
     // بره بينما الواجهة (hasFullDataAccess) بتعامله كمدير
+    // ----------------------------------------------------------
+    // مساعدات دورة حياة التذكرة (إصلاحات H5/H6/M6)
+    // ----------------------------------------------------------
+
+    // المُسنَد إليه (إن وُجد) لازم يكون مستخدم نشط فعلاً - كان ممكن إسناد
+    // بلاغ لمستخدم موقوف/مرفوض/محذوف ويفضل عالق (H6)
+    function ticketAssigneeActive() {
+      return request.resource.data.get("assignedToUid", null) == null
+          || get(/databases/$(database)/documents/users/$(request.resource.data.assignedToUid)).data.status == "active";
+    }
+
+    // أمان (H5): isSelfResolved ما بقاش قيمة بيحددها العميل - لازم تساوي
+    // (المُصلِح هو نفسه المُبلّغ الأصلي)، وresolvedByUid لازم = المستخدم الحالي
+    function ticketResolveIdentityOk() {
+      return request.resource.data.get("isSelfResolved", false) == (resource.data.get("reportedByUid", "") == request.auth.uid)
+          && request.resource.data.get("resolvedByUid", "") == request.auth.uid;
+    }
+
+    // ليه أي حد (حتى المدير/الأدمن) ما يقدرش يقفل بلاغ "إصلاح ذاتي" هو
+    // اللي أصلحه (تجاوز التحقق) - التأكيد لازم من طرف تاني
+    function closerIsNotSelfResolver() {
+      return resource.data.get("isSelfResolved", false) != true
+          || resource.data.get("resolvedByUid", "") != request.auth.uid;
+    }
+
     function isFullAccessRole() {
       return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
     }
@@ -118,9 +143,21 @@ service cloud.firestore {
       //    بيسمح للمتقدم يكتب أي قيمة فيه بنفسه ويفضل بعد الموافقة.
       allow create: if isSignedIn()
                     && request.auth.uid == userId
+                    && request.resource.data.keys().hasOnly([
+                         "name", "phone", "code", "job", "department", "shift",
+                         "shiftColor", "leaveBalance", "role", "permissions",
+                         "status", "createdAt"
+                       ])
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() >= 2
+                    && request.resource.data.name.size() <= 80
                     && request.resource.data.phone is string
-                    && request.resource.data.phone.size() > 0
-                    && !request.resource.data.keys().hasAny(["password", "passwordHash", "salt", "migratedFromId"])
+                    && request.resource.data.phone.matches("^[0-9]{8,15}$")
+                    && request.resource.data.get("code", "") is string
+                    && request.resource.data.get("code", "").size() <= 40
+                    && request.resource.data.get("job", "").size() <= 60
+                    && request.resource.data.get("department", "").size() <= 60
+                    && request.resource.data.get("shift", "").size() <= 40
                     && request.resource.data.status == "pending"
                     && request.resource.data.role == "pending"
                     && request.resource.data.get("permissions", "") == ""
@@ -166,6 +203,10 @@ service cloud.firestore {
                       )
                       || (
                         request.auth.uid == userId
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                             "phone", "approvedBy", "approvedAt", "approvedByUid",
+                             "migratedFromId", "migratedAt", "password", "passwordHash", "salt"
+                           ])
                         && request.resource.data.role == resource.data.role
                         && request.resource.data.status == resource.data.status
                         && request.resource.data.permissions == resource.data.permissions
@@ -191,12 +232,23 @@ service cloud.firestore {
       // STEP 1 - أي مستخدم مفعّل يقدر يفتح تذكرة جديدة (pending أو resolved عند الإصلاح الذاتي)
       allow create: if isActive()
                     && request.resource.data.status in ["pending", "resolved"]
-                    && request.resource.data.reportedByUid == request.auth.uid;
+                    && request.resource.data.reportedByUid == request.auth.uid
+                    && request.resource.data.get("createdAtServer", null) == request.time
+                    && request.resource.data.get("description", "").size() <= 5000
+                    // الإصلاح الذاتي عند الإنشاء: المُبلّغ هو المُصلِح بالضرورة (H5)
+                    && request.resource.data.get("isSelfResolved", false) == (request.resource.data.status == "resolved")
+                    && (request.resource.data.status != "resolved"
+                        || request.resource.data.get("resolvedByUid", "") == request.auth.uid)
+                    && (request.resource.data.status != "pending"
+                        || request.resource.data.get("assignedToUid", null) == null);
 
       // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
       allow update: if isActive() && (isAdmin() || isManagerRole())
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned"
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["status", "type", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                    && ticketAssigneeActive()
                     && ticketReporterUnchanged();
 
       // STEP 2b - (assigned | in_progress | reopened) -> pending: اعتذار الفني المُسند إليه وإعادة العطل لقائمة الانتظار
@@ -206,6 +258,8 @@ service cloud.firestore {
                     && resource.data.status in ["assigned", "in_progress", "reopened"]
                     && request.resource.data.status == "pending"
                     && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["status", "assignedTo", "assignedToUid", "declineReason", "declinedBy", "declinedAt", "updatedAt", "updatedBy"])
                     && ticketReporterUnchanged();
 
       // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة
@@ -214,6 +268,7 @@ service cloud.firestore {
                     && resource.data.status == "assigned"
                     && request.resource.data.status == "in_progress"
                     && (isAdmin() || resource.data.assignedToUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
                     && ticketReporterUnchanged();
 
       // STEP 4 - (pending | in_progress | assigned | reopened) -> resolved: الفني المُسند له أو صاحب البلاغ عند الإصلاح الذاتي
@@ -221,6 +276,11 @@ service cloud.firestore {
                     && resource.data.status in ["pending", "in_progress", "assigned", "reopened"]
                     && request.resource.data.status == "resolved"
                     && (isAdmin() || resource.data.assignedToUid == request.auth.uid || resource.data.reportedByUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["status", "mechanicNotes", "afterImages", "resolvedAt", "resolvedAtServer",
+                          "resolvedBy", "resolvedByUid", "isSelfResolved", "updatedAt", "updatedBy"])
+                    && request.resource.data.get("resolvedAtServer", null) == request.time
+                    && ticketResolveIdentityOk()
                     && ticketReporterUnchanged();
 
       // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض مع
@@ -237,6 +297,8 @@ service cloud.firestore {
                         || (resource.data.reportedByUid == request.auth.uid
                             && (request.resource.data.status != "closed"
                                 || resource.data.get("isSelfResolved", false) != true)))
+                    && (request.resource.data.status != "closed" || closerIsNotSelfResolver())
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
                     && ticketReporterUnchanged();
 
       // STEP 5b - resolved -> reopened (رفض المُبلّغ من الواجهة -
@@ -245,6 +307,7 @@ service cloud.firestore {
                     && resource.data.status == "resolved"
                     && request.resource.data.status == "reopened"
                     && (isAdmin() || isManagerRole() || resource.data.reportedByUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "operatorFeedback", "updatedAt", "updatedBy"])
                     && ticketReporterUnchanged();
 
       // STEP 6 - إعادة الإسناد (reassignTicketApi): مدير/أدمن فقط، على
@@ -252,6 +315,9 @@ service cloud.firestore {
       allow update: if isActive() && (isAdmin() || isManagerRole())
                     && resource.data.status in ["assigned", "in_progress", "reopened"]
                     && request.resource.data.status == "assigned"
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["status", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                    && ticketAssigneeActive()
                     && ticketReporterUnchanged();
 
       // STEP 7 - إضافة ملاحظة تسليم وردية (appendShiftNoteToTicketApi من
@@ -268,7 +334,8 @@ service cloud.firestore {
                     && request.resource.data.shiftUpdates is list
                     && request.resource.data.shiftUpdates.size() == resource.data.get("shiftUpdates", []).size() + 1
                     && request.resource.data.shiftUpdates[0:resource.data.get("shiftUpdates", []).size()] == resource.data.get("shiftUpdates", [])
-                    && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].reporterUid == request.auth.uid;
+                    && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].reporterUid == request.auth.uid
+                    && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].get("note", "").size() <= 2000;
 
       // سجل التغييرات (Logs) - سجل تلقائي فقط، مفيش تعديل أو حذف
       // (append-only) - أي مستخدم مفعّل يقدر يقرأ سجل تذكرة يقدر
@@ -484,9 +551,24 @@ service cloud.firestore {
       // إسناد تذكرة/مقترح لفني - createNotification بتتنفذ من جهاز
       // المُسنِد مش من سيرفر خلفي)، لازم forUid ومحتوى الإشعار
       // الأساسي موجودين
+      // أمان (C1): كان بيقبل أي type/message/حقول - ده كان قناة Stored XSS.
+      // دلوقتي: حقول محددة فقط، type من قائمة معروفة، message بطول محدود،
+      // وcreatedByUid (لو اتبعت) لازم يكون هو المرسل الفعلي.
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly(
+                         ["forUid", "type", "message", "ticketId", "suggestionId", "read", "createdAt", "createdByUid"])
                     && request.resource.data.forUid is string
                     && request.resource.data.forUid.size() > 0
+                    && request.resource.data.forUid.size() <= 128
+                    && request.resource.data.type in [
+                         "assigned", "closed", "declined", "implemented", "in_progress",
+                         "new_suggestion", "new_ticket", "rejected", "resolved", "resubmitted",
+                         "revision_requested", "under_review", "escalated", "released", "pattern", "shift_update"
+                       ]
+                    && request.resource.data.message is string
+                    && request.resource.data.message.size() > 0
+                    && request.resource.data.message.size() <= 500
+                    && request.resource.data.get("createdByUid", request.auth.uid) == request.auth.uid
                     && request.resource.data.read == false;
 
       // تعديل: صاحب الإشعار بس، وبس حقل read (markNotificationReadApi/

@@ -25,6 +25,7 @@ import { isAdminRole, isManagerRole, getCurrentRole } from '../permissions.js';
 import { DEFAULT_AM_ITEMS } from './DailyAMView.js';
 import { FIVE_S_PILLARS } from './FiveSView.js';
 import { queueOfflineAction } from '../services/offlineQueue.js';
+import { escapeJsArg } from "../utils/escapeHtml.js";
 
 // ============================================================
 // ADAPTERS SPECIFICATION
@@ -428,7 +429,7 @@ window.initChecklistBuilderView = async function () {
     select.innerHTML = `
       <option value="" disabled selected>${isEn ? 'Select Machine...' : 'اختر الماكينة...'}</option>
       ${allMachineOptions.map(m => `
-        <option value="${m.value}">🏭 ${m.value}${m.line ? ` (${formatLineLabel(m.line)})` : ''}</option>
+        <option value="${escapeHtml(m.value)}">🏭 ${escapeHtml(m.value)}${m.line ? ` (${formatLineLabel(m.line)})` : ''}</option>
       `).join('')}
     `;
 
@@ -618,7 +619,7 @@ function renderItemsList() {
 
     return `
       <div
-        id="cbItemRow_${item.id}"
+        id="cbItemRow_${escapeHtml(item.id)}"
         class="bg-[#1E293B] rounded-2xl p-3.5 sm:p-4 border ${isActive ? 'border-slate-800' : 'border-red-900/40 opacity-60 bg-slate-900/40'} transition hover:border-slate-700 shadow-md space-y-2.5">
         
         <!-- الصف الرئيسي: الترتيب + العنوان + الإجراءات -->
@@ -671,7 +672,7 @@ function renderItemsList() {
             <!-- مفتاح التفعيل/التعطيل (Soft Delete) -->
             <button
               type="button"
-              onclick="window.toggleChecklistItemActive('${item.id}')"
+              onclick="window.toggleChecklistItemActive('${escapeJsArg(item.id)}')"
               class="px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
@@ -685,7 +686,7 @@ function renderItemsList() {
             <!-- زر التعديل -->
             <button
               type="button"
-              onclick="window.openEditItemModal('${item.id}')"
+              onclick="window.openEditItemModal('${escapeJsArg(item.id)}')"
               class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer text-xs active:scale-95"
               title="${isEn ? 'Edit' : 'تعديل'}">
               ✏️
@@ -694,7 +695,7 @@ function renderItemsList() {
             <!-- تطبيق على ماكينات أخرى -->
             <button
               type="button"
-              onclick="window.openApplyToOthersModal('${item.id}')"
+              onclick="window.openApplyToOthersModal('${escapeJsArg(item.id)}')"
               class="p-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 transition cursor-pointer text-xs active:scale-95"
               title="${isEn ? 'Apply to other machines' : 'تطبيق على ماكينات أخرى'}">
               🚀
@@ -703,7 +704,7 @@ function renderItemsList() {
             <!-- حذف نهائي -->
             <button
               type="button"
-              onclick="window.deleteChecklistItemPermanent('${item.id}')"
+              onclick="window.deleteChecklistItemPermanent('${escapeJsArg(item.id)}')"
               class="p-2 rounded-xl bg-red-600/15 hover:bg-red-600/30 text-red-400 border border-red-500/30 transition cursor-pointer text-xs active:scale-95"
               title="${isEn ? 'Delete permanently' : 'حذف نهائي'}">
               🗑️
@@ -832,7 +833,7 @@ function renderItemFormModal(itemData) {
 
         <!-- Form Body -->
         <form id="cbItemForm" onsubmit="window.saveItemFormData(event)" class="p-4 overflow-y-auto space-y-4">
-          <input type="hidden" id="cbfId" value="${itemData.id}">
+          <input type="hidden" id="cbfId" value="${escapeHtml(itemData.id)}">
 
           <!-- STEP 1: الأساسيات (النص والنوع) -->
           <div class="space-y-3">
@@ -893,7 +894,7 @@ function renderItemFormModal(itemData) {
                   id="cbfPillar"
                   class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-emerald-500 transition font-bold">
                   ${FIVE_S_PILLARS.map(p => `
-                    <option value="${p.id}" ${itemData.pillar === p.id ? 'selected' : ''}>${isEn ? p.en : p.ar}</option>
+                    <option value="${escapeHtml(p.id)}" ${itemData.pillar === p.id ? 'selected' : ''}>${isEn ? p.en : p.ar}</option>
                   `).join('')}
                 </select>
               </div>
@@ -1215,7 +1216,7 @@ window.openCopyFromModal = function () {
           <select id="cbCopySourceSelect" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-slate-700 text-white text-xs outline-none focus:border-blue-500">
             <option value="" disabled selected>${isEn ? 'Select Source Machine...' : 'اختر ماكينة المصدر...'}</option>
             ${otherMachines.map(m => `
-              <option value="${m.value}">🏭 ${m.value}${m.line ? ` (${formatLineLabel(m.line)})` : ''}</option>
+              <option value="${escapeHtml(m.value)}">🏭 ${escapeHtml(m.value)}${m.line ? ` (${formatLineLabel(m.line)})` : ''}</option>
             `).join('')}
           </select>
 
@@ -1334,8 +1335,8 @@ window.openApplyToOthersModal = function (itemId) {
           <div class="max-h-52 overflow-y-auto space-y-1.5 pr-1">
             ${otherMachines.map(m => `
               <label class="flex items-center gap-2 p-2 rounded-lg bg-[#0F172A] border border-slate-800 hover:border-slate-700 cursor-pointer text-xs">
-                <input type="checkbox" value="${m.value}" class="cb-target-chk w-4 h-4 rounded text-blue-600 bg-slate-800 border-slate-700">
-                <span class="font-medium text-white">${m.value}</span>
+                <input type="checkbox" value="${escapeHtml(m.value)}" class="cb-target-chk w-4 h-4 rounded text-blue-600 bg-slate-800 border-slate-700">
+                <span class="font-medium text-white">${escapeHtml(m.value)}</span>
                 ${m.line ? `<span class="text-[10px] text-slate-500">(${formatLineLabel(m.line)})</span>` : ''}
               </label>
             `).join('')}
@@ -1345,7 +1346,7 @@ window.openApplyToOthersModal = function (itemId) {
             <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
-            <button type="button" onclick="window.confirmApplyItemToMachines('${item.id}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
+            <button type="button" onclick="window.confirmApplyItemToMachines('${escapeJsArg(item.id)}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
               ${isEn ? 'Apply Item' : 'تطبيق البند'}
             </button>
           </div>
@@ -1458,7 +1459,7 @@ window.openTechPreviewModal = function () {
               <span>👁️</span>
               <span>${isEn ? 'Technician View Simulation' : 'معاينة شاشة الفحص كما يراها الفني'}</span>
             </h3>
-            <p class="text-[10px] text-slate-400 mt-0.5">${currentTargetId} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(currentTargetId)} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
           </div>
           <button type="button" onclick="document.getElementById('cbTechPreviewModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
@@ -1509,7 +1510,7 @@ window.openHistoryModal = function () {
                 <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 text-xs flex items-center justify-between">
                   <div>
                     <div class="font-bold text-slate-200">v${h.version} • ${h.itemsCount || 0} ${isEn ? 'items' : 'بند'}</div>
-                    <div class="text-[10px] text-slate-500 mt-0.5">${h.updatedBy || 'Manager'} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
+                    <div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(h.updatedBy || 'Manager')} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
                   </div>
                 </div>
               `).join('')}

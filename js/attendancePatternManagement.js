@@ -15,6 +15,7 @@ import {
   invalidatePayrollRulesCache,
   DEFAULT_PAYROLL_RULES
 } from "./services/attendanceSettingsApi.js";
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 let pendingParsedPattern = null; // نتيجة التحليل قبل التأكيد والحفظ الفعلي
 
@@ -48,7 +49,7 @@ window.loadAttendancePatternStatus = async function () {
 
   container.innerHTML = `
     <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
-      <div class="text-xs text-gray-200 font-bold">📄 ${data.fileName || "ملف Pattern"}</div>
+      <div class="text-xs text-gray-200 font-bold">📄 ${escapeHtml(data.fileName || "ملف Pattern")}</div>
       <div class="text-[10px] text-gray-500">آخر تحديث: ${data.updatedAt ? new Date(data.updatedAt).toLocaleString((window.currentLang === "en" ? "en-US" : "ar-EG")) : "—"} ${data.updatedBy ? `بواسطة ${data.updatedBy}` : ""}</div>
       <div class="grid grid-cols-3 gap-2 pt-1.5 text-center">
         <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-1.5"><div class="text-[9px] text-emerald-300">GREEN</div><div class="text-xs font-black text-emerald-300">${counts.green} يوم</div></div>
@@ -108,7 +109,7 @@ window.previewAttendancePatternFile = async function (inputEl) {
   } catch (err) {
     console.error("[PatternUpload] parse error:", err);
     if (preview) {
-      preview.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 mt-2 text-[11px] text-rose-300">❌ ${err.message}</div>`;
+      preview.innerHTML = `<div class="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 mt-2 text-[11px] text-rose-300">❌ ${escapeHtml(err.message)}</div>`;
     }
   }
 };

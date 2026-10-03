@@ -7,6 +7,7 @@
 // ============================================================
 
 import { fetchCustomTipsApi, addCustomTipApi, deleteCustomTipApi } from "./services/dailyTipsApi.js";
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 export let customTips = [];
 
@@ -963,11 +964,11 @@ export function renderDailyTipCard(overrideIndex = null) {
         <div>
           <h3 class="text-xs font-black text-amber-400 tracking-wide flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${tip.id}</span>
+            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
           </h3>
           <span class="text-[10px] text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
-            <span>${tip.categoryTitle}</span>
+            <span>${escapeHtml(tip.categoryTitle)}</span>
           </span>
         </div>
       </div>
@@ -992,12 +993,12 @@ export function renderDailyTipCard(overrideIndex = null) {
     <!-- عنوان المعلومة -->
     <h4 class="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
       <span class="text-amber-400 font-black">▫</span>
-      <span>${tip.title}</span>
+      <span>${escapeHtml(tip.title)}</span>
     </h4>
 
     <!-- نص المعلومة -->
     <p class="text-[11.5px] leading-relaxed text-slate-200 font-normal select-text pr-1 pl-1">
-      ${tip.text}
+      ${escapeHtml(tip.text)}
     </p>
 
     <!-- شريط سفلي خفيف -->
@@ -1180,14 +1181,14 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <div>
           <div class="text-xs font-black text-amber-400 flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${tip.id}</span>
+            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
             <span id="tipPauseIndicator" class="hidden text-[8.5px] font-bold text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
               ⏸️ ${isEn ? 'Reading paused' : 'المؤقت متوقف للقراءة'}
             </span>
           </div>
           <div class="text-[10px] text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
-            <span>${tip.categoryTitle}</span>
+            <span>${escapeHtml(tip.categoryTitle)}</span>
           </div>
         </div>
       </div>
@@ -1219,12 +1220,12 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
     <!-- العنوان -->
     <div class="text-xs font-bold text-amber-300 mb-1.5 flex items-center gap-1.5">
       <span>💡</span>
-      <span>${tip.title}</span>
+      <span>${escapeHtml(tip.title)}</span>
     </div>
 
     <!-- نص المعلومة (مريح للقراءة وواضح) -->
     <div class="text-xs sm:text-[12.5px] leading-relaxed text-slate-100 mb-3 select-text font-normal">
-      ${tip.text}
+      ${escapeHtml(tip.text)}
     </div>
 
     <!-- معلومات الشريط السفلي -->

@@ -21,6 +21,7 @@ import {
   CHECKLIST_TYPE_5S
 } from '../services/checklistApi.js';
 import { db, collection, query, where, getDocs, orderBy, limit, doc, getDoc, setDoc } from '../providers/backend/index.js';
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 let qrCodeLoadPromise = null;
 
@@ -128,13 +129,13 @@ export const MachineProfileView = () => {
 
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 relative">
       <div class="text-xs text-gray-400">${tr.title}</div>
-      <div class="text-xl font-black text-white">${machine}</div>
+      <div class="text-xl font-black text-white">${escapeHtml(machine)}</div>
       <div class="flex flex-wrap items-center gap-1.5 mt-1">
         <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
           ${tr.department}: ${department ? department.toUpperCase() : '-'}
         </span>
         <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
-          🏭 ${tr.line}: ${lineLabel || '-'}
+          🏭 ${tr.line}: ${escapeHtml(lineLabel || '-')}
         </span>
         <span id="machineStatusBadge" class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-gray-500/10 text-gray-300 border border-gray-500/30">
           ⏳ ${tr.loading}
@@ -208,7 +209,7 @@ export const MachineProfileView = () => {
       <div id="machineQrPrintBox" class="hidden text-center pt-2">
         <canvas id="machineQrCanvas" class="mx-auto"></canvas>
         <div class="text-xs font-bold text-white mt-2">${resolved.found ? resolved.value : machine}</div>
-        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${lineLabel}</div>` : ''}
+        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${escapeHtml(lineLabel)}</div>` : ''}
         <button onclick="window.print()" class="mt-3 w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white transition">
           🖨️ ${isEn ? 'Print' : 'طباعة'}
         </button>
@@ -256,7 +257,7 @@ window.loadMachineProfileData = async function () {
         <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
       <div class="text-[11px] text-gray-400">${tr.completion}: ${rec.completionRate ?? 0}%</div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${rec.createdBy?.name || '-'}</div>
+      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
     ` : `<div class="text-xs font-bold text-gray-300">${tr.lastAm}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
   }
 
@@ -268,7 +269,7 @@ window.loadMachineProfileData = async function () {
         <span class="text-lg font-black text-emerald-400">${rec.score ?? 0}%</span>
         <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${rec.createdBy?.name || '-'}</div>
+      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
     ` : `<div class="text-xs font-bold text-gray-300">${tr.last5s}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
   }
 
@@ -300,9 +301,9 @@ window.loadMachineProfileData = async function () {
       overhaulContent.innerHTML = `
         <div class="flex justify-between items-center mb-1">
           <span class="font-bold text-white">${new Date(overhaulRecord.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
-          <span>${tr.by} ${overhaulRecord.reporter?.name || '-'}</span>
+          <span>${tr.by} ${escapeHtml(overhaulRecord.reporter?.name || '-')}</span>
         </div>
-        <div class="text-[10px] bg-[#0F172A] p-2 rounded-lg text-gray-300 italic border border-gray-700">${overhaulRecord.notes || '-'}</div>
+        <div class="text-[10px] bg-[#0F172A] p-2 rounded-lg text-gray-300 italic border border-gray-700">${escapeHtml(overhaulRecord.notes || '-')}</div>
       `;
     }
 
@@ -311,7 +312,7 @@ window.loadMachineProfileData = async function () {
         ? pmRecords.slice(0, 3).map(r => `
           <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between">
             <span class="font-bold text-fuchsia-300">PM</span>
-            <span>${r.reporter?.name || '-'}</span>
+            <span>${escapeHtml(r.reporter?.name || '-')}</span>
             <span class="text-gray-500">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
           </div>
         `).join('')
@@ -413,7 +414,7 @@ window.openManageAmModal = async function() {
         <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0F172A]">
           <h3 class="font-bold text-white text-sm flex items-center gap-2">
             <span>⚙️</span>
-            ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${machine}
+            ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${escapeHtml(machine)}
           </h3>
           <button onclick="document.getElementById('manageAmModal').remove()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
             ✕

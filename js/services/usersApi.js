@@ -34,27 +34,33 @@ import {
   callCloudFunction,
   getRegistrationAuthContext
 } from "../providers/backend/index.js";
+import { normalizePhone } from "../utils/phoneUtils.js";
 import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
 
-// إصلاح (وركفلو تسجيل الدخول/إنشاء حساب): الدور اللي بيتحدد وقت
-// قبول طلب الانضمام (updateUserStatusApi تحت) كان دايماً "technician"
-// بشكل ثابت، بغض النظر عن "الوظيفة" اللي اختارها المستخدم في فورم
-// التسجيل (regJob في registerView.js). دلوقتي بيتحدد حسب الوظيفة
-// المُختارة فعلاً - الصلاحيات (permissions) تفضل كما هي
-// (DEFAULT_USER_PERMISSIONS) في كل الحالات؛ الأدمن لسه قادر يعدّل
-// الدور/الصلاحيات يدوياً بعد القبول لو محتاج (updatePermissionsApi)
-const JOB_TO_ROLE = {
+// أمان (H8): الدور لا يُمنح تلقائيًا من "الوظيفة" (job) اللي اختارها
+// المتقدم في فورم التسجيل - ده حقل حر يختاره المستخدم بنفسه، وكان اختيار
+// "Supervisor/Group Leader/Manager" بيمنحه دور manager (إغلاق جماعي،
+// قراءة إشعارات الجميع، تعديل القوالب) بنقرة "قبول" واحدة بدون ما شاشة
+// الموافقة تعرض الدور الناتج. دلوقتي الأدمن بيختار الدور صراحةً عند
+// القبول (updateUserStatusApi تحت بتطلبه)، والوظيفة بتُستخدم فقط
+// كاقتراح مبدئي في الواجهة للأدوار غير الحساسة (suggestRoleFromJob).
+export const APPROVAL_ROLES = ["technician", "operator", "engineer", "supervisor", "manager", "admin"];
+
+// الأدوار اللي لازم يتحدد لها قسم ماكينات (backend/frontend) عند القبول:
+// قواعد machineErrors/pmRecords/machineChecklists وقوائم الماكينات بتعتمد
+// عليه، ومن غيره المستخدم مايقدرش يبلّغ أو يمسح QR (بند C3).
+export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "supervisor"];
+
+const JOB_SUGGESTED_ROLE = {
   technician: "technician",
-  operator: "operator",
   maintainer: "technician",
-  "group leader": "manager",
-  supervisor: "manager",
-  manager: "manager"
+  operator: "operator"
 };
 
-function roleFromJob(job) {
+/** اقتراح دور مبدئي للأدوار غير الحساسة فقط ("" = لازم اختيار صريح) */
+export function suggestRoleFromJob(job) {
   const key = String(job || "").trim().toLowerCase();
-  return JOB_TO_ROLE[key] || "technician";
+  return JOB_SUGGESTED_ROLE[key] || "";
 }
 
 
@@ -263,24 +269,42 @@ export async function registerUserApi(userData) {
 
   try {
 
-    const phone =
-      String(
-        userData.phone || ""
-      ).trim();
+    // تطبيع الرقم (أرقام عربية / +20 / 0020...) + تخزين الصيغة القياسية
+    // الواحدة، فنفس الشخص مايبقاش له حسابين بصيغتين (بند H2)
+    const phoneCheck = normalizePhone(userData.phone);
+
+    if (!phoneCheck.ok) {
+      return {
+        status: "error",
+        message: "رقم الموبايل غير صالح، تأكد من كتابته بشكل صحيح."
+      };
+    }
+
+    const phone = phoneCheck.canonical;
 
     const password =
       String(
         userData.password || ""
       );
 
+    // التحقق من المدخلات (بند M12) - قبل إنشاء أي حساب
+    const cleanName = String(userData.name || "").trim();
+    const cleanCode = String(userData.code || "").trim();
 
-    if (!phone) {
-      return {
-        status: "error",
-        message: "رقم الموبايل مطلوب."
-      };
+    if (cleanName.length < 2 || cleanName.length > 80) {
+      return { status: "error", message: "الاسم يجب أن يكون بين ٢ و٨٠ حرفًا." };
     }
 
+    if (password.length < 8 || password.length > 128) {
+      return { status: "error", message: "كلمة السر يجب أن تكون ٨ أحرف على الأقل." };
+    }
+
+    if (cleanCode.length > 40) {
+      return { status: "error", message: "الكود طويل جدًا." };
+    }
+
+    const cleanJob = String(userData.job || "Technician").trim().slice(0, 60);
+    const cleanDepartment = String(userData.department || "Production").trim().slice(0, 60);
 
     // منع تكرار رقم الهاتف: Firebase Auth نفسه بيرفض تلقائياً الإيميل
     // الداخلي المكرر (auth/email-already-in-use - راجع تحت).
@@ -328,7 +352,6 @@ export async function registerUserApi(userData) {
     // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
     // ========================================================
 
-    const { password: _pw, ...userDataWithoutPassword } = userData;
 
     const rawShift = String(userData.shift || "").trim();
     const shiftLower = rawShift.toLowerCase();
@@ -341,18 +364,19 @@ export async function registerUserApi(userData) {
       await setDoc(
         doc(regDb, "users", cred.user.uid),
         {
-          name: String(userData.name || "").trim(),
+          name: cleanName,
           phone,
-          code: String(userData.code || "").trim(),
-          job: String(userData.job || "Technician").trim(),
-          department: String(userData.department || "Production").trim(),
-          shift: rawShift || "Green",
-          shiftColor: userData.shiftColor || shiftColor,
+          code: cleanCode,
+          job: cleanJob,
+          department: cleanDepartment,
+          shift: rawShift.slice(0, 40) || "Green",
+          shiftColor: ["green", "red", "blue"].includes(userData.shiftColor) ? userData.shiftColor : shiftColor,
           // ملحوظة: حقول hourlyRate/monthTargetHours اتشالت من هنا -
           // بيانات المرتب أصبحت محلية 100% على جهاز كل مستخدم
           // (راجع payrollLocalStore.js) ولا يجوز تخزينها في Firestore
-          leaveBalance: Number(userData.leaveBalance) || 21,
-          ...userDataWithoutPassword,
+          leaveBalance: 21,
+          // (اتشال spread لباقي userData: كان بيسمح للعميل بكتابة أي حقول
+          //  إضافية في مستند المستخدم)
           // الحساب الجديد ينتظر الموافقة
           role:
             "pending",
@@ -912,7 +936,8 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
  */
 export async function updateUserStatusApi(
   userId,
-  status
+  status,
+  options = {}
 ) {
 
   try {
@@ -945,27 +970,50 @@ export async function updateUserStatusApi(
 
     if (status === "active") {
 
-      // إصلاح: الدور بيتحدد حسب "الوظيفة" اللي اختارها المستخدم في
-      // فورم التسجيل (job) بدل ما يبقى "technician" ثابتة للجميع
-      const userSnap = await getDoc(userRef);
-      const job = userSnap.exists() ? userSnap.data().job : "";
+      // الدور وقسم الماكينات بيتحددوا صراحةً من الأدمن وقت القبول
+      // (راجع الشرح فوق APPROVAL_ROLES) - مفيش افتراضات من الوظيفة.
+      const role = String(options.role || "").trim().toLowerCase();
 
-      updateData.role =
-        roleFromJob(job);
+      if (!APPROVAL_ROLES.includes(role)) {
+        return {
+          status: "error",
+          message: "يجب اختيار الدور صراحةً قبل قبول المستخدم."
+        };
+      }
 
+      const cleanDept = normalizeDepartment(options.machineDepartment);
 
-      // استخدام الصلاحيات الموحدة
+      if (ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(role) && !cleanDept) {
+        return {
+          status: "error",
+          message: "يجب تحديد تصنيف الماكينات (Backend / Frontend) قبل قبول هذا الدور، وإلا لن يستطيع المستخدم الإبلاغ عن الأعطال أو مسح QR."
+        };
+      }
+
+      updateData.role = role;
+
+      if (cleanDept) {
+        updateData.machineDepartment = cleanDept;
+      }
+
+      // الأدمن بياخد كل الصلاحيات (نفس منطق saveUserPermissions)،
+      // غيره بياخد الصلاحيات المحددة أو الافتراضية الموحّدة
+      const requestedPerms = String(options.permissions || "").trim();
+
       updateData.permissions =
-        DEFAULT_USER_PERMISSIONS;
-
+        role === "admin"
+          ? "all"
+          : (requestedPerms || DEFAULT_USER_PERMISSIONS);
 
       updateData.approvedAt =
         new Date().toISOString();
 
-
       updateData.approvedBy =
         localStorage.getItem("name")
         || "Admin";
+
+      updateData.approvedByUid =
+        auth?.currentUser?.uid || "";
 
     }
 
@@ -992,6 +1040,19 @@ export async function updateUserStatusApi(
     );
 
     invalidateUsersCache();
+
+    // عدم توفر الفني (H6): حساب اترفض/اتعطّل = بلاغاته المفتوحة ترجع لقائمة
+    // الانتظار (ما تفضلش عالقة عند حساب غير نشط). import ديناميكي لتفادي
+    // الاستيراد الدائري (ticketsApi بتستورد من usersApi).
+    if (status !== "active") {
+      try {
+        const { releaseTicketsOfUserApi } = await import("./ticketsApi.js");
+        const snapBefore = await getDoc(userRef);
+        await releaseTicketsOfUserApi(userId, snapBefore.exists() ? snapBefore.data().name : "");
+      } catch (releaseError) {
+        console.warn("releaseTicketsOfUserApi failed:", releaseError);
+      }
+    }
 
 
     return {
@@ -1097,6 +1158,14 @@ export async function deleteUserApi(userId) {
     // الملحوظة فوق. لو الدالة مش منشورة بعد على Firebase، هترجع
     // خطأ واضح تحت (callCloudFunction في firebaseBackendProvider.js)
     // بدل ما تدّعي نجاح جزئي.
+    // تحرير بلاغاته المفتوحة قبل الحذف (H6) - بعد الحذف مفيش مسار لإعادتها
+    try {
+      const { releaseTicketsOfUserApi } = await import("./ticketsApi.js");
+      await releaseTicketsOfUserApi(userId, currentData?.name || "");
+    } catch (releaseError) {
+      console.warn("releaseTicketsOfUserApi failed:", releaseError);
+    }
+
     await callCloudFunction("deleteUserAccount", { userId });
 
     invalidateUsersCache();

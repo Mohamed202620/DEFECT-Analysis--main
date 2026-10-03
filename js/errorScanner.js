@@ -105,6 +105,7 @@ function extractErrorCode(rawText) {
 // ErrorScannerView.js) حتى لو الكاش اتحدّث بعد أول تحميل للصفحة
 
 import { getMachineTypeEntries } from './machines.js';
+import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
 
 export const LINE_OPTIONS = ['Line 1', 'Line 2'];
 
@@ -136,7 +137,7 @@ function setStatus(message, isError = false, showSpinner = false) {
     box.innerHTML = `
       <span class="inline-flex items-center justify-center gap-2">
         <span class="w-3.5 h-3.5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></span>
-        <span>${message}</span>
+        <span>${escapeHtml(message)}</span>
       </span>`;
   } else {
     box.textContent = message;
@@ -335,7 +336,7 @@ window.searchMachineError = async function (overrideCode, overrideManual) {
 
     if (result.status !== 'success') {
       if (resultsBox) {
-        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${result.message || t().genericSearchError}</div>`;
+        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${escapeHtml(result.message || t().genericSearchError)}</div>`;
       }
       return;
     }
@@ -424,7 +425,7 @@ function renderFoundError(data) {
       ${data.machine || data.line ? `
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.machineLineLabel}</div>
-        <div class="text-gray-100">${data.machine || '-'} ${data.line ? '· ' + data.line : ''}</div>
+        <div class="text-gray-100">${escapeHtml(data.machine || '-')} ${data.line ? escapeHtml('· ' + data.line) : ''}</div>
       </div>` : ''}
 
       <div class="text-sm">
@@ -447,7 +448,7 @@ function renderFoundError(data) {
           ${tr.logOccurrenceBtn}
         </button>
         ${canVerify ? `
-        <button onclick="window.verifyMachineError('${data.id}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
+        <button onclick="window.verifyMachineError('${escapeJsArg(data.id)}')" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
           ${tr.verifyBtn}
         </button>` : ''}
         <button onclick="window.resetErrorScanner()" class="w-full py-2.5 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold text-xs text-white transition active:scale-95">
@@ -486,7 +487,7 @@ async function loadErrorHistory(code) {
     <div class="space-y-1.5">
       ${result.data.map(log => `
         <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 text-[11px] text-gray-300 flex items-center justify-between">
-          <span>${log.machine || '-'} ${log.line ? '· ' + log.line : ''}</span>
+          <span>${escapeHtml(log.machine || '-')} ${log.line ? escapeHtml('· ' + log.line) : ''}</span>
           <span class="text-gray-500">${log.scannedAt ? new Date(log.scannedAt).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : ''}</span>
         </div>
       `).join('')}
@@ -538,7 +539,7 @@ function renderNotFound(code) {
         <textarea id="errNewSteps" rows="3" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
-      <button onclick="window.saveNewMachineError('${code.replace(/'/g, "\\'")}')" class="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
+      <button onclick="window.saveNewMachineError('${escapeJsArg(code)}')" class="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-xs text-white transition active:scale-95">
         ${tr.addNewBtn}
       </button>
     </div>

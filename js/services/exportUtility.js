@@ -2,6 +2,7 @@ import { getCurrentRole, hasFullDataAccess } from '../permissions.js';
 import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlockHtml, getCompanyLogoDataUrl } from '../branding.js';
 import { HEADER_COLORS, COMPANY_NAME_AR, COMPANY_NAME_EN } from '../companyHeaderConfig.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 // إصلاح (بند مؤكد بالاختبار العملي - Test 10): كانت ExcelJS بتتحمّل
 // حصرياً عبر <script> ثابت في index.html من مصدر CDN واحد بس
@@ -719,7 +720,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
         <span class="text-2xl">📊</span>
         <div>
           <div class="text-sm font-black text-emerald-400">${isEn ? 'Excel Report Ready!' : 'تم تجهيز ملف الإكسيل بنجاح'}</div>
-          <div class="text-[11px] text-gray-300 font-mono font-medium truncate max-w-[240px]">${filename}</div>
+          <div class="text-[11px] text-gray-300 font-mono font-medium truncate max-w-[240px]">${escapeHtml(filename)}</div>
         </div>
       </div>
       <button type="button" onclick="document.getElementById('mscanco-download-toast')?.remove()" class="text-gray-400 hover:text-white text-sm px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg">✕</button>
@@ -727,7 +728,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
     
     <div class="flex flex-col gap-2">
       ${targetUrl ? `
-        <a id="mscanco-direct-dl-btn" href="${targetUrl}" download="${filename}" class="w-full text-center py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer no-underline border border-emerald-400/30">
+        <a id="mscanco-direct-dl-btn" href="${escapeHtml(targetUrl)}" download="${escapeHtml(filename)}" class="w-full text-center py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer no-underline border border-emerald-400/30">
           <span class="text-lg">📥</span>
           <span>${isEn ? 'Click Here to Download File' : 'انقر هنا لتنزيل الملف إلى جهازك مباشرة'}</span>
         </a>

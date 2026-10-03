@@ -8,6 +8,7 @@
 import { db, doc, getDoc, setDoc } from './providers/backend/index.js';
 import { loadScriptWithFallback } from './utils/loadExternalScript.js';
 import { isAdminRole, getCurrentRole } from './permissions.js';
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 let exceljsLoadPromise = null;
 function ensureExcelJs() {
@@ -363,7 +364,7 @@ window.previewAmExcelFile = async function(inputEl) {
           <div class="max-h-36 overflow-y-auto space-y-1">
             ${diffResults.map(d => `
               <div class="bg-[#0F172A]/70 px-2 py-1 rounded text-[10px] flex items-center justify-between">
-                <span class="font-medium text-white">${d.machine}</span>
+                <span class="font-medium text-white">${escapeHtml(d.machine)}</span>
                 <span class="flex items-center gap-1.5 font-mono">
                   ${d.isNew ? `<span class="text-blue-400 font-bold">${isEn ? 'New Template' : 'قالب جديد'}</span>` : `
                     <span class="text-emerald-400">+${d.added} ${isEn ? 'add' : 'مضاف'}</span>
@@ -404,7 +405,7 @@ window.previewAmExcelFile = async function(inputEl) {
     if (previewBox) {
       previewBox.innerHTML = `
         <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">
-          ❌ ${err.message}
+          ❌ ${escapeHtml(err.message)}
         </div>
       `;
     }

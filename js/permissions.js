@@ -182,15 +182,22 @@ export function getTicketActions(ticket) {
   const actions = [];
 
   // التحقق من قرابة المستخدم بالبلاغ (فني مُسند إليه أم مُبلغ)
+  // الهوية بالـ UID (بند M1): المطابقة بالاسم بقت احتياطي فقط للبلاغات
+  // القديمة اللي مفيهاش UID - اسمين متطابقين كانوا بيتداخلوا وبتظهر أزرار
+  // القاعدة بترفضها (لأنها بتعتمد UID).
   const isAssignee =
     isAdmin ||
-    ticket.assignedToUid === myUid ||
-    (!!myName && ticket.assignedTo === myName);
+    (ticket.assignedToUid
+      ? ticket.assignedToUid === myUid
+      : (!!myName && ticket.assignedTo === myName));
 
+  // أمان (H5): الأدمن مش "مُبلّغ" تلقائياً - كان بيشوف "إصلاح ذاتي" على أي
+  // بلاغ. المُبلّغ = صاحب البلاغ الفعلي فقط (أدمن/مدير بيراجعوا ويأكدوا
+  // عبر canReviewAsManager تحت، مش عبر صفة المُبلّغ).
   const isReporter =
-    isAdmin ||
-    ticket.reportedByUid === myUid ||
-    (!!myName && ticket.reportedBy === myName);
+    ticket.reportedByUid
+      ? ticket.reportedByUid === myUid
+      : (!!myName && ticket.reportedBy === myName);
 
   switch (status) {
 
@@ -246,8 +253,12 @@ export function getTicketActions(ticket) {
       // آخر (مدير/مشرف/أدمن) - المُبلّغ يقدر يرفض بس. مطابق لـ firestore.rules STEP 5.
       const canReviewAsManager = isAdmin || isManagerRole(role);
       const selfResolved = ticket.isSelfResolved === true;
+      // منع إغلاق بلاغ أصلحه الشخص نفسه (تجاوز التحقق): لو الإصلاح ذاتي
+      // (المُبلّغ = المُصلِح) ومن بيراجع هو نفس المُصلِح، التأكيد لازم
+      // يكون من طرف تاني (مطابق لـ firestore.rules STEP 5)
+      const iResolvedIt = !!ticket.resolvedByUid && ticket.resolvedByUid === myUid;
       if (canReviewAsManager || isReporter) {
-        if (canReviewAsManager || !selfResolved) {
+        if ((canReviewAsManager || !selfResolved) && !(selfResolved && iResolvedIt)) {
           actions.push({ key: "confirm", label: ta().confirm });
         }
         actions.push({ key: "reject", label: ta().reject });

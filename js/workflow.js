@@ -1,4 +1,5 @@
-import { fetchTicketsApi, fetchTicketCountsApi } from './services/api.js';
+import { fetchTicketsApi, fetchTicketCountsApi, fetchDashboardSnapshotApi } from './services/api.js';
+import { escalateOverdueTicketsApi } from './services/ticketsApi.js';
 // إصلاح M1: جلب الدور والمستخدم الحالي عشان نمرّرهم لـ fetchTicketsApi
 // في loadDashboardStats() بدل ما تجيب كل التذاكر دايماً بدون فلترة
 import { getCurrentRole } from './permissions.js';
@@ -43,6 +44,45 @@ export function initIssueAttachments() {
 }
 window.initIssueAttachments = initIssueAttachments;
 
+// ==========================================
+// هوية البلاغ الثابتة (بند H7 - منع التكرار)
+// issueId بيتولّد مرة واحدة لكل "نموذج بلاغ" ويتخزّن في sessionStorage
+// (بيصمد قدام Refresh/Reload أثناء العملية)، ومابيتغيّرش مع الضغط المتكرر
+// على "حفظ" أو إعادة المحاولة بعد انقطاع - فنفس البلاغ دايماً بنفس
+// الهوية (ومعرّف مستند التذكرة بيتحسب منها - راجع saveIssueApi). بيتمسح
+// فقط بعد نجاح/ترحيل البلاغ فعلاً.
+// ==========================================
+const ISSUE_DRAFT_ID_KEY = "issueDraftId";
+
+function getIssueDraftId() {
+  try {
+    let id = sessionStorage.getItem(ISSUE_DRAFT_ID_KEY);
+    if (!id) {
+      id = "IS-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+      sessionStorage.setItem(ISSUE_DRAFT_ID_KEY, id);
+    }
+    return id;
+  } catch (_) {
+    return "IS-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6);
+  }
+}
+
+function clearIssueDraftId() {
+  try { sessionStorage.removeItem(ISSUE_DRAFT_ID_KEY); } catch (_) { /* لا شيء */ }
+}
+
+// مهلة الإرسال: navigator.onLine بيفضل true مع Wi-Fi بلا إنترنت فعلي فكانت
+// وعود Firestore تفضل معلّقة والزر عالق على "جاري الإرسال" (بند H7)
+const ISSUE_SAVE_TIMEOUT_MS = 25000;
+
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ status: "timeout" }), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 // دالة حفظ وإرسال البلاغ المربوطة بزر الحفظ
 window.confirmIssue = async function() {
   const line = document.getElementById('issueLine')?.value;
@@ -56,7 +96,7 @@ window.confirmIssue = async function() {
   // ✅ توليد معرف فريد للبلاغ بنفس أسلوب defectId
   // (العنصر generatedIssueId# غير موجود فعلياً في IssueView، لذا كان
   // issueId يصل دائماً كـ undefined قبل هذا التعديل)
-  const issueId = "IS-" + Date.now();
+  const issueId = getIssueDraftId();
 
   if (!line || !machine || !category || !description) {
     alert("⚠️ يرجى استكمال البيانات الأساسية: (الخط، الماكينة، نوع العطل، والوصف)");
@@ -136,8 +176,23 @@ window.confirmIssue = async function() {
 
   try {
     const { saveIssueApi } = await import('./services/api.js');
-    const res = await saveIssueApi(payload);
+    let res = await withTimeout(saveIssueApi(payload), ISSUE_SAVE_TIMEOUT_MS);
+
+    if (res && res.status === 'timeout') {
+      // الشبكة معلّقة (Wi-Fi بلا إنترنت فعلي): نحفظ البلاغ في الطابور
+      // المحلي بنفس issueId - لو الإرسال المعلّق نجح لاحقاً فالمزامنة
+      // هتلاقي نفس المستند (معرّف حتمي) ومش هتكرر البلاغ
+      try {
+        const { queueOfflineTicket } = await import('./services/offlineQueue.js');
+        const localId = await queueOfflineTicket(payload);
+        res = { status: 'queued', localId };
+      } catch (queueError) {
+        res = { status: 'error', message: "انتهت مهلة الإرسال وتعذّر الحفظ المحلي، حاول مرة أخرى (لن يتكرر البلاغ)." };
+      }
+    }
+
     if (res && (res.status === 'success' || res.status === 'queued')) {
+      clearIssueDraftId();
       alert(
         res.status === 'queued'
           ? "📴 لا يوجد اتصال حالياً - تم حفظ البلاغ محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت"
@@ -199,43 +254,21 @@ async function _loadDashboardStatsImpl() {
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
-  // Get recent tickets for details, and the accurate total count via aggregation
-  const [sampleResult, countsResult] = await Promise.all([
-    fetchTicketsApi({ role, myUid, myName, maxCount: 500 }),
-    fetchTicketCountsApi({ role, myName })
-  ]);
+  // أرقام دقيقة (بند H4): عدّادات من السيرفر + مجموعة البلاغات غير المغلقة
+  // الكاملة، بدل عينة أحدث 500 بلاغ اللي كانت بتخفي أقدم المتأخرات
+  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName });
 
-  if (!sampleResult || sampleResult.status !== 'success') {
-    console.warn("[loadDashboardStats] Failed to fetch tickets:", sampleResult?.message || "Unknown error");
+  if (!snapRes || snapRes.status !== 'success') {
+    console.warn("[loadDashboardStats] Failed to fetch tickets:", snapRes?.message || "Unknown error");
     return;
   }
 
-  const tickets = Array.isArray(sampleResult.data) ? sampleResult.data : [];
-  const trueTotal = countsResult?.status === 'success' ? countsResult.data.total : tickets.length;
-
-  const todayStr = new Date().toDateString();
-
-  let open = 0;
-  let closed = 0;
-  let today = 0;
-  let overdue = 0;
-
-  tickets.forEach(ticket => {
-    if (isClosedStatus(ticket.status)) {
-      closed++;
-    } else {
-      open++;
-    }
-
-    const created = parseTicketDate(ticket);
-    if (created && created.toDateString() === todayStr) {
-      today++;
-    }
-
-    if (isOverdueTicket(ticket)) {
-      overdue++;
-    }
-  });
+  const tickets = Array.isArray(snapRes.data.tickets) ? snapRes.data.tickets : [];
+  const trueTotal = snapRes.data.total;
+  const open = snapRes.data.open;
+  const closed = snapRes.data.closed;
+  const today = snapRes.data.today;
+  const overdue = snapRes.data.overdue;
 
   const now = new Date();
   const thirtyDaysAgo = new Date();
@@ -263,6 +296,12 @@ async function _loadDashboardStatsImpl() {
   };
 
   window.dashboardData = stats;
+
+  // تصعيد البلاغات المتأخرة للمديرين (H6) - مرة واحدة لكل بلاغ/مدير
+  if (overdue > 0 && (role === 'admin' || role === 'manager' || role === 'supervisor')) {
+    const overdueList = tickets.filter(t => isOverdueTicket(t));
+    escalateOverdueTicketsApi(overdueList).catch(() => {});
+  }
 
   const setText = (id, value) => {
     const node = document.getElementById(id);

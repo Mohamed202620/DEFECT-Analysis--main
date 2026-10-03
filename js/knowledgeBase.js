@@ -12,6 +12,7 @@ import {
   fetchMachineErrorLogsSinceApi
 } from './services/api.js';
 import { translations } from './config.js';
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 // إصلاح (ترجمة شاملة): كل النصوص هنا كانت ثابتة بالعربي - دلوقتي
 // بتتقرأ من translations.kb حسب window.currentLang في كل مرة
@@ -177,7 +178,7 @@ function renderKbSummary() {
   if (currentPeriod === 'all') {
     box.innerHTML = `
       <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 flex items-center justify-between">
-        <div class="text-xs font-bold">${meta.icon} ${meta.label}</div>
+        <div class="text-xs font-bold">${meta.icon} ${escapeHtml(meta.label)}</div>
         <div class="text-lg font-bold">${allErrors.length} <span class="text-[10px] font-normal">${tr.loggedError}</span></div>
       </div>
     `;
@@ -191,7 +192,7 @@ function renderKbSummary() {
   box.innerHTML = `
     <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 grid grid-cols-2 gap-2">
       <div>
-        <div class="text-[10px] opacity-80">${meta.icon} ${tr.totalOccurrences} (${meta.label})</div>
+        <div class="text-[10px] opacity-80">${meta.icon} ${tr.totalOccurrences} (${escapeHtml(meta.label)})</div>
         <div class="text-lg font-bold">${totalOccurrences}</div>
       </div>
       <div>
@@ -259,7 +260,7 @@ function renderKbList() {
         </summary>
 
         <div class="mt-2 pt-2 border-t border-gray-800 space-y-1.5 text-gray-300">
-          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-gray-500">${tr.machineLine}</span> ${e.machine || '-'} ${e.line ? '· ' + e.line : ''}</div>` : ''}
+          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-gray-500">${tr.machineLine}</span> ${escapeHtml(e.machine || '-')} ${e.line ? escapeHtml('· ' + e.line) : ''}</div>` : ''}
           <div class="text-[11px]"><span class="text-gray-500">${tr.probableCause}</span> ${e.cause || tr.notSpecified}</div>
           <div class="text-[11px]"><span class="text-gray-500">${tr.solution}</span> ${e.solution || tr.notSpecified}</div>
           <div class="text-[11px] whitespace-pre-line"><span class="text-gray-500">${tr.repairSteps}</span> ${e.steps || tr.notSpecified}</div>

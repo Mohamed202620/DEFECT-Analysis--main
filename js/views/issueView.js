@@ -2,6 +2,8 @@ import { translations } from '../config.js';
 import { buildMachineDropdownHtml } from '../machines.js';
 import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles, resetAttachmentFiles } from '../components/attachmentPicker.js';
 import { fetchActiveTicketForMachineApi, appendShiftNoteToTicketApi } from '../services/api.js';
+import { escapeJsArg } from "../utils/escapeHtml.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 let currentDetectedActiveTicket = null;
 
@@ -60,33 +62,33 @@ window.checkActiveTicketForMachine = async function() {
               <span>${isEn ? 'Active ticket already open for this machine' : 'يوجد بلاغ عطل مفتوح بالفعل لهذه الماكينة'}</span>
             </div>
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              ${t.status}
+              ${escapeHtml(t.status)}
             </span>
           </div>
 
           <div class="bg-[#0F172A]/90 p-2.5 rounded-lg border border-slate-700/80 space-y-1 text-[11px] text-slate-300">
             <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-white font-mono">#${t.issueId || t.id}</span>
+              <span class="font-bold text-white font-mono">#${escapeHtml(t.issueId || t.id)}</span>
               <span class="text-slate-400 text-[10px]">${createdDate}</span>
             </div>
             <div class="text-slate-200 line-clamp-2">
-              <span class="text-gray-400">${isEn ? 'Description:' : 'الوصف:'}</span> ${t.description || ''}
+              <span class="text-gray-400">${isEn ? 'Description:' : 'الوصف:'}</span> ${escapeHtml(t.description || '')}
             </div>
             <div class="flex items-center gap-3 text-[10px] text-slate-400 pt-0.5 flex-wrap">
               <span>👤 ${isEn ? 'Reported by:' : 'المُبلّغ:'} <b class="text-slate-200">${t.reportedBy || t.reporter?.name || (isEn ? 'Unknown' : 'غير محدد')}</b></span>
-              ${t.reporter?.shift ? `<span>🕒 ${isEn ? 'Shift:' : 'الوردية:'} <b class="text-amber-300">${t.reporter.shift}</b></span>` : ''}
-              ${t.assignedTo ? `<span>🛠️ ${isEn ? 'Assigned to:' : 'المسند إليه:'} <b class="text-blue-300">${t.assignedTo}</b></span>` : ''}
+              ${t.reporter?.shift ? `<span>🕒 ${isEn ? 'Shift:' : 'الوردية:'} <b class="text-amber-300">${escapeHtml(t.reporter.shift)}</b></span>` : ''}
+              ${t.assignedTo ? `<span>🛠️ ${isEn ? 'Assigned to:' : 'المسند إليه:'} <b class="text-blue-300">${escapeHtml(t.assignedTo)}</b></span>` : ''}
             </div>
           </div>
 
           <!-- خيارات التعامل مع العطل للوردية الحالية -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
-            <button type="button" onclick="window.openShiftHandoverModal('${t.id}')"
+            <button type="button" onclick="window.openShiftHandoverModal('${escapeJsArg(t.id)}')"
               class="py-2 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md cursor-pointer">
               <span>➕</span>
               <span>${isEn ? 'Add Shift Handover Update' : 'إضافة ملاحظات ورديتك لهذا البلاغ'}</span>
             </button>
-            <button type="button" onclick="window.openExistingTicketDetails('${t.id}')"
+            <button type="button" onclick="window.openExistingTicketDetails('${escapeJsArg(t.id)}')"
               class="py-2 px-2.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/40 text-blue-300 border border-blue-500/40 font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer">
               <span>🔍</span>
               <span>${isEn ? 'View Existing Ticket Details' : 'عرض تفاصيل البلاغ القائم'}</span>
@@ -158,7 +160,7 @@ window.openShiftHandoverModal = function(ticketId) {
       </div>
 
       <div class="flex gap-2 pt-2">
-        <button type="button" id="submitHandoverBtn" onclick="window.submitShiftHandover('${ticketId}')"
+        <button type="button" id="submitHandoverBtn" onclick="window.submitShiftHandover('${escapeJsArg(ticketId)}')"
           class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white transition active:scale-95 shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
           <span>💾</span>
           <span>${isEn ? 'Save Shift Update' : 'حفظ تحديث الوردية'}</span>
@@ -316,7 +318,7 @@ export const IssueView = () => {
         <span class="w-7 h-7 flex items-center justify-center bg-blue-600/20 border border-blue-500/30 rounded-lg text-sm shrink-0">📝</span>
         <div>
           <h2 class="text-sm sm:text-base font-black text-white leading-tight">
-            ${t.issueTitle || "تسجيل عطل أو ملاحظة"}
+            ${escapeHtml(t.issueTitle || "تسجيل عطل أو ملاحظة")}
           </h2>
           <p class="text-[11px] text-slate-400 leading-none mt-0.5">
             ${isAr ? "أدخل بيانات العطل بسرعة بلمسة واحدة" : "Quick equipment defect reporting"}
@@ -329,7 +331,7 @@ export const IssueView = () => {
         <!-- 1. اختيار الخط -->
         <div class="space-y-1">
           <label class="block text-[11px] font-bold text-slate-300">
-            🏭 ${t.line || "خط الإنتاج"} <span class="text-red-400">*</span>
+            🏭 ${escapeHtml(t.line || "خط الإنتاج")} <span class="text-red-400">*</span>
           </label>
           <input type="hidden" id="issueLine" value="Line 1" />
           <div class="flex gap-1.5">
@@ -347,7 +349,7 @@ export const IssueView = () => {
         <!-- 2. الماكينة -->
         <div class="space-y-1">
           <label for="issueMachineType" class="block text-[11px] font-bold text-slate-300">
-            ⚙️ ${t.machine || "الماكينة"} <span class="text-red-400">*</span>
+            ⚙️ ${escapeHtml(t.machine || "الماكينة")} <span class="text-red-400">*</span>
           </label>
           ${buildMachineDropdownHtml("issueMachine", {
             placeholderLabel: t.selectMachine || "اختر الماكينة",
@@ -387,7 +389,7 @@ export const IssueView = () => {
         <!-- 4. درجة الأولوية -->
         <div class="space-y-1">
           <label class="block text-[11px] font-bold text-slate-300">
-            ⚡ ${t.priority || "درجة الأولوية"}
+            ⚡ ${escapeHtml(t.priority || "درجة الأولوية")}
           </label>
           <input type="hidden" id="issuePriority" value="Medium" />
           <div class="flex gap-1.5">
@@ -413,7 +415,7 @@ export const IssueView = () => {
       <!-- 5. تصنيف العطل (شرائح تفاعلية سريعة ومدمجة) -->
       <div class="space-y-1">
         <label class="block text-[11px] font-bold text-slate-300">
-          🛠️ ${t.category || "تصنيف العطل"} <span class="text-red-400">*</span>
+          🛠️ ${escapeHtml(t.category || "تصنيف العطل")} <span class="text-red-400">*</span>
         </label>
         <input type="hidden" id="issueCategory" value="" />
         <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
@@ -447,10 +449,10 @@ export const IssueView = () => {
       <!-- 6. وصف المشكلة -->
       <div class="space-y-1">
         <label for="issueDescription" class="block text-[11px] font-bold text-slate-300">
-          📋 ${t.description || "وصف المشكلة"} <span class="text-red-400">*</span>
+          📋 ${escapeHtml(t.description || "وصف المشكلة")} <span class="text-red-400">*</span>
         </label>
         <textarea id="issueDescription" rows="2"
-          placeholder="${t.enterDescription || "اكتب وصف المشكلة بدقة..."}"
+          placeholder="${escapeHtml(t.enterDescription || "اكتب وصف المشكلة بدقة...")}"
           class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs resize-none shadow-inner placeholder-slate-500"></textarea>
       </div>
 
@@ -467,7 +469,7 @@ export const IssueView = () => {
 
         <div class="space-y-1">
           <label for="issueSuggestion" class="block text-[11px] font-bold text-slate-300">
-            💡 ${t.suggestion || "اقتراح الحل (اختياري)"}
+            💡 ${escapeHtml(t.suggestion || "اقتراح الحل (اختياري)")}
           </label>
           <input id="issueSuggestion" type="text"
             placeholder="${t.enterSuggestion || "إذا كان لديك مقترح أولي للحل..."}"

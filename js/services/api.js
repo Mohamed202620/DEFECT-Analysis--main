@@ -43,6 +43,7 @@ export {
   saveIssueApi,
   fetchTicketsApi,
   fetchTicketCountsApi,
+  fetchDashboardSnapshotApi,
   updateTicketStatusApi,
   fetchPendingTicketsApi,
   fetchTicketsForTechnicianApi,

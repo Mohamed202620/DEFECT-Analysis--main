@@ -21,7 +21,8 @@ export { getRegistrationAuthContext } from "../../config.js";
 import {
   auth as _auth,
   FIREBASE_PROJECT_ID,
-  FIREBASE_FUNCTIONS_REGION
+  FIREBASE_FUNCTIONS_REGION,
+  BACKEND_WORKER_URL
 } from "../../config.js";
 
 // ============================================================
@@ -44,7 +45,31 @@ import {
 // ============================================================
 
 function cloudFunctionUrl(functionName) {
+  // الـ Worker (Cloudflare) له نفس البروتوكول: POST /<اسم> بـ {data} ويرجع {result}
+  if (BACKEND_WORKER_URL) {
+    return `${BACKEND_WORKER_URL.replace(/\/+$/, "")}/${functionName}`;
+  }
   return `https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/${functionName}`;
+}
+
+/**
+ * رفع ملف (multipart) للـ Worker مع توكن المستخدم. الجسم بيتمرّر لـ ImgBB
+ * كما هو بدون تحليل JSON (الـ Worker المجاني محدود بـ 10ms CPU للطلب).
+ */
+export async function callWorkerUpload(functionName, formData) {
+  if (!_auth.currentUser) throw new Error("يجب تسجيل الدخول أولاً.");
+  const idToken = await _auth.currentUser.getIdToken();
+  const response = await fetchWithTimeout(cloudFunctionUrl(functionName), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}` }, // مفيش Content-Type: المتصفح بيضيف الـ boundary
+    body: formData
+  });
+  let payload = null;
+  try { payload = await response.json(); } catch (_) { /* لا شيء */ }
+  if (!response.ok || !payload || payload.error) {
+    throw new Error(payload?.error?.message || "فشل رفع الصورة.");
+  }
+  return payload.result;
 }
 
 // إصلاح (اتصال): fetch بدون مهلة كان بيعلّق الحفظ للأبد لو الشبكة وقفت نص الطريق
@@ -174,3 +199,33 @@ export {
   deleteUser,
   onAuthStateChanged
 } from "../../firebase.js";
+
+// ============================================================
+// serverTimestamp (بند M7): حزمة js/firebase.js الجاهزة ما بتصدّرش
+// serverTimestamp، فبنبنيه من أصناف الـ SDK الداخلية المُصدَّرة صراحةً
+// (FieldValue / FieldTransform / ServerTimestampTransform) - نفس
+// تنفيذ الـ SDK الرسمي بالظبط: sentinel بيتحوّل لـ setToServerValue:
+// REQUEST_TIME على السيرفر. بنستخدمه للأوقات الحساسة (createdAtServer /
+// resolvedAtServer) بدل الاعتماد على ساعة جهاز المستخدم.
+// ============================================================
+import {
+  FieldValue as _FieldValue,
+  FieldTransform as _FieldTransform,
+  ServerTimestampTransform as _ServerTimestampTransform
+} from "../../firebase.js";
+
+class ServerTimestampSentinel extends _FieldValue {
+  constructor() {
+    super("serverTimestamp");
+  }
+  _toFieldTransform(context) {
+    return new _FieldTransform(context.path, new _ServerTimestampTransform());
+  }
+  isEqual(other) {
+    return other instanceof ServerTimestampSentinel;
+  }
+}
+
+export function serverTimestamp() {
+  return new ServerTimestampSentinel();
+}

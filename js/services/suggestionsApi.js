@@ -275,9 +275,10 @@ async function createSuggestionNotification(forUid, { type, message, suggestionI
     await addDoc(collection(db, "notifications"), {
       forUid,
       type,
-      message,
-      suggestionId,
+      message: String(message || "").slice(0, 500),
+      ...(suggestionId && { suggestionId }),
       read: false,
+      createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
     });
   } catch (error) {

@@ -33,6 +33,8 @@ import {
   db,
   collection,
   addDoc,
+  setDoc,
+  serverTimestamp,
   getDocs,
   getDoc,
   doc,
@@ -112,13 +114,71 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       };
     }
 
-    const docRef = await addDoc(collection(db, "tickets"), {
+    // ============================================================
+    // منع تكرار البلاغ عند Offline/Retry (بند H7): معرّف مستند التذكرة
+    // بقى حتمي (deterministic) من المُبلّغ + issueId (الثابت طول عمر
+    // النموذج - راجع workflow.js)، بدل addDoc بمعرّف عشوائي جديد كل مرة.
+    // يعني: الإرسال المعلّق + إعادة المحاولة + مزامنة الطابور كلهم بيكتبوا
+    // لنفس المستند، ومستحيل ينتج بلاغين لنفس النموذج.
+    // ============================================================
+    const reporterUid = restPayload.reportedByUid || "";
+    const ticketDocId = reporterUid
+      ? `t_${reporterUid}_${issueId}`.replace(/[\/\s]/g, "_")
+      : null;
+
+    const isSelfResolvedCreate = restPayload.status === "resolved";
+
+    const ticketData = {
       ...restPayload,
       issueId,
       ...(imageUrls.length && { imageUrls }),
       status: payload?.status || "pending",
-      createdAt: payload?.createdAt || new Date().toISOString()
-    });
+      createdAt: payload?.createdAt || new Date().toISOString(),
+      // زمن السيرفر (مصدر الحقيقة لأوقات الحساب الحساسة مثل MTTR)
+      createdAtServer: serverTimestamp(),
+      ...(isSelfResolvedCreate && { resolvedAtServer: serverTimestamp() })
+    };
+
+    // ربط البلاغ المكرر بالأصلي (مزامنة Offline): لو فيه بلاغ مفتوح لنفس
+    // الخط والماكينة اتسجّل أثناء ما كان الجهاز أوفلاين، بنسجّل الرابط
+    // بدل ما نخسر البلاغ الجديد أو نكرره بصمت.
+    if (skipOfflineQueue && restPayload.machine && restPayload.line && !isSelfResolvedCreate) {
+      try {
+        const activeRes = await fetchActiveTicketForMachineApi(restPayload.machine, restPayload.line);
+        if (activeRes?.status === "success" && activeRes.ticket && activeRes.ticket.issueId !== issueId) {
+          ticketData.duplicateOfTicketId = activeRes.ticket.id || "";
+          ticketData.duplicateOfIssueId = activeRes.ticket.issueId || "";
+        }
+      } catch (_) { /* مساعد فقط - مايمنعش الحفظ */ }
+    }
+
+    let docRef;
+    if (ticketDocId) {
+      docRef = doc(db, "tickets", ticketDocId);
+      try {
+        // لو المستند موجود بالفعل (إعادة محاولة بعد نجاح ضاع ردّه) نعتبرها نجاح
+        const existing = await getDoc(docRef);
+        if (existing.exists() && existing.data().reportedByUid === reporterUid) {
+          return { status: "success", id: ticketDocId, duplicate: true };
+        }
+      } catch (_) { /* القراءة مساعدة فقط (قد تفشل أوفلاين) */ }
+
+      try {
+        await setDoc(docRef, ticketData);
+      } catch (writeError) {
+        // الكتابة التانية لنفس المعرّف بتتحسب update وقاعدة الأمان بترفضها:
+        // لو المستند فعلاً موجود لنفس المُبلّغ يبقى الرفع الأول نجح
+        try {
+          const again = await getDoc(docRef);
+          if (again.exists() && again.data().reportedByUid === reporterUid) {
+            return { status: "success", id: ticketDocId, duplicate: true };
+          }
+        } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
+        throw writeError;
+      }
+    } else {
+      docRef = await addDoc(collection(db, "tickets"), ticketData);
+    }
 
     // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): قبل هذا
     // التحديث ما كانش فيه أي إشعار بيتبعت عند إنشاء بلاغ جديد (pending)-
@@ -167,6 +227,52 @@ function isPermanentSyncError(message) {
   return PERMANENT_MARKERS.some(marker => msg.includes(marker));
 }
 
+// عدّاد محاولات الأخطاء "الدائمة" (بند M10): خطأ permission/invalid وقت
+// المزامنة قد يكون مؤقتاً (دور المستخدم لسه بيتحمّل، جلسة بتتجدد...) فمنحذفش
+// العنصر (وفيه ملاحظات وصور) من أول مرة - بنحاول لحد MAX_PERMANENT_ATTEMPTS
+// مزامنات متفرقة، وبعدها بس بيتسجّل كفشل نهائي ويتشال.
+const SYNC_ATTEMPTS_KEY = "offlineSyncAttempts";
+const MAX_PERMANENT_ATTEMPTS = 5;
+
+function bumpSyncAttempt(localId) {
+  try {
+    const map = JSON.parse(localStorage.getItem(SYNC_ATTEMPTS_KEY) || "{}");
+    map[localId] = (map[localId] || 0) + 1;
+    localStorage.setItem(SYNC_ATTEMPTS_KEY, JSON.stringify(map));
+    return map[localId];
+  } catch (_) {
+    return MAX_PERMANENT_ATTEMPTS;
+  }
+}
+
+function clearSyncAttempt(localId) {
+  try {
+    const map = JSON.parse(localStorage.getItem(SYNC_ATTEMPTS_KEY) || "{}");
+    if (localId in map) {
+      delete map[localId];
+      localStorage.setItem(SYNC_ATTEMPTS_KEY, JSON.stringify(map));
+    }
+  } catch (_) { /* لا شيء */ }
+}
+
+// إجراء "بدء/إغلاق/إصلاح" اتنفّذ فعلاً قبل كده (مثلاً الإرسال الأول نجح وضاع
+// الرد): ده نجاح مش فشل - كان بيتسجّل "فشل" ويتبلّغ المستخدم غلط
+async function isOfflineActionAlreadyApplied(type, ticketId, authUid) {
+  try {
+    if (!ticketId) return false;
+    const snap = await getDoc(doc(db, "tickets", ticketId));
+    if (!snap.exists()) return false;
+    const t = snap.data();
+    const st = String(t.status || "").trim().toLowerCase();
+    if (type === "start") return ["in_progress", "resolved", "closed"].includes(st);
+    if (type === "close") return st === "closed";
+    if (type === "resolve") return ["resolved", "closed"].includes(st) && t.resolvedByUid === authUid;
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function _syncOfflineTicketsApiImpl() {
   const queued = await getQueuedTickets();
   if (!queued.length) {
@@ -196,12 +302,19 @@ async function _syncOfflineTicketsApiImpl() {
       const result = await saveIssueApi(item.payload, { skipOfflineQueue: true });
       if (result.status === "success") {
         await removeQueuedTicket(item.localId);
+        clearSyncAttempt(item.localId);
         synced++;
       } else {
         const msg = (result.message || "").toLowerCase();
         if (isPermanentSyncError(msg)) {
-          console.warn(`[Sync] Permanent error for offline ticket ${item.localId}, removing from queue:`, msg);
-          await removeQueuedTicket(item.localId);
+          const attempts = bumpSyncAttempt(item.localId);
+          if (attempts >= MAX_PERMANENT_ATTEMPTS) {
+            console.warn(`[Sync] Permanent error for offline ticket ${item.localId} after ${attempts} attempts, removing from queue:`, msg);
+            await removeQueuedTicket(item.localId);
+            clearSyncAttempt(item.localId);
+          } else {
+            console.warn(`[Sync] Possibly-permanent error for offline ticket ${item.localId} (attempt ${attempts}/${MAX_PERMANENT_ATTEMPTS}), keeping in queue:`, msg);
+          }
         } else {
           console.warn(`[Sync] Transient/unknown error for offline ticket ${item.localId}, keeping in queue:`, msg);
         }
@@ -289,12 +402,20 @@ async function _syncOfflineTicketActionsApiImpl() {
         continue;
       }
 
+      if (result.status !== "success" && await isOfflineActionAlreadyApplied(type, ticketId, authUser.uid)) {
+        result = { status: "success" };
+      }
+
       if (result.status === "success") {
         await removeQueuedAction(item.localId);
+        clearSyncAttempt(item.localId);
         synced++;
       } else {
         const msg = (result.message || "").toLowerCase();
-        if (isPermanentSyncError(msg)) {
+        if (isPermanentSyncError(msg) && bumpSyncAttempt(item.localId) < MAX_PERMANENT_ATTEMPTS) {
+          console.warn(`[Sync] Possibly-permanent error for offline action ${item.localId}, keeping in queue for retry:`, msg);
+        } else if (isPermanentSyncError(msg)) {
+          clearSyncAttempt(item.localId);
           console.warn(`[Sync] Permanent error for offline action ${item.localId}, removing from queue:`, msg);
           // إصلاح (Workflow - إجراء أوفلاين فشل بصمت): قبل كده الإجراء كان بيتمسح
           // من الطابور مع console.warn بس (مثلاً permission-denied لأن التذكرة اتسحبت
@@ -337,6 +458,18 @@ function recordFailedOfflineAction(item, reason) {
 
 // إصلاح M1: كانت الدالة بتجيب كل التذاكر دايماً بدون أي فلترة صلاحيات
 // (مصدر بيانات كارتات لوحة المتابعة في الرئيسية عبر loadDashboardStats)
+// هوية "بلاغاتي / المُسندة إليّ" بالـ UID (بند M1): اسمين متطابقين كانوا
+// بيشوفوا بلاغات بعض. التذاكر القديمة بدون UID بتفضل بالاسم احتياطياً.
+function ticketBelongsToMe(ticket, myUid, myName) {
+  const reportedMine = ticket.reportedByUid
+    ? ticket.reportedByUid === myUid
+    : (!!myName && ticket.reportedBy === myName);
+  const assignedMine = ticket.assignedToUid
+    ? ticket.assignedToUid === myUid
+    : (!!myName && ticket.assignedTo === myName);
+  return reportedMine || assignedMine;
+}
+
 // بقت تاخد { role, myUid, myName } وتطبّق نفس منطق الصلاحيات المستخدم
 // في subscribeToTicketsBoardApi / fetchTicketsForReportApi بالظبط:
 // admin/manager = كل التذاكر، وباقي الأدوار (فني/مشغل/مهندس) = بلاغاتي
@@ -362,15 +495,21 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
       });
       return { status: "success", data: tickets };
     } else {
-      const [reportedSnap, assignedSnap] = await Promise.all([
+      const uidQueries = myUid
+        ? [
+            getDocs(query(ticketsRef, where("reportedByUid", "==", myUid), ...clauses)),
+            getDocs(query(ticketsRef, where("assignedToUid", "==", myUid), ...clauses))
+          ]
+        : [];
+      const snaps = await Promise.all([
         getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...clauses)),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...clauses))
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...clauses)),
+        ...uidQueries
       ]);
 
       const merged = new Map();
-      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      let tickets = Array.from(merged.values());
+      snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
+      let tickets = Array.from(merged.values()).filter(t => ticketBelongsToMe(t, myUid, myName));
       tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       if (maxCount && tickets.length > maxCount) {
         tickets = tickets.slice(0, maxCount);
@@ -380,6 +519,92 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
     const fallback = emptyResultOnMissingIndex(error, "fetchTicketsApi");
+    if (fallback) return fallback;
+    return { status: "error", message: error.message };
+  }
+}
+
+// ============================================================
+// لقطة لوحة المتابعة (بند H4): الأرقام الدقيقة بدل الاشتقاق من عينة
+// أحدث 300/500 بلاغ.
+//  - total / closed / today = عدّادات تجميعية من السيرفر (getCountFromServer)
+//  - open / overdue = من مجموعة "البلاغات غير المغلقة" الكاملة (عددها صغير
+//    دايماً مقارنة بالأرشيف) + المنتظرة للتأكيد، فمفيش بلاغ قديم متأخر بيتفوّت
+//  - tickets = غير المغلقة + آخر 30 يوم (للـ MTTR وأعلى ماكينة وغيرها)
+// للأدوار غير كاملة الصلاحية (فني/مشغل) البلاغات الشخصية قليلة، فبنرجع
+// للجلب العادي بحد كبير (2000) بدل 300/500.
+// ============================================================
+const DASHBOARD_RECENT_DAYS = 30;
+const DASHBOARD_MAX_DOCS = 5000;
+
+export async function fetchDashboardSnapshotApi({ role, myUid, myName } = {}) {
+  try {
+    await ensureAuthReady();
+
+    if (!hasFullDataAccess(role) && myName) {
+      const res = await fetchTicketsApi({ role, myUid, myName, maxCount: 2000 });
+      if (res.status !== "success") return res;
+      const list = res.data;
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      return {
+        status: "success",
+        data: {
+          tickets: list,
+          total: list.length,
+          closed: list.filter(t => isClosedStatus(t.status)).length,
+          open: list.filter(t => !isClosedStatus(t.status)).length,
+          today: list.filter(t => {
+            const d = new Date(t.createdAt);
+            return !isNaN(d) && d >= startOfToday;
+          }).length,
+          overdue: list.filter(t => isOverdueTicket(t)).length,
+          exact: true
+        }
+      };
+    }
+
+    const ticketsRef = collection(db, "tickets");
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const recentFrom = new Date(Date.now() - DASHBOARD_RECENT_DAYS * 24 * 60 * 60 * 1000);
+
+    const [totalSnap, closedSnap, todaySnap, notClosedSnap, recentSnap] = await Promise.all([
+      getCountFromServer(ticketsRef),
+      getCountFromServer(query(ticketsRef, where("status", "in", CLOSED_STATUSES))),
+      getCountFromServer(query(ticketsRef, where("createdAt", ">=", startOfToday.toISOString()))),
+      // غير مغلقة نهائياً: تشمل resolved (بانتظار التأكيد) لحساب التأخر
+      getDocs(query(ticketsRef, where("status", "not-in", ["closed", "done", "مغلق"]), limit(DASHBOARD_MAX_DOCS))),
+      getDocs(query(ticketsRef, where("createdAt", ">=", recentFrom.toISOString()), orderBy("createdAt", "desc"), limit(DASHBOARD_MAX_DOCS)))
+    ]);
+
+    const merged = new Map();
+    notClosedSnap.forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
+    recentSnap.forEach(d => { if (!merged.has(d.id)) merged.set(d.id, { id: d.id, ...d.data() }); });
+    const tickets = Array.from(merged.values());
+    tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+    const notClosed = Array.from(
+      new Map(
+        [...tickets].filter(t => !["closed", "done", "مغلق"].includes(String(t.status || "").trim().toLowerCase())).map(t => [t.id, t])
+      ).values()
+    );
+
+    return {
+      status: "success",
+      data: {
+        tickets,
+        total: totalSnap.data().count,
+        closed: closedSnap.data().count,
+        today: todaySnap.data().count,
+        open: notClosed.filter(t => !isClosedStatus(t.status)).length,
+        overdue: notClosed.filter(t => isOverdueTicket(t)).length,
+        exact: true
+      }
+    };
+  } catch (error) {
+    console.error("Error in fetchDashboardSnapshotApi:", error);
+    const fallback = emptyResultOnMissingIndex(error, "fetchDashboardSnapshotApi");
     if (fallback) return fallback;
     return { status: "error", message: error.message };
   }
@@ -543,30 +768,78 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       );
     };
 
+    // اشتراك مدمج بالـ UID + الاسم (بند M1): بنسمع على استعلامين (UID للتذاكر
+    // الجديدة، والاسم للتذاكر القديمة بدون UID) وندمج النتائج، وبعدها نفلتر
+    // بـ predicate يطابق UID أولاً (فاسمين متطابقين مايتداخلوش).
+    const subscribeByIdentity = (queries, predicate, context) => {
+      const buckets = queries.map(() => null);
+      const emit = () => {
+        if (buckets.some(b => b === null)) return;
+        const merged = new Map();
+        buckets.flat().forEach(t => merged.set(t.id, t));
+        let tickets = Array.from(merged.values()).filter(predicate);
+        if (status === "today") tickets = tickets.filter(isCreatedToday);
+        if (status === "overdue") tickets = tickets.filter(t => isOverdueTicket(t));
+        tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        callback({ status: "success", data: tickets });
+      };
+      const unsubs = queries.map((q, idx) => onSnapshot(
+        q,
+        (snapshot) => {
+          const list = [];
+          snapshot.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
+          buckets[idx] = list;
+          emit();
+        },
+        (error) => {
+          const fallback = emptyResultOnMissingIndex(error, context);
+          if (fallback && idx === 0) { callback(fallback); return; }
+          if (!fallback) console.error(`Error in ${context}:`, error);
+          buckets[idx] = [];
+          emit();
+        }
+      ));
+      return () => unsubs.forEach(u => u());
+    };
+
+    const reportedMine = (t) => t.reportedByUid ? t.reportedByUid === myUid : (!!myName && t.reportedBy === myName);
+    const assignedMine = (t) => t.assignedToUid ? t.assignedToUid === myUid : (!!myName && t.assignedTo === myName);
+    const ACTIVE_ASSIGNED = ["assigned", "in_progress", "reopened"];
+
     // 1. تبويب "بلاغاتي" (My Tickets)
     if (status === "my_tickets") {
-      const q = query(ticketsRef, where("reportedBy", "==", myName));
-      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(my_tickets)");
+      return subscribeByIdentity(
+        [
+          query(ticketsRef, where("reportedBy", "==", myName || "")),
+          ...(myUid ? [query(ticketsRef, where("reportedByUid", "==", myUid))] : [])
+        ],
+        reportedMine,
+        "subscribeToTicketsBoardApi(my_tickets)"
+      );
     }
 
     // 2. تبويب "المُسندة إليّ" (Assigned To Me)
     if (status === "assigned_to_me") {
-      const q = query(
-        ticketsRef, 
-        where("assignedTo", "==", myName),
-        where("status", "in", ["assigned", "in_progress", "reopened"])
+      return subscribeByIdentity(
+        [
+          query(ticketsRef, where("assignedTo", "==", myName || ""), where("status", "in", ACTIVE_ASSIGNED)),
+          ...(myUid ? [query(ticketsRef, where("assignedToUid", "==", myUid), where("status", "in", ACTIVE_ASSIGNED))] : [])
+        ],
+        assignedMine,
+        "subscribeToTicketsBoardApi(assigned_to_me)"
       );
-      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(assigned_to_me)");
     }
 
     // 3. تبويب "بانتظار تأكيدي" (Awaiting Confirm)
     if (status === "awaiting_confirm") {
-      const q = query(
-        ticketsRef, 
-        where("reportedBy", "==", myName),
-        where("status", "==", "resolved")
+      return subscribeByIdentity(
+        [
+          query(ticketsRef, where("reportedBy", "==", myName || ""), where("status", "==", "resolved")),
+          ...(myUid ? [query(ticketsRef, where("reportedByUid", "==", myUid), where("status", "==", "resolved"))] : [])
+        ],
+        reportedMine,
+        "subscribeToTicketsBoardApi(awaiting_confirm)"
       );
-      return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(awaiting_confirm)");
     }
 
     // 4. الفلاتر العامة (الأدمن والمدير)
@@ -581,7 +854,20 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
     };
 
     const statusClauses = () => {
-      if (!status || status === "all" || status === "today" || status === "overdue") return [];
+      // أرقام لوحة المتابعة (بند H4): "متأخرة" و"اليوم" كانوا بيرجعوا من
+      // أحدث 300 بلاغ فقط (الأقدم = الأكثر تأخراً كان بيُستبعد). دلوقتي
+      // بنقيّد الاستعلام نفسه على السيرفر: متأخرة = كل ما هو غير مغلق نهائياً
+      // (بما فيه resolved بانتظار التأكيد، والتصفية النهائية isOverdueTicket)،
+      // واليوم = createdAt من بداية اليوم المحلي. من غير limit.
+      if (status === "overdue") {
+        return [where("status", "not-in", ["closed", "done", "مغلق"])];
+      }
+      if (status === "today") {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        return [where("createdAt", ">=", startOfToday.toISOString())];
+      }
+      if (!status || status === "all") return [];
       if (status === "open") {
         // إصلاح M2: كارت "أعطال مفتوحة" بيحسب رقمه كـ "كل حالة مش
         // مغلقة" (isClosedStatus === false) مش قائمة حالات مفتوحة
@@ -602,55 +888,21 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       return handleSnapshotWithoutOrder(q, "subscribeToTicketsBoardApi(general)");
     }
 
-    // الفنيين والمشغلين في الحالات الخاصة بـ (بلاغاتي / المسندة إليّ)
-    let reportedTickets = [];
-    let assignedTickets = [];
-    let reportedReady = false;
-    let assignedReady = false;
-
-    const emitMerged = () => {
-      if (!reportedReady || !assignedReady) return;
-      const merged = new Map();
-      [...reportedTickets, ...assignedTickets].forEach(t => merged.set(t.id, t));
-      let tickets = Array.from(merged.values());
-      if (status === "today") {
-        tickets = tickets.filter(isCreatedToday);
-      }
-      if (status === "overdue") {
-        tickets = tickets.filter(t => isOverdueTicket(t));
-      }
-      tickets.sort(
-        (a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || ""))
-      );
-      callback({ status: "success", data: tickets });
-    };
-
-    const unsubReported = onSnapshot(
-      query(ticketsRef, where("reportedBy", "==", myName || ""), ...statusClauses()),
-      (snapshot) => {
-        reportedTickets = [];
-        snapshot.forEach(docSnap => reportedTickets.push({ id: docSnap.id, ...docSnap.data() }));
-        reportedReady = true;
-        emitMerged();
-      },
-      () => { reportedTickets = []; reportedReady = true; emitMerged(); }
+    // الفنيين والمشغلين في باقي التبويبات: بلاغاتي + المُسندة إليّ (UID + اسم)
+    return subscribeByIdentity(
+      [
+        query(ticketsRef, where("reportedBy", "==", myName || ""), ...statusClauses()),
+        query(ticketsRef, where("assignedTo", "==", myName || ""), ...statusClauses()),
+        ...(myUid
+          ? [
+              query(ticketsRef, where("reportedByUid", "==", myUid), ...statusClauses()),
+              query(ticketsRef, where("assignedToUid", "==", myUid), ...statusClauses())
+            ]
+          : [])
+      ],
+      (t) => reportedMine(t) || assignedMine(t),
+      "subscribeToTicketsBoardApi(limited)"
     );
-
-    const unsubAssigned = onSnapshot(
-      query(ticketsRef, where("assignedTo", "==", myName || ""), ...statusClauses()),
-      (snapshot) => {
-        assignedTickets = [];
-        snapshot.forEach(docSnap => assignedTickets.push({ id: docSnap.id, ...docSnap.data() }));
-        assignedReady = true;
-        emitMerged();
-      },
-      () => { assignedTickets = []; assignedReady = true; emitMerged(); }
-    );
-
-    return () => {
-      unsubReported();
-      unsubAssigned();
-    };
 
   } catch (error) {
     console.error("Error subscribing to tickets board:", error);
@@ -900,29 +1152,18 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     if (!ticketId) return { status: "error", message: "معرف التذكرة مطلوب" };
 
     const ticketRef = doc(db, "tickets", ticketId);
-    const snap = await getDoc(ticketRef);
-    if (!snap.exists()) {
-      return { status: "error", message: "التذكرة غير موجودة" };
-    }
 
-    const currentTicket = snap.data();
-
-    // إصلاح: مفيش إضافة ملاحظات وردية على تذكرة مغلقة (حالة نهائية) -
-    // كمان قاعدة Firestore (تحديث ملاحظات الوردية) بترفضها للمغلقة
-    if (String(currentTicket.status || "").trim().toLowerCase() === "closed") {
-      return { status: "error", message: "التذكرة مغلقة - لا يمكن إضافة ملاحظات وردية عليها" };
-    }
-
-    const existingUpdates = Array.isArray(currentTicket.shiftUpdates) ? currentTicket.shiftUpdates : [];
-
+    // رفع الصور مرة واحدة قبل أي محاولة (مايتكررش مع إعادة المحاولة)
     let imageUrls = [];
     if (Array.isArray(images) && images.length) {
       imageUrls = await uploadBase64Images(images, `${ticketId}_shift_${Date.now()}`);
     }
 
+    // هوية الملاحظة ثابتة طول المحاولات (منع تكرارها لو المحاولة الأولى نجحت
+    // فعلاً وضاع ردّها) - عشوائي لتفادي تصادم ملاحظتين في نفس الميلي ثانية
     const newUpdate = {
-      id: "SH-" + Date.now(),
-      note: String(note || "").trim(),
+      id: "SH-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
+      note: String(note || "").trim().slice(0, 2000),
       shift: shift || localStorage.getItem("shift") || "",
       reporterName: reporterName || localStorage.getItem("name") || "فني",
       reporterUid: reporterUid || localStorage.getItem("userId") || "",
@@ -930,16 +1171,45 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
       ...(imageUrls.length && { images: imageUrls })
     };
 
-    existingUpdates.push(newUpdate);
+    // كتابتين متزامنتين من ورديتين: القاعدة بتشترط (الحجم الجديد = القديم + 1)
+    // فالتانية كانت بترفض برسالة عامة وتضيع الملاحظة. دلوقتي: نقرأ الحالة
+    // الحديثة من السيرفر ونعيد المحاولة (حتى 4 مرات) قبل ما نُبلّغ بالفشل.
+    let currentTicket = null;
+    let saved = false;
+    let lastError = null;
 
-    // إصلاح (Workflow - تكرار العطل من شيفت مختلف): تحديث التذكرة أولاً ثم كتابة
-    // السجل، بدل العكس. قبل كده لو التحديث اترفض كان سجل "تحديث وردية" يفضل
-    // يتيماً في التايم لاين رغم إن الملاحظة لم تُحفظ فعلياً على التذكرة.
-    await updateDoc(ticketRef, {
-      shiftUpdates: existingUpdates,
-      lastShiftUpdate: newUpdate,
-      updatedAt: new Date().toISOString()
-    });
+    for (let attempt = 0; attempt < 4 && !saved; attempt++) {
+      const snap = attempt === 0 ? await getDoc(ticketRef) : await getDocFromServerSafe(ticketRef);
+      if (!snap.exists()) {
+        return { status: "error", message: "التذكرة غير موجودة" };
+      }
+      currentTicket = snap.data();
+
+      if (String(currentTicket.status || "").trim().toLowerCase() === "closed") {
+        return { status: "error", message: "التذكرة مغلقة - لا يمكن إضافة ملاحظات وردية عليها" };
+      }
+
+      const existingUpdates = Array.isArray(currentTicket.shiftUpdates) ? currentTicket.shiftUpdates : [];
+
+      // لو الملاحظة اتحفظت فعلاً في محاولة سابقة (رد ضايع) نعتبرها نجاح
+      if (existingUpdates.some(u => u && u.id === newUpdate.id)) { saved = true; break; }
+
+      try {
+        await updateDoc(ticketRef, {
+          shiftUpdates: [...existingUpdates, newUpdate],
+          lastShiftUpdate: newUpdate,
+          updatedAt: new Date().toISOString()
+        });
+        saved = true;
+      } catch (writeError) {
+        lastError = writeError;
+        await new Promise(resolve => setTimeout(resolve, 250 * (attempt + 1)));
+      }
+    }
+
+    if (!saved) {
+      throw lastError || new Error("تعذّر حفظ ملاحظة الوردية بعد عدة محاولات");
+    }
 
     await addTicketLog(ticketId, {
       action: "shift_update",
@@ -948,10 +1218,37 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
       note: `[تحديث وردية ${newUpdate.shift || ''}]: ${newUpdate.note}`
     });
 
+    // إشعار الفني المُسند والمديرين بتسليم الوردية (M9 - كانت مفيش أي إشعار)
+    notifyShiftUpdate(ticketId, currentTicket, newUpdate).catch(() => {});
+
     return { status: "success", update: newUpdate };
   } catch (error) {
     console.error("Error appending shift note to ticket:", error);
     return { status: "error", message: error.message };
+  }
+}
+
+// قراءة من السيرفر مباشرة قدر الإمكان (بدون كاش قديم) لإعادة محاولة الكتابة
+// المتزامنة - لو مش متاحة (أوفلاين) بنرجع للقراءة العادية
+async function getDocFromServerSafe(ref) {
+  try {
+    return await getDoc(ref);
+  } catch (_) {
+    return getDoc(ref);
+  }
+}
+
+async function notifyShiftUpdate(ticketId, ticket, update) {
+  const myUid = localStorage.getItem("userId") || "";
+  const targets = new Set();
+  if (ticket.assignedToUid && ticket.assignedToUid !== myUid) targets.add(ticket.assignedToUid);
+  const managersRes = await fetchManagersAndAdminsApi();
+  if (managersRes.status === "success") {
+    managersRes.data.forEach(m => { if (m.id && m.id !== myUid) targets.add(m.id); });
+  }
+  const text = `📝 تحديث وردية (${update.shift || "-"}) من ${update.reporterName} على بلاغ ${ticket.machine || ""}: ${update.note}`;
+  for (const uid of targets) {
+    createNotification(uid, { type: "shift_update", message: text, ticketId });
   }
 }
 
@@ -961,9 +1258,11 @@ async function createNotification(forUid, { type, message, ticketId }) {
     await addDoc(collection(db, "notifications"), {
       forUid,
       type,
-      message,
-      ticketId,
+      // الحد 500 حرف مطابق لقاعدة Firestore (notifications.create)
+      message: String(message || "").slice(0, 500),
+      ...(ticketId && { ticketId }),
       read: false,
+      createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
     });
   } catch (error) {
@@ -1389,7 +1688,11 @@ export async function resolveTicketApi(
     //  3) نكتب resolvedAt/resolvedByUid فيبقى MTTR مبني على وقت الإصلاح الفعلي
     //     مش على updatedAt (اللي بيتغير عند التأكيد وملاحظات الشيفت).
     const resolverUid = localStorage.getItem("userId") || "";
-    const isSelfResolved = !!selfResolved || (!!before.reportedByUid && before.reportedByUid === resolverUid);
+    // أمان (H5): isSelfResolved بيتحسب من UID الحقيقي فقط - مش من قيمة
+    // بيبعتها الواجهة (selfResolved في الوسيط محتفظ بيه للتوافق مع عناصر
+    // قديمة في الطابور لكن بيتجاهَل). القاعدة في firestore.rules بتفرض
+    // نفس الحساب على السيرفر.
+    const isSelfResolved = !!before.reportedByUid && before.reportedByUid === resolverUid;
     const nowISO = new Date().toISOString();
 
     await updateDoc(
@@ -1399,6 +1702,7 @@ export async function resolveTicketApi(
         mechanicNotes: mechanicNotes.trim(),
         afterImages: afterImageUrls,
         resolvedAt: nowISO,
+        resolvedAtServer: serverTimestamp(),
         resolvedBy: localStorage.getItem("name") || "",
         resolvedByUid: resolverUid,
         isSelfResolved
@@ -1642,6 +1946,124 @@ export async function reopenTicketApi(ticketId, reason) {
     return { status: "error", message: error.message };
   }
 }
+
+// ============================================================
+// عدم توفر الفني (بند H6)
+// ============================================================
+
+/**
+ * تحرير كل البلاغات المفتوحة المُسندة لمستخدم لم يعد متاحاً (رُفض/عُطّل/
+ * اتحذف): بترجع لقائمة "جديد" (pending) بدون مُسند، مع سبب واضح وسجل،
+ * وبتنبّه المديرين لإعادة الإسناد - بدل ما تفضل عالقة عند حساب غير نشط.
+ * بتتنفّذ من جهاز أدمن/مدير (قواعد STEP 2b بتسمح بهم فقط).
+ * @returns {Promise<{status: string, released?: number}>}
+ */
+export async function releaseTicketsOfUserApi(userId, userName = "") {
+  try {
+    if (!userId) return { status: "success", released: 0 };
+
+    const snap = await getDocs(query(collection(db, "tickets"), where("assignedToUid", "==", userId)));
+    const openStatuses = ["assigned", "in_progress", "reopened"];
+    const targets = [];
+    snap.forEach(docSnap => {
+      const status = String(docSnap.data().status || "").trim().toLowerCase();
+      if (openStatuses.includes(status)) targets.push({ id: docSnap.id, fromStatus: status });
+    });
+
+    if (!targets.length) return { status: "success", released: 0 };
+
+    const adminName = localStorage.getItem("name") || "Admin";
+    const reason = `الفني (${userName || "غير معروف"}) لم يعد متاحاً - أُعيد البلاغ لقائمة الانتظار لإعادة الإسناد`;
+
+    for (let i = 0; i < targets.length; i += 400) {
+      const batch = writeBatch(db);
+      targets.slice(i, i + 400).forEach(t => {
+        batch.update(
+          doc(db, "tickets", t.id),
+          stampUpdate({
+            status: "pending",
+            assignedTo: null,
+            assignedToUid: null,
+            declineReason: reason,
+            declinedBy: adminName,
+            declinedAt: new Date().toISOString()
+          })
+        );
+      });
+      await batch.commit();
+    }
+
+    targets.forEach(t => {
+      addTicketLog(t.id, { action: "release", fromStatus: t.fromStatus, toStatus: "pending", note: reason });
+    });
+
+    try {
+      const managersRes = await fetchManagersAndAdminsApi();
+      if (managersRes.status === "success") {
+        for (const mgr of managersRes.data) {
+          if (mgr.id) {
+            createNotification(mgr.id, {
+              type: "released",
+              message: `تم تحرير ${targets.length} بلاغ من ${userName || "فني"} (لم يعد متاحاً) وأُعيدت لقائمة الانتظار - يلزم إعادة إسنادها`,
+              ticketId: targets[0].id
+            });
+          }
+        }
+      }
+    } catch (_) { /* التنبيه مساعد فقط */ }
+
+    return { status: "success", released: targets.length };
+  } catch (error) {
+    console.error("Error releasing tickets of unavailable user:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+/**
+ * تصعيد البلاغات المتأخرة (تجاوزت SLA): إشعار لكل مدير/أدمن، مرة واحدة
+ * لكل (بلاغ + مدير) عن طريق معرّف إشعار حتمي - الإنشاء الثاني بيترفض
+ * (القاعدة تمنع update) فمفيش تكرار عند كل فتح للوحة. بتتنادي من لوحة
+ * المدير/الأدمن بعد حساب المتأخرات.
+ */
+export async function escalateOverdueTicketsApi(overdueTickets = []) {
+  try {
+    const role = getCurrentRole();
+    if (!(isAdminRole(role) || role === "manager" || role === "supervisor")) return { status: "success", escalated: 0 };
+
+    const list = overdueTickets.slice(0, 15);
+    if (!list.length) return { status: "success", escalated: 0 };
+
+    const managersRes = await fetchManagersAndAdminsApi();
+    if (managersRes.status !== "success") return { status: "success", escalated: 0 };
+
+    const myUid = localStorage.getItem("userId") || "";
+    let count = 0;
+
+    for (const t of list) {
+      for (const mgr of managersRes.data) {
+        if (!mgr.id) continue;
+        const notifId = `esc_${t.id}_${mgr.id}`.replace(/[\/\s]/g, "_");
+        try {
+          await setDoc(doc(db, "notifications", notifId), {
+            forUid: mgr.id,
+            type: "escalated",
+            message: `⏰ بلاغ متأخر عن الحد المسموح (${t.machine || "ماكينة"}) - يحتاج متابعة أو إعادة إسناد`.slice(0, 500),
+            ticketId: t.id,
+            read: false,
+            createdByUid: myUid,
+            createdAt: new Date().toISOString()
+          });
+          count++;
+        } catch (_) { /* موجود بالفعل (مُصعَّد قبل كده) أو غير مسموح */ }
+      }
+    }
+    return { status: "success", escalated: count };
+  } catch (error) {
+    console.warn("escalateOverdueTicketsApi failed:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 
 /**
  * اعتذار الفني المسند إليه وإعادة التذكرة لقائمة الانتظار (pending)

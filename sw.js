@@ -1,8 +1,23 @@
-// تحديث رقم الإصدار مهم جداً عندما تقوم بتعديل أي ملف ليقوم المتصفح بتحديث الكاش
-const CACHE_NAME = 'maint-system-v6.6'; // PWA-PERF
+// ============================================================
+// إصدار الكاش (بند M5): كان رقم يدوي (maint-system-v6.6) - لو حد نسي يرفعه
+// بعد نشر، المتصفح بيفضل يخلط ملفات قديمة وجديدة من نفس الكاش (شاشة بيضاء
+// بسبب import/export غير متطابقين). دلوقتي __BUILD_ID__ بيتبدّل تلقائياً
+// وقت النشر بـ commit SHA (scripts/build.mjs في خطوة Build بـ CI)، فكل
+// نشر = كاش جديد كلياً والقديم بيتمسح في activate. محلياً (بدون استبدال)
+// بيشتغل بإصدار 'dev'.
+// ============================================================
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_NAME = 'maint-system-' + (BUILD_ID.startsWith('__') ? 'dev' : BUILD_ID);
 
 // مهلة انتظار الشبكة قبل الرجوع للنسخة المخزّنة (ملفات JS/HTML/CSS)
 const NETWORK_FIRST_TIMEOUT_MS = 4000;
+
+// لو الشبكة ردّت فعلاً مؤخراً (اتصال شغّال)، مانرجعش لنسخة مخزّنة بسبب بطء
+// لحظي في ملف واحد: ده كان بيخلط نسخة قديمة من وحدة مع جديدة من باقي
+// الوحدات بعد النشر. بنزوّد المهلة طالما الشبكة ثبت إنها شغالة.
+const NETWORK_RECENTLY_OK_MS = 30000;
+const NETWORK_FIRST_TIMEOUT_WHEN_ONLINE_MS = 20000;
+let lastNetworkOkAt = 0;
 
 // نكتفي بالملفات الأساسية المضمونة لتجنب فشل التثبيت
 const CORE_ASSETS = [
@@ -118,6 +133,7 @@ self.addEventListener('fetch', (e) => {
 
       const networkPromise = fetch(req).then((networkRes) => {
         if (networkRes && networkRes.status === 200 && networkRes.type !== 'opaque') {
+          lastNetworkOkAt = Date.now();
           cache.put(req, networkRes.clone());
         }
         return networkRes;
@@ -130,8 +146,11 @@ self.addEventListener('fetch', (e) => {
         return networkPromise;
       }
 
+      const timeoutMs = (Date.now() - lastNetworkOkAt) < NETWORK_RECENTLY_OK_MS
+        ? NETWORK_FIRST_TIMEOUT_WHEN_ONLINE_MS
+        : NETWORK_FIRST_TIMEOUT_MS;
       const timeout = new Promise((resolve) =>
-        setTimeout(() => resolve(cached), NETWORK_FIRST_TIMEOUT_MS)
+        setTimeout(() => resolve(cached), timeoutMs)
       );
 
       // أول واحد يرد: الشبكة (لو نجحت قبل المهلة) أو النسخة المخزّنة

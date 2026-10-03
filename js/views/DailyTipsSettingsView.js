@@ -14,6 +14,7 @@ import {
   showDailyTipToast
 } from "../dailyTips.js";
 import { addCustomTipApi, deleteCustomTipApi } from "../services/dailyTipsApi.js";
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
 let currentFilter = "all"; // 'all' | 'custom' | 'religious' | 'motivational' | 'industrial' | 'general'
 let searchQuery = "";
@@ -337,7 +338,7 @@ function renderDailyTipsList() {
             </span>
             <div>
               <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                <span>${tip.title}</span>
+                <span>${escapeHtml(tip.title)}</span>
                 ${isCustom ? `
                   <span class="text-[9px] bg-amber-500/20 border border-amber-500/40 text-amber-300 px-1.5 py-0.2 rounded font-bold">
                     ⭐ ${isEn ? 'Custom' : 'مخصص'}
@@ -345,7 +346,7 @@ function renderDailyTipsList() {
                 ` : ''}
               </span>
               <span class="text-[10px] text-gray-400">
-                ${catText} ${tip.id ? `#${tip.id}` : ''}
+                ${escapeHtml(catText)} ${tip.id ? `#${tip.id}` : ''}
               </span>
             </div>
           </div>
@@ -362,7 +363,7 @@ function renderDailyTipsList() {
             ${isCustom ? `
               <button
                 type="button"
-                onclick="window.handleDeleteDailyTip('${tip.id}')"
+                onclick="window.handleDeleteDailyTip('${escapeJsArg(tip.id)}')"
                 class="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-bold border border-red-500/30 transition cursor-pointer active:scale-95"
                 title="${isEn ? 'Delete Custom Tip' : 'حذف المعلومة المخصصة'}"
               >
@@ -373,7 +374,7 @@ function renderDailyTipsList() {
         </div>
 
         <p class="text-xs text-gray-200 leading-relaxed font-normal bg-[#0F172A]/50 p-2.5 rounded-xl border border-slate-800">
-          ${tip.text}
+          ${escapeHtml(tip.text)}
         </p>
       </div>
     `;

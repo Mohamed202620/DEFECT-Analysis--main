@@ -174,8 +174,8 @@ function imagesGridHtml(title, urls) {
       <div class="text-[11px] font-bold text-gray-300 mb-2">${title}</div>
       <div class="grid grid-cols-3 gap-2">
         ${urls.map(url => `
-          <a href="${url}" target="_blank" rel="noopener">
-            <img src="${url}" loading="lazy" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
+            <img src="${escapeHtml(url)}" loading="lazy" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
           </a>
         `).join("")}
       </div>
@@ -275,7 +275,7 @@ export async function openTicketDetailsModal(ticketId) {
         <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
           ${infoRowHtml(L("الماكينة", "Machine"), escapeHtml(ticket.machine || ticket.machineName || "-"))}
           ${infoRowHtml(L("الخط", "Line"), escapeHtml(ticket.line || "-"))}
-          ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${priority.label}</span>`) : ""}
+          ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${escapeHtml(priority.label)}</span>`) : ""}
           ${typeLabel ? infoRowHtml(L("نوع البلاغ", "Ticket Type"), escapeHtml(typeLabel)) : ""}
           ${categoryLabel ? infoRowHtml(L("نوع العطل", "Fault Category"), escapeHtml(categoryLabel)) : ""}
           ${infoRowHtml(L("مكان العطل", "Fault Location"), ticket.location ? escapeHtml(ticket.location) : "")}
@@ -297,7 +297,7 @@ export async function openTicketDetailsModal(ticketId) {
               <span class="${downtime.isOpen ? "text-red-300" : "text-emerald-300"} font-bold">
                 ${downtime.isOpen ? L("⏱️ متوقفة حالياً منذ", "⏱️ Down for") : L("⏱️ إجمالي زمن التوقف حتى الإصلاح", "⏱️ Total downtime until repair")}
               </span>
-              <span id="${downtimeSpanId}" class="font-bold ${downtime.isOpen ? "text-red-300" : "text-emerald-300"}">
+              <span id="${escapeHtml(downtimeSpanId)}" class="font-bold ${downtime.isOpen ? "text-red-300" : "text-emerald-300"}">
                 ${formatDurationHours(downtime.hours)}
               </span>
             </div>
@@ -356,9 +356,9 @@ export async function openTicketDetailsModal(ticketId) {
     footer.classList.remove("hidden");
     footer.innerHTML = actions.map(a => `
       <button
-        data-action-key="${a.key}"
+        data-action-key="${escapeHtml(a.key)}"
         class="ticketDetails_actionBtn text-xs font-bold px-3 py-2 rounded-lg transition-all active:scale-95 ${ACTION_BUTTON_STYLES[a.key] || "bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20"}">
-        ${a.label}
+        ${escapeHtml(a.label)}
       </button>
     `).join("");
 

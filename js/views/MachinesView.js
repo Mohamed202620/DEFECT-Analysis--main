@@ -30,6 +30,7 @@ import {
 } from "../machines.js";
 
 import { getCurrentRole, isAdminRole } from "../permissions.js";
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
 // حالة التعديل الحالية (null = وضع "إضافة جديد")
 let editingMachineTypeId = null;
@@ -251,7 +252,7 @@ window.loadMachinesAdmin = async function () {
             <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="text-xs font-bold text-gray-100">${m.key}</span>
+                        <span class="text-xs font-bold text-gray-100">${escapeHtml(m.key)}</span>
                         ${m.active === false
                             ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">معطّل</span>`
                             : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">مفعّل</span>`
@@ -276,17 +277,17 @@ window.loadMachinesAdmin = async function () {
 
             <div class="grid grid-cols-3 gap-1.5 mt-2.5">
                 <button
-                    onclick="window.editMachineType('${m.id}')"
+                    onclick="window.editMachineType('${escapeJsArg(m.id)}')"
                     class="py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[10px] font-bold hover:bg-blue-600/30 transition active:scale-95">
                     ✏️ تعديل
                 </button>
                 <button
-                    onclick="window.toggleMachineTypeActive('${m.id}', ${m.active !== false})"
+                    onclick="window.toggleMachineTypeActive('${escapeJsArg(m.id)}', ${m.active !== false})"
                     class="py-1.5 rounded-lg ${m.active !== false ? "bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30" : "bg-green-600/20 border border-green-500/30 text-green-300 hover:bg-green-600/30"} text-[10px] font-bold transition active:scale-95">
                     ${m.active !== false ? "⏸️ تعطيل" : "▶️ تفعيل"}
                 </button>
                 <button
-                    onclick="window.deleteMachineType('${m.id}', '${m.key.replace(/'/g, "\\'")}')"
+                    onclick="window.deleteMachineType('${escapeJsArg(m.id)}', '${m.key.replace(/'/g, "\\'")}')"
                     class="py-1.5 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-[10px] font-bold hover:bg-red-600/30 transition active:scale-95">
                     🗑️ حذف
                 </button>

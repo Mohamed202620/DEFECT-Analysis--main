@@ -1,6 +1,7 @@
 import { translations } from '../config.js';
 import { hasPermission } from '../permissions.js';
-import { isManagerDesktopEligible } from '../managerDesktopCore.js'; // MGR-DESKTOP
+import { isManagerDesktopEligible } from '../managerDesktopCore.js';
+import { escapeHtml } from "../utils/escapeHtml.js"; // MGR-DESKTOP
 
 // ============================================================
 // Sidebar.js
@@ -243,7 +244,7 @@ export const Sidebar = (activeTab) => {
           <div class="space-y-1">
             ${!isCollapsed ? `
               <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-80">
-                ${group.title}
+                ${escapeHtml(group.title)}
               </div>
             ` : `
               <div class="w-6 h-px mx-auto my-2 bg-slate-700/50"></div>
@@ -267,7 +268,7 @@ export const Sidebar = (activeTab) => {
                     ${item.iconSvg}
                   </span>
                   ${!isCollapsed ? `
-                    <span class="truncate flex-1 text-start">${item.label}</span>
+                    <span class="truncate flex-1 text-start">${escapeHtml(item.label)}</span>
                     ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}

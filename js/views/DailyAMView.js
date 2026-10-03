@@ -15,6 +15,7 @@ import {
 import { getDepartmentForMachineValue, getLineForMachineValue, formatLineLabel, normalizeLine, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import { db, doc, getDoc } from '../providers/backend/index.js';
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
 // بنود الفحص اليومي الافتراضية
 export const DEFAULT_AM_ITEMS = [ // ITEMS-EDITOR
@@ -95,7 +96,7 @@ export const DailyAMView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-blue-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${machine} • ${tr.subtitle}</p>
+      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-4">
@@ -173,7 +174,7 @@ window.initDailyAmView = async function() {
         ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>`
         : '';
       const howToHtml = howToText
-        ? `<div class="text-[11px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${howToText}</div>`
+        ? `<div class="text-[11px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>`
         : '';
 
       let inputFieldHtml = '';
@@ -181,11 +182,11 @@ window.initDailyAmView = async function() {
         const minText = item.min != null ? `${isEn ? 'Min' : 'الحد الأدنى'}: ${item.min} ` : '';
         const maxText = item.max != null ? `| ${isEn ? 'Max' : 'الحد الأقصى'}: ${item.max}` : '';
         const limitsHtml = (item.min != null || item.max != null)
-          ? `<div class="text-[10px] text-gray-400 font-mono">${minText}${maxText}</div>`
+          ? `<div class="text-[10px] text-gray-400 font-mono">${escapeHtml(minText)}${escapeHtml(maxText)}</div>`
           : '';
         inputFieldHtml = `
           <div class="flex items-center gap-3 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
-             <input type="number" id="amReading_${item.id}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
+             <input type="number" id="amReading_${escapeHtml(item.id)}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
              <span class="text-xs text-gray-400 font-bold px-2">${item.unit || ''}</span>
           </div>
           ${limitsHtml}
@@ -193,7 +194,7 @@ window.initDailyAmView = async function() {
       } else if (item.type === 'text') {
         inputFieldHtml = `
           <div class="bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full">
-             <input type="text" id="amReading_${item.id}" placeholder="${isEn ? 'Enter notes/value...' : 'أدخل القيمة أو الملاحظة...'}" class="w-full bg-transparent text-xs text-white focus:outline-none" oninput="window.updateAmProgress()">
+             <input type="text" id="amReading_${escapeHtml(item.id)}" placeholder="${isEn ? 'Enter notes/value...' : 'أدخل القيمة أو الملاحظة...'}" class="w-full bg-transparent text-xs text-white focus:outline-none" oninput="window.updateAmProgress()">
           </div>
         `;
       }
@@ -201,35 +202,35 @@ window.initDailyAmView = async function() {
       const attachmentPickerHtml = buildAttachmentPickerHtml('amPhoto_' + item.id, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' });
 
       return `
-      <div class="bg-[#1E293B] p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${item.id}">
+      <div class="bg-[#1E293B] p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${escapeHtml(item.id)}">
         <div class="flex items-start justify-between gap-2">
-          <div class="text-sm font-bold text-gray-200">${labelText}</div>
+          <div class="text-sm font-bold text-gray-200">${escapeHtml(labelText)}</div>
           ${criticalBadgeHtml}
         </div>
         ${howToHtml}
         ${inputFieldHtml}
 
         <div class="grid grid-cols-3 gap-2 pt-1">
-          <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','ok')" id="amBtn_${escapeHtml(item.id)}_ok"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.ok}
           </button>
-          <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','not_ok')" id="amBtn_${escapeHtml(item.id)}_not_ok"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.notOk}
           </button>
-          <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','na')" id="amBtn_${escapeHtml(item.id)}_na"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.na}
           </button>
         </div>
 
-        <input type="hidden" id="amResult_${item.id}" value="">
+        <input type="hidden" id="amResult_${escapeHtml(item.id)}" value="">
 
-        <div id="amNotOkBox_${item.id}" class="hidden space-y-3 pt-3 border-t border-gray-800">
+        <div id="amNotOkBox_${escapeHtml(item.id)}" class="hidden space-y-3 pt-3 border-t border-gray-800">
           <div class="space-y-1">
              <label class="block text-[10px] font-bold text-red-400">${tr.noteLabel}</label>
-             <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
+             <textarea id="amNote_${escapeHtml(item.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
           </div>
 
           <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
@@ -238,7 +239,7 @@ window.initDailyAmView = async function() {
 
           <!-- يظهر فوراً زر فرعي "إنشاء بلاغ صيانة" -->
           <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
-            <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
+            <input type="checkbox" id="amCreateTicket_${escapeHtml(item.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
             <span class="font-medium text-red-300">${tr.createTicket}</span>
           </label>
         </div>

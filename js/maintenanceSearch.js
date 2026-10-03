@@ -37,6 +37,7 @@ import {
   getCompanyLogoDataUrl
 } from './branding.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
+import { escapeJsArg } from "./utils/escapeHtml.js";
 
 // ============================================================
 // حالة الموديول
@@ -128,7 +129,7 @@ function updateFilterVisibilityForType(type) {
     const options = type === 'suggestion' ? SUGGESTION_STATUS_OPTIONS : TICKET_STATUS_OPTIONS;
     const previousValue = statusSelect.value;
     statusSelect.innerHTML = options.map(([value, label]) =>
-      `<option value="${value}">${label}</option>`
+      `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`
     ).join('');
     statusSelect.value = options.some(([value]) => value === previousValue) ? previousValue : 'all';
 
@@ -411,8 +412,8 @@ async function openSuggestionDetailsModal(suggestion) {
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
           <div class="grid grid-cols-3 gap-2">
             ${suggestionImages.map(url => `
-              <a href="${url}" target="_blank" rel="noopener">
-                <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+              <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
+                <img loading="lazy" decoding="async" src="${escapeHtml(url)}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
               </a>
             `).join("")}
           </div>
@@ -425,8 +426,8 @@ async function openSuggestionDetailsModal(suggestion) {
           <div class="text-[11px] font-bold text-gray-300 mb-2">📷 صور بعد التنفيذ</div>
           <div class="grid grid-cols-3 gap-2">
             ${implementationImages.map(url => `
-              <a href="${url}" target="_blank" rel="noopener">
-                <img loading="lazy" decoding="async" src="${url}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
+              <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
+                <img loading="lazy" decoding="async" src="${escapeHtml(url)}" class="w-full h-20 object-cover rounded-lg border border-gray-800" />
               </a>
             `).join("")}
           </div>
@@ -775,7 +776,7 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       const imagesHtml = images.length ? `
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
           ${images.map(src => `
-            <img src="${src}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
+            <img src="${escapeHtml(src)}" style="width:100px; height:100px; object-fit:cover; border-radius:6px; border:1px solid #e2e8f0;" />
           `).join("")}
         </div>
       ` : "";
@@ -788,7 +789,7 @@ window.exportMaintenanceSearchResultsPdf = async function () {
       return `
         <div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px; background: #f8fafc;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <span style="font-weight:bold; font-size:13px; color:#0f172a;">${kindLabel} — ${escapeHtml(titleText)}</span>
+            <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeHtml(kindLabel)} — ${escapeHtml(titleText)}</span>
             <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
               ${escapeHtml(statusLabel)}
             </span>
@@ -853,7 +854,7 @@ function ticketResultCard(t) {
       </div>
 
       <button
-        onclick="window.openMaintenanceSearchTicketDetails('${t.id}')"
+        onclick="window.openMaintenanceSearchTicketDetails('${escapeJsArg(t.id)}')"
         class="w-full text-[11px] font-bold py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
         🔍 التفاصيل
       </button>
@@ -922,7 +923,7 @@ function suggestionResultCard(s) {
       </div>
 
       <button
-        onclick="window.openMaintenanceSearchSuggestionDetails('${s.id}')"
+        onclick="window.openMaintenanceSearchSuggestionDetails('${escapeJsArg(s.id)}')"
         class="w-full text-[11px] font-bold py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all">
         🔍 التفاصيل
       </button>

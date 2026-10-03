@@ -62,8 +62,45 @@ window.addEventListener("offline", () => {
   setBanner(true, t().offlineMsg, "bg-red-600 text-white");
 });
 
-window.addEventListener("online", async () => {
+let _syncRunning = false;
 
+async function getPendingCount() {
+  try {
+    const { getQueuedTickets, getQueuedActions } = await import('./services/offlineQueue.js');
+    const [tickets, actions] = await Promise.all([getQueuedTickets(), getQueuedActions()]);
+    return tickets.length + actions.length;
+  } catch (_) {
+    return 0;
+  }
+}
+
+// مؤشر العناصر المعلقة (بند M10): كان مفيش أي طريقة يعرف بيها المستخدم إن
+// فيه بلاغات/إجراءات لسه ماوصلتش للسيرفر
+async function refreshPendingIndicator() {
+  if (_syncRunning) return;
+  const pending = await getPendingCount();
+  const isEn = (window.currentLang || "ar") === "en";
+  if (pending > 0) {
+    const online = typeof navigator === "undefined" || navigator.onLine;
+    setBanner(
+      true,
+      online
+        ? (isEn ? `⏳ ${pending} item(s) waiting to sync` : `⏳ ${pending} عنصر بانتظار المزامنة`)
+        : (t().offlineMsg + (isEn ? ` - ${pending} saved locally` : ` - ${pending} محفوظ محلياً`)),
+      online ? "bg-amber-600 text-white" : "bg-red-600 text-white"
+    );
+  } else if (typeof navigator !== "undefined" && navigator.onLine) {
+    const el = document.getElementById(BANNER_ID);
+    // مانخفيش بانر الأوفلاين/الأخطاء الأحمر والبرتقالي الخاص بنتيجة مزامنة
+    if (el && el.textContent && el.textContent.includes("⏳")) hideBanner();
+  }
+}
+
+// نقطة مزامنة واحدة: عند عودة الاتصال، بعد تسجيل الدخول، وبشكل دوري
+async function runOfflineSync() {
+  if (_syncRunning) return;
+  _syncRunning = true;
+  try {
   setBanner(true, t().syncing, "bg-green-600 text-white");
 
   try {
@@ -105,8 +142,33 @@ window.addEventListener("online", async () => {
   }
 
   setTimeout(hideBanner, 3000);
+  } finally {
+    _syncRunning = false;
+  }
+  setTimeout(refreshPendingIndicator, 3500);
+}
 
-});
+// بعد تسجيل الدخول: بنزامن فقط لو فيه عناصر معلقة فعلاً (من غير وميض بانر "تمت الاستعادة")
+window.triggerOfflineSync = async function () {
+  if (await getPendingCount() > 0) runOfflineSync();
+};
+
+window.addEventListener("online", runOfflineSync);
+
+// إعادة محاولة دورية (كل دقيقة) طالما فيه عناصر معلقة والاتصال شغّال - كان
+// المحاولة الوحيدة وقت حدث "online" فقط، فأي فشل مؤقت كان يسيب البلاغ عالق
+// لحد ما المستخدم يفصل ويرجّع النت
+setInterval(async () => {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return;
+  if (!localStorage.getItem("userId")) return;
+  if (await getPendingCount() > 0) {
+    runOfflineSync();
+  } else {
+    refreshPendingIndicator();
+  }
+}, 60000);
+
+window.addEventListener("offline", () => { setTimeout(refreshPendingIndicator, 100); });
 
 // لو التطبيق اتفتح والنت مقطوع من الأساس، يظهر البانر فوراً
 if (typeof navigator !== "undefined") {

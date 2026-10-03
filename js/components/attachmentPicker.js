@@ -1,3 +1,4 @@
+import { escapeHtml } from "../utils/escapeHtml.js";
 // ============================================================
 // attachmentPicker.js
 // مكوّن إدارة واختيار الصور والمرفقات المتعددة
@@ -67,11 +68,11 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
   const gridClass = options.gridClass || "grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2";
 
   return `
-    <div id="${groupId}_container" class="attachment-picker-group">
+    <div id="${escapeHtml(groupId)}_container" class="attachment-picker-group">
       <!-- Input للكاميرا المباشرة -->
       <input
         type="file"
-        id="${groupId}_camera_input"
+        id="${escapeHtml(groupId)}_camera_input"
         accept="image/*"
         capture="environment"
         class="hidden" />
@@ -79,7 +80,7 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
       <!-- Input للمعرض (يدعم تحديد أكثر من صورة) -->
       <input
         type="file"
-        id="${groupId}_gallery_input"
+        id="${escapeHtml(groupId)}_gallery_input"
         accept="image/*"
         multiple
         class="hidden" />
@@ -88,24 +89,24 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
       <div class="${buttonsWrapperClass}">
         <button
           type="button"
-          id="${groupId}_camera_btn"
+          id="${escapeHtml(groupId)}_camera_btn"
           class="${cameraButtonClass}">
-          <span>${cameraLabel}</span>
+          <span>${escapeHtml(cameraLabel)}</span>
         </button>
         <button
           type="button"
-          id="${groupId}_gallery_btn"
+          id="${escapeHtml(groupId)}_gallery_btn"
           class="${galleryButtonClass}">
-          <span>${galleryLabel}</span>
+          <span>${escapeHtml(galleryLabel)}</span>
         </button>
       </div>
 
       <!-- شبكة معاينة الصور المختارة -->
-      <div id="${groupId}_preview_grid" class="${gridClass}"></div>
+      <div id="${escapeHtml(groupId)}_preview_grid" class="${gridClass}"></div>
 
       <!-- نص الحالة عند عدم وجود صور -->
-      <p id="${groupId}_empty_text" class="text-xs text-gray-400 text-center py-2">
-        ${emptyText}
+      <p id="${escapeHtml(groupId)}_empty_text" class="text-xs text-gray-400 text-center py-2">
+        ${escapeHtml(emptyText)}
       </p>
     </div>
   `;
@@ -133,10 +134,10 @@ function renderAttachmentPreviews(groupId, config = {}) {
 
   gridEl.innerHTML = files.map((dataUrl, index) => `
     <div class="relative group rounded-lg overflow-hidden border border-gray-700 bg-slate-900 aspect-square flex items-center justify-center">
-      <img src="${dataUrl}" alt="Attachment ${index + 1}" class="w-full h-full object-cover" />
+      <img src="${escapeHtml(dataUrl)}" alt="Attachment ${index + 1}" class="w-full h-full object-cover" />
       <button
         type="button"
-        data-group="${groupId}"
+        data-group="${escapeHtml(groupId)}"
         data-index="${index}"
         class="attachment-delete-btn absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold transition-transform active:scale-90 shadow">
         ✕

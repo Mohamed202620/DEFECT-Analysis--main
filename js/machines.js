@@ -23,6 +23,7 @@ import {
   extractMachineLine,
   normalizeDigits
 } from "./utils/lineUtils.js";
+import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
 
 export { normalizeDepartment, extractUserDepartment, extractMachineDepartment };
 export { normalizeLine, formatLineLabel, extractMachineLine };
@@ -502,11 +503,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? "User data unavailable. Please log in again."
       : "بيانات المستخدم غير متوفرة. يرجى تسجيل الدخول مجددًا.";
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -516,11 +517,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? "Your work area (Backend / Frontend) is not assigned. Please contact administrator."
       : "لم يتم تحديد قسم العمل (Backend / Frontend) لحسابك. برجاء التواصل مع مسؤول النظام.";
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -534,11 +535,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? (deptUpper ? `No machines available for ${deptUpper} department.` : "No machines available for your work area.")
       : (deptUpper ? `لا توجد ماكينات متاحة لقسم (${deptUpper}) حاليًا.` : "لا توجد ماكينات متاحة ضمن قسمك الحالي.");
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -548,19 +549,19 @@ export function buildMachineDropdownHtml(baseId, {
   const showUnitInitially = !!(unitsForSelectedType && unitsForSelectedType.length);
 
   const placeholderHtml = includePlaceholder
-    ? `<option value="" disabled ${selectedType ? "" : "selected"}>${placeholderLabel}</option>`
+    ? `<option value="" disabled ${selectedType ? "" : "selected"}>${escapeHtml(placeholderLabel)}</option>`
     : "";
 
   const allHtml = includeAll
-    ? `<option value="${allValue}" ${selectedType === allValue ? "selected" : ""}>${allLabel}</option>`
+    ? `<option value="${allValue}" ${selectedType === allValue ? "selected" : ""}>${escapeHtml(allLabel)}</option>`
     : "";
 
   const typesHtml = visibleTypes.map(m =>
-    `<option value="${m.key}" ${m.key === selectedType ? "selected" : ""}>${m.key}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
+    `<option value="${escapeHtml(m.key)}" ${m.key === selectedType ? "selected" : ""}>${escapeHtml(m.key)}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
   ).join("");
 
   const unitOptionsHtml = showUnitInitially
-    ? `<option value="" disabled ${selectedUnit ? "" : "selected"}>${unitPlaceholderLabel}</option>` +
+    ? `<option value="" disabled ${selectedUnit ? "" : "selected"}>${escapeHtml(unitPlaceholderLabel)}</option>` +
       unitsForSelectedType.map(u =>
         `<option value="${u}" ${u === selectedUnit ? "selected" : ""}>${u}</option>`
       ).join("")
@@ -574,13 +575,13 @@ export function buildMachineDropdownHtml(baseId, {
   const typeRequiredAttr = includePlaceholder ? " required" : "";
 
   return `
-    <select id="${baseId}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${baseId}')" data-machine-dept="${userDept || 'all'}" data-placeholder="${placeholderLabel}">
+    <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${escapeJsArg(baseId)}')" data-machine-dept="${userDept || 'all'}" data-placeholder="${escapeHtml(placeholderLabel)}">
       ${placeholderHtml}${allHtml}${typesHtml}${extraTypeOptionsHtml}
     </select>
-    <select id="${baseId}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${baseId}')" data-unit-placeholder="${unitPlaceholderLabel}">
+    <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${escapeJsArg(baseId)}')" data-unit-placeholder="${escapeHtml(unitPlaceholderLabel)}">
       ${unitOptionsHtml}
     </select>
-    <input type="hidden" id="${baseId}" value="${hiddenValue}"${onchangeAttr}>
+    <input type="hidden" id="${escapeHtml(baseId)}" value="${hiddenValue}"${onchangeAttr}>
   `;
 }
 
@@ -628,7 +629,7 @@ export function refreshActiveMachineDropdowns() {
       typeSelect.innerHTML =
         `<option value="all">${isEn ? 'All Machines' : 'جميع الماكينات'}</option>` +
         allEntries.map(m =>
-          `<option value="${m.key}" ${m.key === currentVal ? "selected" : ""}>${m.key}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
+          `<option value="${escapeHtml(m.key)}" ${m.key === currentVal ? "selected" : ""}>${escapeHtml(m.key)}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
         ).join("") +
         `<option value="machine2">Machine 2</option><option value="line1">Coating Line 1</option>`;
       typeSelect.value = currentVal;
@@ -648,8 +649,8 @@ export function refreshActiveMachineDropdowns() {
     if (visibleTypes.length > 0) {
       typeSelect.disabled = false;
       typeSelect.innerHTML =
-        `<option value="" disabled ${currentVal ? "" : "selected"}>${placeholder}</option>` +
-        visibleTypes.map(m => `<option value="${m.key}" ${m.key === currentVal ? "selected" : ""}>${m.key}</option>`).join("");
+        `<option value="" disabled ${currentVal ? "" : "selected"}>${escapeHtml(placeholder)}</option>` +
+        visibleTypes.map(m => `<option value="${escapeHtml(m.key)}" ${m.key === currentVal ? "selected" : ""}>${escapeHtml(m.key)}</option>`).join("");
       
       if (currentVal && visibleTypes.some(m => m.key === currentVal)) {
         typeSelect.value = currentVal;

@@ -32,6 +32,7 @@ import {
 } from '../machines.js';
 import { hasFullDataAccess, isAdminRole, getCurrentRole, hasPermission } from '../permissions.js'; // QR-IMPROVE
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+import { escapeJsArg } from "../utils/escapeHtml.js";
 
 let videoStream = null;
 let scanRafId = null;
@@ -455,7 +456,7 @@ function renderQuickActionResultCard(machine, line, lineLabel) {
     : '';
 
   const lineBadge = lineLabel
-    ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">🏭 ${lineLabel}</span>`
+    ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">🏭 ${escapeHtml(lineLabel)}</span>`
     : '';
 
   resultBox.innerHTML = `
@@ -585,7 +586,7 @@ function renderQrErrorCard({ tone = 'error', title, desc, rawCode = '' }) {
 
   resultBox.innerHTML = `
     <div class="rounded-2xl p-4 border ${border} text-center space-y-3 shadow-lg animate-fade-in">
-      <div class="text-sm font-black ${titleColor}">${title}</div>
+      <div class="text-sm font-black ${titleColor}">${escapeHtml(title)}</div>
       <div class="text-xs text-gray-300 leading-relaxed max-w-md mx-auto">${desc}</div>
 
       ${rawCode ? `
@@ -1040,11 +1041,11 @@ window.openBatchQrPrintModal = async function () {
 
     return `
       <div class="qr-print-card bg-white text-slate-900 border-2 border-dashed border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm break-inside-avoid">
-        <img src="${dataUrl}" alt="${escapeHtml(m.value)}" class="w-28 h-28 object-contain mb-1.5" />
+        <img src="${escapeHtml(dataUrl)}" alt="${escapeHtml(m.value)}" class="w-28 h-28 object-contain mb-1.5" />
         <div class="font-black text-xs text-slate-950 leading-tight truncate w-full">${escapeHtml(m.value)}</div>
         <div class="flex items-center gap-1.5 text-[9.5px] font-bold text-slate-600 mt-0.5">
           ${lineStr ? `<span>${lineStr}</span>` : ''}
-          ${m.department ? `<span class="uppercase">(${m.department})</span>` : ''}
+          ${m.department ? `<span class="uppercase">(${escapeHtml(m.department)})</span>` : ''}
         </div>
       </div>
     `;
@@ -1073,7 +1074,7 @@ window.openBatchQrPrintModal = async function () {
           </button>
           <button
             type="button"
-            onclick="document.getElementById('${modalId}')?.remove()"
+            onclick="document.getElementById('${escapeJsArg(modalId)}')?.remove()"
             class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition cursor-pointer">
             ✕
           </button>

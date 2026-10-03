@@ -9,6 +9,7 @@ import { STATUS_LABELS, STATUS_CLASSES, CLOSED_STATUSES, isOverdueTicket, parseT
 import { fetchTechniciansApi } from '../../services/usersApi.js';
 import { assignTicketApi, reassignTicketApi, fetchTicketByIdApi } from '../../services/ticketsApi.js';
 import { openActionModal } from '../../components/ActionModal.js';
+import { escapeHtml, escapeJsArg } from "../../utils/escapeHtml.js";
 
 let activeFilteredTickets = [];
 let selectedRowIndex = 0;
@@ -274,7 +275,7 @@ function renderTableRows(allTickets) {
 
     return `
       <tr
-        data-ticket-id="${t.id}"
+        data-ticket-id="${escapeHtml(t.id)}"
         data-row-idx="${idx}"
         class="mgr-ticket-row cursor-pointer transition hover:bg-blue-50/50 dark:hover:bg-gray-800/60 ${isRowActive ? 'mgr-row-active' : ''}">
         
@@ -282,7 +283,7 @@ function renderTableRows(allTickets) {
         <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
           <input
             type="checkbox"
-            data-select-id="${t.id}"
+            data-select-id="${escapeHtml(t.id)}"
             class="mgr-ticket-chk rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
             ${isSelected ? 'checked' : ''}
           />
@@ -292,7 +293,7 @@ function renderTableRows(allTickets) {
         <td class="py-2.5 px-3">
           <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
             ${isOverdue ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>' : ''}
-            <span>${statusText}</span>
+            <span>${escapeHtml(statusText)}</span>
           </span>
         </td>
 
@@ -305,17 +306,17 @@ function renderTableRows(allTickets) {
 
         <!-- الماكينة -->
         <td class="py-2.5 px-3 font-bold text-gray-900 dark:text-white">
-          ${t.machine || '-'}
+          ${escapeHtml(t.machine || '-')}
         </td>
 
         <!-- الخط والقسم -->
         <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400">
-          ${t.line || '-'}
+          ${escapeHtml(t.line || '-')}
         </td>
 
         <!-- الوصف -->
-        <td class="py-2.5 px-3 text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title="${t.description || ''}">
-          ${t.description || '-'}
+        <td class="py-2.5 px-3 text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title="${escapeHtml(t.description || '')}">
+          ${escapeHtml(t.description || '-')}
         </td>
 
         <!-- الفني المكلف -->
@@ -332,7 +333,7 @@ function renderTableRows(allTickets) {
         <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
           <button
             type="button"
-            onclick="window.openTicketDetailsModal('${t.id}')"
+            onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')"
             class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-600 hover:text-white text-gray-700 dark:text-gray-200 transition active:scale-95 cursor-pointer">
             ${isEn ? 'Details' : 'تفاصيل'}
           </button>
@@ -425,10 +426,10 @@ function renderSidePreview(ticket) {
       <div>
         <div class="flex items-center gap-2">
           <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
-            ${statusText}
+            ${escapeHtml(statusText)}
           </span>
           <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded ${priorityCls}">
-            ${ticket.priority || 'Normal'}
+            ${escapeHtml(ticket.priority || 'Normal')}
           </span>
         </div>
         <h2 class="text-base font-black text-gray-900 dark:text-white mt-1.5">
@@ -441,7 +442,7 @@ function renderSidePreview(ticket) {
 
       <button
         type="button"
-        onclick="window.openTicketDetailsModal('${ticket.id}')"
+        onclick="window.openTicketDetailsModal('${escapeJsArg(ticket.id)}')"
         class="p-1.5 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
         title="${isEn ? 'Open Full Modal' : 'فتح المودال الكامل'}">
         ⛶
@@ -462,12 +463,12 @@ function renderSidePreview(ticket) {
     <div class="grid grid-cols-2 gap-2 text-xs">
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
         <span class="text-[10px] text-gray-400 block">${isEn ? 'Line / Location' : 'الخط / الموقع'}</span>
-        <span class="font-bold text-gray-800 dark:text-gray-200">${ticket.line || '-'}</span>
+        <span class="font-bold text-gray-800 dark:text-gray-200">${escapeHtml(ticket.line || '-')}</span>
       </div>
 
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
         <span class="text-[10px] text-gray-400 block">${isEn ? 'Reported By' : 'المُبلّغ'}</span>
-        <span class="font-bold text-gray-800 dark:text-gray-200">${ticket.reportedBy || '-'}</span>
+        <span class="font-bold text-gray-800 dark:text-gray-200">${escapeHtml(ticket.reportedBy || '-')}</span>
       </div>
 
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 col-span-2">
@@ -479,7 +480,7 @@ function renderSidePreview(ticket) {
           ${['pending', 'assigned', 'in_progress', 'reopened'].includes(String(ticket.status || '').trim().toLowerCase()) ? `
           <button
             type="button"
-            onclick="window.mgrPromptAssignTicket('${ticket.id}')"
+            onclick="window.mgrPromptAssignTicket('${escapeJsArg(ticket.id)}')"
             class="text-[11px] font-bold text-blue-500 hover:underline">
             ${ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن')}
           </button>` : ''}
@@ -496,9 +497,9 @@ function renderSidePreview(ticket) {
         <div class="flex gap-2 overflow-x-auto pb-1">
           ${mediaUrls.map(url => `
             <img
-              src="${url}"
+              src="${escapeHtml(url)}"
               alt="Evidence"
-              onclick="window.open('${url}', '_blank')"
+              onclick="window.open('${escapeJsArg(url)}', '_blank')"
               class="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:scale-105 transition cursor-pointer"
             />
           `).join("")}
@@ -510,7 +511,7 @@ function renderSidePreview(ticket) {
     <div class="pt-3 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-2">
       <button
         type="button"
-        onclick="window.openTicketDetailsModal('${ticket.id}')"
+        onclick="window.openTicketDetailsModal('${escapeJsArg(ticket.id)}')"
         class="w-full py-2 px-3 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
         📋 ${isEn ? 'Open Full Details & Lifecycle' : 'فتح تفاصيل وسجل البلاغ بالكامل'}
       </button>

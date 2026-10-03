@@ -4,14 +4,16 @@
 // بشبكة 12 عموداً متكاملة للشاشات الكبيرة (>= 1280px)
 // ============================================================
 
-import { fetchTicketsApi, fetchTicketCountsApi } from '../../services/api.js';
+import { fetchTicketsApi, fetchTicketCountsApi, fetchDashboardSnapshotApi } from '../../services/api.js';
 import { fetchPmRecordsApi } from '../../services/pmApi.js';
 import { fetchUsers } from '../../services/usersApi.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
 import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate, STATUS_LABELS } from '../../ticketStatusConstants.js';
 import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '../../statistics.js';
-import { exportToExcel } from '../../services/exportUtility.js'; // MGR-DESKTOP
+import { exportToExcel } from '../../services/exportUtility.js';
+import { escapeHtml } from "../../utils/escapeHtml.js";
+import { escapeJsArg } from "../../utils/escapeHtml.js"; // MGR-DESKTOP
 
 let paretoChartInstance = null;
 let trendChartInstance = null;
@@ -379,14 +381,15 @@ export async function initManagerDesktopHomeData() {
 
     // جلب التذاكر وسجلات الـ PM والمستخدمين بالتوازي
     const [ticketsRes, countsRes, pmRes, usersRes] = await Promise.all([
-      fetchTicketsApi({ role, myUid, myName, maxCount: 300 }),
-      fetchTicketCountsApi({ role, myName }).catch(() => null),
+      fetchDashboardSnapshotApi({ role, myUid, myName }),
+      Promise.resolve(null),
       fetchPmRecordsApi().catch(() => ({ status: 'error', data: [] })),
       fetchUsers().catch(() => [])
     ]);
 
-    const tickets = (ticketsRes && ticketsRes.status === 'success' && Array.isArray(ticketsRes.data)) ? ticketsRes.data : [];
-    const totalCount = countsRes?.status === 'success' ? countsRes.data.total : tickets.length;
+    const snapshot = (ticketsRes && ticketsRes.status === 'success') ? ticketsRes.data : null;
+    const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
+    const totalCount = snapshot ? snapshot.total : tickets.length;
     const pmRecords = (pmRes && pmRes.status === 'success' && Array.isArray(pmRes.data)) ? pmRes.data : [];
     const users = Array.isArray(usersRes) ? usersRes : [];
 
@@ -425,6 +428,13 @@ export async function initManagerDesktopHomeData() {
         }
       }
     });
+
+    // الأرقام الدقيقة من لقطة السيرفر (بند H4) بدل العد من قائمة جزئية
+    if (snapshot) {
+      openCount = snapshot.open;
+      closedCount = snapshot.closed;
+      overdueCount = snapshot.overdue;
+    }
 
     const mttrData = computeMTTR(tickets);
     // إصلاح: كان بيرجّع 1.8 ساعة مختلقة لما مفيش بيانات - دلوقتي null ويظهر '--'
@@ -730,7 +740,7 @@ function renderDecisionsTable(tickets, users, isEn) {
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? String(t.description).slice(0, 45) + '...' : (isEn ? 'Breakdown' : 'عطل')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.assignedTo || (isEn ? 'Unassigned' : 'غير معين')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
-        actionBtn: `<button onclick="window.openTicketInModal('${t.id}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
+        actionBtn: `<button onclick="window.openTicketInModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
       });
     } else if (String(t.status || '').trim() === 'pending' && !t.assignedTo) {
       // 2. بلاغات جديدة بدون تعيين
@@ -742,7 +752,7 @@ function renderDecisionsTable(tickets, users, isEn) {
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? String(t.description).slice(0, 45) + '...' : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.reportedBy || (isEn ? 'User' : 'مستخدم')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
-        actionBtn: `<button onclick="window.openTicketInModal('${t.id}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
+        actionBtn: `<button onclick="window.openTicketInModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
       });
     }
   });
@@ -794,11 +804,11 @@ function renderDecisionsTable(tickets, users, isEn) {
           ${item.badge}
         </span>
       </td>
-      <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-white max-w-[280px] truncate" title="${item.title}">
-        ${item.title}
+      <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-white max-w-[280px] truncate" title="${escapeHtml(item.title)}">
+        ${escapeHtml(item.title)}
       </td>
       <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400">
-        ${item.meta}
+        ${escapeHtml(item.meta)}
       </td>
       <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
         ${item.time}
@@ -872,7 +882,7 @@ function renderTechnicianWorkload(tickets, users, isEn) {
             <span class="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-[10px]">
               ${idx + 1}
             </span>
-            <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${name}</span>
+            <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${escapeHtml(name)}</span>
           </div>
           <div class="flex items-center gap-2 font-mono text-[10px]">
             <span class="text-amber-500 font-bold" title="${isEn ? 'Active Workload' : 'مهام جارية'}">⚡ ${data.active}</span>

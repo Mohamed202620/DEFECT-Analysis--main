@@ -72,12 +72,12 @@
       }
     };
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <!-- Test 17: chart.js/dayjs/jsPDF/html2canvas كانت سكربتات مانعة للرسم في <head> (حوالي مئات KB من CDN قبل ظهور أي شيء، وبتعلّق الشاشة لو الـ CDN بطيء). كلها بتُستخدم بعد تفاعل المستخدم فقط، و defer بيضمن تنفيذها قبل وحدات ES (type=module) بنفس الترتيب -->
-  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js"></script>
 
   <!-- dayjs: لحساب دورة الحضور والمرتبات (21 من الشهر إلى 20 من الشهر التالي) بدقة -->
-  <script defer src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
 
   <!-- ExcelJS: بتتحمّل بشكل كسول (Lazy) عند أول محاولة تصدير إكسيل
        فعلية فقط - راجع ensureExcelJsLoaded() في
