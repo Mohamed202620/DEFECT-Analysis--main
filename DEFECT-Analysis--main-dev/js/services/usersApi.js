@@ -1,0 +1,1202 @@
+// ============================================================
+// usersApi.js
+// إدارة المستخدمين (جلب / تسجيل / صلاحيات / حالة / حذف)
+// جزء مستخرج من services/api.js بدون أي تغيير في المنطق أو
+// الأسماء المُصدَّرة.
+// ============================================================
+
+import {
+  DEFAULT_USER_PERMISSIONS,
+  ALL_PERMISSIONS,
+  phoneToAuthEmail
+} from "../config.js";
+import {
+  normalizeDepartment,
+  extractUserDepartment
+} from "../utils/departmentUtils.js";
+
+import {
+  db,
+  auth,
+  createUserWithEmailAndPassword,
+  signOut,
+  deleteUser,
+  collection,
+  getDocs,
+  getDoc,
+  addDoc,
+  doc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+  limit,
+  callCloudFunction,
+  getRegistrationAuthContext
+} from "../providers/backend/index.js";
+import { normalizePhone } from "../utils/phoneUtils.js";
+import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
+
+// أمان (H8): الدور لا يُمنح تلقائيًا من "الوظيفة" (job) اللي اختارها
+// المتقدم في فورم التسجيل - ده حقل حر يختاره المستخدم بنفسه، وكان اختيار
+// "Supervisor/Group Leader/Manager" بيمنحه دور manager (إغلاق جماعي،
+// قراءة إشعارات الجميع، تعديل القوالب) بنقرة "قبول" واحدة بدون ما شاشة
+// الموافقة تعرض الدور الناتج. دلوقتي الأدمن بيختار الدور صراحةً عند
+// القبول (updateUserStatusApi تحت بتطلبه)، والوظيفة بتُستخدم فقط
+// كاقتراح مبدئي في الواجهة للأدوار غير الحساسة (suggestRoleFromJob).
+export const APPROVAL_ROLES = ["technician", "operator", "engineer", "supervisor", "manager", "admin"];
+
+// الأدوار اللي لازم يتحدد لها قسم ماكينات (backend/frontend) عند القبول:
+// قواعد machineErrors/pmRecords/machineChecklists وقوائم الماكينات بتعتمد
+// عليه، ومن غيره المستخدم مايقدرش يبلّغ أو يمسح QR (بند C3).
+export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "supervisor"];
+
+const JOB_SUGGESTED_ROLE = {
+  technician: "technician",
+  maintainer: "technician",
+  operator: "operator"
+};
+
+/** اقتراح دور مبدئي للأدوار غير الحساسة فقط ("" = لازم اختيار صريح) */
+export function suggestRoleFromJob(job) {
+  const key = String(job || "").trim().toLowerCase();
+  return JOB_SUGGESTED_ROLE[key] || "";
+}
+
+
+// ============================================================
+// USERS
+// ============================================================
+
+/**
+ * عدد طلبات الانضمام المعلّقة (status == "pending") - استعلام خفيف
+ * (بدون تحميل كل بيانات المستخدمين) لعرضه كشارة/Badge سريعة في
+ * صفحة النظام (بند C1 في تقرير المراجعة)، بدل ما يضطر الأدمن يدخل
+ * صفحة "طلبات الانضمام" كل مرة عشان يعرف هل فيه طلبات جديدة أصلاً.
+ *
+ * @returns {Promise<number>}
+ */
+export async function countPendingUsersApi() {
+
+  try {
+
+    const pendingQuery = query(
+      collection(db, "users"),
+      where("status", "==", "pending")
+    );
+
+    const snap = await getDocs(pendingQuery);
+
+    return snap.size;
+
+  } catch (error) {
+
+    console.error("Error counting pending users:", error);
+    return 0;
+
+  }
+
+}
+
+// إصلاح (بند A3 في تقرير المراجعة - Production Readiness): fetchUsers()
+// كانت بتجيب كل مستند users بدون أي limit ولا أي Cache، فكل تنقل
+// بين تابي "المستخدمون"/"طلبات الانضمام" (وكلاهما بينادي
+// loadUsersManagement() تلقائياً عند كل دخول للصفحة - راجع
+// renderCore.js) كان بيعمل قراءة كاملة لكل الكولكشن من جديد. مع
+// مئات الموظفين، ده استهلاك غير ضروري لقراءات Firestore.
+//
+// الحل هنا (بدون تغيير أي منطق فلترة/بحث موجود في RequestsView.js،
+// وهو منطق Client-side بيحتاج المجموعة كاملة أصلاً - Pagination
+// حقيقي بـ Cursor هيحتاج إعادة بناء شاشة البحث والفلاتر نفسها،
+// ومش ضروري بحجم "مئات" الموظفين المذكور):
+//   ١) Cache قصير المدة (نفس نمط fetchManagersAndAdminsApi/
+//      fetchTechniciansApi تحت) - يمنع إعادة القراءة الكاملة مع كل
+//      تنقل سريع بين التابين لمدة USERS_CACHE_TTL_MS.
+//   ٢) limit() صريح كسقف أمان (لا يوجد حالياً أي سقف إطلاقاً) -
+//      لو اتضرب، بيظهر تحذير في الـ Console لتنبيه المطور إن العدد
+//      قرّب من الحد ومحتاج نراجع الموضوع فعلياً وقتها (Pagination
+//      حقيقي أو بحث Server-side).
+//   ٣) invalidateUsersCache() بتتنادى بعد أي عملية تعديل فعلية
+//      (قبول/رفض/تغيير دور/حذف) عشان أول تحديث للشاشة بعد أي
+//      إجراء يعرض البيانات الفعلية فوراً بدل الكاش القديم.
+const USERS_CACHE_TTL_MS = 60 * 1000; // دقيقة واحدة
+const USERS_SAFETY_LIMIT = 1000; // سقف أمان مؤقت - راجع الملاحظة فوق
+let usersCache = null; // { data, fetchedAt }
+
+function invalidateUsersCache() {
+  usersCache = null;
+}
+
+/**
+ * جلب المستخدمين
+ * @param {{ forceRefresh?: boolean }} [options]
+ */
+export async function fetchUsers({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    usersCache &&
+    (Date.now() - usersCache.fetchedAt) < USERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: usersCache.data };
+  }
+
+  try {
+
+    const usersQuery =
+      query(
+        collection(db, "users"),
+        limit(USERS_SAFETY_LIMIT)
+      );
+
+    // جلب كل المستندات (حتى سقف الأمان) مباشرة لتفادي مشاكل الفهارس
+    // أو نقص حقل الترتيب
+    const querySnapshot =
+      await getDocs(usersQuery);
+
+    if (querySnapshot.size >= USERS_SAFETY_LIMIT) {
+      console.warn(
+        `⚠️ fetchUsers() وصل لسقف الأمان (${USERS_SAFETY_LIMIT} مستخدم). ` +
+        `قائمة المستخدمين قد تكون غير مكتملة - محتاجين نراجع Pagination حقيقي.`
+      );
+    }
+
+
+    const users = [];
+
+
+    querySnapshot.forEach(docSnap => {
+
+      const data =
+        docSnap.data();
+
+
+      // عدم إرسال أي بيانات متعلقة بكلمة السر للواجهة
+      // (password: النمط القديم Plaintext قبل التحديث،
+      //  passwordHash/salt: النمط الجديد المشفّر)
+      const {
+        password,
+        passwordHash,
+        salt,
+        ...safeData
+      } = data;
+
+
+      users.push({
+
+        id:
+          docSnap.id,
+
+        ...safeData,
+
+        status:
+          (data.status || "")
+            .trim(),
+
+        role:
+          (data.role || "")
+            .trim(),
+
+        permissions:
+          (data.permissions || "")
+            .trim()
+
+      });
+
+    });
+
+
+    // ترتيب المستخدمين برمجياً من الأحدث للأقدم بأمان تام
+    users.sort((a, b) => {
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    usersCache = { data: users, fetchedAt: Date.now() };
+
+
+    return {
+
+      status:
+        "success",
+
+      data:
+        users
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error fetching users:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// REGISTER USER
+// ============================================================
+
+
+/**
+ * تسجيل مستخدم جديد
+ *
+ * بيتم إنشاء حساب Firebase Authentication حقيقي (Email/Password،
+ * برقم موبايل محوَّل لإيميل داخلي عبر phoneToAuthEmail - راجع
+ * config.js) بدل التشفير اليدوي القديم بـ PBKDF2. مستند بيانات
+ * المستخدم في Firestore بيتخزن بنفس معرّف الحساب (uid) بدل معرّف
+ * عشوائي، عشان قواعد الأمان (firestore.rules) تقدر تربط الطلبات
+ * بصاحبها فعلياً عبر request.auth.uid.
+ */
+export async function registerUserApi(userData) {
+
+  try {
+
+    // تطبيع الرقم (أرقام عربية / +20 / 0020...) + تخزين الصيغة القياسية
+    // الواحدة، فنفس الشخص مايبقاش له حسابين بصيغتين (بند H2)
+    const phoneCheck = normalizePhone(userData.phone);
+
+    if (!phoneCheck.ok) {
+      return {
+        status: "error",
+        message: "رقم الموبايل غير صالح، تأكد من كتابته بشكل صحيح."
+      };
+    }
+
+    const phone = phoneCheck.canonical;
+
+    const password =
+      String(
+        userData.password || ""
+      );
+
+    // التحقق من المدخلات (بند M12) - قبل إنشاء أي حساب
+    const cleanName = String(userData.name || "").trim();
+    const cleanCode = String(userData.code || "").trim();
+
+    if (cleanName.length < 2 || cleanName.length > 80) {
+      return { status: "error", message: "الاسم يجب أن يكون بين ٢ و٨٠ حرفًا." };
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      return { status: "error", message: "كلمة السر يجب أن تكون ٨ أحرف على الأقل." };
+    }
+
+    if (cleanCode.length > 40) {
+      return { status: "error", message: "الكود طويل جدًا." };
+    }
+
+    const cleanJob = String(userData.job || "Technician").trim().slice(0, 60);
+    const cleanDepartment = String(userData.department || "Production").trim().slice(0, 60);
+
+    // منع تكرار رقم الهاتف: Firebase Auth نفسه بيرفض تلقائياً الإيميل
+    // الداخلي المكرر (auth/email-already-in-use - راجع تحت).
+    //
+    // Security review (Auth/Roles): كان هنا استعلام على users برقم الهاتف
+    // قبل التسجيل (بدون تسجيل دخول) معتمد على استثناء "list بدون
+    // Authentication" في firestore.rules - الاستثناء ده اتشال لأنه كان
+    // بيكشف أي مستند users (بما فيه أسرار الحسابات القديمة) لأي زائر.
+    // الحسابات القديمة اللي لسه ماترحّلتش بتتعامل معاها Cloud Function
+    // migrateLegacyAccount وقت أول دخول لصاحبها.
+
+    // ========================================================
+    // إنشاء حساب Firebase Authentication حقيقي
+    // ========================================================
+    // إصلاح (عزل جلسة التسجيل - راجع الشرح الكامل في config.js
+    // بجانب getRegistrationAuthContext): إنشاء الحساب وكتابة مستنده
+    // وتسجيل خروجه بعدها كلها بتتم هنا على Auth/Firestore instance
+    // منفصل تماماً (Firebase App ثانوي)، عشان محاولة تسجيل حساب
+    // جديد من أي تاب/جهاز ما تأثرش إطلاقاً على جلسة دخول أي مستخدم
+    // تاني مسجّل دخوله فعلاً على نفس المتصفح (كان بيتسجّل خروجه
+    // فجأة بسبب مشاركة نفس Auth instance الافتراضي).
+
+    const { auth: regAuth, db: regDb } = getRegistrationAuthContext();
+
+    const email = phoneToAuthEmail(phone);
+
+    let cred;
+    try {
+      cred = await createUserWithEmailAndPassword(regAuth, email, password);
+    } catch (authError) {
+
+      const message =
+        authError.code === "auth/email-already-in-use"
+          ? "رقم الهاتف مسجل بالفعل."
+          : authError.code === "auth/weak-password"
+            ? "كلمة السر ضعيفة جداً (٦ أحرف على الأقل)."
+            : "حدث خطأ أثناء إنشاء حساب الدخول.";
+
+      return { status: "error", message };
+    }
+
+
+    // ========================================================
+    // مستند بيانات المستخدم الإضافية - بدون أي حقل خاص بكلمة السر
+    // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
+    // ========================================================
+
+
+    const rawShift = String(userData.shift || "").trim();
+    const shiftLower = rawShift.toLowerCase();
+    const shiftColor = shiftLower.includes("green") || shiftLower.includes("خضراء") ? "green" :
+                       shiftLower.includes("red") || shiftLower.includes("حمراء") ? "red" :
+                       shiftLower.includes("blue") || shiftLower.includes("زرقاء") ? "blue" : "green";
+
+    try {
+
+      await setDoc(
+        doc(regDb, "users", cred.user.uid),
+        {
+          name: cleanName,
+          phone,
+          code: cleanCode,
+          job: cleanJob,
+          department: cleanDepartment,
+          shift: rawShift.slice(0, 40) || "Green",
+          shiftColor: ["green", "red", "blue"].includes(userData.shiftColor) ? userData.shiftColor : shiftColor,
+          // ملحوظة: حقول hourlyRate/monthTargetHours اتشالت من هنا -
+          // بيانات المرتب أصبحت محلية 100% على جهاز كل مستخدم
+          // (راجع payrollLocalStore.js) ولا يجوز تخزينها في Firestore
+          leaveBalance: 21,
+          // (اتشال spread لباقي userData: كان بيسمح للعميل بكتابة أي حقول
+          //  إضافية في مستند المستخدم)
+          // الحساب الجديد ينتظر الموافقة
+          role:
+            "pending",
+          permissions:
+            "",
+          status:
+            "pending",
+          createdAt:
+            new Date().toISOString()
+        }
+      );
+
+    } catch (firestoreError) {
+
+      // نادراً ما يحصل: حساب Auth اتعمل لكن فشل كتابة مستند
+      // البيانات. نحاول حذف حساب Auth المتخلف لنمنع وجود مستخدم
+      // Authentication بلا مستند المستخدم في Firestore.
+      console.error("Error saving user profile after auth creation:", firestoreError);
+
+      try {
+        if (regAuth.currentUser) {
+          await deleteUser(regAuth.currentUser);
+        }
+      } catch (cleanupError) {
+        console.error("Failed to delete orphaned auth user:", cleanupError);
+      }
+
+      try {
+        await signOut(regAuth);
+      } catch (signOutError) {
+        console.warn("Failed to sign out after cleanup:", signOutError);
+      }
+
+      return {
+        status: "error",
+        message: "تم إنشاء حساب الدخول لكن حدث خطأ أثناء حفظ بياناتك، يرجى المحاولة مرة أخرى."
+      };
+    }
+
+    // بعد إنشاء حساب Auth ومستند المستخدم، نسجل خروج المستخدم من الجلسة
+    // لأن الحساب ما زال في حالة pending ولا يجب أن يبقى مسجلاً دخوله.
+    try {
+      await signOut(regAuth);
+    } catch (err) {
+      console.warn('Warning: failed to signOut after registration:', err?.message || err);
+    }
+
+
+    invalidateUsersCache();
+
+    return {
+
+      status:
+        "success",
+
+      id:
+        cred.user.uid,
+
+      message:
+        "تم إرسال طلب التسجيل، بانتظار موافقة المسؤول"
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error registering user:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// TECHNICIANS (لقائمة اختيار الفني عند تصنيف/إسناد التذكرة)
+// ============================================================
+
+// إضافة (تحسين الأداء): تخزين مؤقت بسيط في الذاكرة لنتيجة
+// fetchTechniciansApi لمدة TECHNICIANS_CACHE_TTL_MS - كانت بتتنادى من
+// جديد (قراءة من Firestore) في كل مرة يتفتح فيها مودال "إسناد" أو
+// "إعادة إسناد" حتى لو نفس المستخدم فتح المودال أكتر من مرة خلال
+// دقايق قليلة. التخزين هنا لمدة الجلسة بس (متغير Module-level، بيتصفر
+// تلقائياً بإعادة تحميل الصفحة) - مفيش أي بيانات حساسة بتتخزن غير
+// اللي أصلاً بترجع من نفس الدالة
+const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let techniciansCache = null; // { data, fetchedAt }
+
+// إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): نفس فكرة الكاش
+// فوق بالظبط لكن لقائمة المدراء/الأدمن - تُستخدم في saveIssueApi
+// (ticketsApi.js) عشان نبعت إشعار لكل مدير/أدمن نشط فور تسجيل بلاغ
+// عطل جديد، بدل ما يفضل معتمد على فتحهم اليدوي للوحة البلاغات
+const MANAGERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+let managersAndAdminsCache = null; // { data, fetchedAt }
+
+/**
+ * جلب المستخدمين اللي دورهم مدير/أدمن فقط (نشطين) - تُستخدم لإرسال
+ * إشعار جماعي عند إنشاء بلاغ عطل جديد (راجع saveIssueApi في
+ * ticketsApi.js). ملحوظة: firestore.rules -> match /users/{userId}
+ * -> allow list لازم يسمح صراحة بـ role in ["admin","manager"] لأي
+ * مستخدم نشط (مش بس للأدمن/المدير نفسه) عشان الاستعلام ده يشتغل من
+ * جهاز أي مستخدم عادي بيسجل بلاغ - راجع تعليق الإصلاح المقابل في
+ * firestore.rules
+ */
+export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    managersAndAdminsCache &&
+    (Date.now() - managersAndAdminsCache.fetchedAt) < MANAGERS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: managersAndAdminsCache.data };
+  }
+
+  try {
+
+    const q =
+      query(
+        collection(db, "users"),
+        // إصلاح: "supervisor" بيتعامل كمدير في الصلاحيات وقواعد Firestore
+        // (isManagerRole) لكنه كان مستبعد من هنا - فمكانش بيوصله أي إشعار
+        // (بلاغ جديد / اعتذار فني / إعادة إرسال مقترح) رغم إنه بيقدر يسند
+        where("role", "in", ["admin", "manager", "supervisor"])
+      );
+
+    const querySnapshot = await getDocs(q);
+
+    const managers = [];
+
+    querySnapshot.forEach(docSnap => {
+
+      const data = docSnap.data();
+
+      if ((data.status || "").trim().toLowerCase() !== "active") {
+        return;
+      }
+
+      managers.push({
+        id: docSnap.id,
+        name: data.name || "",
+        role: data.role || ""
+      });
+
+    });
+
+    managersAndAdminsCache = { data: managers, fetchedAt: Date.now() };
+
+    return { status: "success", data: managers };
+
+  } catch (error) {
+
+    console.error("Error fetching managers/admins:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+/**
+ * جلب المستخدمين اللي دورهم فني/مهندس فقط - تُستخدم في واجهة
+ * تصنيف وإسناد التذاكر (راجع ticketsApi.js -> assignTicketApi).
+ * الاستعلام مقيّد بحقل role عمداً (where) بدل جلب كل المستخدمين،
+ * عشان يتوافق مع قاعدة الأمان الخاصة بقراءة /users كمجموعة
+ * (راجع firestore.rules).
+ */
+export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
+
+  if (
+    !forceRefresh &&
+    techniciansCache &&
+    (Date.now() - techniciansCache.fetchedAt) < TECHNICIANS_CACHE_TTL_MS
+  ) {
+    return { status: "success", data: techniciansCache.data };
+  }
+
+  try {
+
+    const q =
+      query(
+        collection(db, "users"),
+        where("role", "in", ["technician", "engineer"])
+      );
+
+    const querySnapshot =
+      await getDocs(q);
+
+    const technicians = [];
+
+    querySnapshot.forEach(docSnap => {
+
+      const data = docSnap.data();
+
+      if ((data.status || "").trim().toLowerCase() !== "active") {
+        return;
+      }
+
+      technicians.push({
+        id: docSnap.id,
+        name: data.name || "",
+        role: data.role || "",
+        department: data.department || ""
+      });
+
+    });
+
+    techniciansCache = { data: technicians, fetchedAt: Date.now() };
+
+    return { status: "success", data: technicians };
+
+  } catch (error) {
+
+    console.error("Error fetching technicians:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+// ============================================================
+// حماية آخر Admin في النظام (بند A1 في تقرير المراجعة)
+// ============================================================
+
+/**
+ * عدد المستخدمين الذين دورهم "admin" وحالتهم "active" حالياً، مع
+ * إمكانية استثناء مستخدم واحد (المستخدم المستهدف بالتعديل/الحذف)
+ * من العد - عشان نعرف هل هيفضل أدمن نشط تاني بعد العملية ولا لأ.
+ *
+ * @param {string} [excludeUserId]
+ * @returns {Promise<number>}
+ */
+async function countOtherActiveAdmins(excludeUserId) {
+
+  const adminsQuery = query(
+    collection(db, "users"),
+    where("role", "==", "admin"),
+    where("status", "==", "active")
+  );
+
+  const snap = await getDocs(adminsQuery);
+
+  let count = 0;
+  snap.forEach((docSnap) => {
+    if (docSnap.id !== excludeUserId) count++;
+  });
+
+  return count;
+
+}
+
+
+// ============================================================
+// UPDATE USER PERMISSIONS
+// ============================================================
+
+
+/**
+ * تحديث الدور والصلاحيات
+ */
+export async function updatePermissionsApi(
+  userId,
+  role,
+  permissions
+) {
+
+  try {
+
+    const userRef =
+      doc(
+        db,
+        "users",
+        userId
+      );
+
+
+    // حماية آخر Admin: لو المستخدم ده حالياً "admin" نشط، ومطلوب
+    // تغيير دوره لأي دور تاني، لازم يفضل أدمن نشط واحد على الأقل
+    // غيره بعد العملية - وإلا هيتقفل النظام بالكامل بلا أي أدمن.
+    let wasActiveAdmin = false;
+
+    if (role !== "admin") {
+
+      const currentSnap = await getDoc(userRef);
+      const currentData = currentSnap.exists() ? currentSnap.data() : null;
+      wasActiveAdmin =
+        currentData &&
+        currentData.role === "admin" &&
+        currentData.status === "active";
+
+      if (wasActiveAdmin) {
+
+        const remaining = await countOtherActiveAdmins(userId);
+
+        if (remaining === 0) {
+          return {
+            status: "error",
+            message:
+              "لا يمكن تغيير دور هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل تغيير هذا الدور."
+          };
+        }
+
+      }
+
+    }
+
+
+    if (wasActiveAdmin) {
+
+      // إصلاح (بند A1 في تقرير المراجعة - حماية سيرفرية حقيقية):
+      // firestore.rules بقت تمنع تحديداً تحويل "Admin نشط" لأي دور
+      // تاني عبر updateDoc() من كود العميل مباشرة (حتى لو الفحص فوق
+      // عدّى) - عشان مينفعش حد يتجاوز فحص "آخر Admin" بمناداة
+      // updateDoc() مباشرة من DevTools. الحالة دي بالذات لازم تمر
+      // عبر Cloud Function (updateUserRoleAccount) اللي بتعمل نفس
+      // الفحص تاني على السيرفر (Admin SDK بيتجاوز Security Rules)
+      // قبل التنفيذ الفعلي - راجع functions/index.js.
+      await callCloudFunction("updateUserRoleAccount", { userId, role, permissions });
+
+    } else {
+
+      await updateDoc(
+        userRef,
+        {
+
+          role,
+
+          permissions,
+
+          updatedAt:
+            new Date().toISOString(),
+
+          updatedBy:
+            localStorage.getItem("name")
+            || "Admin"
+
+        }
+      );
+
+    }
+
+    invalidateUsersCache();
+
+
+    return {
+
+      status:
+        "success",
+
+      message:
+        "تم تحديث الصلاحيات"
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error updating permissions:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// UPDATE USER MACHINE DEPARTMENT (Backend / Frontend)
+// ============================================================
+
+/**
+ * تحديث تصنيف المستخدم (Backend/Frontend) المستخدم في فلترة قائمة
+ * الماكينات حسب القسم (راجع getMachinesForUser في machines.js).
+ *
+ * ملحوظة: هذا حقل مستقل تماماً اسمه "machineDepartment"، وليس نفس
+ * حقل "department" العام الموجود بالفعل في مستند المستخدم (القسم
+ * التنظيمي: Production/Mechanical/Electrical - مُستخدم في التسجيل/
+ * الملف الشخصي/كايزن/التقارير). عمل حقل مستقل هنا بدل التعديل على
+ * الحقل الموجود يمنع أي كسر لأي شاشة تانية بتعرض/تعتمد على القيمة
+ * التنظيمية الحالية.
+ */
+export let cachedCurrentUserProfile = null;
+
+export function clearCurrentUserProfileCache() {
+  cachedCurrentUserProfile = null;
+}
+
+/**
+ * جلب الملف الشخصي الكامل للمستخدم الحالي من Firestore مباشرة (المصدر الحقيقي للبيانات والصلاحيات)
+ * مع مزامنة التخزين المحلي فورياً لضمان عدم وجود بيانات قديمة
+ *
+ * @param {boolean} [forceRefresh=false]
+ * @returns {Promise<{ status: string, user: Object|null, message?: string }>}
+ */
+export async function fetchCurrentUserProfileApi(forceRefresh = false) {
+  try {
+    const authUser = auth?.currentUser;
+    const currentUid = authUser?.uid || localStorage.getItem("userId");
+
+    if (!currentUid) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "لا يوجد مستخدم مسجل حالياً", user: null };
+    }
+
+    if (!forceRefresh && cachedCurrentUserProfile && cachedCurrentUserProfile.id === currentUid) {
+      return { status: "success", user: cachedCurrentUserProfile };
+    }
+
+    const userRef = doc(db, "users", currentUid);
+    const snap = await getDoc(userRef);
+
+    if (!snap.exists()) {
+      cachedCurrentUserProfile = null;
+      return { status: "error", message: "مستند المستخدم غير موجود في Firestore", user: null };
+    }
+
+    const data = snap.data();
+    const userObj = {
+      id: currentUid,
+      ...data
+    };
+
+    // استخراج وتطبيع قسم الماكينات بدقة من الحقول المختلفة
+    const normDept = extractUserDepartment(userObj);
+    userObj.machineDepartment = normDept;
+
+    // Security review (Auth/Roles): لو الحساب اتوقف/اترفض/اتغيّرت حالته
+    // بعد الدخول، الجلسة كانت بتفضل شغالة في الواجهة (Firestore rules
+    // بترفض أي قراءة/كتابة فعلياً لكن الواجهة كانت بتفضل بتعرض
+    // الشاشات). نقفل الجلسة فوراً بمجرد ما نتأكد إن الحالة مش active.
+    const profileStatus = String(data.status || "").trim().toLowerCase();
+    if (profileStatus !== "active") {
+      cachedCurrentUserProfile = null;
+      if (typeof window.logout === "function") {
+        window.logout();
+      }
+      return { status: "error", message: "الحساب غير مفعل.", user: null };
+    }
+
+    // مزامنة التخزين المحلي (localStorage) بالبيانات الموثقة من Firestore
+    if (data.name) localStorage.setItem("name", data.name);
+    if (data.phone) localStorage.setItem("phone", data.phone);
+    if (data.department) localStorage.setItem("department", data.department);
+
+    // Security review (Auth/Roles): الدور فقط كان بيتزامن، أما الصلاحيات
+    // (permissions) فكانت بتفضل زي ما اتخزنت وقت الدخول - فأدمن اتنزّل
+    // لدور أقل (أو مستخدم اتسحبت منه صلاحيات) كان لسه بيشوف شاشات الإدارة
+    // (all,...) لحد ما يسجّل خروج ودخول. الحماية الفعلية في القواعد
+    // بتمنعه، لكن الواجهة لازم تتطابق مع المصدر الحقيقي (نفس منطق
+    // authHandlers.js وقت الدخول).
+    const syncedRole = String(data.role || "").trim().toLowerCase();
+    let syncedPerms = String(data.permissions || "")
+      .split(",")
+      .map(p => p.trim().toLowerCase())
+      .filter(Boolean)
+      .join(",");
+    if (isAdminRole(syncedRole)) {
+      syncedPerms = syncedPerms ? `all,${syncedPerms}` : ALL_PERMISSIONS.join(",");
+    }
+    setCurrentRole(syncedRole);
+    setCurrentPermissions(syncedPerms);
+
+    if (normDept) {
+      localStorage.setItem("machineDepartment", normDept);
+    } else {
+      localStorage.removeItem("machineDepartment");
+    }
+
+    cachedCurrentUserProfile = userObj;
+    return { status: "success", user: userObj };
+  } catch (error) {
+    console.error("Error fetching current user profile from Firestore:", error);
+    return { status: "error", message: error.message, user: null };
+  }
+}
+
+export async function updateUserMachineDepartmentApi(userId, machineDepartment) {
+
+  try {
+
+    if (!userId) {
+      return { status: "error", message: "معرف المستخدم غير موجود" };
+    }
+
+    const cleanDept = normalizeDepartment(machineDepartment);
+
+    await updateDoc(
+      doc(db, "users", userId),
+      {
+        machineDepartment: cleanDept,
+        updatedAt: new Date().toISOString(),
+        updatedBy: localStorage.getItem("name") || "Admin"
+      }
+    );
+
+    const currentUid = auth?.currentUser?.uid || localStorage.getItem("userId") || "";
+    if (userId === currentUid) {
+      if (cleanDept) {
+        localStorage.setItem("machineDepartment", cleanDept);
+      } else {
+        localStorage.removeItem("machineDepartment");
+      }
+    }
+
+    invalidateUsersCache();
+    clearCurrentUserProfileCache();
+
+    return { status: "success", message: "تم تحديث تصنيف القسم (Backend/Frontend)" };
+
+  } catch (error) {
+
+    console.error("Error updating user machine department:", error);
+
+    return { status: "error", message: error.message };
+
+  }
+
+}
+
+
+// ============================================================
+// UPDATE USER STATUS
+// ============================================================
+
+
+/**
+ * قبول أو رفض المستخدم
+ *
+ * active   = قبول
+ * rejected = رفض
+ */
+export async function updateUserStatusApi(
+  userId,
+  status,
+  options = {}
+) {
+
+  try {
+
+    const userRef =
+      doc(
+        db,
+        "users",
+        userId
+      );
+
+
+    const updateData = {
+
+      status,
+
+      updatedAt:
+        new Date().toISOString(),
+
+      updatedBy:
+        localStorage.getItem("name")
+        || "Admin"
+
+    };
+
+
+    // ========================================================
+    // قبول المستخدم
+    // ========================================================
+
+    if (status === "active") {
+
+      // الدور وقسم الماكينات بيتحددوا صراحةً من الأدمن وقت القبول
+      // (راجع الشرح فوق APPROVAL_ROLES) - مفيش افتراضات من الوظيفة.
+      const role = String(options.role || "").trim().toLowerCase();
+
+      if (!APPROVAL_ROLES.includes(role)) {
+        return {
+          status: "error",
+          message: "يجب اختيار الدور صراحةً قبل قبول المستخدم."
+        };
+      }
+
+      const cleanDept = normalizeDepartment(options.machineDepartment);
+
+      if (ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(role) && !cleanDept) {
+        return {
+          status: "error",
+          message: "يجب تحديد تصنيف الماكينات (Backend / Frontend) قبل قبول هذا الدور، وإلا لن يستطيع المستخدم الإبلاغ عن الأعطال أو مسح QR."
+        };
+      }
+
+      updateData.role = role;
+
+      if (cleanDept) {
+        updateData.machineDepartment = cleanDept;
+      }
+
+      // الأدمن بياخد كل الصلاحيات (نفس منطق saveUserPermissions)،
+      // غيره بياخد الصلاحيات المحددة أو الافتراضية الموحّدة
+      const requestedPerms = String(options.permissions || "").trim();
+
+      updateData.permissions =
+        role === "admin"
+          ? "all"
+          : (requestedPerms || DEFAULT_USER_PERMISSIONS);
+
+      updateData.approvedAt =
+        new Date().toISOString();
+
+      updateData.approvedBy =
+        localStorage.getItem("name")
+        || "Admin";
+
+      updateData.approvedByUid =
+        auth?.currentUser?.uid || "";
+
+    }
+
+
+    // ========================================================
+    // رفض المستخدم
+    // ========================================================
+
+    if (status === "rejected") {
+
+      updateData.role =
+        "pending";
+
+
+      updateData.permissions =
+        "";
+
+    }
+
+
+    await updateDoc(
+      userRef,
+      updateData
+    );
+
+    invalidateUsersCache();
+
+    // عدم توفر الفني (H6): حساب اترفض/اتعطّل = بلاغاته المفتوحة ترجع لقائمة
+    // الانتظار (ما تفضلش عالقة عند حساب غير نشط). import ديناميكي لتفادي
+    // الاستيراد الدائري (ticketsApi بتستورد من usersApi).
+    if (status !== "active") {
+      try {
+        const { releaseTicketsOfUserApi } = await import("./ticketsApi.js");
+        const snapBefore = await getDoc(userRef);
+        await releaseTicketsOfUserApi(userId, snapBefore.exists() ? snapBefore.data().name : "");
+      } catch (releaseError) {
+        console.warn("releaseTicketsOfUserApi failed:", releaseError);
+      }
+    }
+
+
+    return {
+
+      status:
+        "success",
+
+      message:
+        status === "active"
+
+          ? "تم قبول المستخدم وتفعيل الحساب"
+
+          : "تم رفض طلب المستخدم"
+
+    };
+
+
+  } catch (error) {
+
+    console.error(
+      "Error updating user status:",
+      error
+    );
+
+
+    return {
+
+      status:
+        "error",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+
+// ============================================================
+// DELETE USER
+// ============================================================
+
+// إصلاح (بند B3 في تقرير المراجعة - حذف حساب Firebase Auth الفعلي):
+// كانت الدالة دي بتحذف مستند بيانات المستخدم من Firestore بس، وحساب
+// Firebase Auth (اللي بيسمح بتسجيل الدخول بكلمة السر) بيفضل موجود
+// فعلياً - حذف حساب Auth لمستخدم تاني مينفعش من كود العميل (Client
+// SDK) أصلاً، ده قيد من Firebase نفسه، فالعملية دلوقتي بالكامل عبر
+// Cloud Function (deleteUserAccount - راجع functions/index.js)
+// بتستخدم Firebase Admin SDK على السيرفر: بتحذف حساب Auth ومستند
+// Firestore معاً في نفس العملية، وبتتحقق بنفسها (على السيرفر) إن
+// اللي بينادي عليها Admin نشط فعلاً وإن المستهدف مش آخر Admin نشط -
+// دفاع إضافي فوق فحص العميل تحت وفوق firestore.rules (اللي بقت
+// كمان تمنع حذف "Admin نشط" مباشرة عبر deleteDoc() من كود العميل،
+// لمنع أي تجاوز يسيب حساب Auth يتيم زي المشكلة الأصلية).
+export async function deleteUserApi(userId) {
+
+  try {
+
+    if (!userId) {
+
+      return {
+        status: "error",
+        message: "معرف المستخدم غير موجود"
+      };
+
+    }
+
+    const userRef =
+      doc(
+        db,
+        "users",
+        userId
+      );
+
+    // حماية آخر Admin (بند A1): نفس منطق updatePermissionsApi - لو
+    // المستخدم المطلوب حذفه هو آخر أدمن نشط، امنع الحذف بدل ما
+    // يتقفل النظام بالكامل.
+    const currentSnap = await getDoc(userRef);
+    const currentData = currentSnap.exists() ? currentSnap.data() : null;
+    const isActiveAdmin =
+      currentData &&
+      currentData.role === "admin" &&
+      currentData.status === "active";
+
+    if (isActiveAdmin) {
+
+      const remaining = await countOtherActiveAdmins(userId);
+
+      if (remaining === 0) {
+        return {
+          status: "error",
+          message:
+            "لا يمكن حذف هذا المستخدم لأنه آخر Admin نشط في النظام. عيّن أدمن آخر أولاً قبل حذف هذا الحساب."
+        };
+      }
+
+    }
+
+    // حذف حقيقي (Auth + Firestore معاً) عبر Cloud Function - راجع
+    // الملحوظة فوق. لو الدالة مش منشورة بعد على Firebase، هترجع
+    // خطأ واضح تحت (callCloudFunction في firebaseBackendProvider.js)
+    // بدل ما تدّعي نجاح جزئي.
+    // تحرير بلاغاته المفتوحة قبل الحذف (H6) - بعد الحذف مفيش مسار لإعادتها
+    try {
+      const { releaseTicketsOfUserApi } = await import("./ticketsApi.js");
+      await releaseTicketsOfUserApi(userId, currentData?.name || "");
+    } catch (releaseError) {
+      console.warn("releaseTicketsOfUserApi failed:", releaseError);
+    }
+
+    await callCloudFunction("deleteUserAccount", { userId });
+
+    invalidateUsersCache();
+
+    return {
+
+      status: "success",
+
+      message: "تم حذف المستخدم نهائيًا (الحساب والبيانات)"
+
+    };
+
+  } catch (error) {
+
+    console.error(
+      "Error deleting user:",
+      error
+    );
+
+    return {
+
+      status: "error",
+
+      message:
+        error.message ||
+        "فشل حذف المستخدم"
+
+    };
+
+  }
+
+}
+
+

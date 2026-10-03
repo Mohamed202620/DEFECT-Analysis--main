@@ -1,0 +1,158 @@
+/* ==========================================================================
+   MANAGER DESKTOP MODE (وضع المدير على الكمبيوتر)
+   Strictly scoped under @media (min-width: 1280px) and body.mgr-desktop
+   ========================================================================== */
+
+@media (min-width: 1280px) {
+  body.mgr-desktop {
+    background-color: var(--bg-main, #f8fafc);
+  }
+
+  /* Command Center Layout */
+  body.mgr-desktop .mgr-command-center {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1.5rem;
+    padding: 1.5rem 2rem 3rem 2rem;
+    max-width: 1800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* KPI Cards Row (Span full 12 cols) */
+  body.mgr-desktop .mgr-kpi-grid {
+    grid-column: span 12 / span 12;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 1rem;
+  }
+
+  body.mgr-desktop .mgr-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.875rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease-in-out;
+  }
+
+  .dark body.mgr-desktop .mgr-card {
+    background: #1e293b;
+    border-color: #334155;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+  }
+
+  body.mgr-desktop .mgr-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Main Visual Center (8 columns) */
+  body.mgr-desktop .mgr-main-col {
+    grid-column: span 8 / span 8;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* Side Operations & Technicians Col (4 columns) */
+  body.mgr-desktop .mgr-side-col {
+    grid-column: span 4 / span 4;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  /* Charts Container */
+  body.mgr-desktop .mgr-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+  }
+
+  /* Decisions Table Container */
+  body.mgr-desktop .mgr-table-container {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+  }
+
+  /* Tickets Desktop Board (Split Panel View) */
+  body.mgr-desktop .mgr-tickets-split-container {
+    display: flex;
+    gap: 1.5rem;
+    width: 100%;
+    padding: 1.25rem 2rem;
+    max-width: 1850px;
+    margin: 0 auto;
+    min-height: calc(100vh - 120px);
+  }
+
+  body.mgr-desktop .mgr-tickets-main-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body.mgr-desktop .mgr-tickets-side-preview {
+    width: 440px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 5rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+    transition: width 0.2s ease;
+  }
+
+  /* Keyboard hints pill */
+  body.mgr-desktop .mgr-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.75rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    color: #475569;
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.375rem;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+  }
+
+  .dark body.mgr-desktop .mgr-kbd {
+    color: #94a3b8;
+    background-color: #0f172a;
+    border-color: #334155;
+  }
+
+  /* Table selected row */
+  body.mgr-desktop .mgr-row-active {
+    background-color: rgba(59, 130, 246, 0.08) !important;
+    border-left: 3px solid #3b82f6;
+  }
+
+  [dir="rtl"] body.mgr-desktop .mgr-row-active {
+    border-left: none;
+    border-right: 3px solid #3b82f6;
+  }
+
+  /* Sidebar Manager Special Section */
+  body.mgr-desktop .mgr-sidebar-section {
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .dark body.mgr-desktop .mgr-sidebar-section {
+    border-color: #334155;
+  }
+
+  /* Badge pulse for critical count */
+  body.mgr-desktop .mgr-badge-pulse {
+    animation: mgr-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes mgr-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+}

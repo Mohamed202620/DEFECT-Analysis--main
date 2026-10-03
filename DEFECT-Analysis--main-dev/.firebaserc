@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "maintenance-defect-system"
+  },
+  "targets": {
+    "maintenance-defect-system": {
+      "hosting": {
+        "dev": [
+          "my-dev-2026"
+        ],
+        "main": [
+          "maintenance-defect-system"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

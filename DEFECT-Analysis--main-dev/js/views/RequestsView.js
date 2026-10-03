@@ -1,0 +1,1322 @@
+import { BottomNav } from "../components/BottomNav.js";
+import { DEBUG, ALL_PERMISSIONS } from "../config.js";
+import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
+import {
+  suggestRoleFromJob,
+  ROLES_REQUIRING_MACHINE_DEPARTMENT
+} from "../services/usersApi.js";
+import { callCloudFunction } from "../providers/backend/index.js";
+
+// طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات كل
+// المستخدمين (أسماء/أرقام هواتف/أدوار) في الكونسول لكل زائر
+// عادي، حتى لو مش في وضع تطوير
+function dlog(...args) {
+  if (DEBUG) console.log(...args);
+}
+
+import {
+  fetchUsers,
+  updatePermissionsApi,
+  updateUserMachineDepartmentApi,
+  updateUserStatusApi,
+  deleteUserApi
+} from "../services/api.js";
+
+import {
+  extractUserDepartment,
+  normalizeDepartment
+} from "../utils/departmentUtils.js";
+
+import { ensureUserAndMachinesLoaded } from "../machines.js";
+
+
+// ======================================
+// المتغيرات
+// ======================================
+
+let usersCache = [];
+
+
+// ======================================
+// قائمة الصلاحيات الموحدة في التطبيق
+// ======================================
+
+const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "technician", "operator"];
+
+const PERMISSIONS = [
+
+  // الرئيسية
+  { value: "home", label: "🏠 الرئيسية" },
+
+  // الصيانة
+  // ملاحظة: "maintenance" كانت صلاحية افتراضية (DEFAULT_USER_PERMISSIONS)
+  // لكنها لم تكن معروضة كخيار هنا، فكان حفظ صلاحيات أي مستخدم من
+  // هذه الشاشة يحذفها بصمت (لأن الحفظ يعتمد على الصناديق المعروضة
+  // فقط). تمت إضافتها الآن لتطابق config.js وتفادي هذا الخلل.
+  { value: "maintenance", label: "🔧 قسم الصيانة (رئيسي)" },
+  { value: "issue", label: "🚨 تسجيل عطل" },
+  { value: "pm", label: "📝 الصيانة الوقائية" },
+  { value: "log", label: "📋 سجل الصيانة" },
+  { value: "suggestions", label: "💡 كايزن" },
+  { value: "reports", label: "📊 التقارير" },
+  { value: "qr", label: "📱 QR الماكينات" },
+  { value: "errorScanner", label: "🔎 فاحص أعطال الماكينات (OCR)" },
+
+  // المعرفة
+  { value: "kb", label: "📚 قاعدة المعرفة" },
+
+  // الإحصائيات والتصدير
+  { value: "statistics", label: "📈 الإحصائيات" },
+  { value: "export", label: "📤 تصدير التقارير" },
+
+  // إدارة النظام
+  { value: "users", label: "👥 إدارة المستخدمين" },
+  { value: "requests", label: "⏳ طلبات الانضمام" },
+  { value: "machines", label: "🏭 إدارة الماكينات" },
+  { value: "settings", label: "⚙️ إعدادات النظام" }
+
+];
+
+
+// ======================================
+// واجهة المستخدم
+// ======================================
+// إصلاح (توحيد): كانت الصفحتان "users" (قائمة عرض فقط قديمة في
+// pageRenderer.js) و"requests" (هذه الصفحة، وبها فعلياً كل أدوات
+// الإدارة: بحث/فلاتر/تعديل دور وصلاحيات/حذف) منفصلتين وبينهما تكرار
+// وتضارب رغم إن مسمى "طلبات الانضمام" كان بيوحي إنها لمراجعة
+// المستخدمين الجدد بس. تم توحيدهما في نفس الواجهة والمنطق:
+//   - صفحة "users" (المستخدمون) = نفس الواجهة الكاملة، بدون فلتر
+//     افتراضي (تعرض الكل).
+//   - صفحة "requests" (طلبات الانضمام) = نفس الواجهة بالظبط، لكن
+//     بفلتر "قيد الانتظار" مُفعّل تلقائياً من البداية (لأن هذا هو
+//     الغرض الفعلي من مسماها)، والأدمن يقدر يغيّر الفلتر يدوياً لو
+//     احتاج يشوف باقي المستخدمين من نفس الشاشة.
+function renderUsersManagementPage({
+    title = "إدارة المستخدمين والصلاحيات",
+    subtitle = "إدارة الحسابات وتعيين الأدوار والصلاحيات",
+    defaultStatusFilter = ""
+} = {}) {
+
+return `
+
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+
+    <!-- Header & Back Button -->
+    <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div class="flex items-center gap-3">
+            <button
+                type="button"
+                onclick="window.goBack('system')"
+                class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
+                <span class="text-base rtl:rotate-180">‹</span>
+                <span class="text-xs text-slate-200">رجوع</span>
+            </button>
+            <div>
+                <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+                    <span>👥</span> ${escapeHtml(title)}
+                </h2>
+                <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+                    ${subtitle}
+                </p>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Search -->
+
+    <div class="relative">
+        <input
+            id="userSearch"
+            oninput="window.searchUsers()"
+            placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
+            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner"
+        >
+        <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
+    </div>
+
+
+    <!-- Filters -->
+
+    <div class="grid grid-cols-2 gap-3">
+
+        <select
+            id="statusFilter"
+            onchange="window.filterUsers()"
+            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+
+            <option value="" ${defaultStatusFilter === "" ? "selected" : ""}>
+                كل الحالات
+            </option>
+
+            <option value="active" ${defaultStatusFilter === "active" ? "selected" : ""}>
+                🟢 Active (مفعل)
+            </option>
+
+            <option value="pending" ${defaultStatusFilter === "pending" ? "selected" : ""}>
+                🟡 Pending (قيد الانتظار)
+            </option>
+
+            <option value="rejected" ${defaultStatusFilter === "rejected" ? "selected" : ""}>
+                🔴 Rejected (مرفوض)
+            </option>
+
+        </select>
+
+
+        <select
+            id="roleFilter"
+            onchange="window.filterUsers()"
+            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+
+            <option value="">
+                كل الأدوار
+            </option>
+
+            <option value="admin">
+                👑 Admin
+            </option>
+
+            <option value="manager">
+                🧑‍💼 Manager
+            </option>
+
+            <option value="supervisor">
+                👨‍🔧 Supervisor
+            </option>
+
+            <option value="engineer">
+                👨‍💻 Engineer
+            </option>
+
+            <option value="technician">
+                🛠 Technician
+            </option>
+
+            <option value="operator">
+                ⚙️ Operator
+            </option>
+
+        </select>
+
+    </div>
+
+
+    <!-- عدد المستخدمين -->
+
+    <div
+        id="usersCount"
+        class="text-xs text-gray-400">
+
+        إجمالي المستخدمين : 0
+
+    </div>
+
+
+    <!-- القائمة -->
+
+    <div
+        id="usersContainer"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+
+        <div class="col-span-full text-center text-gray-500 py-8">
+
+            جاري تحميل المستخدمين...
+
+        </div>
+
+    </div>
+
+</div>
+
+
+${BottomNav("system")}
+
+`;
+
+}
+
+// صفحة "طلبات الانضمام" - نفس واجهة الإدارة الكاملة، بفلتر "قيد
+// الانتظار" مُفعّل تلقائياً بما يطابق الغرض من اسمها
+export const RequestsView = () => renderUsersManagementPage({
+    title: "طلبات الانضمام",
+    subtitle: "مراجعة المستخدمين الجدد قيد الانتظار (يمكن تغيير الفلتر لعرض الكل)",
+    defaultStatusFilter: "pending"
+});
+
+// صفحة "المستخدمون" - نفس واجهة الإدارة الكاملة بدون فلتر افتراضي
+// (تحل محل القائمة القديمة للعرض فقط في pageRenderer.js)
+export const UsersManagementView = () => renderUsersManagementPage({
+    title: "إدارة المستخدمين والصلاحيات",
+    subtitle: "إدارة الحسابات وتعيين الأدوار والصلاحيات",
+    defaultStatusFilter: ""
+});
+
+
+// ======================================
+// إنشاء Checkbox للصلاحية
+// ======================================
+
+function permissionCheckbox(
+    id,
+    value,
+    label,
+    checked,
+    disabled
+) {
+
+    return `
+
+    <label
+        class="flex items-center gap-2
+               bg-[#0F172A]
+               border border-gray-800
+               rounded-lg
+               p-2
+               cursor-pointer">
+
+        <input
+            type="checkbox"
+            class="perm-${escapeHtml(id)}"
+            value="${escapeHtml(value)}"
+            ${checked ? "checked" : ""}
+            ${disabled ? "disabled" : ""}
+        >
+
+        <span class="text-[11px]">
+            ${escapeHtml(label)}
+        </span>
+
+    </label>
+
+    `;
+}
+
+
+// ======================================
+// رسم المستخدمين
+// ======================================
+
+function renderUsers(users) {
+
+    const container =
+        document.getElementById("usersContainer");
+
+    const count =
+        document.getElementById("usersCount");
+
+
+    if (!container) return;
+
+
+    if (count) {
+
+        count.innerHTML =
+            `إجمالي المستخدمين : ${users.length}`;
+
+    }
+
+
+    if (!users.length) {
+
+        container.innerHTML = `
+
+        <div class="text-center text-gray-400 py-10">
+
+            لا يوجد مستخدمون
+
+        </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML =
+
+        users.map(user => {
+
+            const perms =
+                (user.permissions || "")
+                    .split(",")
+                    .map(p => p.trim())
+                    .filter(Boolean);
+
+
+            const protectedAdmin =
+                isAdminRole(user.role);
+            const suggestedRole =
+                KNOWN_ROLES.includes(user.role) ? "" : suggestRoleFromJob(user.job);
+
+
+            const hasAll =
+                perms.includes("all") || protectedAdmin;
+
+
+            const checked =
+                permission =>
+                    hasAll ||
+                    perms.includes(permission);
+
+
+            return `
+
+            <div
+                class="
+                bg-[#1E293B]
+                rounded-2xl
+                border border-gray-700
+                p-4
+                space-y-4
+                shadow
+                flex flex-col justify-between h-full
+                ">
+
+
+                <!-- بيانات المستخدم -->
+
+                <div>
+
+                    <div
+                        class="font-bold text-blue-400 text-sm">
+
+                        👤 ${escapeHtml(user.name || "-")}
+
+                    </div>
+
+
+                    <div
+                        class="text-xs text-gray-300 mt-1">
+
+                        📱 ${escapeHtml(user.phone || "")}
+
+                    </div>
+
+
+                    <div
+                        class="text-xs text-gray-300">
+
+                        💼 ${escapeHtml(user.job || "")}
+
+                    </div>
+
+
+                    <div
+                        class="text-xs text-gray-300">
+
+                        🔵 ${escapeHtml(user.shift || "")}
+
+                    </div>
+
+                </div>
+
+
+                <!-- الحالة -->
+
+                <div class="text-xs">
+
+                    الحالة :
+
+                    <span class="${
+                        user.status === "active"
+                            ? "text-green-400"
+                            : user.status === "pending"
+                                ? "text-yellow-400"
+                                : "text-red-400"
+                    }">
+
+                        ${escapeHtml(user.status || "-")}
+
+                    </span>
+
+                </div>
+
+
+                <!-- الدور -->
+
+                <div>
+
+                    <label
+                        class="text-xs text-gray-400">
+
+                        الدور
+
+                    </label>
+
+
+                    <select
+                        id="role-${escapeHtml(user.id)}"
+                        class="
+                        w-full
+                        mt-1
+                        rounded-lg
+                        p-2
+                        bg-[#0F172A]
+                        border
+                        border-gray-700
+                        text-sm
+                        "
+                        ${protectedAdmin ? "disabled" : ""}>
+
+                        <option
+                            value=""
+                            ${KNOWN_ROLES.includes(user.role) || suggestedRole ? "" : "selected"}>
+                            -- اختر الدور / Select role --
+                        </option>
+                        <option
+                            value="admin"
+                            ${user.role === "admin" ? "selected" : ""}>
+
+                            Admin
+
+                        </option>
+
+                        <option
+                            value="manager"
+                            ${user.role === "manager" ? "selected" : ""}>
+
+                            Manager
+
+                        </option>
+
+                        <option
+                            value="supervisor"
+                            ${user.role === "supervisor" ? "selected" : ""}>
+
+                            Supervisor
+
+                        </option>
+
+                        <option
+                            value="engineer"
+                            ${user.role === "engineer" ? "selected" : ""}>
+
+                            Engineer
+
+                        </option>
+
+                        <option
+                            value="technician"
+                            ${(KNOWN_ROLES.includes(user.role) ? user.role : suggestedRole) === "technician" ? "selected" : ""}>
+
+                            Technician
+
+                        </option>
+
+                        <option
+                            value="operator"
+                            ${(KNOWN_ROLES.includes(user.role) ? user.role : suggestedRole) === "operator" ? "selected" : ""}>
+
+                            Operator
+
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- تصنيف قسم الماكينات (Backend / Frontend) - يحدد
+                     أي ماكينات يشوفها هذا المستخدم في شاشة "إدارة
+                     الماكينات" (راجع getMachinesForUser في machines.js).
+                     مستقل عن حقل "القسم" العام فوق (job/department) -->
+
+                <div>
+
+                    <label
+                        class="text-xs text-gray-400">
+
+                        تصنيف الماكينات (Backend / Frontend)
+
+                    </label>
+
+
+                    <select
+                        id="machineDept-${escapeHtml(user.id)}"
+                        class="
+                        w-full
+                        mt-1
+                        rounded-lg
+                        p-2
+                        bg-[#0F172A]
+                        border
+                        border-gray-700
+                        text-sm
+                        ">
+
+                        <option
+                            value=""
+                            ${!extractUserDepartment(user) ? "selected" : ""}>
+
+                            ⚠️ غير محدد / Not Specified
+
+                        </option>
+
+                        <option
+                            value="backend"
+                            ${extractUserDepartment(user) === "backend" ? "selected" : ""}>
+
+                            🛠️ Backend
+
+                        </option>
+
+                        <option
+                            value="frontend"
+                            ${extractUserDepartment(user) === "frontend" ? "selected" : ""}>
+
+                            🖥️ Frontend
+
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- الصلاحيات -->
+
+                <div>
+
+                    <div
+                        class="text-xs text-gray-400 mb-2">
+
+                        الصلاحيات
+
+                    </div>
+
+
+                    <div
+                        class="
+                        grid
+                        grid-cols-2
+                        gap-2
+                        text-xs
+                        ">
+
+                        ${PERMISSIONS.map(permission =>
+
+                            permissionCheckbox(
+                                user.id,
+                                permission.value,
+                                permission.label,
+                                checked(permission.value),
+                                protectedAdmin
+                            )
+
+                        ).join("")}
+
+
+                    </div>
+
+                </div>
+
+
+                <!-- كل الصلاحيات -->
+
+                <div>
+
+                    <label
+                        class="
+                        flex
+                        items-center
+                        gap-2
+                        bg-blue-500/10
+                        border
+                        border-blue-500/20
+                        rounded-lg
+                        p-2
+                        ">
+
+                        <input
+                            type="checkbox"
+                            class="perm-${escapeHtml(user.id)}"
+                            value="all"
+                            ${hasAll ? "checked" : ""}
+                            ${protectedAdmin ? "disabled" : ""}>
+
+                        <span
+                            class="text-xs font-bold text-blue-400">
+
+                            ⭐ كل الصلاحيات
+
+                        </span>
+
+                    </label>
+
+                </div>
+
+
+                ${
+                    protectedAdmin
+
+                    ?
+
+                    `
+
+                    <div
+                        class="
+                        text-center
+                        text-blue-400
+                        text-xs
+                        bg-blue-500/10
+                        p-2
+                        rounded-lg
+                        ">
+
+                        🔒 الحساب الرئيسي محمي
+
+                    </div>
+
+                    `
+
+                    :
+
+                    `
+
+                    <button
+                        onclick="window.saveUserPermissions('${escapeJsArg(user.id)}')"
+                        class="
+                        w-full
+                        py-3
+                        rounded-xl
+                        bg-blue-600
+                        hover:bg-blue-500
+                        transition
+                        font-bold
+                        ">
+
+                        💾 حفظ الصلاحيات
+
+                    </button>
+
+
+                    ${
+                        user.status === "pending"
+
+                        ?
+
+                        `
+
+                        <div
+                            class="grid grid-cols-2 gap-2 mt-2">
+
+                            <button
+                                onclick="window.approveUser('${escapeJsArg(user.id)}')"
+                                class="
+                                bg-green-600
+                                hover:bg-green-500
+                                transition
+                                rounded-xl
+                                py-2
+                                font-bold
+                                ">
+
+                                ✅ قبول
+
+                            </button>
+
+
+                            <button
+                                onclick="window.rejectUser('${escapeJsArg(user.id)}')"
+                                class="
+                                bg-red-600
+                                hover:bg-red-500
+                                transition
+                                rounded-xl
+                                py-2
+                                font-bold
+                                ">
+
+                                ❌ رفض
+
+                            </button>
+
+                        </div>
+
+                        `
+
+                        :
+
+                        ""
+
+                    }
+
+
+                    ${
+                        user.status === "active"
+                        && ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(user.role)
+                        && !normalizeDepartment(user.machineDepartment)
+                        ? `
+                    <div class="mt-3 p-2 rounded-xl bg-red-900/40 border border-red-500/50 text-red-200 text-xs font-bold">
+                        ⚠️ لا يوجد تصنيف ماكينات (Backend / Frontend) لهذا المستخدم - لن يستطيع الإبلاغ عن الأعطال أو مسح QR. اختره من القائمة واضغط "حفظ الصلاحيات".
+                    </div>`
+                        : ""
+                    }
+
+                    ${
+                        user.status === "active"
+                        ? `
+                    <!-- إعادة تعيين كلمة السر (الأدمن فقط) -->
+                    <div class="mt-2">
+                        <button
+                            onclick="window.resetUserPassword('${escapeJsArg(user.id)}', '${escapeJsArg(user.name || "")}')"
+                            class="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-500 transition font-bold text-sm">
+                            🔑 إعادة تعيين كلمة السر
+                        </button>
+                    </div>`
+                        : ""
+                    }
+
+                    <!-- حذف المستخدم -->
+
+                    <div class="mt-4">
+
+                        <button
+                            onclick="window.deleteUser('${escapeJsArg(user.id)}', '${escapeJsArg(user.name || "")}')"
+                            class="
+                                w-full
+                                py-2
+                                rounded-xl
+                                bg-red-700
+                                hover:bg-red-600
+                                transition
+                                font-bold
+                                text-sm
+                            "
+                        >
+
+                            🗑️ حذف المستخدم نهائيًا
+
+                        </button>
+
+                    </div>
+
+                    `
+
+                }
+
+
+            </div>
+
+            `;
+
+        }).join("");
+
+}
+
+
+// ======================================
+// البحث + الفلاتر
+// ======================================
+
+window.filterUsers = function () {
+
+    const search =
+        (
+            document
+                .getElementById("userSearch")
+                ?.value || ""
+        )
+        .toLowerCase()
+        .trim();
+
+
+    const status =
+        document
+            .getElementById("statusFilter")
+            ?.value || "";
+
+
+    const role =
+        document
+            .getElementById("roleFilter")
+            ?.value || "";
+
+
+    const filtered =
+        usersCache.filter(user => {
+
+            const matchSearch =
+
+                (user.name || "")
+                    .toLowerCase()
+                    .includes(search)
+
+                ||
+
+                (user.phone || "")
+                    .includes(search);
+
+
+            const matchStatus =
+                !status ||
+                user.status === status;
+
+
+            const matchRole =
+                !role ||
+                user.role === role;
+
+
+            return (
+                matchSearch &&
+                matchStatus &&
+                matchRole
+            );
+
+        });
+
+
+    renderUsers(filtered);
+
+};
+
+
+window.searchUsers =
+    window.filterUsers;
+
+
+// ======================================
+// حفظ الصلاحيات
+// ======================================
+
+window.saveUserPermissions =
+async function(id) {
+
+    const role =
+        document
+            .getElementById(`role-${id}`)
+            ?.value;
+
+
+    if (!role) {
+
+        alert("⚠️ لم يتم تحديد الدور");
+
+        return;
+
+    }
+
+
+    const permissions = [];
+
+
+    document
+        .querySelectorAll(`.perm-${id}:checked`)
+        .forEach(box => {
+
+            permissions.push(box.value);
+
+        });
+
+    if (isAdminRole(role)) {
+        if (!permissions.includes("all")) {
+            permissions.unshift("all");
+        }
+        ALL_PERMISSIONS.forEach(p => {
+            if (!permissions.includes(p)) permissions.push(p);
+        });
+    }
+
+
+    const machineDeptSelect =
+        document
+            .getElementById(`machineDept-${id}`);
+
+    const machineDepartment = normalizeDepartment(machineDeptSelect?.value);
+
+    const result =
+        await updatePermissionsApi(
+            id,
+            role,
+            permissions.join(",")
+        );
+
+    alert(
+        result.message ||
+        (
+            result.status === "success"
+                ? "تم حفظ الصلاحيات"
+                : "حدث خطأ"
+        )
+    );
+
+    if (result.status === "success") {
+        // تحديث تصنيف الماكينات (Backend/Frontend)
+        await updateUserMachineDepartmentApi(id, machineDepartment);
+
+        const currentUid = localStorage.getItem("userId") || "";
+        if (id === currentUid) {
+            localStorage.setItem("role", role);
+            localStorage.setItem("permissions", permissions.join(","));
+            if (machineDepartment) {
+                localStorage.setItem("machineDepartment", machineDepartment);
+            } else {
+                localStorage.removeItem("machineDepartment");
+            }
+            setCurrentRole(role);
+            setCurrentPermissions(permissions.join(","));
+            ensureUserAndMachinesLoaded(true).catch(e => console.warn("Failed to reload machines:", e));
+        }
+
+        loadUsersManagement();
+    }
+
+};
+
+
+// ======================================
+// قبول مستخدم
+// ======================================
+
+window.approveUser =
+async function(id) {
+
+    // الدور وقسم الماكينات اختيار صريح من الأدمن (بند H8/C3) - مفيش
+    // دور بيتحدد تلقائياً من الوظيفة، ومفيش قبول بدون قسم للأدوار اللي
+    // محتاجاه (وإلا المستخدم مش هيقدر يبلّغ أو يمسح QR).
+    const role =
+        document.getElementById(`role-${id}`)?.value || "";
+
+    if (!role) {
+        alert("⚠️ اختر الدور أولاً قبل القبول.");
+        return;
+    }
+
+    const machineDepartment =
+        normalizeDepartment(
+            document.getElementById(`machineDept-${id}`)?.value
+        );
+
+    if (ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(role) && !machineDepartment) {
+        alert("⚠️ حدد تصنيف الماكينات (Backend / Frontend) قبل قبول هذا الدور، وإلا لن يستطيع المستخدم الإبلاغ عن الأعطال أو مسح QR.");
+        return;
+    }
+
+    if (role === "admin" || role === "manager") {
+        const sensitiveOk = confirm(
+            `⚠️ أنت على وشك منح دور حساس (${role}) لهذا المستخدم.\n\nهل أنت متأكد؟`
+        );
+        if (!sensitiveOk) return;
+    }
+
+    const permissions = [];
+    document
+        .querySelectorAll(`.perm-${id}:checked`)
+        .forEach(box => {
+            if (box.value !== "all") permissions.push(box.value);
+        });
+
+    const result =
+        await updateUserStatusApi(
+            id,
+            "active",
+            {
+                role,
+                machineDepartment,
+                permissions: permissions.join(",")
+            }
+        );
+
+    alert(
+        result.message ||
+        "تم تحديث الحالة"
+    );
+    loadUsersManagement();
+};
+
+// ======================================
+// إعادة تعيين كلمة سر مستخدم (Admin فقط - Cloud Function)
+// ======================================
+window.resetUserPassword =
+async function(id, name) {
+
+    const newPassword =
+        prompt(`🔑 أدخل كلمة سر مؤقتة جديدة للمستخدم:\n${name || ""}\n\n(٦ أحرف على الأقل - بلّغها للمستخدم بشكل مباشر)`);
+
+    if (newPassword === null) return;
+
+    if (String(newPassword).length < 6) {
+        alert("⚠️ كلمة السر يجب ألا تقل عن ٦ أحرف.");
+        return;
+    }
+
+    try {
+        await callCloudFunction("adminResetUserPassword", { userId: id, newPassword });
+        alert("✅ تم تغيير كلمة السر وإنهاء جلسات المستخدم القديمة.");
+    } catch (error) {
+        console.error("adminResetUserPassword failed:", error);
+        alert("❌ " + (error?.message || "تعذّر تغيير كلمة السر."));
+    }
+};
+
+// ======================================
+// رفض مستخدم
+// ======================================
+
+window.rejectUser =
+async function(id) {
+
+    const result =
+        await updateUserStatusApi(
+            id,
+            "rejected"
+        );
+
+
+    alert(
+        result.message ||
+        "تم تحديث الحالة"
+    );
+
+
+    loadUsersManagement();
+
+};
+
+
+// ======================================
+// حذف مستخدم نهائيًا
+// ======================================
+
+window.deleteUser =
+async function(id, name) {
+
+    const confirmed =
+        confirm(
+            `⚠️ هل أنت متأكد من حذف المستخدم:\n\n${name}\n\nسيتم حذفه نهائيًا من النظام.`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    const result =
+        await deleteUserApi(id);
+
+    if (result.status !== "success") {
+
+        alert(
+            result.message ||
+            "❌ فشل حذف المستخدم"
+        );
+
+        return;
+    }
+
+    alert("✅ تم حذف المستخدم نهائيًا");
+
+    await loadUsersManagement();
+
+};
+
+
+// ======================================
+// تحميل جميع المستخدمين
+// ======================================
+
+export async function loadUsersManagement() {
+
+    dlog("========== LOAD USERS START ==========");
+
+    const container =
+        document.getElementById("usersContainer");
+
+    const count =
+        document.getElementById("usersCount");
+
+    dlog("Container:", container);
+    dlog("Count element:", count);
+
+    if (!container) {
+
+        // إصلاح (ضوضاء Console عند حظر صلاحية - مؤكد بالاختبار
+        // العملي لـTest 2): لما مستخدم بلا صلاحية "users"/"requests"
+        // يفتح #users أو #requests، pageRenderer.js بيعرض
+        // unauthorizedPage() (بدون أي #usersContainer فعلي)، لكن
+        // renderCore.js لسه بينادي هذه الدالة تلقائياً كل مرة
+        // (AUTO LOAD - بنفس أسلوب باقي الصفحات: tickets/kaizenBoard/
+        // system، واللي كلها بترجع بصمت لو الحاوية مش موجودة -
+        // راجع loadTicketsBoard في ticketsBoard.js مثلاً). هذه
+        // الدالة وحدها كانت الاستثناء بـ console.error، فكان يظهر
+        // خطأ في الكونسول لكل مستخدم عادي (فني/مهندس/مشغّل...) بمجرد
+        // ما يحاول - أو حتى يمر عرضاً - على هذه الصفحات المحظورة
+        // عليه، رغم إن الحماية الفعلية (UI + Firestore Rules) كانت
+        // شغالة صح من الأساس. تم توحيد السلوك مع باقي الصفحات: رجوع
+        // بصمت بدل console.error.
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="text-center py-8 text-gray-400">
+            جاري تحميل المستخدمين...
+        </div>
+    `;
+
+    try {
+
+        const result = await fetchUsers();
+
+        dlog(
+            "🔥 fetchUsers RESULT:",
+            result
+        );
+
+        dlog(
+            "🔥 result.data:",
+            result?.data
+        );
+
+        dlog(
+            "🔥 Array:",
+            Array.isArray(result?.data)
+        );
+
+        dlog(
+            "🔥 Length:",
+            Array.isArray(result?.data)
+                ? result.data.length
+                : "NOT ARRAY"
+        );
+
+
+        if (
+            !result ||
+            result.status !== "success"
+        ) {
+
+            console.error(
+                "❌ fetchUsers failed:",
+                result
+            );
+
+            container.innerHTML = `
+                <div class="text-center text-red-400 py-8">
+                    ❌ فشل تحميل المستخدمين
+                </div>
+            `;
+
+            if (count) {
+                count.innerHTML =
+                    "إجمالي المستخدمين : 0";
+            }
+
+            return;
+        }
+
+
+        // التأكد أن البيانات Array
+        const users = Array.isArray(result.data)
+            ? result.data
+            : [];
+
+
+        dlog(
+            "✅ USERS BEFORE RENDER:",
+            users
+        );
+
+
+        usersCache = users;
+
+
+        // تحديث العدد مباشرة
+        if (count) {
+
+            count.innerHTML =
+                `إجمالي المستخدمين : ${users.length}`;
+
+        }
+
+
+        // رسم المستخدمين - نستخدم filterUsers() بدل renderUsers()
+        // المباشرة عشان يحترم الفلتر الافتراضي المحدد في القالب
+        // (مثلاً "pending" في صفحة طلبات الانضمام) أو أي فلتر/بحث
+        // يكون الأدمن مختاره فعلاً في الشاشة قبل إعادة التحميل
+        if (typeof window.filterUsers === "function") {
+            window.filterUsers();
+        } else {
+            renderUsers(users);
+        }
+
+
+        dlog(
+            "========== LOAD USERS END =========="
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "❌ LOAD USERS ERROR:",
+            error
+        );
+
+        container.innerHTML = `
+            <div class="text-center text-red-400 py-8">
+                ❌ حدث خطأ أثناء تحميل المستخدمين
+                <br>
+                <span class="text-xs">
+                    ${escapeHtml(error.message || "")}
+                </span>
+            </div>
+        `;
+
+    }
+
+}
+
+
+// ======================================
+// ربط الدالة
+// ======================================
+
+window.loadUsersManagement =
+    loadUsersManagement;
+
+
+// ======================================
+// توافق مع Router القديم
+// ======================================
+
+export async function loadPendingUsers() {
+
+    return await loadUsersManagement();
+
+}
+
+
+// ======================================
+// التحميل التلقائي
+// ======================================
+// ملاحظة: كان هذا التحميل يعمل بشكل غير مشروط عند استيراد
+// الموديول (أي عند إقلاع التطبيق بالكامل، بغض النظر عن الصفحة
+// الحالية أو صلاحيات المستخدم)، مما يسبب طلب Firestore غير
+// ضروري (وربما خطأ صلاحيات) في كل مرة يُفتح فيها التطبيق.
+// تم تقييده الآن بالتأكد من وجود عنصر usersContainer فعلياً
+// في الصفحة الحالية.
+//
+// تحديث (توحيد): بعد توحيد صفحتي "users" و"requests" في نفس
+// الواجهة (UsersManagementView / RequestsView، راجع أعلى الملف)،
+// بقى العنصر "usersContainer" ينتمي شرعاً للصفحتين معاً، وبقى
+// استدعاء loadUsersManagement() هنا صحيح لأي منهما. التحميل
+// الفعلي والموثوق لكل صفحة بيحصل عبر renderCore.js (USERS AUTO
+// LOAD / REQUESTS AUTO LOAD) في كل مرة يتنقل فيها المستخدم لأي
+// من الصفحتين؛ هذا الاستدعاء هنا مرة واحدة فقط عند إقلاع
+// التطبيق وغير ضار (نفس الاستعلام ونفس الفلتر الظاهر وقتها).
+
+setTimeout(() => {
+
+    if (!document.getElementById("usersContainer")) {
+        return;
+    }
+
+    dlog("🚀 AUTO LOAD USERS");
+
+    loadUsersManagement();
+
+}, 300);

@@ -1,0 +1,742 @@
+diff -ruN orig/DEFECT-Analysis--main-main/firebase.json DEFECT-Analysis--main-main/firebase.json
+--- orig/DEFECT-Analysis--main-main/firebase.json	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/firebase.json	2026-09-08 09:15:26.883705163 +0000
+@@ -1,5 +1,8 @@
+ {
+   "firestore": {
+     "rules": "firestore.rules"
++  },
++  "functions": {
++    "source": "functions"
+   }
+ }
+diff -ruN orig/DEFECT-Analysis--main-main/firestore.rules DEFECT-Analysis--main-main/firestore.rules
+--- orig/DEFECT-Analysis--main-main/firestore.rules	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/firestore.rules	2026-09-08 09:17:04.994736900 +0000
+@@ -56,6 +56,18 @@
+       return myRole() == "manager" || myRole() == "supervisor";
+     }
+ 
++    // إصلاح (بند A1 في تقرير المراجعة - حماية "آخر Admin" على مستوى
++    // القاعدة، مش بس الواجهة): مستند المستخدم المستهدف حالياً "Admin
++    // نشط" فعلاً (قبل التعديل/الحذف - resource.data)
++    function targetIsActiveAdmin() {
++      return resource.data.role == "admin" && resource.data.status == "active";
++    }
++
++    // هل المستند هيفضل "Admin نشط" بعد التعديل المطلوب (request.resource.data)
++    function staysActiveAdmin() {
++      return request.resource.data.role == "admin" && request.resource.data.status == "active";
++    }
++
+     // حساب مفعّل (status == active) - شرط أساسي لأي عملية غير التسجيل
+     function isActive() {
+       let profile = myProfile();
+@@ -130,9 +142,25 @@
+       // بنفسه (ده كان ثغرة: كان أي مستخدم مسجّل دخول يقدر يرقّي
+       // نفسه لـ admin بسطر واحد في الكونسول). تغيير الدور/الحالة/
+       // الصلاحيات مقصور على الأدمن فقط.
++      //
++      // إصلاح (بند A1 في تقرير المراجعة): حتى الأدمن نفسه مينفعش
++      // يغيّر مستند "Admin نشط" (سواء نفسه أو أدمن تاني) بحيث يخرجه
++      // من هذه الحالة (role != "admin" أو status != "active") عبر
++      // updateDoc() من كود العميل مباشرة - Security Rules مينفعش
++      // تعمل "عد" حقيقي لباقي الأدمنز النشطين (لا يوجد Query
++      // بـ count داخل Rules)، فالتحويل الحرج ده بالذات لازم يمر عبر
++      // Cloud Function (updateUserRoleAccount - راجع
++      // functions/index.js) اللي بتستخدم Firebase Admin SDK (بيتجاوز
++      // Security Rules) وبتعمل الفحص الحقيقي (فعلاً فيه أدمن نشط
++      // تاني ولا لأ) على السيرفر قبل التنفيذ. باقي التعديلات (تبديل
++      // الصلاحيات مع بقاء الدور "admin"، أو تعديل أي مستخدم مش Admin
++      // نشط أصلاً) لسه مسموحة مباشرة زي ما هي.
+       allow update: if isSignedIn()
+                     && (
+-                      myRole() == "admin"
++                      (
++                        myRole() == "admin"
++                        && !(targetIsActiveAdmin() && !staysActiveAdmin())
++                      )
+                       || (
+                         request.auth.uid == userId
+                         && request.resource.data.role == resource.data.role
+@@ -141,7 +169,20 @@
+                       )
+                     );
+ 
+-      allow delete: if myRole() == "admin";
++      // إصلاح (بند A1 + B3 في تقرير المراجعة): حذف مستند مستخدم من
++      // كود العميل مباشرة (deleteDoc()) ممنوع تماماً دلوقتي، لسببين
++      // مرتبطين:
++      //  ١) لو المستند "Admin نشط" - نفس مشكلة التعديل فوق (مفيش
++      //     "عد" حقيقي متاح جوه Rules لباقي الأدمنز).
++      //  ٢) حتى لو مش Admin - حذف المستند من كود العميل بس بيسيب
++      //     حساب Firebase Authentication الخاص به شغّال (يتيم) بلا
++      //     أي مستند بيانات - نفس المشكلة الأصلية في بند B3.
++      // الحذف الفعلي (لأي مستخدم) بقى بيمر حصرياً عبر Cloud Function
++      // (deleteUserAccount - راجع functions/index.js وusersApi.js)
++      // اللي بتحذف حساب Auth + مستند Firestore معاً، وبتعمل فحص
++      // "آخر Admin" الحقيقي على السيرفر - وبتشتغل عادي رغم "false"
++      // هنا لأن Firebase Admin SDK بيتجاوز Security Rules أصلاً.
++      allow delete: if false;
+     }
+ 
+     // ==========================================================
+diff -ruN orig/DEFECT-Analysis--main-main/functions/README.md DEFECT-Analysis--main-main/functions/README.md
+--- orig/DEFECT-Analysis--main-main/functions/README.md	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/functions/README.md	2026-09-08 16:30:56.332417637 +0000
+@@ -1,9 +1,15 @@
+-# functions/ — كود مرجعي غير مُفعّل بعد (بند B3 في تقرير المراجعة)
++# functions/ — الكود متصل بالواجهة، لسه محتاج نشر فعلي (Phase 3)
+ 
+-⚠️ **هذا المجلد لسه مش متصل بالمشروع فعلياً.** لا `firebase.json`
+-ولا `js/services/usersApi.js` بينادوا عليه دلوقتي. الهدف منه إنه
+-يكون جاهز لما تقرر تفعّله - قرار تفعيله مقصود يكون منفصل لأنه
+-محتاج خطوة بنية تحتية (Infra) حقيقية مش مجرد تعديل كود:
++⚠️ **الكود هنا بقى متصل فعلاً بالواجهة** (`js/services/usersApi.js`
++بينادي عليه عبر `callCloudFunction` -
++`js/providers/backend/firebaseBackendProvider.js`)، و`firebase.json`
++بقى فيه إعداد `functions` يشاور على المجلد ده. لكن **الدوال نفسها
++لسه مش منشورة فعلياً على Firebase** - النشر خطوة بنية تحتية (Infra)
++حقيقية (خطة Blaze + `firebase deploy`) لازم تتاخد بمعرفتكم يدوياً،
++مش حاجة أقدر أنفذها من هنا. لحد ما تتم، أي محاولة حذف مستخدم أو
++تغيير دور "Admin نشط" من الواجهة هترجع رسالة خطأ واضحة (بدل ما
++تتظاهر بالنجاح) - راجع `callCloudFunction` في
++`firebaseBackendProvider.js`.
+ 
+ ## ليه محتاجين الملف ده أصلاً؟
+ 
+@@ -22,9 +28,22 @@
+ 
+ ## الدوال الموجودة في هذا المجلد
+ 
+-1. **`deleteUserAccount`** — حذف حساب Firebase Auth الفعلي عند حذف
+-   مستخدم (بند B3 في تقرير المراجعة).
+-2. **`uploadImageViaImgbb`** — رفع الصور عبر ImgBB من السيرفر بدل
++1. **`deleteUserAccount`** — حذف حساب Firebase Auth الفعلي + مستند
++   Firestore معاً عند حذف مستخدم (بند B3 في تقرير المراجعة). فحص
++   "آخر Admin" + حذف المستند بيحصلوا معاً جوه Firestore Transaction
++   واحدة ذرّية (راجع التعليق فوق الدالة في `index.js`) - عشان طلبين
++   حذف متزامنين لأدمنين مختلفين ميقدروش يسيبوا النظام من غير أي
++   Admin نشط. بينادي عليها `deleteUserApi` في
++   `js/services/usersApi.js`.
++2. **`updateUserRoleAccount`** — تغيير دور مستخدم في الحالة الحرجة
++   بس: المستخدم المستهدف "Admin نشط" حالياً والدور الجديد مش
++   "admin" (بند A1 في تقرير المراجعة - حماية "آخر Admin" على مستوى
++   السيرفر، مش بس `firestore.rules`/الواجهة). نفس آلية الحماية
++   الذرّية بتاعة `deleteUserAccount` فوق (Firestore Transaction).
++   بينادي عليها `updatePermissionsApi` في نفس الملف، وبس في هذه
++   الحالة تحديداً - باقي تغييرات الدور لسه بتحصل مباشرة عبر
++   `updateDoc()`.
++3. **`uploadImageViaImgbb`** — رفع الصور عبر ImgBB من السيرفر بدل
+    كشف المفتاح في كود العميل (بند F/الأمان في تقرير المراجعة).
+    محتاجة خطوة إضافية قبل النشر: تخزين المفتاح كـ Secret (مش في أي
+    ملف بالمستودع):
+@@ -34,38 +53,51 @@
+    (هيطلب منك تلصق قيمة المفتاح الحالي من `js/config.js`، وبعد
+    التأكد إن الرفع بيشتغل عبر السيرفر تقدر تشيله من `config.js`
+    نهائياً - راجع `js/providers/README.md` لخطوات التفعيل الكاملة
+-   على مستوى العميل).
++   على مستوى العميل). هذه الدالة غير مرتبطة بإصلاحات Phase 3 (#4/#5)
++   - موجودة هنا من قبل.
+ 
+-## خطوات التفعيل (لما تكون جاهز)
++## خطوات النشر المطلوبة (يدوي - محتاج منكم)
+ 
+ 1. **الاشتراك لازم يكون على خطة Blaze** (Pay-as-you-go) - Cloud
+    Functions مش متاحة على الخطة المجانية (Spark) خالص. ده قرار
+    فوترة (Billing) لازم يتاخد بمعرفتكم، مش حاجة أقدر أنفذها.
+-2. من جذر المشروع:
++2. من جذر المشروع (`firebase.json` بقى فيه إعداد `functions` جاهز):
++   لو `functions/node_modules` مش موجودة:
+    ```
+-   firebase init functions
++   cd functions && npm install
+    ```
+-   واختار JavaScript، ولو سأل "overwrite functions/index.js؟" قول
+-   لأ (خليه ياخد الملف الموجود هنا).
+-3. `cd functions && npm install`
+-4. راجع كود `index.js` في المجلد ده - فيه فحص إضافي (Defense in
+-   Depth) إن الحساب المطلوب حذفه مش آخر Admin نشط، بنفس منطق
+-   `updatePermissionsApi`/`deleteUserApi` الحالي في الواجهة - يعني
+-   الحماية موجودة مرتين (Client + Server).
+-5. النشر:
++   (لو `firebase init functions` سألكم "overwrite functions/index.js؟"
++   قولوا لأ، خلوه ياخد الملف الموجود هنا).
++3. **نشر قواعد Firestore الجديدة كمان** (بند A1 - حماية آخر Admin -
++   `firestore.rules` اتعدّل في هذه المرحلة):
++   ```
++   firebase deploy --only firestore:rules
++   ```
++4. نشر الدوال:
+    ```
+    firebase deploy --only functions
+    ```
+-6. **الخطوة الأخيرة (لسه مش منفذة عمداً):** تعديل `deleteUserApi`
+-   في `js/services/usersApi.js` عشان تنادي هذه الـ Cloud Function
+-   (عبر `httpsCallable`) بعد نجاح حذف مستند Firestore. لو حبيت
+-   أنفذ هذا الربط بعد ما تنشر الـ Function فعلياً، قولّي وأنا
+-   أعمله - قصدت متأجلش دلوقتي عشان لو اتنفذ الربط قبل ما الـ
+-   Function تكون منشورة فعلياً، عملية حذف أي مستخدم هتفشل بالكامل.
++5. **تأكيد الـ region الفعلي**: الكود الحالي (`deleteUserAccount` و
++   `updateUserRoleAccount` في `index.js`، و`FIREBASE_FUNCTIONS_REGION`
++   في `js/config.js`) بيفترض `us-central1` (الافتراضي لو محددتوش
++   region تاني). لو غيّرتوا الـ region هنا، لازم تغيّروا
++   `FIREBASE_FUNCTIONS_REGION` في `js/config.js` بنفس القيمة (أو
++   `window.APP_CONFIG.FIREBASE_FUNCTIONS_REGION`) عشان رابط
++   الاستدعاء من المتصفح (`callCloudFunction` في
++   `firebaseBackendProvider.js`) يطابق فعلاً.
++6. بعد النشر، جربوا سيناريوهات الاختبار المذكورة في تقرير Phase 3
++   (حذف مستخدم عادي، حذف آخر Admin - المفروض يترفض، تغيير دور
++   Admin→فني مع وجود أدمن تاني، تغيير دور آخر Admin - المفروض يترفض،
++   ومحاولة `updateDoc()`/`deleteDoc()` مباشرة من Console المتصفح
++   على مستند Admin نشط - المفروض `firestore.rules` ترفضها فوراً حتى
++   لو الدوال نفسها لسه مش منشورة).
+ 
+ ## ملاحظة أمان
+ 
+-الـ Function دي بتتحقق بنفسها (على السيرفر، مش بس تتوكل على
+-الواجهة) إن اللي بينادي عليها Admin فعلاً عن طريق قراءة مستنده في
+-Firestore - نفس مبدأ "الصلاحيات بتتفحص في القاعدة/السيرفر مش في
+-الواجهة بس" المطبّق في `firestore.rules`.
++الدالتين بيتحققوا بنفسهم (على السيرفر، مش بس بيتوكلوا على الواجهة)
++إن اللي بينادي عليهم Admin نشط فعلاً عن طريق قراءة مستنده في
++Firestore مباشرة - نفس مبدأ "الصلاحيات بتتفحص في القاعدة/السيرفر
++مش في الواجهة بس" المطبّق في `firestore.rules`. Firebase Admin SDK
++(المُستخدم جوه الدوال) بيتجاوز `firestore.rules` تلقائياً، فده اللي
++بيخلي الدالتين قادرين ينفذوا الحذف/التعديل رغم إن `firestore.rules`
++بقى يمنع نفس العمليات دي من كود العميل مباشرة.
+diff -ruN orig/DEFECT-Analysis--main-main/functions/index.js DEFECT-Analysis--main-main/functions/index.js
+--- orig/DEFECT-Analysis--main-main/functions/index.js	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/functions/index.js	2026-09-08 16:30:28.091747789 +0000
+@@ -1,8 +1,25 @@
+ // ============================================================
+ // functions/index.js
+-// كود مرجعي غير مُفعّل بعد - راجع functions/README.md قبل أي نشر.
++// راجع functions/README.md قبل النشر (لسه محتاج خطوة نشر يدوية -
++// firebase deploy --only functions - على مشروع بخطة Blaze).
+ // (بند B3 في تقرير المراجعة: حذف حساب Firebase Auth الفعلي عند
+-// حذف مستخدم، بدل الاكتفاء بحذف مستند Firestore فقط).
++// حذف مستخدم، بدل الاكتفاء بحذف مستند Firestore فقط. وبند A1: نفس
++// حماية "آخر Admin" على مستوى السيرفر لتغيير الدور، مش بس الحذف).
++//
++// إصلاح Race Condition (مراجعة تانية): فحص "آخر Admin" في
++// deleteUserAccount وupdateUserRoleAccount بقى ذرّي بالكامل عبر
++// db.runTransaction() - راجع التعليق فوق كل دالة للتفاصيل. قبل
++// كده كان الفحص (query العدّ) والتنفيذ (حذف/تعديل) خطوتين منفصلتين،
++// وده كان ممكن يسمح لطلبين متزامنين (تنزيل/حذف أدمنين مختلفين في
++// نفس اللحظة) يعدّوا الفحص الاتنين مع بعض ويسيبوا النظام من غير أي
++// Admin نشط.
++//
++// الكود هنا دلوقتي متصل فعلاً بالواجهة (js/services/usersApi.js
++// بينادي عليه عبر callCloudFunction - راجع
++// js/providers/backend/firebaseBackendProvider.js)، وfirestore.rules
++// بقت تمنع تحديداً حذف/تعديل دور "Admin نشط" من كود العميل مباشرة،
++// فالمسارين دول (حذف مستخدم، تغيير دور Admin نشط) مش هيشتغلوا فعلياً
++// في الإنتاج غير بعد نشر الدوال دي - راجع خطوات النشر في README.
+ // ============================================================
+ 
+ const { onCall, HttpsError } = require("firebase-functions/v2/https");
+@@ -23,9 +40,43 @@
+  * (updatePermissionsApi / deleteUserApi) - كطبقة حماية إضافية على
+  * مستوى السيرفر، مش بديلة عنها.
+  *
++ * ============================================================
++ * إصلاح (Race Condition - حماية "آخر Admin" الذرّية):
++ * ============================================================
++ * فحص "فيه أدمن نشط تاني ولا لأ" + حذف مستند Firestore بقى جوه
++ * Firestore Transaction واحدة (db.runTransaction) بدل ٣ خطوات
++ * منفصلة (قراءة المستند -> query العدّ -> حذف). ده بيمنع سيناريو:
++ * طلبين حذف لأدمنز مختلفين (A وB، وهما آخر أدمنين نشطين) بييجوا في
++ * نفس اللحظة تقريباً - كل واحد فيهم كان ممكن يقرا "فيه أدمن نشط
++ * تاني" (شايف التاني) قبل ما أي حد يكتب، فيعدّوا الفحص الاتنين
++ * وينفّذوا الاتنين، ويفضل النظام من غير أي Admin نشط خالص.
++ *
++ * الحل بيعتمد على ضمان Firestore التلقائي: أي مستند بيتقرا جوه
++ * Transaction (بما فيه نتائج أي query - كل مستند نتيجة بيتحسب
++ * "متقروء" لوحده) لو اتغيّر من حد تاني بعد القراءة وقبل الـ commit،
++ * الـ Transaction بتفشل تلقائياً وFirestore بيعيد تنفيذها (Retry)
++ * بأحدث بيانات. في سيناريو A/B فوق: أول Transaction تعمل commit
++ * (نفترض بتاعة A) بتغيّر مستند A - وهو مستند كان جزء من الـ Query
++ * اللي قرتها Transaction B، فلما B تحاول commit، Firestore هيكتشف
++ * التعارض ويرفضه ويعيد تنفيذ B من الأول - وفي المحاولة التانية،
++ * الـ Query هترجع بيانات محدّثة (A بقى محذوف/مش نشط)، فB هتكتشف
++ * إنها فعلاً "آخر Admin نشط" وترفض العملية - بدل ما تكمل.
++ *
++ * ملحوظة مهمة: حذف حساب Firebase Auth (admin.auth().deleteUser)
++ * عملية في نظام تاني بالكامل (Firebase Authentication) ومش ممكن
++ * تنضم لنفس الـ Firestore Transaction (Firestore مايقدرش يضمن
++ * Atomicity عبر نظامين مختلفين). عشان كده الترتيب هنا متعمّد:
++ * الـ Transaction (الفحص الذرّي + حذف Firestore) بتتنفذ الأول، وبعد
++ * ما تنجح بس (يعني ضمنّا إن الحذف آمن ومش هيسيب صفر أدمن) بنحذف
++ * حساب Auth - عشان لو الفحص فشل، مفيش حاجة لا رجعة فيها (حذف حساب
++ * Auth) اتنفذت أصلاً. لو حذف Auth فشل بعد كده (نادر جداً)، بيترفع
++ * كخطأ واضح للمستخدم (مش نجاح وهمي) - والدالة idempotent (تقدر
++ * تتنادى تاني بأمان: هتتعامل مع "المستند اتحذف بالفعل" و"حساب Auth
++ * مش موجود" من غير أي خطأ).
++ *
+  * @param {{ userId: string }} data
+  */
+-exports.deleteUserAccount = onCall(async (request) => {
++exports.deleteUserAccount = onCall({ region: "us-central1" }, async (request) => {
+ 
+   const callerUid = request.auth?.uid;
+ 
+@@ -49,50 +100,184 @@
+   }
+ 
+   const targetRef = db.collection("users").doc(userId);
+-  const targetSnap = await targetRef.get();
+-  const targetData = targetSnap.exists ? targetSnap.data() : null;
+ 
+-  // حماية آخر Admin (نفس منطق usersApi.js على مستوى السيرفر)
+-  const targetIsActiveAdmin =
+-    targetData && targetData.role === "admin" && targetData.status === "active";
++  // ------------------------------------------------------------
++  // الخطوة الذرّية: فحص "آخر Admin" + حذف مستند Firestore معاً -
++  // راجع الشرح فوق
++  // ------------------------------------------------------------
++  await db.runTransaction(async (transaction) => {
++
++    const targetSnap = await transaction.get(targetRef);
++
++    if (!targetSnap.exists) {
++      // مفيش مستند من الأساس - يمكن اتحذف قبل كده (استدعاء متكرر/
++      // إعادة محاولة بعد فشل جزئي سابق في حذف حساب Auth) - نكمل
++      // عادي تحت لحذف حساب Auth لو لسه موجود
++      return;
++    }
+ 
+-  if (targetIsActiveAdmin) {
++    const targetData = targetSnap.data();
+ 
+-    const otherAdmins = await db
+-      .collection("users")
+-      .where("role", "==", "admin")
+-      .where("status", "==", "active")
+-      .get();
++    const targetIsActiveAdmin =
++      targetData.role === "admin" && targetData.status === "active";
+ 
+-    const remaining = otherAdmins.docs.filter((d) => d.id !== userId).length;
++    if (targetIsActiveAdmin) {
++
++      const othersQuery = db
++        .collection("users")
++        .where("role", "==", "admin")
++        .where("status", "==", "active");
++
++      // القراءة دي جوه الـ Transaction هي أساس الحماية من الـ Race
++      // Condition - راجع الشرح فوق
++      const othersSnap = await transaction.get(othersQuery);
++
++      const remaining = othersSnap.docs.filter((d) => d.id !== userId).length;
++
++      if (remaining === 0) {
++        throw new HttpsError(
++          "failed-precondition",
++          "لا يمكن حذف هذا المستخدم لأنه آخر Admin نشط في النظام."
++        );
++      }
+ 
+-    if (remaining === 0) {
+-      throw new HttpsError(
+-        "failed-precondition",
+-        "لا يمكن حذف هذا المستخدم لأنه آخر Admin نشط في النظام."
+-      );
+     }
+ 
+-  }
++    transaction.delete(targetRef);
++
++  });
+ 
+-  // حذف حساب Firebase Auth (لو موجود أصلاً - ممكن يكون اتحذف قبل
+-  // كده أو المستخدم لسه في النظام القديم بدون حساب Auth)
++  // مستند Firestore اتحذف بأمان (أو مكانش موجود من الأساس) بضمان
++  // ذرّي فعلي - دلوقتي بس نحذف حساب Auth (لو موجود أصلاً)
+   try {
+     await admin.auth().deleteUser(userId);
+   } catch (error) {
+     if (error.code !== "auth/user-not-found") {
+-      throw new HttpsError("internal", "فشل حذف حساب الدخول: " + error.message);
++      throw new HttpsError(
++        "internal",
++        "تم حذف بيانات المستخدم من Firestore لكن فشل حذف حساب الدخول " +
++        "(Auth): " + error.message + " - أعد المحاولة، العملية آمنة " +
++        "لإعادة التنفيذ (idempotent)."
++      );
+     }
+-    // auth/user-not-found: مفيش حساب Auth أصلاً - نكمل عادي لحذف المستند
++    // auth/user-not-found: مفيش حساب Auth أصلاً - العملية اكتملت بنجاح
++  }
++
++  return { status: "success" };
++
++});
++
++
++/**
++ * تغيير دور/صلاحيات مستخدم - نسخة سيرفرية مطلوبة تحديداً في حالة
++ * واحدة: المستخدم المستهدف "Admin نشط" (role=="admin" &&
++ * status=="active") حالياً، والتغيير المطلوب هيخرجه من هذه الحالة
++ * (دوره الجديد مش "admin"). firestore.rules (بند A1 في تقرير
++ * المراجعة) بتمنع هذا التحويل تحديداً من updateDoc() في كود العميل
++ * مباشرة - حتى لو المستخدم اللي بينادي فعلاً Admin - عشان نضمن
++ * فحص "آخر Admin نشط" الحقيقي هنا على السيرفر (نفس منطق
++ * countOtherActiveAdmins في usersApi.js) مش بس في الواجهة، ومينفعش
++ * حد يتجاوزه بمناداة updateDoc() مباشرة من DevTools.
++ *
++ * باقي حالات تغيير الدور/الصلاحيات (نفس الدور، أو مستخدم مش Admin
++ * نشط أصلاً) لسه بتحصل مباشرة من الواجهة عبر updateDoc() زي ما هي -
++ * الدالة دي مش بديلة عن updatePermissionsApi، هي مسار إضافي
++ * للحالة الحرجة دي بالذات (راجع usersApi.js).
++ *
++ * ============================================================
++ * إصلاح (Race Condition - حماية "آخر Admin" الذرّية):
++ * ============================================================
++ * نفس آلية deleteUserAccount فوق بالظبط: فحص عدد الأدمنز النشطين +
++ * تعديل المستند المستهدف بقى جوه Firestore Transaction واحدة، عشان
++ * طلبين "تنزيل Admin" لأدمنز مختلفين في نفس اللحظة (وهما آخر
++ * أدمنين نشطين) يستحيل يعدّوا الفحص الاتنين مع بعض - Firestore
++ * بيكتشف تلقائياً إن أي مستند اتقرا جوه Transaction (بما فيه نتائج
++ * الـ Query) اتغيّر من حد تاني قبل الـ commit، فبيرفض الـ commit
++ * ويعيد تنفيذ الطلب التاني بأحدث بيانات (وقتها هيلاقي إنه فعلاً آخر
++ * أدمن نشط ويترفض). عملية واحدة فقط (Firestore نفسه) هنا، فالحماية
++ * ذرّية بالكامل من غير أي تعقيد إضافي.
++ *
++ * @param {{ userId: string, role: string, permissions?: string }} data
++ */
++exports.updateUserRoleAccount = onCall({ region: "us-central1" }, async (request) => {
++
++  const callerUid = request.auth?.uid;
++
++  if (!callerUid) {
++    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+   }
+ 
+-  // حذف مستند Firestore (لو لسه موجود - ممكن يكون اتحذف قبل كده
+-  // من deleteUserApi في الواجهة، والـ Function دي جاية تكمل حذف
+-  // حساب Auth بس)
+-  if (targetSnap.exists) {
+-    await targetRef.delete();
++  const { userId, role, permissions } = request.data || {};
++
++  if (!userId || typeof userId !== "string") {
++    throw new HttpsError("invalid-argument", "معرف المستخدم غير صالح.");
++  }
++
++  if (!role || typeof role !== "string") {
++    throw new HttpsError("invalid-argument", "الدور الجديد غير صالح.");
++  }
++
++  // التحقق إن المستخدم اللي بينادي فعلاً أدمن نشط - قراءة مباشرة من
++  // Firestore على السيرفر، مش من أي بيانات جاية من العميل
++  const callerSnap = await db.collection("users").doc(callerUid).get();
++  const callerData = callerSnap.exists ? callerSnap.data() : null;
++
++  if (!callerData || callerData.role !== "admin" || callerData.status !== "active") {
++    throw new HttpsError("permission-denied", "هذه العملية مقصورة على Admin فقط.");
+   }
+ 
++  const targetRef = db.collection("users").doc(userId);
++
++  // ------------------------------------------------------------
++  // الخطوة الذرّية: فحص "آخر Admin" + تعديل المستند معاً - راجع
++  // الشرح فوق
++  // ------------------------------------------------------------
++  await db.runTransaction(async (transaction) => {
++
++    const targetSnap = await transaction.get(targetRef);
++
++    if (!targetSnap.exists) {
++      throw new HttpsError("not-found", "المستخدم غير موجود.");
++    }
++
++    const targetData = targetSnap.data();
++
++    const targetIsActiveAdmin =
++      targetData.role === "admin" && targetData.status === "active";
++
++    // حماية آخر Admin - بس في حالة إن الدور فعلاً هيتغيّر لغير admin
++    // لمستخدم Admin نشط حالياً
++    if (targetIsActiveAdmin && role !== "admin") {
++
++      const othersQuery = db
++        .collection("users")
++        .where("role", "==", "admin")
++        .where("status", "==", "active");
++
++      // القراءة دي جوه الـ Transaction هي أساس الحماية من الـ Race
++      // Condition - راجع الشرح فوق
++      const othersSnap = await transaction.get(othersQuery);
++
++      const remaining = othersSnap.docs.filter((d) => d.id !== userId).length;
++
++      if (remaining === 0) {
++        throw new HttpsError(
++          "failed-precondition",
++          "لا يمكن تغيير دور هذا المستخدم لأنه آخر Admin نشط في النظام."
++        );
++      }
++
++    }
++
++    transaction.update(targetRef, {
++      role,
++      permissions: typeof permissions === "string" ? permissions : (targetData.permissions || ""),
++      updatedAt: new Date().toISOString(),
++      updatedBy: callerData.name || "Admin"
++    });
++
++  });
++
+   return { status: "success" };
+ 
+ });
+diff -ruN orig/DEFECT-Analysis--main-main/js/config.js DEFECT-Analysis--main-main/js/config.js
+--- orig/DEFECT-Analysis--main-main/js/config.js	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/js/config.js	2026-09-08 09:15:36.811180111 +0000
+@@ -47,13 +47,26 @@
+ // ============================================================
+ 
+ export const FIREBASE_API_KEY = window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
++
++export const FIREBASE_PROJECT_ID = window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
++
++// إصلاح (بند B3 في تقرير المراجعة): region الـ Cloud Functions
++// (functions/index.js) - محتاجينه لبناء رابط استدعاء الـ callable
++// functions يدوياً (راجع callCloudFunction في
++// firebaseBackendProvider.js) من غير تحميل حزمة "firebase/functions"
++// كاملة في js/firebase.js. لو غيّرتوا الـ region في functions/index.js
++// (حالياً "us-central1" افتراضياً) لازم تغيّروا القيمة هنا كمان، أو
++// تحطوا window.APP_CONFIG.FIREBASE_FUNCTIONS_REGION.
++export const FIREBASE_FUNCTIONS_REGION =
++  window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
++
+ const firebaseConfig = {
+ 
+   apiKey: window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
+ 
+   authDomain: window.APP_CONFIG?.FIREBASE_AUTH_DOMAIN || "maintenance-defect-system.firebaseapp.com",
+ 
+-  projectId: window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system",
++  projectId: FIREBASE_PROJECT_ID,
+ 
+   storageBucket: window.APP_CONFIG?.FIREBASE_STORAGE_BUCKET || "maintenance-defect-system.firebasestorage.app",
+ 
+diff -ruN orig/DEFECT-Analysis--main-main/js/providers/backend/firebaseBackendProvider.js DEFECT-Analysis--main-main/js/providers/backend/firebaseBackendProvider.js
+--- orig/DEFECT-Analysis--main-main/js/providers/backend/firebaseBackendProvider.js	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/js/providers/backend/firebaseBackendProvider.js	2026-09-08 09:15:54.079009943 +0000
+@@ -17,6 +17,80 @@
+ // من الواجهة العامة اللي services المفروض تتعامل معاها)
+ export { db, auth } from "../../config.js";
+ 
++import {
++  auth as _auth,
++  FIREBASE_PROJECT_ID,
++  FIREBASE_FUNCTIONS_REGION
++} from "../../config.js";
++
++// ============================================================
++// استدعاء Cloud Functions من نوع onCall (functions/index.js) - بند
++// B3/A1 في تقرير المراجعة (حذف حساب Firebase Auth عند حذف مستخدم،
++// وحماية "آخر Admin" على مستوى السيرفر عند تغيير الدور).
++//
++// بنستخدم بروتوكول "onCall" الرسمي مباشرة عبر fetch() بدل تحميل
++// حزمة "firebase/functions" كاملة في js/firebase.js (اللي حالياً
++// بندل واحد جاهز فيه فقط app/auth/firestore/storage) - البروتوكول
++// موثّق وثابت: POST لرابط الدالة مع
++// Authorization: Bearer <ID Token> وBody = { data: {...} }، والرد
++// بييجي { result: ... } عند النجاح أو { error: { message, ... } }
++// عند الفشل. الأسلوب ده مايحتاجش حزمة SDK إضافية إطلاقاً - بس
++// auth.currentUser.getIdToken() (متاحة أصلاً) وfetch() العادية.
++//
++// ⚠️ الدوال دي (deleteUserAccount / updateUserRoleAccount) لازم
++// تكون منشورة فعلاً (firebase deploy --only functions) قبل ما
++// الاستدعاء هنا يشتغل - راجع functions/README.md لخطوات النشر.
++// ============================================================
++
++function cloudFunctionUrl(functionName) {
++  return `https://${FIREBASE_FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net/${functionName}`;
++}
++
++export async function callCloudFunction(functionName, data) {
++
++  if (!_auth.currentUser) {
++    throw new Error("يجب تسجيل الدخول أولاً.");
++  }
++
++  const idToken = await _auth.currentUser.getIdToken();
++
++  let response;
++  try {
++    response = await fetch(cloudFunctionUrl(functionName), {
++      method: "POST",
++      headers: {
++        "Content-Type": "application/json",
++        "Authorization": `Bearer ${idToken}`
++      },
++      body: JSON.stringify({ data: data || {} })
++    });
++  } catch (networkError) {
++    // الأرجح: الدالة (Cloud Function) لسه مش منشورة فعلاً على
++    // Firebase، أو مفيش اتصال إنترنت - راجع functions/README.md
++    throw new Error(
++      "تعذّر الوصول لخدمة السيرفر المطلوبة. تأكد من نشر Cloud Functions " +
++      `(${functionName}) على مشروع Firebase أولاً، أو من اتصال الإنترنت.`
++    );
++  }
++
++  let payload = null;
++  try {
++    payload = await response.json();
++  } catch (_parseError) {
++    // رد بدون JSON صالح - هيتعامل معاه تحت كـ فشل عام
++  }
++
++  if (!response.ok || !payload || payload.error) {
++    const message =
++      payload?.error?.message ||
++      `فشل تنفيذ العملية على السيرفر (${functionName}).`;
++    throw new Error(message);
++  }
++
++  return payload.result;
++
++}
++
+ // أدوات Firestore + Auth الخام المُستخدمة فعلياً عبر كل ملفات
+ // services/*.js حالياً (نفس الأسماء والتوقيعات القادمة من Firebase
+ // SDK بدون أي تعديل في المنطق)
+diff -ruN orig/DEFECT-Analysis--main-main/js/services/usersApi.js DEFECT-Analysis--main-main/js/services/usersApi.js
+--- orig/DEFECT-Analysis--main-main/js/services/usersApi.js	2026-09-06 09:29:00.000000000 +0000
++++ DEFECT-Analysis--main-main/js/services/usersApi.js	2026-09-08 09:16:39.738253296 +0000
+@@ -27,10 +27,10 @@
+   doc,
+   setDoc,
+   updateDoc,
+-  deleteDoc,
+   query,
+   where,
+-  limit
++  limit,
++  callCloudFunction
+ } from "../providers/backend/index.js";
+ import { isAdminRole } from "../permissions.js";
+ 
+@@ -648,11 +648,13 @@
+     // حماية آخر Admin: لو المستخدم ده حالياً "admin" نشط، ومطلوب
+     // تغيير دوره لأي دور تاني، لازم يفضل أدمن نشط واحد على الأقل
+     // غيره بعد العملية - وإلا هيتقفل النظام بالكامل بلا أي أدمن.
++    let wasActiveAdmin = false;
++
+     if (role !== "admin") {
+ 
+       const currentSnap = await getDoc(userRef);
+       const currentData = currentSnap.exists() ? currentSnap.data() : null;
+-      const wasActiveAdmin =
++      wasActiveAdmin =
+         currentData &&
+         currentData.role === "admin" &&
+         currentData.status === "active";
+@@ -674,23 +676,39 @@
+     }
+ 
+ 
+-    await updateDoc(
+-      userRef,
+-      {
++    if (wasActiveAdmin) {
+ 
+-        role,
++      // إصلاح (بند A1 في تقرير المراجعة - حماية سيرفرية حقيقية):
++      // firestore.rules بقت تمنع تحديداً تحويل "Admin نشط" لأي دور
++      // تاني عبر updateDoc() من كود العميل مباشرة (حتى لو الفحص فوق
++      // عدّى) - عشان مينفعش حد يتجاوز فحص "آخر Admin" بمناداة
++      // updateDoc() مباشرة من DevTools. الحالة دي بالذات لازم تمر
++      // عبر Cloud Function (updateUserRoleAccount) اللي بتعمل نفس
++      // الفحص تاني على السيرفر (Admin SDK بيتجاوز Security Rules)
++      // قبل التنفيذ الفعلي - راجع functions/index.js.
++      await callCloudFunction("updateUserRoleAccount", { userId, role, permissions });
+ 
+-        permissions,
++    } else {
+ 
+-        updatedAt:
+-          new Date().toISOString(),
++      await updateDoc(
++        userRef,
++        {
+ 
+-        updatedBy:
+-          localStorage.getItem("name")
+-          || "Admin"
++          role,
+ 
+-      }
+-    );
++          permissions,
++
++          updatedAt:
++            new Date().toISOString(),
++
++          updatedBy:
++            localStorage.getItem("name")
++            || "Admin"
++
++        }
++      );
++
++    }
+ 
+     invalidateUsersCache();
+ 
+@@ -991,14 +1009,18 @@
+ // DELETE USER
+ // ============================================================
+ 
+-// ⚠️ ملحوظة بعد تفعيل Firebase Authentication:
+-// الدالة دي بتحذف مستند بيانات المستخدم من Firestore فقط. حساب
+-// Firebase Auth نفسه (اللي بيسمح بتسجيل الدخول) مينفعش يتحذف من
+-// كود العميل (Client SDK) لأي مستخدم غير المستخدم المسجّل دخوله
+-// حالياً - محتاج Firebase Admin SDK من سيرفر/Cloud Function.
+-// عملياً: حذف مستند users/{uid} كافي لمنع الدخول (فحص status/role
+-// في login.js هيفشل لو المستند مش موجود)، لكن حساب Auth بيفضل
+-// موجود فعلياً حتى يتم حذفه لاحقاً عبر Admin SDK لو احتجتم ده.
++// إصلاح (بند B3 في تقرير المراجعة - حذف حساب Firebase Auth الفعلي):
++// كانت الدالة دي بتحذف مستند بيانات المستخدم من Firestore بس، وحساب
++// Firebase Auth (اللي بيسمح بتسجيل الدخول بكلمة السر) بيفضل موجود
++// فعلياً - حذف حساب Auth لمستخدم تاني مينفعش من كود العميل (Client
++// SDK) أصلاً، ده قيد من Firebase نفسه، فالعملية دلوقتي بالكامل عبر
++// Cloud Function (deleteUserAccount - راجع functions/index.js)
++// بتستخدم Firebase Admin SDK على السيرفر: بتحذف حساب Auth ومستند
++// Firestore معاً في نفس العملية، وبتتحقق بنفسها (على السيرفر) إن
++// اللي بينادي عليها Admin نشط فعلاً وإن المستهدف مش آخر Admin نشط -
++// دفاع إضافي فوق فحص العميل تحت وفوق firestore.rules (اللي بقت
++// كمان تمنع حذف "Admin نشط" مباشرة عبر deleteDoc() من كود العميل،
++// لمنع أي تجاوز يسيب حساب Auth يتيم زي المشكلة الأصلية).
+ export async function deleteUserApi(userId) {
+ 
+   try {
+@@ -1043,7 +1065,11 @@
+ 
+     }
+ 
+-    await deleteDoc(userRef);
++    // حذف حقيقي (Auth + Firestore معاً) عبر Cloud Function - راجع
++    // الملحوظة فوق. لو الدالة مش منشورة بعد على Firebase، هترجع
++    // خطأ واضح تحت (callCloudFunction في firebaseBackendProvider.js)
++    // بدل ما تدّعي نجاح جزئي.
++    await callCloudFunction("deleteUserAccount", { userId });
+ 
+     invalidateUsersCache();
+ 
+@@ -1051,7 +1077,7 @@
+ 
+       status: "success",
+ 
+-      message: "تم حذف المستخدم نهائيًا"
++      message: "تم حذف المستخدم نهائيًا (الحساب والبيانات)"
+ 
+     };
+ 
