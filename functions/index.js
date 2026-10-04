@@ -487,59 +487,6 @@ exports.migrateLegacyAccount = onCall({ region: "us-central1" }, async (request)
 
 
 /**
- * إعادة تعيين كلمة سر مستخدم بواسطة Admin نشط.
- * السبب: تسجيل الدخول برقم الموبايل بيستخدم إيميل داخلي غير قابل
- * للاستلام (@maintenance-defect-system.local) فـ sendPasswordResetEmail
- * مستحيل يوصل - مفيش مسار استعادة تاني غير ده. الأدمن بيحدد كلمة سر مؤقتة
- * وبيبلغها للمستخدم، وبنلغي كل جلساته القديمة.
- *
- * @param {{ userId: string, newPassword: string }} data
- */
-exports.adminResetUserPassword = onCall({ region: "us-central1" }, async (request) => {
-
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
-  }
-
-  const { userId, newPassword } = request.data || {};
-
-  if (!userId || typeof userId !== "string" || userId.length > 128) {
-    throw new HttpsError("invalid-argument", "معرف المستخدم غير صالح.");
-  }
-  if (typeof newPassword !== "string" || newPassword.length < 6 || newPassword.length > 128) {
-    throw new HttpsError("invalid-argument", "كلمة السر يجب أن تكون بين ٦ و١٢٨ حرفًا.");
-  }
-
-  const callerSnap = await db.collection("users").doc(callerUid).get();
-  const callerData = callerSnap.exists ? callerSnap.data() : null;
-  if (!callerData || callerData.role !== "admin" || callerData.status !== "active") {
-    throw new HttpsError("permission-denied", "هذه العملية مقصورة على Admin فقط.");
-  }
-
-  const targetSnap = await db.collection("users").doc(userId).get();
-  if (!targetSnap.exists) {
-    throw new HttpsError("not-found", "المستخدم غير موجود.");
-  }
-
-  try {
-    await admin.auth().updateUser(userId, { password: newPassword });
-    await admin.auth().revokeRefreshTokens(userId);
-  } catch (error) {
-    if (error.code === "auth/user-not-found") {
-      throw new HttpsError(
-        "failed-precondition",
-        "هذا الحساب لم يُرحَّل بعد من النظام القديم؛ يجب أن يسجّل دخوله مرة بكلمة سره القديمة أولاً."
-      );
-    }
-    console.error("adminResetUserPassword error:", error);
-    throw new HttpsError("internal", "تعذّر تغيير كلمة السر، حاول مرة أخرى.");
-  }
-
-  return { status: "success" };
-});
-
-/**
  * تنظيف بيانات الاعتماد القديمة (password/passwordHash/salt) من مستندات
  * المستخدمين اللي اترحّلوا فعلاً قبل هذا التحديث (المستند القديم كان بيفضل
  * موجود بأسراره بعد الترحيل - راجع login.js القديم). Admin نشط فقط.
