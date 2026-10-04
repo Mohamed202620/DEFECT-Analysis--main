@@ -260,20 +260,30 @@ export async function login(phone, pass) {
 }
 
 /**
- * استعادة كلمة السر (بند H1).
- * الدخول برقم الموبايل بيستخدم إيميل داخلي (@maintenance-defect-system.local)
- * غير قابل للاستلام، فإرسال رابط استعادة بالبريد مستحيل (وكانت الواجهة
- * بتعرض "تم إرسال الرابط" كذباً). المسار الفعلي الوحيد: الأدمن بيعيّن
- * كلمة سر مؤقتة من شاشة الطلبات/المستخدمين (Cloud Function
- * adminResetUserPassword). هنا بنرجّع نتيجة صريحة بدل نجاح وهمي.
+ * استعادة كلمة السر - المستخدم نفسه (خصوصية: الأدمن لا يعرف ولا يعيّن كلمات السر).
+ * التحقق برقم الهاتف + كود الموظف المسجَّل وقت إنشاء الحساب، والتنفيذ على السيرفر
+ * (Worker: resetPasswordWithEmployeeCode) لأن تغيير كلمة سر حساب غير مسجَّل دخوله
+ * ممكن بامتيازات Admin فقط. السيرفر بيحدّ المحاولات (٥ محاولات فاشلة لكل رقم كل ٢٤ ساعة)
+ * وبيرد برسالة عامة موحّدة سواء الرقم أو الكود غلط (مايكشفش وجود الحساب).
  */
-export async function resetPassword(phone) {
+export async function resetPassword(phone, code, newPassword) {
   if (!normalizePhone(phone).ok) {
     return { success: false, message: "رقم الموبايل غير صالح." };
   }
-  return {
-    success: false,
-    adminRequired: true,
-    message: "لا يمكن إرسال رابط استعادة لهذا النوع من الحسابات. تواصل مع مسؤول النظام ليعيّن لك كلمة سر مؤقتة."
-  };
+  if (!String(code || "").trim()) {
+    return { success: false, message: "أدخل كود الموظف." };
+  }
+  if (String(newPassword || "").length < 8) {
+    return { success: false, message: "كلمة السر الجديدة يجب أن تكون ٨ أحرف على الأقل." };
+  }
+  try {
+    await callPublicCloudFunction("resetPasswordWithEmployeeCode", {
+      phone: String(phone).trim(),
+      code: String(code).trim(),
+      newPassword
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false, message: error?.message || "تعذّر تغيير كلمة السر." };
+  }
 }
