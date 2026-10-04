@@ -291,6 +291,12 @@ export async function registerUserApi(userData) {
     const cleanName = String(userData.name || "").trim();
     const cleanCode = String(userData.code || "").trim();
 
+    // كود الموظف هو "سر الاستعادة": المستخدم نفسه بيغيّر كلمة سره برقم هاتفه + الكود
+    // (مفيش أدمن بيعيّن كلمات سر). بنشترط ٣ أحرف على الأقل.
+    if (cleanCode.length < 3 || cleanCode.length > 40) {
+      return { status: "error", message: "كود الموظف يجب أن يكون بين ٣ و٤٠ حرفًا (يُستخدم لاستعادة كلمة السر)." };
+    }
+
     if (cleanName.length < 2 || cleanName.length > 80) {
       return { status: "error", message: "الاسم يجب أن يكون بين ٢ و٨٠ حرفًا." };
     }
@@ -348,6 +354,27 @@ export async function registerUserApi(userData) {
 
 
     // ========================================================
+    // كود الموظف: بيتحفظ مجزّأً (hash) على السيرفر في مجموعة مغلقة (userSecrets)،
+    // مش في مستند users: أي مستخدم نشط يقدر يقرأ مستندات الفنيين/المشرفين/الأدمن،
+    // فلو الكود هناك أي فني كان يقدر يغيّر كلمة سر الأدمن بهاتفه + كوده.
+    // لو فشل الحفظ بنلغي الحساب الجديد (مايفضلش حساب بدون وسيلة استعادة).
+    // ========================================================
+    try {
+      const newUserToken = await cred.user.getIdToken();
+      await callCloudFunction("registerEmployeeCode", { code: cleanCode }, newUserToken);
+    } catch (codeError) {
+      console.error("registerEmployeeCode failed:", codeError);
+      try { if (regAuth.currentUser) await deleteUser(regAuth.currentUser); } catch (_) { /* لا شيء */ }
+      try { await signOut(regAuth); } catch (_) { /* لا شيء */ }
+      return {
+        status: "error",
+        message: codeError?.message && /كود|الموظف/.test(codeError.message)
+          ? codeError.message
+          : "تعذّر حفظ بيانات الأمان (كود الموظف). تأكد من اتصال الإنترنت وحاول مرة أخرى."
+      };
+    }
+
+    // ========================================================
     // مستند بيانات المستخدم الإضافية - بدون أي حقل خاص بكلمة السر
     // (Firebase Auth بيتولى تخزين/تشفير كلمة السر بنفسه)
     // ========================================================
@@ -366,7 +393,6 @@ export async function registerUserApi(userData) {
         {
           name: cleanName,
           phone,
-          code: cleanCode,
           job: cleanJob,
           department: cleanDepartment,
           shift: rawShift.slice(0, 40) || "Green",
