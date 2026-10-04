@@ -1,13 +1,19 @@
 // ============================================================
 // Cloudflare Worker - بديل مجاني لـ Firebase Cloud Functions (خطة Spark)
 // ============================================================
-// بيستبدل الدوال دي بنفس بروتوكول التطبيق (POST /<اسم_الدالة> بـ {data:{...}}
-// ويرجع {result:{...}} أو {error:{message,status}}):
+// بروتوكول التطبيق: POST /<اسم_الدالة> بـ {data:{...}} ويرجع {result:{...}} أو {error:{message,status}}
+//
+// دوال بتتطلب تسجيل دخول (Authorization: Bearer <Firebase ID token>):
 //   - uploadImageViaImgbb      رفع صورة لـ ImgBB (المفتاح سر هنا فقط)
-//   - adminResetUserPassword   الأدمن يعيّن كلمة سر مؤقتة لمستخدم
-//   - deleteUserAccount        حذف حساب Auth + مستند المستخدم (Admin فقط)
-//   - updateUserRoleAccount    تغيير دور (مطلوب لتنزيل Admin نشط) بحماية "آخر Admin"
-// migrateLegacyAccount (ترحيل الحسابات القديمة) غير مدعومة هنا عمداً.
+//   - registerEmployeeCode     تسجيل كود الموظف مجزّأً (hash) وقت إنشاء الحساب (مرة واحدة لكل حساب)
+//   - migrateEmployeeCodes     (Admin) نقل أكواد الموظفين القديمة من users إلى مجموعة مغلقة
+//   - deleteUserAccount        (Admin) حذف حساب Auth + مستند المستخدم
+//   - updateUserRoleAccount    (Admin) تغيير دور، بحماية "آخر Admin"
+// دالة عامة (بدون تسجيل دخول):
+//   - resetPasswordWithEmployeeCode  المستخدم نفسه يغيّر كلمة سره برقم هاتفه + كود الموظف
+//
+// خصوصية: لا يوجد مسار يعيّن فيه الأدمن كلمة سر لمستخدم. كود الموظف لا يُخزَّن في مستند
+// users (مقروء لمستخدمين آخرين)؛ بيتخزن هاش في userSecrets/{uid} وده مقفول على العملاء بالكامل.
 //
 // Secrets / Variables المطلوبة (Settings -> Variables and Secrets):
 //   SERVICE_ACCOUNT_JSON  (Secret)  محتوى ملف مفتاح حساب الخدمة كاملاً
@@ -30,6 +36,49 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 class HttpError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
+
+const AUTH_EMAIL_DOMAIN = "maintenance-defect-system.local";
+
+// ---------- تطبيع الهاتف/الكود (مطابق لـ js/utils/phoneUtils.js وfunctions/legacyAuth.js) ----------
+const toAsciiDigits = (input) => String(input == null ? "" : input)
+  .replace(/[٠-٩]/g, (ch) => String("٠١٢٣٤٥٦٧٨٩".indexOf(ch)))
+  .replace(/[۰-۹]/g, (ch) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(ch)))
+  .replace(/[０-９]/g, (ch) => String(ch.charCodeAt(0) - 0xff10));
+
+export function normalizePhone(phone) {
+  let d = toAsciiDigits(phone).replace(/\D/g, "");
+  if (!d) return { ok: false, canonical: "" };
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.startsWith("20") && d.length === 12) d = "0" + d.slice(2);
+  else if (d.length === 10 && d.startsWith("1")) d = "0" + d;
+  if (d.length < 8 || d.length > 15) return { ok: false, canonical: d };
+  return { ok: true, canonical: d };
+}
+
+export function phoneVariants(phone) {
+  const out = []; const push = (v) => { if (v && !out.includes(v)) out.push(v); };
+  const raw = String(phone == null ? "" : phone).trim();
+  push(raw); push(toAsciiDigits(raw).trim());
+  const { ok, canonical } = normalizePhone(raw);
+  if (ok) {
+    push(canonical);
+    if (/^01\d{9}$/.test(canonical)) { push("20" + canonical.slice(1)); push("+20" + canonical.slice(1)); push(canonical.slice(1)); }
+  }
+  return out.slice(0, 10);
+}
+
+// كود الموظف: أرقام عربية->إنجليزية، بدون مسافات/شرطات، حروف كبيرة
+export const normalizeCode = (code) => toAsciiDigits(code).trim().toUpperCase().replace(/[\s-]+/g, "");
+
+const toHex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+const sha256Hex = async (str) => toHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str)));
+const hashCode = (code, saltHex) => sha256Hex(`${saltHex}:${code}`);
+const randomHex = (bytes) => toHex(crypto.getRandomValues(new Uint8Array(bytes)));
+const safeEqual = (a, b) => {
+  if (a.length !== b.length) return false;
+  let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+};
 
 // ---------- base64url ----------
 const b64urlToBytes = (s) => {
@@ -177,32 +226,128 @@ async function identityToolkit(env, action, body) {
     method: "POST", headers: await authHeaders(env), body: JSON.stringify(body)
   });
   const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, message: json?.error?.message || "" };
+  return { ok: res.ok, message: json?.error?.message || "", body: json };
 }
+
+// ---------- Firestore: أدوات إضافية (commit / runQuery عام / حد المحاولات الذري) ----------
+const docName = (env, path) => `projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}`;
+
+async function fsGetFields(env, path) {
+  const res = await fetch(`${fsBase(env)}/${path}`, { headers: await authHeaders(env) });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new HttpError(500, "INTERNAL", "تعذّرت قراءة البيانات.");
+  return (await res.json()).fields || {};
+}
+
+async function fsCommit(env, writes) {
+  const res = await fetch(`${fsBase(env)}:commit`, { method: "POST", headers: await authHeaders(env), body: JSON.stringify({ writes }) });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const e = new HttpError(res.status === 409 ? 409 : 500, res.status === 409 ? "ALREADY_EXISTS" : "INTERNAL", "تعذّر حفظ البيانات.");
+    e.firestoreStatus = err?.error?.status || res.status;
+    throw e;
+  }
+  return res.json();
+}
+
+async function fsRunQuery(env, structuredQuery) {
+  const res = await fetch(`${fsBase(env)}:runQuery`, { method: "POST", headers: await authHeaders(env), body: JSON.stringify({ structuredQuery }) });
+  if (!res.ok) throw new HttpError(500, "INTERNAL", "تعذّر تنفيذ الاستعلام.");
+  return (await res.json()).filter((r) => r.document).map((r) => ({
+    id: r.document.name.split("/").pop(), fields: r.document.fields || {}
+  }));
+}
+
+const incrementWrite = (env, path, field, by) => ({
+  transform: { document: docName(env, path), fieldTransforms: [{ fieldPath: field, increment: { integerValue: String(by) } }] }
+});
+
+/**
+ * حد محاولات ذري (بدون KV): عدّاد في Firestore بيتزوّد قبل التحقق (increment transform ذري)،
+ * فمستحيل طلبات متوازية تتجاوز الحد. لو تجاوز الحد بنرجّع العدّاد (-1) عشان المحاولات
+ * المرفوضة ماتمدّدش الحظر. النافذة بتتجدد بعد windowMs.
+ */
+async function consumeBudget(env, key, limit, windowMs) {
+  const path = `resetAttempts/${key}`;
+  const now = Date.now();
+  const f = await fsGetFields(env, path);
+  const windowStart = f ? Number(f.windowStart?.integerValue || 0) : 0;
+  let start = windowStart;
+  if (!f || now - windowStart >= windowMs) {
+    start = now;
+    await fsCommit(env, [{ update: { name: docName(env, path), fields: { windowStart: { integerValue: String(now) }, n: { integerValue: "0" } } } }]);
+  }
+  const res = await fsCommit(env, [incrementWrite(env, path, "n", 1)]);
+  const n = Number(res.writeResults?.[0]?.transformResults?.[0]?.integerValue || 0);
+  if (n > limit) {
+    await fsCommit(env, [incrementWrite(env, path, "n", -1)]).catch(() => {});
+    return { ok: false, retryAfterMs: Math.max(0, start + windowMs - now) };
+  }
+  return { ok: true, path };
+}
+
+const waitText = (ms) => {
+  const h = Math.ceil(ms / 3600_000);
+  return h <= 1 ? "بعد ساعة تقريبًا" : `بعد ${h} ساعة تقريبًا`;
+};
 
 // ---------- المعالجات ----------
 const handlers = {
-  async adminResetUserPassword(data, caller, env) {
-    const { userId, newPassword } = data || {};
-    if (!userId || typeof userId !== "string" || userId.length > 128) throw new HttpError(400, "INVALID_ARGUMENT", "معرف المستخدم غير صالح.");
-    if (typeof newPassword !== "string" || newPassword.length < 6 || newPassword.length > 128) {
-      throw new HttpError(400, "INVALID_ARGUMENT", "كلمة السر يجب أن تكون بين ٦ و١٢٨ حرفًا.");
-    }
-    await requireActiveAdmin(env, caller);
-    if (!(await getUserDoc(env, userId))) throw new HttpError(404, "NOT_FOUND", "المستخدم غير موجود.");
-
-    // validSince بيلغي كل جلسات المستخدم القديمة
-    const r = await identityToolkit(env, "update", {
-      localId: userId, password: newPassword, validSince: String(Math.floor(Date.now() / 1000))
-    });
-    if (!r.ok) {
-      if (r.message.includes("USER_NOT_FOUND")) {
-        throw new HttpError(412, "FAILED_PRECONDITION", "هذا الحساب غير مسجل في نظام الدخول.");
+  // تسجيل كود الموظف مجزّأً (مرة واحدة لكل حساب). بيتنادى وقت إنشاء الحساب بتوكن الحساب الجديد.
+  async registerEmployeeCode(data, caller, env) {
+    const code = normalizeCode(data?.code);
+    if (code.length < 3 || code.length > 40) throw new HttpError(400, "INVALID_ARGUMENT", "كود الموظف يجب أن يكون بين ٣ و٤٠ حرفًا.");
+    const salt = randomHex(16);
+    try {
+      await fsCommit(env, [{
+        update: { name: docName(env, `userSecrets/${caller}`), fields: {
+          codeHash: { stringValue: await hashCode(code, salt) },
+          salt: { stringValue: salt },
+          createdAt: { stringValue: new Date().toISOString() }
+        } },
+        currentDocument: { exists: false }
+      }]);
+    } catch (e) {
+      if (e.code === "ALREADY_EXISTS" || e.firestoreStatus === "ALREADY_EXISTS" || e.firestoreStatus === "FAILED_PRECONDITION") {
+        throw new HttpError(409, "ALREADY_EXISTS", "كود الموظف مسجل بالفعل لهذا الحساب.");
       }
-      console.error("reset failed", r.message);
-      throw new HttpError(500, "INTERNAL", "تعذّر تغيير كلمة السر، حاول مرة أخرى.");
+      throw e;
     }
     return { status: "success" };
+  },
+
+  // (Admin) نقل أكواد الموظفين القديمة من مستندات users (مقروءة لمستخدمين آخرين) إلى userSecrets (مغلقة)
+  async migrateEmployeeCodes(_data, caller, env) {
+    await requireActiveAdmin(env, caller);
+    const LIMIT = 400;
+    const users = await fsRunQuery(env, {
+      from: [{ collectionId: "users" }],
+      select: { fields: [{ fieldPath: "code" }] },
+      limit: LIMIT
+    });
+    const withCode = users.filter((u) => strField(u.fields.code).trim());
+    const existing = new Set((await fsRunQuery(env, {
+      from: [{ collectionId: "userSecrets" }], select: { fields: [{ fieldPath: "__name__" }] }, limit: 1000
+    })).map((x) => x.id));
+
+    const writes = []; let created = 0;
+    for (const u of withCode) {
+      if (!existing.has(u.id)) {
+        const code = normalizeCode(strField(u.fields.code));
+        if (code.length >= 1) {
+          const salt = randomHex(16);
+          writes.push({ update: { name: docName(env, `userSecrets/${u.id}`), fields: {
+            codeHash: { stringValue: await hashCode(code, salt) }, salt: { stringValue: salt },
+            createdAt: { stringValue: new Date().toISOString() }, migrated: { booleanValue: true }
+          } }, currentDocument: { exists: false } });
+          created++;
+        }
+      }
+      // حذف حقل code من مستند المستخدم (updateMask بدون الحقل = حذفه)
+      writes.push({ update: { name: docName(env, `users/${u.id}`), fields: {} }, updateMask: { fieldPaths: ["code"] }, currentDocument: { exists: true } });
+    }
+    for (let i = 0; i < writes.length; i += 400) await fsCommit(env, writes.slice(i, i + 400));
+    return { status: "success", secretsCreated: created, codeFieldsRemoved: withCode.length, more: users.length >= LIMIT };
   },
 
   async deleteUserAccount(data, caller, env) {
@@ -267,16 +412,96 @@ async function handleUpload(request, caller, env) {
 
   const len = Number(request.headers.get("content-length") || 0);
   const type = request.headers.get("content-type") || "";
-  if (!len || len > MAX_UPLOAD_BYTES) throw new HttpError(413, "INVALID_ARGUMENT", "الصورة كبيرة جدًا.");
+  if (len > MAX_UPLOAD_BYTES) throw new HttpError(413, "INVALID_ARGUMENT", "الصورة كبيرة جدًا.");
   if (!type.toLowerCase().startsWith("multipart/form-data")) throw new HttpError(400, "INVALID_ARGUMENT", "صيغة الطلب غير صحيحة.");
   if (!env.IMGBB_API_KEY) throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (IMGBB_API_KEY).");
+  if (!request.body) throw new HttpError(400, "INVALID_ARGUMENT", "لا توجد صورة في الطلب.");
+
+  // الأفضل: تمرير التدفق كما هو (طول معروف). لو الطول غير معروف (بدون Content-Length)
+  // بنجمّع الجسم بحد أقصى 8MB بدل ما نرفض - ImgBB محتاج طول معروف للطلب.
+  let upstreamBody = request.body;
+  if (!len) {
+    const chunks = []; let total = 0;
+    const reader = request.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_UPLOAD_BYTES) { await reader.cancel(); throw new HttpError(413, "INVALID_ARGUMENT", "الصورة كبيرة جدًا."); }
+      chunks.push(value);
+    }
+    if (!total) throw new HttpError(400, "INVALID_ARGUMENT", "لا توجد صورة في الطلب.");
+    const all = new Uint8Array(total); let off = 0;
+    for (const c of chunks) { all.set(c, off); off += c.byteLength; }
+    upstreamBody = all;
+  }
 
   const res = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(env.IMGBB_API_KEY)}`, {
-    method: "POST", headers: { "Content-Type": type }, body: request.body, duplex: "half"
+    method: "POST", headers: { "Content-Type": type }, body: upstreamBody, ...(len ? { duplex: "half" } : {})
   });
   const json = await res.json().catch(() => null);
   if (!json || !json.success) throw new HttpError(502, "UNAVAILABLE", "فشل رفع الصورة.");
   return { status: "success", url: json.data.display_url || json.data.url };
+}
+
+
+// ---------- دالة عامة: المستخدم نفسه يغيّر كلمة سره برقم هاتفه + كود الموظف ----------
+const GENERIC_RESET_ERROR = "رقم الهاتف أو كود الموظف غير صحيح.";
+const PHONE_ATTEMPTS = 5;             // محاولات فاشلة لكل رقم
+const PHONE_WINDOW_MS = 24 * 3600_000; // كل 24 ساعة
+const IP_ATTEMPTS = 40;               // طلبات لكل IP
+const IP_WINDOW_MS = 3600_000;        // كل ساعة
+
+async function resetPasswordWithEmployeeCode(data, request, env) {
+  const { phone, code, newPassword } = data || {};
+  const phoneInfo = normalizePhone(phone);
+  const cleanCode = normalizeCode(code);
+  if (typeof newPassword !== "string" || newPassword.length < 8 || newPassword.length > 128) {
+    throw new HttpError(400, "INVALID_ARGUMENT", "كلمة السر الجديدة يجب أن تكون ٨ أحرف على الأقل.");
+  }
+  if (!phoneInfo.ok || cleanCode.length < 1 || cleanCode.length > 40) throw new HttpError(400, "INVALID_ARGUMENT", GENERIC_RESET_ERROR);
+
+  // 1) حد لكل IP (يحمي من تجريب أرقام كثيرة)، 2) حد لكل رقم (يحمي من تخمين الكود)
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const ipBudget = await consumeBudget(env, `ip_${await sha256Hex(ip)}`, IP_ATTEMPTS, IP_WINDOW_MS);
+  if (!ipBudget.ok) throw new HttpError(429, "RESOURCE_EXHAUSTED", `محاولات كثيرة من نفس الجهاز، حاول ${waitText(ipBudget.retryAfterMs)}.`);
+  const phoneKey = `p_${await sha256Hex(phoneInfo.canonical)}`;
+  const phoneBudget = await consumeBudget(env, phoneKey, PHONE_ATTEMPTS, PHONE_WINDOW_MS);
+  if (!phoneBudget.ok) throw new HttpError(429, "RESOURCE_EXHAUSTED", `تم تجاوز عدد المحاولات لهذا الرقم، حاول ${waitText(phoneBudget.retryAfterMs)}.`);
+
+  const candidates = await fsRunQuery(env, {
+    from: [{ collectionId: "users" }],
+    where: { fieldFilter: { field: { fieldPath: "phone" }, op: "IN", value: { arrayValue: { values: phoneVariants(phone).map((v) => ({ stringValue: v })) } } } },
+    select: { fields: [{ fieldPath: "status" }] },
+    limit: 5
+  });
+
+  const expectedEmail = `${phoneInfo.canonical}@${AUTH_EMAIL_DOMAIN}`;
+  for (const c of candidates) {
+    const status = strField(c.fields.status);
+    if (status !== "active" && status !== "pending") continue;
+    const secret = await fsGetFields(env, `userSecrets/${c.id}`);
+    if (!secret) continue;
+    const expected = strField(secret.codeHash);
+    const actual = await hashCode(cleanCode, strField(secret.salt));
+    if (!expected || !safeEqual(expected, actual)) continue;
+
+    // ربط الهوية: حساب الدخول الفعلي لازم يكون إيميله مشتقاً من نفس الرقم
+    // (بيمنع مستخدماً من تسجيل مستند users برقم شخص آخر)
+    const lookup = await identityToolkit(env, "lookup", { localId: [c.id] });
+    const accountEmail = String(lookup.body?.users?.[0]?.email || "").toLowerCase();
+    if (!lookup.ok || accountEmail !== expectedEmail) continue;
+
+    const upd = await identityToolkit(env, "update", { localId: c.id, password: newPassword, validSince: String(Math.floor(Date.now() / 1000)) });
+    if (!upd.ok) {
+      console.error("reset update failed", upd.message);
+      throw new HttpError(500, "INTERNAL", "تعذّر تغيير كلمة السر، حاول مرة أخرى.");
+    }
+    // نجاح: نصفّر عدّاد المحاولات لهذا الرقم
+    await fsCommit(env, [{ delete: docName(env, `resetAttempts/${phoneKey}`) }]).catch(() => {});
+    return { status: "success" };
+  }
+  throw new HttpError(403, "PERMISSION_DENIED", GENERIC_RESET_ERROR);
 }
 
 // ---------- CORS + التوجيه ----------
@@ -307,6 +532,12 @@ export default {
 
     try {
       if (!env.FIREBASE_PROJECT_ID) throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_PROJECT_ID).");
+
+      // دالة عامة (بدون توكن): المستخدم نسي كلمة السر فمفيش جلسة أصلاً - الحماية بحد المحاولات
+      if (path === "resetPasswordWithEmployeeCode") {
+        const body = await request.json().catch(() => ({}));
+        return json({ result: await resetPasswordWithEmployeeCode(body.data, request, env) }, 200, cors);
+      }
 
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
       const claims = await verifyIdToken(bearer, env.FIREBASE_PROJECT_ID);
