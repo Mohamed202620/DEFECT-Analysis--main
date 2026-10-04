@@ -104,8 +104,14 @@ export const LoginView = () => {
             type="tel" 
             placeholder="${t.phone}" 
             required
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-4"
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3"
           />
+          <input id="forgotCode" type="text" autocomplete="off" placeholder="${t.resetCodeLabel}" required
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
+          <input id="forgotNewPass" type="password" autocomplete="new-password" minlength="8" placeholder="${t.resetNewPassword}" required
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
+          <input id="forgotNewPass2" type="password" autocomplete="new-password" minlength="8" placeholder="${t.resetConfirmPassword}" required
+            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-4" />
           <button 
             id="forgotBtn"
             type="submit" 

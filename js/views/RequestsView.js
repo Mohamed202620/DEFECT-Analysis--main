@@ -204,6 +204,14 @@ return `
     </div>
 
 
+    <div class="flex justify-end">
+        <button
+            onclick="window.migrateEmployeeCodes()"
+            class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 transition font-bold text-xs">
+            🔐 حماية أكواد الموظفين (مرة واحدة)
+        </button>
+    </div>
+
     <!-- عدد المستخدمين -->
 
     <div
@@ -757,20 +765,6 @@ function renderUsers(users) {
                         : ""
                     }
 
-                    ${
-                        user.status === "active"
-                        ? `
-                    <!-- إعادة تعيين كلمة السر (الأدمن فقط) -->
-                    <div class="mt-2">
-                        <button
-                            onclick="window.resetUserPassword('${escapeJsArg(user.id)}', '${escapeJsArg(user.name || "")}')"
-                            class="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-500 transition font-bold text-sm">
-                            🔑 إعادة تعيين كلمة السر
-                        </button>
-                    </div>`
-                        : ""
-                    }
-
                     <!-- حذف المستخدم -->
 
                     <div class="mt-4">
@@ -1030,27 +1024,20 @@ async function(id) {
 };
 
 // ======================================
-// إعادة تعيين كلمة سر مستخدم (Admin فقط - Cloud Function)
+// حماية أكواد الموظفين (مرة واحدة - Admin فقط)
+// أكواد الموظفين القديمة كانت مخزنة في مستند المستخدم (مقروء لمستخدمين آخرين)؛ الزر
+// ده بينقلها هاش في مجموعة مغلقة ويمسحها من المستند. ضروري لتفعيل "نسيت كلمة السر"
+// للحسابات القديمة. آمن لو اتضغط أكتر من مرة.
 // ======================================
-window.resetUserPassword =
-async function(id, name) {
-
-    const newPassword =
-        prompt(`🔑 أدخل كلمة سر مؤقتة جديدة للمستخدم:\n${name || ""}\n\n(٦ أحرف على الأقل - بلّغها للمستخدم بشكل مباشر)`);
-
-    if (newPassword === null) return;
-
-    if (String(newPassword).length < 6) {
-        alert("⚠️ كلمة السر يجب ألا تقل عن ٦ أحرف.");
-        return;
-    }
-
+window.migrateEmployeeCodes =
+async function() {
+    if (!confirm("🔐 سيتم نقل أكواد الموظفين لمكان آمن وحذفها من بيانات المستخدمين (مرة واحدة). متابعة؟")) return;
     try {
-        await callCloudFunction("adminResetUserPassword", { userId: id, newPassword });
-        alert("✅ تم تغيير كلمة السر وإنهاء جلسات المستخدم القديمة.");
+        const r = await callCloudFunction("migrateEmployeeCodes", {});
+        alert(`✅ تم: ${r.codeFieldsRemoved} كود اتحمى.` + (r.more ? "\nيوجد مستخدمون إضافيون - اضغط الزر مرة أخرى." : ""));
     } catch (error) {
-        console.error("adminResetUserPassword failed:", error);
-        alert("❌ " + (error?.message || "تعذّر تغيير كلمة السر."));
+        console.error("migrateEmployeeCodes failed:", error);
+        alert("❌ " + (error?.message || "تعذّر تنفيذ العملية."));
     }
 };
 
