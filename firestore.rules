@@ -124,6 +124,16 @@ service cloud.firestore {
     // ==========================================================
     // users
     // ==========================================================
+    // مجموعات مغلقة بالكامل على العملاء - يقرأ ويكتب فيها الـ Worker فقط (حساب الخدمة بيتخطى القواعد):
+    //  - userSecrets: هاش كود الموظف (سر استعادة كلمة السر)
+    //  - resetAttempts: عدّادات محاولات استعادة كلمة السر
+    match /userSecrets/{uid} {
+      allow read, write: if false;
+    }
+    match /resetAttempts/{key} {
+      allow read, write: if false;
+    }
+
     match /users/{userId} {
 
       // إنشاء حساب جديد (registerUserApi) - تسجيل عادي فقط:
@@ -144,7 +154,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
                     && request.auth.uid == userId
                     && request.resource.data.keys().hasOnly([
-                         "name", "phone", "code", "job", "department", "shift",
+                         "name", "phone", "job", "department", "shift",
                          "shiftColor", "leaveBalance", "role", "permissions",
                          "status", "createdAt"
                        ])
@@ -153,8 +163,11 @@ service cloud.firestore {
                     && request.resource.data.name.size() <= 80
                     && request.resource.data.phone is string
                     && request.resource.data.phone.matches("^[0-9]{8,15}$")
-                    && request.resource.data.get("code", "") is string
-                    && request.resource.data.get("code", "").size() <= 40
+                    // الهاتف لازم يطابق إيميل حساب الدخول: يمنع تسجيل مستند برقم شخص آخر
+                    // (يُستخدم لاحقاً في استعادة كلمة السر بالهاتف + كود الموظف)
+                    && request.auth.token.email == request.resource.data.phone + "@maintenance-defect-system.local"
+                    // كود الموظف ممنوع في مستند users (مقروء لمستخدمين آخرين) - بيتخزن هاش على السيرفر
+                    && !("code" in request.resource.data)
                     && request.resource.data.get("job", "").size() <= 60
                     && request.resource.data.get("department", "").size() <= 60
                     && request.resource.data.get("shift", "").size() <= 40
@@ -205,7 +218,7 @@ service cloud.firestore {
                         request.auth.uid == userId
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                              "phone", "approvedBy", "approvedAt", "approvedByUid",
-                             "migratedFromId", "migratedAt", "password", "passwordHash", "salt"
+                             "migratedFromId", "migratedAt", "password", "passwordHash", "salt", "code"
                            ])
                         && request.resource.data.role == resource.data.role
                         && request.resource.data.status == resource.data.status

@@ -12,7 +12,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:all": "firebase deploy",
-    "test": "node tests/run-logic-tests.mjs && node tests/worker-tests.mjs && node --expose-internals scripts/check-imports.mjs"
+    "test": "node tests/run-logic-tests.mjs && node tests/worker-tests.mjs && node tests/integration-upload.mjs && node tests/client-reset.mjs && node --expose-internals scripts/check-imports.mjs"
   },
   "dependencies": {
     "express": "^4.21.2"
