@@ -87,13 +87,15 @@ async function fetchWithTimeout(url, options, timeoutMs = CLOUD_FUNCTION_TIMEOUT
   }
 }
 
-export async function callCloudFunction(functionName, data) {
+export async function callCloudFunction(functionName, data, explicitIdToken = null) {
 
-  if (!_auth.currentUser) {
+  // explicitIdToken: توكن حساب مش هو المسجَّل في Auth الافتراضي (مثلاً حساب
+  // لسه متعمل في جلسة التسجيل المعزولة وقت إنشاء الحساب)
+  if (!explicitIdToken && !_auth.currentUser) {
     throw new Error("يجب تسجيل الدخول أولاً.");
   }
 
-  const idToken = await _auth.currentUser.getIdToken();
+  const idToken = explicitIdToken || await _auth.currentUser.getIdToken();
 
   let response;
   try {
