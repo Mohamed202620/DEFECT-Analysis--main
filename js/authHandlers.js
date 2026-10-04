@@ -738,42 +738,42 @@ navigateTo(
 };
 
 window.doForgotPassword = async function () {
-  try {
-    const phoneInput = document.getElementById("forgotPhone");
-    const phone = phoneInput ? phoneInput.value.trim() : "";
-    if (!phone) {
-      alert("الرجاء إدخال رقم الموبايل / Please enter mobile number");
-      return;
-    }
-    
-    const btn = document.getElementById("forgotBtn");
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳...";
-    btn.disabled = true;
+  const currentLang = window.currentLang || "ar";
+  const loginT = (translations[currentLang] || translations.ar).login;
+  const val = (id) => (document.getElementById(id)?.value || "");
+  const phone = val("forgotPhone").trim();
+  const code = val("forgotCode").trim();
+  const pass1 = val("forgotNewPass");
+  const pass2 = val("forgotNewPass2");
 
-    const res = await resetPassword(phone);
-    const currentLang = window.currentLang || "ar";
-    const loginT = (translations[currentLang] || translations.ar).login;
-    if (res.adminRequired) {
-      // مفيش رابط بيتبعت فعلاً (الحساب برقم موبايل بدون بريد حقيقي) -
-      // بنوضّح المسار الحقيقي بدل رسالة نجاح وهمية (بند H1)
+  if (!phone || !code || !pass1) {
+    alert("الرجاء إدخال كل البيانات / Please fill in all fields");
+    return;
+  }
+  if (pass1 !== pass2) {
+    alert(loginT.resetMismatch);
+    return;
+  }
+
+  const btn = document.getElementById("forgotBtn");
+  if (btn) { btn.innerHTML = "⏳..."; btn.disabled = true; }
+
+  try {
+    const res = await resetPassword(phone, code, pass1);
+    if (res.success) {
       alert(loginT.resetLinkSent);
       document.getElementById('forgotPasswordModal').classList.add('hidden');
-      if (phoneInput) phoneInput.value = '';
+      ["forgotPhone", "forgotCode", "forgotNewPass", "forgotNewPass2"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
     } else {
       alert(loginT.resetError + "\n" + (res.message || ""));
     }
   } catch (error) {
-    const currentLang = window.currentLang || "ar";
-    const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
-    alert(errorMsg);
+    alert(loginT.resetError);
   } finally {
-    const btn = document.getElementById("forgotBtn");
-    if (btn) {
-      const currentLang = window.currentLang || "ar";
-      btn.innerHTML = (translations[currentLang] || translations.ar).login.sendResetLink;
-      btn.disabled = false;
-    }
+    if (btn) { btn.innerHTML = loginT.sendResetLink; btn.disabled = false; }
   }
 };
 
