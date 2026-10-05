@@ -21,6 +21,7 @@ import {
   CHECKLIST_TYPE_5S
 } from '../services/checklistApi.js';
 import { db, collection, query, where, getDocs, orderBy, limit, doc, getDoc, setDoc } from '../providers/backend/index.js';
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 let qrCodeLoadPromise = null;
 
@@ -118,7 +119,7 @@ export const MachineProfileView = () => {
   const canRun = hasPermission('maintenance') || hasPermission('qr');
   const canSeeHistory = hasFullDataAccess() || isManagerRole(getCurrentRole());
   const canPrintQr = isAdminRole(getCurrentRole());
-  const adminRights = isAdminRole(getCurrentRole());
+  const canManageChecklists = isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole()); // ITEMS-EDITOR
 
   return `
   <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl mx-auto pb-16">
@@ -128,13 +129,13 @@ export const MachineProfileView = () => {
 
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 relative">
       <div class="text-xs text-gray-400">${tr.title}</div>
-      <div class="text-xl font-black text-white">${machine}</div>
+      <div class="text-xl font-black text-white">${escapeHtml(machine)}</div>
       <div class="flex flex-wrap items-center gap-1.5 mt-1">
         <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
           ${tr.department}: ${department ? department.toUpperCase() : '-'}
         </span>
         <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
-          🏭 ${tr.line}: ${lineLabel || '-'}
+          🏭 ${tr.line}: ${escapeHtml(lineLabel || '-')}
         </span>
         <span id="machineStatusBadge" class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-gray-500/10 text-gray-300 border border-gray-500/30">
           ⏳ ${tr.loading}
@@ -156,15 +157,20 @@ export const MachineProfileView = () => {
       </button>
     </div>
 
-    ${adminRights ? `
+    ${canManageChecklists ? `
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-blue-500/30 space-y-2 mb-4">
       <div class="flex items-center justify-between">
-        <div class="text-xs font-bold text-blue-400">${tr.manageAm}</div>
-        <button onclick="window.openManageAmModal()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold text-white transition">
-          ${isEn ? 'Edit Checklist' : 'تعديل الفحص'}
-        </button>
+        <div class="text-xs font-bold text-blue-400">🛠️ ${tr.manageAm}</div>
+        <div class="flex items-center gap-1.5">
+          <button onclick="window.navigateTo('checklistBuilder')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold text-white transition active:scale-95 shadow-sm">
+            ${isEn ? 'Open Editor ✏️' : 'محرر البنود ✏️'}
+          </button>
+          <button onclick="window.openManageAmModal()" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] font-bold border border-gray-700 transition" title="${isEn ? 'Excel Import' : 'استيراد إكسيل'}">
+            📊
+          </button>
+        </div>
       </div>
-      <div class="text-[10px] text-gray-400">${isEn ? 'Customize AM checklist items for this specific machine.' : 'تخصيص بنود فحص AM لهذه الماكينة تحديداً.'}</div>
+      <div class="text-[10px] text-gray-400">${isEn ? 'Customize AM & 5S checklist items for this specific machine.' : 'تخصيص بنود فحص AM وتقييم 5S لهذه الماكينة وتعديلها مباشرة.'}</div>
     </div>
     ` : ''}
 
@@ -203,7 +209,7 @@ export const MachineProfileView = () => {
       <div id="machineQrPrintBox" class="hidden text-center pt-2">
         <canvas id="machineQrCanvas" class="mx-auto"></canvas>
         <div class="text-xs font-bold text-white mt-2">${resolved.found ? resolved.value : machine}</div>
-        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${lineLabel}</div>` : ''}
+        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${escapeHtml(lineLabel)}</div>` : ''}
         <button onclick="window.print()" class="mt-3 w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white transition">
           🖨️ ${isEn ? 'Print' : 'طباعة'}
         </button>
@@ -251,7 +257,7 @@ window.loadMachineProfileData = async function () {
         <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
       <div class="text-[11px] text-gray-400">${tr.completion}: ${rec.completionRate ?? 0}%</div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${rec.createdBy?.name || '-'}</div>
+      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
     ` : `<div class="text-xs font-bold text-gray-300">${tr.lastAm}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
   }
 
@@ -263,7 +269,7 @@ window.loadMachineProfileData = async function () {
         <span class="text-lg font-black text-emerald-400">${rec.score ?? 0}%</span>
         <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${rec.createdBy?.name || '-'}</div>
+      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
     ` : `<div class="text-xs font-bold text-gray-300">${tr.last5s}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
   }
 
@@ -281,15 +287,23 @@ window.loadMachineProfileData = async function () {
     pmRecords = allPmRecords.slice(0, 5);
 
     // Extract last overhaul if exists (assuming checklist has overhaul or notes mention it)
-    const overhaulRecord = pmRecords.find(r => (r.checklist && r.checklist.overhaul === true) || (r.notes && r.notes.toLowerCase().includes('overhaul') || r.notes.includes('عمرة')));
+    // إصلاح: (1) البحث كان محصور في آخر 5 سجلات PM فقط، فأي عمرة أقدم
+    // من كده عمرها ما كانت بتظهر - دلوقتي بنبحث في كل سجلات الماكينة
+    // (مرتبة من الأحدث). (2) الشرط القديم كان بيرمي TypeError لو
+    // r.notes مش موجودة (بسبب أولوية && / ||) فيوقف باقي تحميل الملف.
+    const overhaulRecord = allPmRecords.find(r => {
+      if (r.checklist && r.checklist.overhaul === true) return true;
+      const notesText = String(r.notes || '').toLowerCase();
+      return notesText.includes('overhaul') || notesText.includes('عمرة');
+    });
     if (overhaulRecord && overhaulBox && overhaulContent) {
       overhaulBox.classList.remove('hidden');
       overhaulContent.innerHTML = `
         <div class="flex justify-between items-center mb-1">
           <span class="font-bold text-white">${new Date(overhaulRecord.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
-          <span>${tr.by} ${overhaulRecord.reporter?.name || '-'}</span>
+          <span>${tr.by} ${escapeHtml(overhaulRecord.reporter?.name || '-')}</span>
         </div>
-        <div class="text-[10px] bg-[#0F172A] p-2 rounded-lg text-gray-300 italic border border-gray-700">${overhaulRecord.notes || '-'}</div>
+        <div class="text-[10px] bg-[#0F172A] p-2 rounded-lg text-gray-300 italic border border-gray-700">${escapeHtml(overhaulRecord.notes || '-')}</div>
       `;
     }
 
@@ -298,7 +312,7 @@ window.loadMachineProfileData = async function () {
         ? pmRecords.slice(0, 3).map(r => `
           <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between">
             <span class="font-bold text-fuchsia-300">PM</span>
-            <span>${r.reporter?.name || '-'}</span>
+            <span>${escapeHtml(r.reporter?.name || '-')}</span>
             <span class="text-gray-500">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
           </div>
         `).join('')
@@ -306,16 +320,34 @@ window.loadMachineProfileData = async function () {
     }
 
     // Fetch active tickets for status
+    // إصلاح (حالة الماكينة غير دقيقة): الحالة كانت بتتحسب من أول 15
+    // تذكرة راجعة من استعلام بدون ترتيب (limit(15) بدون orderBy) - فأي
+    // ماكينة عندها أكتر من 15 تذكرة تاريخية ممكن تظهر "تعمل" 🟢 وعليها
+    // عطل مفتوح مش ضمن الـ15. كمان حالة "reopened" (إصلاح اتّرفض) كانت
+    // مش محسوبة "نشطة". دلوقتي استعلام مخصص للحالات النشطة الأربعة.
+    const ACTIVE_STATUSES = ['pending', 'assigned', 'in_progress', 'reopened'];
     const tq = query(collection(db, 'tickets'), where('machine', '==', machine), limit(15));
     const tSnap = await getDocs(tq);
+    const recentActive = [];
     tSnap.forEach(d => {
       const data = d.data();
-      if (['pending', 'assigned', 'in_progress'].includes(data.status)) {
-        activeTickets.push(data);
-      }
+      if (ACTIVE_STATUSES.includes(data.status)) recentActive.push(data);
       recentTickets.push({ id: d.id, ...data, kind: 'Ticket' });
     });
     recentTickets.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+    try {
+      const aq = query(
+        collection(db, 'tickets'),
+        where('machine', '==', machine),
+        where('status', 'in', ACTIVE_STATUSES)
+      );
+      const aSnap = await getDocs(aq);
+      aSnap.forEach(d => activeTickets.push(d.data()));
+    } catch (activeErr) {
+      console.warn('Active tickets query failed, using recent tickets only:', activeErr);
+      activeTickets.push(...recentActive);
+    }
   } catch (err) {
     console.warn("Could not fetch tickets or PMs for machine profile:", err);
   }
@@ -382,7 +414,7 @@ window.openManageAmModal = async function() {
         <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0F172A]">
           <h3 class="font-bold text-white text-sm flex items-center gap-2">
             <span>⚙️</span>
-            ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${machine}
+            ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${escapeHtml(machine)}
           </h3>
           <button onclick="document.getElementById('manageAmModal').remove()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
             ✕

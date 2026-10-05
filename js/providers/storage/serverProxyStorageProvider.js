@@ -1,43 +1,50 @@
 // ============================================================
 // serverProxyStorageProvider.js
-// تنفيذ مرجعي غير مُفعّل بعد (بند F/الأمان في تقرير المراجعة).
+// مزود رفع الصور المُفعَّل: الرفع بيتم عبر سيرفر وسيط والمفتاح السري
+// IMGBB_API_KEY محفوظ هناك فقط - مابقاش في كود العميل نهائيًا.
 //
-// ⚠️ قبل استخدام هذا الملف لازم بالترتيب:
-//   ١) إضافة السطر الخاص بـ getFunctions/httpsCallable في
-//      src-firebase.js (تم فعلاً) ثم تشغيل: npm run build
-//      (عشان js/firebase.js الفعلي يتحدّث - الملف الحالي متبني من
-//      قبل الإضافة دي، فمن غير build السطر الجاي هيرمي خطأ).
-//   ٢) نشر functions/uploadImageViaImgbb فعلياً (راجع
-//      functions/README.md) - بما في ذلك ضبط الـ Secret:
-//      firebase functions:secrets:set IMGBB_API_KEY
-//   ٣) تفعيله كمزود نشط: في providers/storage/index.js، استبدل
-//      استيراد imgbbStorageProvider بهذا الملف. من هذه اللحظة
-//      IMGBB_API_KEY في config.js يبقى غير مُستخدم نهائياً من
-//      العميل ويُفضّل حذفه من config.js.
-//
-// طالما الخطوات دي متعملتش، السطر ده لازم يفضل كما هو (مش مفعّل)
-// - راجع providers/storage/index.js.
+// الأولوية:
+//   1) Cloudflare Worker (مجاني، بدون Blaze) لو BACKEND_WORKER_URL مضبوط:
+//      الصورة بتتبعت multipart والـ Worker بيمرّرها لـ ImgBB كما هي.
+//   2) Cloud Function uploadImageViaImgbb (خطة Blaze) كاحتياطي.
 // ============================================================
 
-import { app } from "../../config.js";
-import { getFunctions, httpsCallable } from "../../firebase.js";
+import { callCloudFunction, callWorkerUpload } from "../backend/index.js";
+import { BACKEND_WORKER_URL } from "../../config.js";
 
-const functions = getFunctions(app);
-const uploadImageCallable = httpsCallable(functions, "uploadImageViaImgbb");
+// تحويل data URL لـ Blob يدوياً (fetch(dataUrl) ممنوع بالـ CSP: connect-src بدون data:)
+function dataUrlToBlob(dataUrl) {
+  const match = /^data:(image\/[a-z0-9.+-]+);base64,(.*)$/i.exec(dataUrl);
+  if (!match) return null;
+  const bin = atob(match[2]);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: match[1] });
+}
 
 /**
- * رفع صورة Base64 عبر الـ Cloud Function الوسيطة بدل استدعاء ImgBB
- * مباشرة من المتصفح - نفس توقيع imgbbStorageProvider.uploadImage
- * بالظبط.
- * @param {string} base64
+ * @param {string} base64 Data URL (data:image/...)
  * @param {string} name
  * @returns {Promise<string|null>}
  */
 async function uploadImage(base64, name = "image") {
 
-  const result = await uploadImageCallable({ base64, name });
+  if (!base64 || typeof base64 !== "string" || !base64.startsWith("data:image")) {
+    return null;
+  }
 
-  return result?.data?.url || null;
+  if (BACKEND_WORKER_URL) {
+    const blob = dataUrlToBlob(base64);
+    if (!blob) return null;
+    const form = new FormData();
+    form.append("image", blob, `${String(name).replace(/[^\w.-]/g, "_").slice(0, 60)}.img`);
+    form.append("name", String(name).slice(0, 60));
+    const result = await callWorkerUpload("uploadImageViaImgbb", form);
+    return result?.url || null;
+  }
+
+  const result = await callCloudFunction("uploadImageViaImgbb", { base64, name });
+  return result?.url || null;
 
 }
 

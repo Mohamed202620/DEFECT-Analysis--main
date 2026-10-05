@@ -14,8 +14,10 @@
 // ============================================================
 
 import { fetchTicketsApi } from './services/api.js';
+import { getCurrentRole } from './permissions.js';
 import { translations } from './config.js';
 import { CLOSED_STATUSES, parseTicketDate } from './ticketStatusConstants.js';
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 function t() {
   const currentLang = window.currentLang || "ar";
@@ -116,7 +118,7 @@ export async function initStatsView() {
     </div>`;
   }
 
-  const result = await fetchTicketsApi();
+  const result = await fetchTicketsApi(getStatsFetchScope());
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
   // ماتتخزنش نتيجة فاشلة للإعادة - المحاولة الجاية تجلب من جديد
@@ -127,6 +129,17 @@ export async function initStatsView() {
 }
 
 // ============================================================
+// إصلاح (اتساق البيانات): الصفحة كانت بتجلب fetchTicketsApi() بدون معاملات،
+// فكانت بتعرض أرقام الشركة كلها حتى لو الدور محدود، بينما الرئيسية والتقارير
+// بتعرض نطاق المستخدم. دلوقتي نفس معاملات النطاق المستخدمة في باقي الشاشات
+function getStatsFetchScope() {
+  return {
+    role: getCurrentRole(),
+    myUid: localStorage.getItem('userId') || '',
+    myName: localStorage.getItem('name') || ''
+  };
+}
+
 // زر تحديث بيانات الداشبورد مباشرة
 // ============================================================
 
@@ -134,7 +147,7 @@ window.refreshStatsDashboard = async function () {
   const btn = el('statsRefreshBtn');
   if (btn) btn.classList.add('animate-spin');
 
-  const result = await fetchTicketsApi();
+  const result = await fetchTicketsApi(getStatsFetchScope());
   allTickets = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
   isLoaded = true;
   statsLoadedAt = result.status === 'success' ? Date.now() : 0;
@@ -289,23 +302,30 @@ function computeLineBreakdown(tickets) {
 // ============================================================
 
 export function computeMTTR(tickets) {
-  const resolvedTickets = (tickets || []).filter(item => {
+  // أوقات السيرفر (createdAtServer / resolvedAtServer) هي المرجع لما تتوفر،
+  // لأن createdAt/resolvedAt ISO مصدرها ساعة جهاز المستخدم (بند M7). التذاكر
+  // القديمة بترجع للحقول القديمة. المتوسط بيتقسم على عدد العينات الصالحة
+  // فعلاً فقط (كان بيتقسم على كل التذاكر المؤهلة حتى لو بعضها استُبعد
+  // بسبب تعارض الساعات فكان المتوسط بيطلع أقل من الحقيقي).
+  const durationsHours = [];
+
+  (tickets || []).forEach(item => {
     const status = String(item.status || '').trim().toLowerCase();
-    const created = parseTicketDate(item);
-    const updated = parseTicketDate(item.updatedAt || item);
-    return CLOSED_STATUSES.includes(status) && created && updated;
+    if (!CLOSED_STATUSES.includes(status)) return;
+
+    const created = parseTicketDate(item.createdAtServer) || parseTicketDate(item);
+    const resolved =
+      parseTicketDate(item.resolvedAtServer) ||
+      parseTicketDate(item.resolvedAt || item.updatedAt || item);
+
+    if (!created || !resolved || resolved < created) return;
+    durationsHours.push((resolved - created) / (1000 * 60 * 60));
   });
 
-  if (!resolvedTickets.length) return { avgHours: null, sampleSize: 0 };
+  if (!durationsHours.length) return { avgHours: null, sampleSize: 0 };
 
-  const totalHours = resolvedTickets.reduce((sum, item) => {
-    const created = parseTicketDate(item);
-    const updated = parseTicketDate(item.updatedAt || item);
-    if (!created || !updated || updated < created) return sum;
-    return sum + (updated - created) / (1000 * 60 * 60);
-  }, 0);
-
-  return { avgHours: totalHours / resolvedTickets.length, sampleSize: resolvedTickets.length };
+  const totalHours = durationsHours.reduce((sum, h) => sum + h, 0);
+  return { avgHours: totalHours / durationsHours.length, sampleSize: durationsHours.length };
 }
 
 // ============================================================
@@ -617,7 +637,7 @@ function renderLineBreakdown(tickets) {
     return `
       <div>
         <div class="flex items-center justify-between text-[11px] mb-1">
-          <span class="text-gray-200 font-bold">${line}</span>
+          <span class="text-gray-200 font-bold">${escapeHtml(line)}</span>
           <span class="text-indigo-400 font-mono font-bold">${count} عطل</span>
         </div>
         <div class="w-full h-2.5 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">

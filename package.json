@@ -5,13 +5,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "echo 'No build step required'",
-    "lint": "node --check server.js",
+    "build": "node scripts/build.mjs",
+    "lint": "node --check server.js && node scripts/build.mjs",
     "deploy": "firebase deploy --only hosting",
     "deploy:dev": "firebase deploy --only hosting",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:functions": "firebase deploy --only functions",
-    "deploy:all": "firebase deploy"
+    "deploy:all": "firebase deploy",
+    "test": "node tests/run-logic-tests.mjs && node tests/worker-tests.mjs && node tests/integration-upload.mjs && node tests/client-reset.mjs && node --expose-internals scripts/check-imports.mjs"
   },
   "dependencies": {
     "express": "^4.21.2"

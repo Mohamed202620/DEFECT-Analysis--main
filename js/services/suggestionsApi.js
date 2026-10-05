@@ -103,6 +103,13 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
       }
     );
 
+    // إصلاح (إشعارات): المقترح الجديد ما كانش بيبلّغ أي أدمن/مدير (بعكس
+    // البلاغات الجديدة وإعادة الإرسال بعد التعديل) - الأدمن كان لازم يفتح
+    // لوحة الكايزن بشكل دوري عشان يكتشفه. أي فشل هنا مايأثرش على نجاح الحفظ.
+    notifyAdminsOfNewSuggestion(docRef.id, restPayload).catch(err => {
+      console.error("Error notifying admins of new suggestion:", err);
+    });
+
     return {
       status: "success",
       id: docRef.id,
@@ -142,37 +149,82 @@ export const KAIZEN_FINAL_STATUSES = ["rejected", "implemented"];
  * غير ذلك (فني/مهندس/عامل) → مقترحاته هو فقط (بالاسم، زي reportedBy
  * في نظام التذاكر)
  */
-export function subscribeToSuggestionsBoardApi({ role, myName, status }, callback) {
+export function subscribeToSuggestionsBoardApi({ role, myName, myUid, status }, callback) {
   try {
     const suggestionsRef = collection(db, "suggestions");
 
-    const q =
-      (role === "admin" || role === "manager")
-        ? query(suggestionsRef)
-        : query(suggestionsRef, where("name", "==", myName || ""));
+    const emit = (itemsById) => {
+      let items = Array.from(itemsById.values());
 
-    return onSnapshot(
-      q,
-      (querySnapshot) => {
-        let items = [];
-        querySnapshot.forEach(docSnap => {
-          items.push({ id: docSnap.id, ...docSnap.data() });
-        });
-
-        // السجلات القديمة اللي اتسجلت قبل إضافة نظام الحالات
-        // تُعتبر "جديد" افتراضياً
-        if (status && status !== "all") {
-          items = items.filter(s => (s.status || "new") === status);
-        }
-
-        items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-        callback({ status: "success", data: items });
-      },
-      (error) => {
-        console.error("Error subscribing to suggestions board:", error);
-        callback({ status: "error", message: error.message });
+      // السجلات القديمة اللي اتسجلت قبل إضافة نظام الحالات
+      // تُعتبر "جديد" افتراضياً
+      if (status && status !== "all") {
+        items = items.filter(s => (s.status || "new") === status);
       }
+
+      items.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+      callback({ status: "success", data: items });
+    };
+
+    const onErr = (error) => {
+      console.error("Error subscribing to suggestions board:", error);
+      callback({ status: "error", message: error.message });
+    };
+
+    if (role === "admin" || role === "manager") {
+      return onSnapshot(
+        query(suggestionsRef),
+        (querySnapshot) => {
+          const byId = new Map();
+          querySnapshot.forEach(docSnap => byId.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+          emit(byId);
+        },
+        onErr
+      );
+    }
+
+    // إصلاح (تذكرة عالقة - Kaizen): غير الأدمن/المدير كانوا بيشوفوا
+    // مقترحاتهم هم بس (name == myName). الفني المسؤول اللي الأدمن أسند له
+    // تنفيذ مقترح "in_progress" مش صاحبه، فالمقترح ده عمره ما كان بيظهر في
+    // لوحته ولا يقدر يسجّل التنفيذ (زر implement) - والمقترح كان بيفضل
+    // قيد التنفيذ لحد ما الأدمن بنفسه يقفله. دلوقتي بنشترك كمان في
+    // المقترحات المُسندة إليه (assignedToUid) ونجمع النتيجتين
+    // (نفس أسلوب fetchSuggestionsForSearchApi و tickets board).
+    const ownItems = new Map();
+    const assignedItems = new Map();
+    const emitMerged = () => {
+      const merged = new Map(ownItems);
+      assignedItems.forEach((v, k) => merged.set(k, v));
+      emit(merged);
+    };
+
+    const unsubOwn = onSnapshot(
+      query(suggestionsRef, where("name", "==", myName || "")),
+      (querySnapshot) => {
+        ownItems.clear();
+        querySnapshot.forEach(docSnap => ownItems.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+        emitMerged();
+      },
+      onErr
     );
+
+    let unsubAssigned = null;
+    if (myUid) {
+      unsubAssigned = onSnapshot(
+        query(suggestionsRef, where("assignedToUid", "==", myUid)),
+        (querySnapshot) => {
+          assignedItems.clear();
+          querySnapshot.forEach(docSnap => assignedItems.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+          emitMerged();
+        },
+        onErr
+      );
+    }
+
+    return () => {
+      if (typeof unsubOwn === "function") unsubOwn();
+      if (typeof unsubAssigned === "function") unsubAssigned();
+    };
   } catch (error) {
     console.error("Error subscribing to suggestions board:", error);
     callback({ status: "error", message: error.message });
@@ -223,9 +275,10 @@ async function createSuggestionNotification(forUid, { type, message, suggestionI
     await addDoc(collection(db, "notifications"), {
       forUid,
       type,
-      message,
-      suggestionId,
+      message: String(message || "").slice(0, 500),
+      ...(suggestionId && { suggestionId }),
       read: false,
+      createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
     });
   } catch (error) {
@@ -260,6 +313,25 @@ async function notifyAdminsOfSuggestionResubmission(suggestionId, suggestion) {
   } catch (error) {
     console.error("Error notifying admins of suggestion resubmission:", error);
   }
+}
+
+async function notifyAdminsOfNewSuggestion(suggestionId, suggestion) {
+  const result = await fetchManagersAndAdminsApi();
+  if (result.status !== "success" || !result.data.length) return;
+
+  const myUid = localStorage.getItem("userId") || "";
+  const label = suggestion?.anonymous ? "" : (suggestion?.name ? ` من ${suggestion.name}` : "");
+  await Promise.all(
+    result.data
+      .filter(admin => admin.id && admin.id !== myUid)
+      .map(admin =>
+        createSuggestionNotification(admin.id, {
+          type: "new_suggestion",
+          message: `مقترح كايزن جديد "${suggestion?.title || ""}"${label}`,
+          suggestionId
+        })
+      )
+  );
 }
 
 async function getSuggestionSnapshot(suggestionId) {

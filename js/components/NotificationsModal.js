@@ -29,6 +29,7 @@
 // زي ما هو لمين بيستخدمه من جوه الصفحة نفسها).
 // ============================================================
 
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 import {
   fetchMyNotificationsApi,
   countUnreadNotificationsApi,
@@ -69,9 +70,9 @@ function formatDate(iso) {
 
 function notificationItemHtml(n) {
   return `
-    <div onclick="window.handleGlobalNotificationClick('${n.id}', '${n.ticketId || ""}', '${n.suggestionId || ""}')"
+    <div onclick="window.handleGlobalNotificationClick('${escapeJsArg(n.id)}', '${escapeJsArg(n.ticketId || "")}', '${escapeJsArg(n.suggestionId || "")}')"
       class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
-      <div class="text-[11px] leading-relaxed">${NOTIFICATION_ICONS[n.type] || "🔔"} ${n.message || ""}</div>
+      <div class="text-[11px] leading-relaxed">${NOTIFICATION_ICONS[n.type] || "🔔"} ${escapeHtml(n.message || "")}</div>
       <div class="text-[9px] text-gray-500 mt-1">${formatDate(n.createdAt)}</div>
     </div>
   `;

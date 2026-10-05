@@ -1,6 +1,12 @@
 import { BottomNav } from "../components/BottomNav.js";
 import { DEBUG, ALL_PERMISSIONS } from "../config.js";
 import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
+import {
+  suggestRoleFromJob,
+  ROLES_REQUIRING_MACHINE_DEPARTMENT
+} from "../services/usersApi.js";
+import { callCloudFunction } from "../providers/backend/index.js";
 
 // طباعة تشخيصية في وضع التطوير فقط - كانت بتطبع بيانات كل
 // المستخدمين (أسماء/أرقام هواتف/أدوار) في الكونسول لكل زائر
@@ -35,6 +41,8 @@ let usersCache = [];
 // ======================================
 // قائمة الصلاحيات الموحدة في التطبيق
 // ======================================
+
+const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "technician", "operator"];
 
 const PERMISSIONS = [
 
@@ -107,7 +115,7 @@ return `
             </button>
             <div>
                 <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
-                    <span>👥</span> ${title}
+                    <span>👥</span> ${escapeHtml(title)}
                 </h2>
                 <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
                     ${subtitle}
@@ -196,6 +204,14 @@ return `
     </div>
 
 
+    <div class="flex justify-end">
+        <button
+            onclick="window.migrateEmployeeCodes()"
+            class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 transition font-bold text-xs">
+            🔐 حماية أكواد الموظفين (مرة واحدة)
+        </button>
+    </div>
+
     <!-- عدد المستخدمين -->
 
     <div
@@ -271,14 +287,14 @@ function permissionCheckbox(
 
         <input
             type="checkbox"
-            class="perm-${id}"
-            value="${value}"
+            class="perm-${escapeHtml(id)}"
+            value="${escapeHtml(value)}"
             ${checked ? "checked" : ""}
             ${disabled ? "disabled" : ""}
         >
 
         <span class="text-[11px]">
-            ${label}
+            ${escapeHtml(label)}
         </span>
 
     </label>
@@ -341,6 +357,8 @@ function renderUsers(users) {
 
             const protectedAdmin =
                 isAdminRole(user.role);
+            const suggestedRole =
+                KNOWN_ROLES.includes(user.role) ? "" : suggestRoleFromJob(user.job);
 
 
             const hasAll =
@@ -374,7 +392,7 @@ function renderUsers(users) {
                     <div
                         class="font-bold text-blue-400 text-sm">
 
-                        👤 ${user.name || "-"}
+                        👤 ${escapeHtml(user.name || "-")}
 
                     </div>
 
@@ -382,7 +400,7 @@ function renderUsers(users) {
                     <div
                         class="text-xs text-gray-300 mt-1">
 
-                        📱 ${user.phone || ""}
+                        📱 ${escapeHtml(user.phone || "")}
 
                     </div>
 
@@ -390,7 +408,7 @@ function renderUsers(users) {
                     <div
                         class="text-xs text-gray-300">
 
-                        💼 ${user.job || ""}
+                        💼 ${escapeHtml(user.job || "")}
 
                     </div>
 
@@ -398,7 +416,7 @@ function renderUsers(users) {
                     <div
                         class="text-xs text-gray-300">
 
-                        🔵 ${user.shift || ""}
+                        🔵 ${escapeHtml(user.shift || "")}
 
                     </div>
 
@@ -419,7 +437,7 @@ function renderUsers(users) {
                                 : "text-red-400"
                     }">
 
-                        ${user.status || "-"}
+                        ${escapeHtml(user.status || "-")}
 
                     </span>
 
@@ -439,7 +457,7 @@ function renderUsers(users) {
 
 
                     <select
-                        id="role-${user.id}"
+                        id="role-${escapeHtml(user.id)}"
                         class="
                         w-full
                         mt-1
@@ -452,6 +470,11 @@ function renderUsers(users) {
                         "
                         ${protectedAdmin ? "disabled" : ""}>
 
+                        <option
+                            value=""
+                            ${KNOWN_ROLES.includes(user.role) || suggestedRole ? "" : "selected"}>
+                            -- اختر الدور / Select role --
+                        </option>
                         <option
                             value="admin"
                             ${user.role === "admin" ? "selected" : ""}>
@@ -486,7 +509,7 @@ function renderUsers(users) {
 
                         <option
                             value="technician"
-                            ${user.role === "technician" ? "selected" : ""}>
+                            ${(KNOWN_ROLES.includes(user.role) ? user.role : suggestedRole) === "technician" ? "selected" : ""}>
 
                             Technician
 
@@ -494,7 +517,7 @@ function renderUsers(users) {
 
                         <option
                             value="operator"
-                            ${user.role === "operator" ? "selected" : ""}>
+                            ${(KNOWN_ROLES.includes(user.role) ? user.role : suggestedRole) === "operator" ? "selected" : ""}>
 
                             Operator
 
@@ -521,7 +544,7 @@ function renderUsers(users) {
 
 
                     <select
-                        id="machineDept-${user.id}"
+                        id="machineDept-${escapeHtml(user.id)}"
                         class="
                         w-full
                         mt-1
@@ -618,7 +641,7 @@ function renderUsers(users) {
 
                         <input
                             type="checkbox"
-                            class="perm-${user.id}"
+                            class="perm-${escapeHtml(user.id)}"
                             value="all"
                             ${hasAll ? "checked" : ""}
                             ${protectedAdmin ? "disabled" : ""}>
@@ -663,7 +686,7 @@ function renderUsers(users) {
                     `
 
                     <button
-                        onclick="window.saveUserPermissions('${user.id}')"
+                        onclick="window.saveUserPermissions('${escapeJsArg(user.id)}')"
                         class="
                         w-full
                         py-3
@@ -690,7 +713,7 @@ function renderUsers(users) {
                             class="grid grid-cols-2 gap-2 mt-2">
 
                             <button
-                                onclick="window.approveUser('${user.id}')"
+                                onclick="window.approveUser('${escapeJsArg(user.id)}')"
                                 class="
                                 bg-green-600
                                 hover:bg-green-500
@@ -706,7 +729,7 @@ function renderUsers(users) {
 
 
                             <button
-                                onclick="window.rejectUser('${user.id}')"
+                                onclick="window.rejectUser('${escapeJsArg(user.id)}')"
                                 class="
                                 bg-red-600
                                 hover:bg-red-500
@@ -731,12 +754,23 @@ function renderUsers(users) {
                     }
 
 
+                    ${
+                        user.status === "active"
+                        && ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(user.role)
+                        && !normalizeDepartment(user.machineDepartment)
+                        ? `
+                    <div class="mt-3 p-2 rounded-xl bg-red-900/40 border border-red-500/50 text-red-200 text-xs font-bold">
+                        ⚠️ لا يوجد تصنيف ماكينات (Backend / Frontend) لهذا المستخدم - لن يستطيع الإبلاغ عن الأعطال أو مسح QR. اختره من القائمة واضغط "حفظ الصلاحيات".
+                    </div>`
+                        : ""
+                    }
+
                     <!-- حذف المستخدم -->
 
                     <div class="mt-4">
 
                         <button
-                            onclick="window.deleteUser('${user.id}', '${(user.name || "").replace(/'/g, "\\'")}')"
+                            onclick="window.deleteUser('${escapeJsArg(user.id)}', '${escapeJsArg(user.name || "")}')"
                             class="
                                 w-full
                                 py-2
@@ -936,23 +970,76 @@ async function(id) {
 window.approveUser =
 async function(id) {
 
+    // الدور وقسم الماكينات اختيار صريح من الأدمن (بند H8/C3) - مفيش
+    // دور بيتحدد تلقائياً من الوظيفة، ومفيش قبول بدون قسم للأدوار اللي
+    // محتاجاه (وإلا المستخدم مش هيقدر يبلّغ أو يمسح QR).
+    const role =
+        document.getElementById(`role-${id}`)?.value || "";
+
+    if (!role) {
+        alert("⚠️ اختر الدور أولاً قبل القبول.");
+        return;
+    }
+
+    const machineDepartment =
+        normalizeDepartment(
+            document.getElementById(`machineDept-${id}`)?.value
+        );
+
+    if (ROLES_REQUIRING_MACHINE_DEPARTMENT.includes(role) && !machineDepartment) {
+        alert("⚠️ حدد تصنيف الماكينات (Backend / Frontend) قبل قبول هذا الدور، وإلا لن يستطيع المستخدم الإبلاغ عن الأعطال أو مسح QR.");
+        return;
+    }
+
+    if (role === "admin" || role === "manager") {
+        const sensitiveOk = confirm(
+            `⚠️ أنت على وشك منح دور حساس (${role}) لهذا المستخدم.\n\nهل أنت متأكد؟`
+        );
+        if (!sensitiveOk) return;
+    }
+
+    const permissions = [];
+    document
+        .querySelectorAll(`.perm-${id}:checked`)
+        .forEach(box => {
+            if (box.value !== "all") permissions.push(box.value);
+        });
+
     const result =
         await updateUserStatusApi(
             id,
-            "active"
+            "active",
+            {
+                role,
+                machineDepartment,
+                permissions: permissions.join(",")
+            }
         );
-
 
     alert(
         result.message ||
         "تم تحديث الحالة"
     );
-
-
     loadUsersManagement();
-
 };
 
+// ======================================
+// حماية أكواد الموظفين (مرة واحدة - Admin فقط)
+// أكواد الموظفين القديمة كانت مخزنة في مستند المستخدم (مقروء لمستخدمين آخرين)؛ الزر
+// ده بينقلها هاش في مجموعة مغلقة ويمسحها من المستند. ضروري لتفعيل "نسيت كلمة السر"
+// للحسابات القديمة. آمن لو اتضغط أكتر من مرة.
+// ======================================
+window.migrateEmployeeCodes =
+async function() {
+    if (!confirm("🔐 سيتم نقل أكواد الموظفين لمكان آمن وحذفها من بيانات المستخدمين (مرة واحدة). متابعة؟")) return;
+    try {
+        const r = await callCloudFunction("migrateEmployeeCodes", {});
+        alert(`✅ تم: ${r.codeFieldsRemoved} كود اتحمى.` + (r.more ? "\nيوجد مستخدمون إضافيون - اضغط الزر مرة أخرى." : ""));
+    } catch (error) {
+        console.error("migrateEmployeeCodes failed:", error);
+        alert("❌ " + (error?.message || "تعذّر تنفيذ العملية."));
+    }
+};
 
 // ======================================
 // رفض مستخدم
@@ -1161,7 +1248,7 @@ export async function loadUsersManagement() {
                 ❌ حدث خطأ أثناء تحميل المستخدمين
                 <br>
                 <span class="text-xs">
-                    ${error.message || ""}
+                    ${escapeHtml(error.message || "")}
                 </span>
             </div>
         `;

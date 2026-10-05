@@ -11,16 +11,13 @@
 // ============================================================
 
 import { imgbbStorageProvider } from "./imgbbStorageProvider.js";
+import { serverProxyStorageProvider } from "./serverProxyStorageProvider.js";
 
-// ⚠️ بند F/الأمان في تقرير المراجعة: IMGBB_API_KEY لسه مكشوف في
-// كود العميل عبر imgbbStorageProvider.js. يوجد تنفيذ بديل جاهز
-// (serverProxyStorageProvider.js) بيمرّر الرفع عبر Cloud Function
-// بدل كشف المفتاح، لكنه غير مُفعّل بعد - يحتاج خطوات نشر منفصلة
-// (راجع الكومنت أعلى serverProxyStorageProvider.js وfunctions/README.md)
-// قبل ما نستبدل السطر تحت بـ:
-//   import { serverProxyStorageProvider } from "./serverProxyStorageProvider.js";
-//   export function getStorageProvider() { return serverProxyStorageProvider; }
-
+// الإنتاج: الرفع عبر Cloud Function (المفتاح سري على السيرفر).
+// التطوير المحلي فقط (server.js بيحقن IMGBB_API_KEY في window.APP_CONFIG):
+// لو المفتاح موجود فعلاً في الإعدادات المحلية بنستخدم الرفع المباشر.
 export function getStorageProvider() {
-  return imgbbStorageProvider;
+  const localDevKey =
+    typeof window !== "undefined" && window.APP_CONFIG?.IMGBB_API_KEY;
+  return localDevKey ? imgbbStorageProvider : serverProxyStorageProvider;
 }

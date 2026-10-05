@@ -77,8 +77,8 @@ async function showBrowserNotification(notification) {
     const icon = NOTIFICATION_ICONS[notification.type] || "🔔";
     await reg.showNotification(`${icon} نظام إدارة الصيانة`, {
       body: notification.message || "",
-      icon: "./assets/icons/app-icon.png",
-      badge: "./assets/icons/app-icon.png",
+      icon: "./assets/icons/icon-192.png",
+      badge: "./assets/icons/icon-192.png",
       // نفس معرّف الإشعار كـ tag - يمنع ظهور نفس الإشعار مكرر لو
       // لأي سبب وصل الـ Snapshot مرتين
       tag: notification.id,

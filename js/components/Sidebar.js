@@ -1,5 +1,7 @@
 import { translations } from '../config.js';
 import { hasPermission } from '../permissions.js';
+import { isManagerDesktopEligible } from '../managerDesktopCore.js';
+import { escapeHtml } from "../utils/escapeHtml.js"; // MGR-DESKTOP
 
 // ============================================================
 // Sidebar.js
@@ -54,7 +56,48 @@ export const Sidebar = (activeTab) => {
     return false;
   };
 
+  const isMgrDesk = typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible(); // MGR-DESKTOP
+  const overdueCount = window.dashboardData?.overdue || 0; // MGR-DESKTOP
+  const openCount = window.dashboardData?.open || 0; // MGR-DESKTOP
+  const pendingRequestsCount = window.pendingUsersCount || 0; // MGR-DESKTOP
+
   const groups = [
+    ...(isMgrDesk ? [{ // MGR-DESKTOP
+      id: 'manager',
+      title: isAr ? 'الإدارة والتحكم' : 'Management & Command',
+      items: [
+        {
+          id: 'home',
+          iconSvg: ICONS.home,
+          label: isAr ? 'لوحة القيادة التنفيذية' : 'Command Center',
+          badge: overdueCount > 0 ? `${overdueCount} SLA` : (openCount > 0 ? `${openCount}` : null),
+          badgeClass: overdueCount > 0 ? 'bg-red-500/20 text-red-400 border border-red-500/30 mgr-badge-pulse' : 'bg-amber-500/20 text-amber-400',
+          action: "window.navigateTo('home')"
+        },
+        {
+          id: 'reports',
+          iconSvg: ICONS.reports,
+          label: isAr ? 'التقارير الإدارية' : 'Executive Reports',
+          action: "window.navigateTo('reports')"
+        },
+        {
+          id: 'tickets',
+          iconSvg: ICONS.tickets,
+          label: isAr ? 'متابعة الفنيين والأعطال' : 'Technicians & Tickets',
+          badge: openCount > 0 ? `${openCount}` : null,
+          badgeClass: 'bg-blue-500/20 text-blue-400',
+          action: "window.navigateTo('tickets')"
+        },
+        {
+          id: 'requests',
+          iconSvg: ICONS.requests,
+          label: isAr ? 'المستخدمون والطلبات' : 'Users & Requests',
+          badge: pendingRequestsCount > 0 ? `${pendingRequestsCount}` : null,
+          badgeClass: 'bg-indigo-500/20 text-indigo-400',
+          action: "window.navigateTo('requests')"
+        }
+      ]
+    }] : []), // MGR-DESKTOP
     {
       id: 'ops',
       title: isAr ? 'العمليات والتشغيل' : 'Operations',
@@ -201,7 +244,7 @@ export const Sidebar = (activeTab) => {
           <div class="space-y-1">
             ${!isCollapsed ? `
               <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-80">
-                ${group.title}
+                ${escapeHtml(group.title)}
               </div>
             ` : `
               <div class="w-6 h-px mx-auto my-2 bg-slate-700/50"></div>
@@ -225,7 +268,8 @@ export const Sidebar = (activeTab) => {
                     ${item.iconSvg}
                   </span>
                   ${!isCollapsed ? `
-                    <span class="truncate flex-1 text-start">${item.label}</span>
+                    <span class="truncate flex-1 text-start">${escapeHtml(item.label)}</span>
+                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}
                 </button>
@@ -280,15 +324,22 @@ if (typeof window !== "undefined") {
   };
 
   // اختصار لوحة المفاتيح: [ أو Ctrl+B لطي وتوسيع القائمة على أجهزة الكمبيوتر
-  window.addEventListener('keydown', (e) => {
-    if (
-      (e.key === '[' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) ||
-      ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')
-    ) {
-      e.preventDefault();
-      window.toggleSidebarCollapse();
-    }
-  });
+  // إصلاح (تسريب مستمعين + سلوك خاطئ): Sidebar() بتتنادى مع كل تنقّل (renderCore.js)
+  // وكانت بتضيف مستمع keydown جديد على window في كل مرة. بعد N تنقّل كان
+  // الضغط على Ctrl+B / [ بينفّذ toggleSidebarCollapse N مرة - مع عدد زوجي
+  // الشريط الجانبي مابيتغيّرش خالص. دلوقتي بيتسجّل مرة واحدة فقط.
+  if (!window._mscancoSidebarKeyBound) {
+    window._mscancoSidebarKeyBound = true;
+    window.addEventListener('keydown', (e) => {
+      if (
+        (e.key === '[' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) ||
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b')
+      ) {
+        e.preventDefault();
+        window.toggleSidebarCollapse();
+      }
+    });
+  }
 }
 
 

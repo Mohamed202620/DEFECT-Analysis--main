@@ -6,6 +6,7 @@ import {
   fetchSuggestionsForSearchApi
 } from '../services/api.js';
 import { COMPANY_NAME_AR, COMPANY_NAME_EN, COMPANY_SHORT } from '../branding.js';
+import { parseTicketDate } from '../ticketStatusConstants.js';
 
 export const ReportsView = () => {
   const isEn = window.currentLang === 'en';
@@ -224,6 +225,15 @@ window.handleReportDateFilterChange = function () {
 // ============================================================
 // دوال الفلترة المساعدة
 // ============================================================
+function getReportRecordDate(item) {
+  // نفس قراءة التاريخ المستخدمة في باقي الشاشات (Timestamp / seconds / ISO / ms)
+  return parseTicketDate(item?.createdAt || item?.date || item?.timestamp || null);
+}
+
+// إصلاح (اتساق الفلاتر مع شاشة البحث): حدود الفترات بنفس منطق
+// maintenanceSearch.js (getDateRangeBounds) بالظبط، والسجلات بدون تاريخ
+// صالح بتُستبعد من أي فترة محددة (وتظهر فقط في "جميع السجلات") بدل ما
+// كانت بتتضمّن في كل فترة وتنفخ الأعداد
 function filterRecordsByDateRange(records, filterType, fromDate, toDate) {
   if (!filterType || filterType === 'all') return records;
 
@@ -232,71 +242,96 @@ function filterRecordsByDateRange(records, filterType, fromDate, toDate) {
   let end = null;
 
   if (filterType === 'today') {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   } else if (filterType === 'last7') {
-    start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    end = now;
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
   } else if (filterType === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-    end = now;
+    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   } else if (filterType === 'year') {
-    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
-    end = now;
+    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+    end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
   } else if (filterType === 'custom') {
     if (fromDate) start = new Date(fromDate + 'T00:00:00');
     if (toDate) end = new Date(toDate + 'T23:59:59');
+    if (!start && !end) return records;
   }
 
   return records.filter(item => {
-    const rawDate = item.createdAt || item.date || item.timestamp;
-    if (!rawDate) return true;
-    const itemDate = new Date(rawDate);
-    if (isNaN(itemDate.getTime())) return true;
+    const itemDate = getReportRecordDate(item);
+    if (!itemDate) return false;
     if (start && itemDate < start) return false;
     if (end && itemDate > end) return false;
     return true;
   });
 }
 
-function formatReportDate(iso) {
+// ترتيب الأحدث أولاً (نفس ترتيب الشاشات) - getDocs بدون orderBy بيرجّع
+// السجلات بترتيب معرّف المستند العشوائي، فكان الإكسيل بيطلع بترتيب غير زمني
+function sortRecordsNewestFirst(records) {
+  return [...records].sort((a, b) => {
+    const da = getReportRecordDate(a);
+    const db = getReportRecordDate(b);
+    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+  });
+}
+
+// إصلاح (إخفاء الأخطاء): نتيجة الجلب الفاشلة (status === 'error') كانت
+// بتتعامل كأنها "لا توجد سجلات" (res.data || [])، وفي التقرير الشامل كانت
+// تطلع ورقة فاضية بدون أي تنبيه. دلوقتي الفشل بيوقف التصدير برسالة خطأ
+function unwrapReportFetch(res) {
+  if (!res || res.status !== 'success' || !Array.isArray(res.data)) {
+    throw new Error((res && res.message) || 'Report data fetch failed');
+  }
+  return res.data;
+}
+
+function localDateStamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function formatReportDate(raw) {
   const isEn = window.currentLang === 'en';
+  const d = parseTicketDate(raw);
+  if (!d) return '-';
   try {
-    return new Date(iso).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', {
+    return d.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', {
       year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
     });
   } catch {
-    return iso || '-';
+    return '-';
   }
 }
 
 function formatReportStatus(status, kind, isEn) {
   const s = String(status || '').toLowerCase().trim();
   if (kind === 'ticket') {
+    // نفس تسميات الشاشات (ticketStatusConstants.STATUS_LABELS و config.js)
     const arMap = {
-      open: 'مفتوح', in_progress: 'قيد التنفيذ', resolved: 'تم الإصلاح',
-      closed: 'مغلق', pending: 'معلق', assigned: 'مسند', cancelled: 'ملغي'
+      pending: 'جديد', assigned: 'تم الإسناد', in_progress: 'قيد التنفيذ',
+      resolved: 'بانتظار تأكيد المُبلغ', closed: 'مغلقة', reopened: 'قيد التنفيذ'
     };
     const enMap = {
-      open: 'Open', in_progress: 'In Progress', resolved: 'Resolved',
-      closed: 'Closed', pending: 'Pending', assigned: 'Assigned', cancelled: 'Cancelled',
-      'مفتوح': 'Open', 'قيد التنفيذ': 'In Progress', 'تم الإصلاح': 'Resolved',
-      'مغلق': 'Closed', 'معلق': 'Pending', 'مسند': 'Assigned', 'ملغي': 'Cancelled'
+      pending: 'New', assigned: 'Assigned', in_progress: 'In Progress',
+      resolved: 'Awaiting Reporter Confirmation', closed: 'Closed', reopened: 'In Progress'
     };
-    return isEn ? (enMap[s] || s || 'Open') : (arMap[s] || s || 'مفتوح');
+    return isEn ? (enMap[s] || status || 'New') : (arMap[s] || status || 'جديد');
   }
   if (kind === 'suggestion') {
+    // نفس حالات مقترحات الكايزن الفعلية (kaizenBoard.js / maintenanceSearch.js)
     const arMap = {
-      new: 'جديد', under_review: 'قيد المراجعة', approved: 'معتمد',
-      rejected: 'مرفوض', in_progress: 'قيد التنفيذ', implemented: 'منفذ'
+      new: 'جديد', under_review: 'قيد المراجعة', in_progress: 'قيد التنفيذ',
+      revision_requested: 'يحتاج تعديل', rejected: 'مرفوض', implemented: 'تم التنفيذ'
     };
     const enMap = {
-      new: 'New', under_review: 'Under Review', approved: 'Approved',
-      rejected: 'Rejected', in_progress: 'In Progress', implemented: 'Implemented',
-      'جديد': 'New', 'قيد المراجعة': 'Under Review', 'معتمد': 'Approved',
-      'مرفوض': 'Rejected', 'قيد التنفيذ': 'In Progress', 'منفذ': 'Implemented'
+      new: 'New', under_review: 'Under Review', in_progress: 'In Progress',
+      revision_requested: 'Revision Requested', rejected: 'Rejected', implemented: 'Implemented'
     };
-    return isEn ? (enMap[s] || s || 'New') : (arMap[s] || s || 'جديد');
+    return isEn ? (enMap[s] || status || 'New') : (arMap[s] || status || 'جديد');
   }
   if (kind === 'pm') {
     const arMap = { done: 'منفذ', completed: 'مكتمل', pending: 'معلق', overdue: 'متأخر' };
@@ -304,9 +339,18 @@ function formatReportStatus(status, kind, isEn) {
       done: 'Completed', completed: 'Completed', pending: 'Pending', overdue: 'Overdue',
       'منفذ': 'Completed', 'مكتمل': 'Completed', 'معلق': 'Pending', 'متأخر': 'Overdue'
     };
-    return isEn ? (enMap[s] || s || 'Completed') : (arMap[s] || s || 'منفذ');
+    return isEn ? (enMap[s] || status || 'Completed') : (arMap[s] || status || 'منفذ');
   }
   return status;
+}
+
+// سجل الصيانة الوقائية ملوش حقل status - الشاشة (maintenanceSearch) بتعرض
+// "عدد بنود الفحص المنفذة x/3"، فالتقرير بيعرض نفس القيمة بدل "منفذ" ثابتة
+function formatPmStatus(pm, isEn) {
+  if (pm?.status) return formatReportStatus(pm.status, 'pm', isEn);
+  const c = pm?.checklist || {};
+  const done = [c.hydraulic, c.filters, c.lubrication].filter(Boolean).length;
+  return isEn ? `${done}/3 items` : `${done}/3 بنود`;
 }
 
 function formatReportPriority(p, isEn) {
@@ -345,6 +389,94 @@ function getPeriodLabel(filterType, fromDate, toDate, isAr) {
 // ============================================================
 // الدالة المركزية لتصدير الإكسيل
 // ============================================================
+// ============================================================
+// بناة الصفوف (مصدر واحد للتصدير الفردي والتقرير الشامل - كانت مكررة
+// حرفياً في الموضعين فأي تعديل كان بيتنسى في أحدهما)
+// ============================================================
+function attachmentsCell(rec) {
+  return (Array.isArray(rec.imageUrls) && rec.imageUrls.length
+    ? rec.imageUrls
+    : (rec.imageUrl ? [rec.imageUrl] : [])).join(' | ');
+}
+
+function buildTicketSheet(tickets, isAr, isEn) {
+  const headers = isAr
+    ? ['رقم البلاغ', 'الماكينة / الخط', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
+    : ['Ticket ID', 'Machine / Line', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
+  const rows = tickets.map(t => [
+    t.issueId || t.id || '',
+    t.machine || t.machineName || '',
+    t.issueType || t.type || '',
+    formatReportStatus(t.status, 'ticket', isEn),
+    formatReportPriority(t.priority, isEn),
+    formatReportDate(t.createdAt),
+    t.reportedBy || t.reporter?.name || '',
+    t.assignedTo || '',
+    t.description || t.problem || '',
+    t.resolutionDetails || t.mechanicNotes || '',
+    attachmentsCell(t)
+  ]);
+  return {
+    sheetName: isAr ? 'بلاغات الأعطال' : 'Tickets',
+    title: isAr ? 'سجل بلاغات وتوقفات الصيانة' : 'Maintenance Breakdown Tickets Log',
+    headers,
+    rows
+  };
+}
+
+function buildPmSheet(pmRecords, isAr, isEn) {
+  const headers = isAr
+    ? ['رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
+    : ['PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
+  const rows = pmRecords.map(pm => [
+    pm.id || '',
+    pm.machine || '',
+    pm.checkType || pm.type || (isAr ? 'وقائية' : 'Preventive'),
+    formatPmStatus(pm, isEn),
+    formatReportDate(pm.createdAt || pm.date),
+    // إصلاح: نموذج الـ PM بيحفظ اسم الفني في reporter.name (راجع pmView.js)
+    // - الحقول technician/performedBy/name مش موجودة أصلاً فكان العمود فاضي دايماً
+    pm.reporter?.name || pm.technician || pm.performedBy || pm.name || '',
+    pm.notes || pm.description || '',
+    pm.partsUsed || pm.spareParts || '-',
+    attachmentsCell(pm)
+  ]);
+  return {
+    sheetName: isAr ? 'الصيانة الوقائية' : 'PM Records',
+    title: isAr ? 'سجل الصيانة الوقائية والتفتيش' : 'Preventive Maintenance Log',
+    headers,
+    rows
+  };
+}
+
+function buildKaizenSheet(suggestions, isAr, isEn) {
+  const headers = isAr
+    ? ['رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
+    : ['ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
+  const rows = suggestions.map(s => [
+    s.id || '',
+    s.title || '',
+    s.machine || s.department || '',
+    formatReportStatus(s.status || 'new', 'suggestion', isEn),
+    formatReportDate(s.createdAt),
+    s.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : (s.name || s.submittedBy || ''),
+    s.problem || '',
+    s.solution || s.suggestion || '',
+    s.impact || s.benefit || '',
+    s.reviewNotes || s.implementationNotes || '',
+    attachmentsCell(s)
+  ]);
+  return {
+    sheetName: isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions',
+    title: isAr ? 'سجل مقترحات كايزن والتحسين المستمر' : 'Kaizen Continuous Improvement Log',
+    headers,
+    rows
+  };
+}
+
+// ============================================================
+// الدالة المركزية لتصدير الإكسيل
+// ============================================================
 window.runExcelExport = async function (type) {
   const isEn = window.currentLang === 'en';
   const isAr = !isEn;
@@ -364,12 +496,18 @@ window.runExcelExport = async function (type) {
   const filterType = dateFilterEl ? dateFilterEl.value : 'month';
   const fromDate = document.getElementById('reportDateFrom')?.value || '';
   const toDate = document.getElementById('reportDateTo')?.value || '';
+  const periodLabel = getPeriodLabel(filterType, fromDate, toDate, isAr);
+  const stamp = localDateStamp();
+  const fetchArgs = { isFullAccess, myUid, myName };
+
+  // null = التصدير اتوقف بدون ملف (لا بيانات) - false = فشل فعلي في بناء/تنزيل الملف
+  let exported = null;
 
   try {
     if (type === 'tickets') {
-      const res = await fetchTicketsForSearchApi({ isFullAccess, myUid, myName });
-      let tickets = res.data || [];
-      tickets = filterRecordsByDateRange(tickets, filterType, fromDate, toDate);
+      const tickets = sortRecordsNewestFirst(
+        filterRecordsByDateRange(unwrapReportFetch(await fetchTicketsForSearchApi(fetchArgs)), filterType, fromDate, toDate)
+      );
 
       if (!tickets.length) {
         alert(isAr ? 'لا توجد بلاغات أعطال مطابقة للفترة المحددة' : 'No ticket records found for the selected period');
@@ -377,36 +515,16 @@ window.runExcelExport = async function (type) {
         return;
       }
 
-      const headers = isAr
-        ? ['رقم البلاغ', 'الماكينة / الخط', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
-        : ['Ticket ID', 'Machine / Line', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
-
-      const rows = tickets.map(t => [
-        t.issueId || t.id || '',
-        t.machine || t.machineName || '',
-        t.issueType || t.type || '',
-        formatReportStatus(t.status, 'ticket', isEn),
-        formatReportPriority(t.priority, isEn),
-        formatReportDate(t.createdAt),
-        t.reportedBy || t.reporter?.name || '',
-        t.assignedTo || '',
-        t.description || t.problem || '',
-        t.resolutionDetails || t.mechanicNotes || '',
-        (t.imageUrls || (t.imageUrl ? [t.imageUrl] : [])).join(' | ')
-      ]);
-
-      const title = isAr ? 'سجل بلاغات وتوقفات الصيانة' : 'Maintenance Breakdown Tickets Log';
-      const filename = `mscanco-tickets-${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-      await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'بلاغات الأعطال' : 'Tickets',
-        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
+      const sheet = buildTicketSheet(tickets, isAr, isEn);
+      exported = await exportToExcel(sheet.title, sheet.headers, sheet.rows, `mscanco-tickets-${stamp}.xlsx`, {
+        sheetName: sheet.sheetName,
+        periodLabel
       });
 
     } else if (type === 'pm') {
-      const res = await fetchPmRecordsForSearchApi({ isFullAccess, myUid, myName });
-      let pmRecords = res.data || [];
-      pmRecords = filterRecordsByDateRange(pmRecords, filterType, fromDate, toDate);
+      const pmRecords = sortRecordsNewestFirst(
+        filterRecordsByDateRange(unwrapReportFetch(await fetchPmRecordsForSearchApi(fetchArgs)), filterType, fromDate, toDate)
+      );
 
       if (!pmRecords.length) {
         alert(isAr ? 'لا توجد سجلات صيانة وقائية مطابقة للفترة المحددة' : 'No PM records found for the selected period');
@@ -414,34 +532,16 @@ window.runExcelExport = async function (type) {
         return;
       }
 
-      const headers = isAr
-        ? ['رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
-        : ['PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
-
-      const rows = pmRecords.map(pm => [
-        pm.id || '',
-        pm.machine || '',
-        pm.checkType || pm.type || (isAr ? 'وقائية' : 'Preventive'),
-        formatReportStatus(pm.status || 'منفذ', 'pm', isEn),
-        formatReportDate(pm.createdAt || pm.date),
-        pm.technician || pm.performedBy || pm.name || '',
-        pm.notes || pm.description || '',
-        pm.partsUsed || pm.spareParts || '-',
-        (pm.imageUrls || (pm.imageUrl ? [pm.imageUrl] : [])).join(' | ')
-      ]);
-
-      const title = isAr ? 'سجل الصيانة الوقائية والتفتيش' : 'Preventive Maintenance Log';
-      const filename = `mscanco-pm-${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-      await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'الصيانة الوقائية' : 'PM Records',
-        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
+      const sheet = buildPmSheet(pmRecords, isAr, isEn);
+      exported = await exportToExcel(sheet.title, sheet.headers, sheet.rows, `mscanco-pm-${stamp}.xlsx`, {
+        sheetName: sheet.sheetName,
+        periodLabel
       });
 
     } else if (type === 'suggestions') {
-      const res = await fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName });
-      let suggestions = res.data || [];
-      suggestions = filterRecordsByDateRange(suggestions, filterType, fromDate, toDate);
+      const suggestions = sortRecordsNewestFirst(
+        filterRecordsByDateRange(unwrapReportFetch(await fetchSuggestionsForSearchApi(fetchArgs)), filterType, fromDate, toDate)
+      );
 
       if (!suggestions.length) {
         alert(isAr ? 'لا توجد مقترحات كايزن مطابقة للفترة المحددة' : 'No Kaizen suggestions found for the selected period');
@@ -449,43 +549,23 @@ window.runExcelExport = async function (type) {
         return;
       }
 
-      const headers = isAr
-        ? ['رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
-        : ['ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
-
-      const rows = suggestions.map(s => [
-        s.id || '',
-        s.title || '',
-        s.machine || s.department || '',
-        formatReportStatus(s.status || 'new', 'suggestion', isEn),
-        formatReportDate(s.createdAt),
-        s.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : (s.name || s.submittedBy || ''),
-        s.problem || '',
-        s.solution || s.suggestion || '',
-        s.impact || s.benefit || '',
-        s.reviewNotes || s.implementationNotes || '',
-        (s.imageUrls || (s.imageUrl ? [s.imageUrl] : [])).join(' | ')
-      ]);
-
-      const title = isAr ? 'سجل مقترحات كايزن والتحسين المستمر' : 'Kaizen Continuous Improvement Log';
-      const filename = `mscanco-kaizen-${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-      await exportToExcel(title, headers, rows, filename, {
-        sheetName: isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions',
-        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
+      const sheet = buildKaizenSheet(suggestions, isAr, isEn);
+      exported = await exportToExcel(sheet.title, sheet.headers, sheet.rows, `mscanco-kaizen-${stamp}.xlsx`, {
+        sheetName: sheet.sheetName,
+        periodLabel
       });
 
     } else if (type === 'master') {
-      // Fetch all three sources in parallel
+      // الجلب بالتوازي - ولو أي مصدر فشل التصدير كله بيتوقف (بدل ورقة فاضية صامتة)
       const [ticketsRes, pmRes, suggestionsRes] = await Promise.all([
-        fetchTicketsForSearchApi({ isFullAccess, myUid, myName }),
-        fetchPmRecordsForSearchApi({ isFullAccess, myUid, myName }),
-        fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName })
+        fetchTicketsForSearchApi(fetchArgs),
+        fetchPmRecordsForSearchApi(fetchArgs),
+        fetchSuggestionsForSearchApi(fetchArgs)
       ]);
 
-      const tickets = filterRecordsByDateRange(ticketsRes.data || [], filterType, fromDate, toDate);
-      const pmRecords = filterRecordsByDateRange(pmRes.data || [], filterType, fromDate, toDate);
-      const suggestions = filterRecordsByDateRange(suggestionsRes.data || [], filterType, fromDate, toDate);
+      const tickets = sortRecordsNewestFirst(filterRecordsByDateRange(unwrapReportFetch(ticketsRes), filterType, fromDate, toDate));
+      const pmRecords = sortRecordsNewestFirst(filterRecordsByDateRange(unwrapReportFetch(pmRes), filterType, fromDate, toDate));
+      const suggestions = sortRecordsNewestFirst(filterRecordsByDateRange(unwrapReportFetch(suggestionsRes), filterType, fromDate, toDate));
 
       const totalCount = tickets.length + pmRecords.length + suggestions.length;
       if (totalCount === 0) {
@@ -494,86 +574,26 @@ window.runExcelExport = async function (type) {
         return;
       }
 
-      // 1. Tickets Sheet Config
-      const ticketHeaders = isAr
-        ? ['رقم البلاغ', 'الماكينة / الخط', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
-        : ['Ticket ID', 'Machine / Line', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
-      const ticketRows = tickets.map(t => [
-        t.issueId || t.id || '',
-        t.machine || t.machineName || '',
-        t.issueType || t.type || '',
-        formatReportStatus(t.status, 'ticket', isEn),
-        formatReportPriority(t.priority, isEn),
-        formatReportDate(t.createdAt),
-        t.reportedBy || t.reporter?.name || '',
-        t.assignedTo || '',
-        t.description || t.problem || '',
-        t.resolutionDetails || t.mechanicNotes || '',
-        (t.imageUrls || (t.imageUrl ? [t.imageUrl] : [])).join(' | ')
-      ]);
-
-      // 2. PM Sheet Config
-      const pmHeaders = isAr
-        ? ['رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
-        : ['PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
-      const pmRows = pmRecords.map(pm => [
-        pm.id || '',
-        pm.machine || '',
-        pm.checkType || pm.type || (isAr ? 'وقائية' : 'Preventive'),
-        formatReportStatus(pm.status || 'منفذ', 'pm', isEn),
-        formatReportDate(pm.createdAt || pm.date),
-        pm.technician || pm.performedBy || pm.name || '',
-        pm.notes || pm.description || '',
-        pm.partsUsed || pm.spareParts || '-',
-        (pm.imageUrls || (pm.imageUrl ? [pm.imageUrl] : [])).join(' | ')
-      ]);
-
-      // 3. Kaizen Sheet Config
-      const kaizenHeaders = isAr
-        ? ['رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
-        : ['ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
-      const kaizenRows = suggestions.map(s => [
-        s.id || '',
-        s.title || '',
-        s.machine || s.department || '',
-        formatReportStatus(s.status || 'new', 'suggestion', isEn),
-        formatReportDate(s.createdAt),
-        s.anonymous ? (isAr ? 'مجهول' : 'Anonymous') : (s.name || s.submittedBy || ''),
-        s.problem || '',
-        s.solution || s.suggestion || '',
-        s.impact || s.benefit || '',
-        s.reviewNotes || s.implementationNotes || '',
-        (s.imageUrls || (s.imageUrl ? [s.imageUrl] : [])).join(' | ')
-      ]);
-
       const multiSheets = [
-        {
-          sheetName: isAr ? 'بلاغات الأعطال' : 'Tickets',
-          title: isAr ? 'سجل بلاغات وتوقفات الصيانة' : 'Maintenance Breakdown Tickets Log',
-          headers: ticketHeaders,
-          rows: ticketRows
-        },
-        {
-          sheetName: isAr ? 'الصيانة الوقائية' : 'PM Records',
-          title: isAr ? 'سجل الصيانة الوقائية والتفتيش' : 'Preventive Maintenance Log',
-          headers: pmHeaders,
-          rows: pmRows
-        },
-        {
-          sheetName: isAr ? 'مقترحات كايزن' : 'Kaizen Suggestions',
-          title: isAr ? 'سجل مقترحات كايزن والتحسين المستمر' : 'Kaizen Continuous Improvement Log',
-          headers: kaizenHeaders,
-          rows: kaizenRows
-        }
+        buildTicketSheet(tickets, isAr, isEn),
+        buildPmSheet(pmRecords, isAr, isEn),
+        buildKaizenSheet(suggestions, isAr, isEn)
       ];
 
       const masterTitle = isAr ? 'التقرير الشامل المجمع لعمليات الصيانة والكايزن' : 'MSCANCO Master Maintenance & Kaizen Operations Report';
-      const filename = `mscanco-operations-master-${new Date().toISOString().slice(0, 10)}.xlsx`;
-      await exportToExcel(masterTitle, [], [], filename, {
+      exported = await exportToExcel(masterTitle, [], [], `mscanco-operations-master-${stamp}.xlsx`, {
         sheets: multiSheets,
-        periodLabel: getPeriodLabel(filterType, fromDate, toDate, isAr)
+        periodLabel
       });
     }
+
+    // exportToExcel بيرجّع false لو فشل تحميل المكتبة/البناء - كانت رسالة
+    // "تم إنشاء التقرير بنجاح" بتظهر حتى في الحالة دي
+    if (exported === false) {
+      if (statusBox) statusBox.classList.add('hidden');
+      return;
+    }
+
     if (statusBox) {
       statusBox.classList.remove('animate-pulse');
       statusBox.innerHTML = `
@@ -590,8 +610,7 @@ window.runExcelExport = async function (type) {
     }
   } catch (err) {
     console.error('Error during Excel export:', err);
-    alert(isAr ? 'حدث خطأ أثناء إعداد وتصدير ملف الإكسيل. يرجى المحاولة مجدداً.' : 'Error generating Excel report. Please try again.');
+    alert(isAr ? 'حدث خطأ أثناء جلب البيانات أو تصدير ملف الإكسيل. يرجى المحاولة مجدداً.' : 'Error fetching data or generating the Excel report. Please try again.');
     if (statusBox) statusBox.classList.add('hidden');
   }
 };
-

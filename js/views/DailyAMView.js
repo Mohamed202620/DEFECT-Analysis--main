@@ -12,12 +12,13 @@ import {
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { getDepartmentForMachineValue, getLineForMachineValue, formatLineLabel, normalizeLine, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import { db, doc, getDoc } from '../providers/backend/index.js';
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
 // بنود الفحص اليومي الافتراضية
-const DEFAULT_AM_ITEMS = [
+export const DEFAULT_AM_ITEMS = [ // ITEMS-EDITOR
   { id: 'cleanliness', role: 'operator', ar: 'نظافة الماكينة وخلوها من تسريبات الزيت/الماء', en: 'Machine clean, no oil/water leaks' },
   { id: 'guards', role: 'operator', ar: 'أغطية وحواجز الأمان في مكانها وسليمة', en: 'Safety guards in place and intact' },
   { id: 'emergencyStop', role: 'operator', ar: 'زر الإيقاف الطارئ يعمل بكفاءة', en: 'Emergency stop button functional' },
@@ -95,7 +96,7 @@ export const DailyAMView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-blue-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${machine} • ${tr.subtitle}</p>
+      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-4">
@@ -136,14 +137,19 @@ window.initDailyAmView = async function() {
   const isMaintainer = hasFullDataAccess() || /maintenance|صيانة|مهندس/i.test(localStorage.getItem('job') || '') || /maintenance/i.test(localStorage.getItem('role') || '');
 
   let items = [...DEFAULT_AM_ITEMS];
+  let templateVersion = 1; // ITEMS-EDITOR
   try {
     const docSnap = await getDoc(doc(db, 'machineAmTemplates', machine));
     if (docSnap.exists() && docSnap.data().items && docSnap.data().items.length > 0) {
       items = docSnap.data().items;
+      templateVersion = docSnap.data().templateVersion || 1; // ITEMS-EDITOR
     }
   } catch (err) {
     console.error("Failed to load custom AM template, using default:", err);
   }
+
+  // Filter soft-deleted items - ITEMS-EDITOR
+  items = items.filter(i => i.active !== false);
 
   // Filter based on role
   if (!isMaintainer) {
@@ -151,56 +157,95 @@ window.initDailyAmView = async function() {
   }
 
   window._activeAmItems = items;
+  window._activeAmTemplateVersion = templateVersion; // ITEMS-EDITOR
   window.updateAmProgress();
+
+  const getItemLabel = (item) => { // ITEMS-EDITOR
+    if (item.label) return isEn ? (item.label.en || item.label.ar) : (item.label.ar || item.label.en);
+    return isEn ? (item.en || item.ar) : (item.ar || item.en);
+  };
 
   const container = document.getElementById('dailyAmItemsContainer');
   if (container) {
-    container.innerHTML = items.map(item => `
-      <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 shadow-sm" data-am-item="${item.id}">
-        <div class="text-sm font-bold text-gray-200">${isEn ? item.en : item.ar}</div>
+    container.innerHTML = items.map(item => {
+      const labelText = getItemLabel(item);
+      const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
+      const criticalBadgeHtml = item.critical
+        ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>`
+        : '';
+      const howToHtml = howToText
+        ? `<div class="text-[11px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>`
+        : '';
 
-        ${item.type === 'numeric' ? `
+      let inputFieldHtml = '';
+      if (item.type === 'numeric') {
+        const minText = item.min != null ? `${isEn ? 'Min' : 'الحد الأدنى'}: ${item.min} ` : '';
+        const maxText = item.max != null ? `| ${isEn ? 'Max' : 'الحد الأقصى'}: ${item.max}` : '';
+        const limitsHtml = (item.min != null || item.max != null)
+          ? `<div class="text-[10px] text-gray-400 font-mono">${escapeHtml(minText)}${escapeHtml(maxText)}</div>`
+          : '';
+        inputFieldHtml = `
           <div class="flex items-center gap-3 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
-             <input type="number" id="amReading_${item.id}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
+             <input type="number" id="amReading_${escapeHtml(item.id)}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
              <span class="text-xs text-gray-400 font-bold px-2">${item.unit || ''}</span>
           </div>
-        ` : ''}
+          ${limitsHtml}
+        `;
+      } else if (item.type === 'text') {
+        inputFieldHtml = `
+          <div class="bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full">
+             <input type="text" id="amReading_${escapeHtml(item.id)}" placeholder="${isEn ? 'Enter notes/value...' : 'أدخل القيمة أو الملاحظة...'}" class="w-full bg-transparent text-xs text-white focus:outline-none" oninput="window.updateAmProgress()">
+          </div>
+        `;
+      }
+
+      const attachmentPickerHtml = buildAttachmentPickerHtml('amPhoto_' + item.id, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' });
+
+      return `
+      <div class="bg-[#1E293B] p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${escapeHtml(item.id)}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="text-sm font-bold text-gray-200">${escapeHtml(labelText)}</div>
+          ${criticalBadgeHtml}
+        </div>
+        ${howToHtml}
+        ${inputFieldHtml}
 
         <div class="grid grid-cols-3 gap-2 pt-1">
-          <button type="button" onclick="window.selectAmResult('${item.id}','ok')" id="amBtn_${item.id}_ok"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','ok')" id="amBtn_${escapeHtml(item.id)}_ok"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.ok}
           </button>
-          <button type="button" onclick="window.selectAmResult('${item.id}','not_ok')" id="amBtn_${item.id}_not_ok"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','not_ok')" id="amBtn_${escapeHtml(item.id)}_not_ok"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.notOk}
           </button>
-          <button type="button" onclick="window.selectAmResult('${item.id}','na')" id="amBtn_${item.id}_na"
+          <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','na')" id="amBtn_${escapeHtml(item.id)}_na"
             class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
             ${tr.na}
           </button>
         </div>
 
-        <input type="hidden" id="amResult_${item.id}" value="">
+        <input type="hidden" id="amResult_${escapeHtml(item.id)}" value="">
 
-        <div id="amNotOkBox_${item.id}" class="hidden space-y-3 pt-3 border-t border-gray-800">
+        <div id="amNotOkBox_${escapeHtml(item.id)}" class="hidden space-y-3 pt-3 border-t border-gray-800">
           <div class="space-y-1">
              <label class="block text-[10px] font-bold text-red-400">${tr.noteLabel}</label>
-             <textarea id="amNote_${item.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
+             <textarea id="amNote_${escapeHtml(item.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
           </div>
 
           <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
-             ${buildAttachmentPickerHtml(`amPhoto_${item.id}`, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' })}
+             ${attachmentPickerHtml}
           </div>
 
           <!-- يظهر فوراً زر فرعي "إنشاء بلاغ صيانة" -->
           <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
-            <input type="checkbox" id="amCreateTicket_${item.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
+            <input type="checkbox" id="amCreateTicket_${escapeHtml(item.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
             <span class="font-medium text-red-300">${tr.createTicket}</span>
           </label>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Initialize attachments for all loaded items
     items.forEach(item => {
@@ -308,6 +353,7 @@ window.handleDailyAmSubmit = async function (event) {
   const payload = {
     machine,
     items,
+    templateVersion: window._activeAmTemplateVersion || 1, // ITEMS-EDITOR
     completionRate,
     overallResult: notOkCount > 0 ? 'issues_found' : 'ok',
     createdBy: {
@@ -338,17 +384,24 @@ window.handleDailyAmSubmit = async function (event) {
     // إنشاء بلاغات للبنود المطلوبة (Not OK + طلب إنشاء بلاغ)
     const ticketItems = items.filter(i => i.result === 'not_ok' && i.ticketRequested);
     let ticketsCreated = false;
+    let failedTickets = 0;
 
     if (ticketItems.length) {
       const { saveIssueApi } = await import('../services/api.js');
+      // إصلاح: البلاغ المنشأ من الفحص اليومي كان بيتسجل بـ line فاضي رغم إن
+      // خط الماكينة معروف (من الـQR أو من كتالوج الماكينات) - فبيختفي من
+      // فلاتر/إحصائيات الخط. دلوقتي بنستخدم نفس مصدر الخط المستخدم في ملف الماكينة.
+      const amLineLabel = formatLineLabel(
+        normalizeLine(localStorage.getItem('activeMachineLine')) || getLineForMachineValue(machine)
+      );
       for (const item of ticketItems) {
         let ticketDesc = `[Daily AM] ${item.label}: ${item.note}`;
         if (item.reading) {
            ticketDesc = `[Daily AM] ${item.label} (Reading: ${item.reading}) - ${item.note}`;
         }
-        await saveIssueApi({
+        const ticketResult = await saveIssueApi({
           issueId: 'IS-' + Date.now() + '-' + item.id,
-          line: '',
+          line: amLineLabel,
           machine,
           priority: 'High',
           type: 'Breakdown',
@@ -369,11 +422,26 @@ window.handleDailyAmSubmit = async function (event) {
           createdAt: new Date().toISOString(),
           source: 'dailyAM'
         });
+        // إصلاح: نتيجة saveIssueApi ماكانتش بتتفحص - لو فشل إنشاء البلاغ
+        // (status: error) كان المستخدم بيشوف "تم إنشاء بلاغات" وهي مش اتعملت
+        // فعلاً (بند عطل حقيقي بيضيع). "queued" = محفوظ أوفلاين وهيترفع.
+        if (!ticketResult || (ticketResult.status !== 'success' && ticketResult.status !== 'queued')) {
+          failedTickets += 1;
+        }
       }
-      ticketsCreated = true;
+      ticketsCreated = failedTickets < ticketItems.length;
     }
 
-    alert(tr.success + (ticketsCreated ? tr.ticketsCreated : ''));
+    if (failedTickets > 0) {
+      alert(
+        tr.success +
+        (isEn
+          ? ` — but ${failedTickets} ticket(s) could NOT be created. Please report them manually from the machine profile.`
+          : ` — لكن تعذّر إنشاء ${failedTickets} بلاغ. برجاء تسجيلها يدوياً من ملف الماكينة.`)
+      );
+    } else {
+      alert(tr.success + (ticketsCreated ? tr.ticketsCreated : ''));
+    }
     window.goBack('machineProfile');
   } catch (err) {
     alert(tr.error + err.message);

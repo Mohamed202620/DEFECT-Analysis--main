@@ -19,8 +19,16 @@ const DB_VERSION = 2;
 const STORE_NAME = "pending_tickets";
 const ACTIONS_STORE_NAME = "pending_actions";
 
+// إصلاح (موارد): كل عملية (إضافة/قراءة/حذف) كانت بتفتح اتصال IndexedDB جديد ومابتقفلوش -
+// وmaintenance sync بينادي العمليات دي في loop لكل عنصر فالاتصالات بتتراكم، وأي
+// اتصال مفتوح قديم بيعطّل ترقية الـ schema (onblocked) لو DB_VERSION زاد. دلوقتي
+// اتصال واحد مُعاد استخدامه، وبيتصفّر لو المتصفح قفله أو حصل خطأ.
+let _offlineDbPromise = null;
+
 function openOfflineDB() {
-  return new Promise((resolve, reject) => {
+  if (_offlineDbPromise) return _offlineDbPromise;
+
+  _offlineDbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
 
     req.onupgradeneeded = () => {
@@ -32,9 +40,18 @@ function openOfflineDB() {
       }
     };
 
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onsuccess = () => {
+      const conn = req.result;
+      // لو التبويب التاني رقّى الـ DB أو المتصفح قفل الاتصال: نفتح من جديد في المرة الجاية
+      conn.onversionchange = () => { conn.close(); _offlineDbPromise = null; };
+      conn.onclose = () => { _offlineDbPromise = null; };
+      resolve(conn);
+    };
+    req.onerror = () => { _offlineDbPromise = null; reject(req.error); };
+    req.onblocked = () => { _offlineDbPromise = null; };
   });
+
+  return _offlineDbPromise;
 }
 
 /**

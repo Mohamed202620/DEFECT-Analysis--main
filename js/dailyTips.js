@@ -3,9 +3,25 @@
 // نظام «معلومة على الماشي» (Daily Insights & Tips)
 // - كارت ثابت في صفحة النظام يتغير يومياً الساعة 12:00 ظهراً
 // - Toast منبثق يظهر مرتين يومياً (بعد 5 ثوانٍ ثم بعد 4 ساعات)
-//   ويختفي بعد 7 ثوانٍ ولا يتكرر في نفس اليوم
-// - 60 معلومة حصرية ومحققة بـ العربية والإنجليزية (دينية، تحفيزية، صناعية، عامة)
+// - 60 معلومة حصرية ومحققة بـ العربية والإنجليزية (دينية، تحفيزية، صناعية، عامة) + إمكانية إضافة وإدارة معلومات مخصصة
 // ============================================================
+
+import { fetchCustomTipsApi, addCustomTipApi, deleteCustomTipApi } from "./services/dailyTipsApi.js";
+import { escapeHtml } from "./utils/escapeHtml.js";
+
+export let customTips = [];
+
+export async function loadCustomTips(forceRefresh = false) {
+  try {
+    const res = await fetchCustomTipsApi({ forceRefresh });
+    if (res.status === "success" && Array.isArray(res.data)) {
+      customTips = res.data;
+    }
+  } catch (err) {
+    console.warn("Failed to load custom tips:", err);
+  }
+  return customTips;
+}
 
 export const TIPS_AR = [
   {
@@ -854,14 +870,27 @@ export const TIPS_EN = [
 ];
 
 /**
+ * الحصول على قائمة المعلومات المدمجة (الافتراضية + المخصصة)
+ */
+export function getMergedTipsList(lang = 'ar') {
+  const currentLang = lang || window.currentLang || localStorage.getItem('lang') || 'ar';
+  const defaultList = currentLang === 'en' ? TIPS_EN : TIPS_AR;
+  
+  // تصفية المعلومات المخصصة حسب اللغة (إما تطابق اللغة الحالية أو 'both')
+  const matchedCustom = customTips.filter(t => !t.lang || t.lang === 'both' || t.lang === currentLang);
+  return [...matchedCustom, ...defaultList];
+}
+
+/**
  * حساب مؤشر المعلومة اليومية الثابتة مع التبديل التلقائي الساعة 12:00 ظهراً كل يوم
  */
-export function getDailyTipIndex(customDate = new Date()) {
+export function getDailyTipIndex(customDate = new Date(), listLength = null) {
   const now = new Date(customDate);
   // إزاحة 12 ساعة لتبدأ اليوم الجديد للمعلومة الساعة 12:00 ظهراً
   const shifted = new Date(now.getTime() - 12 * 60 * 60 * 1000);
   const totalDays = Math.floor(shifted.getTime() / (24 * 60 * 60 * 1000));
-  return Math.abs(totalDays) % TIPS_AR.length;
+  const len = listLength || getMergedTipsList().length || TIPS_AR.length;
+  return Math.abs(totalDays) % len;
 }
 
 /**
@@ -869,11 +898,12 @@ export function getDailyTipIndex(customDate = new Date()) {
  */
 export function getDailyTip(lang = null, tipIndex = null) {
   const currentLang = lang || window.currentLang || localStorage.getItem('lang') || 'ar';
-  const list = currentLang === 'en' ? TIPS_EN : TIPS_AR;
-  const index = tipIndex !== null ? tipIndex : getDailyTipIndex();
-  const safeIndex = Math.abs(index) % list.length;
+  const list = getMergedTipsList(currentLang);
+  const index = tipIndex !== null ? tipIndex : getDailyTipIndex(new Date(), list.length);
+  const safeIndex = Math.abs(index) % (list.length || 1);
+  const selected = list[safeIndex] || TIPS_AR[0];
   return {
-    ...list[safeIndex],
+    ...selected,
     lang: currentLang,
     index: safeIndex
   };
@@ -934,11 +964,11 @@ export function renderDailyTipCard(overrideIndex = null) {
         <div>
           <h3 class="text-xs font-black text-amber-400 tracking-wide flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${tip.id}</span>
+            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
           </h3>
           <span class="text-[10px] text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
-            <span>${tip.categoryTitle}</span>
+            <span>${escapeHtml(tip.categoryTitle)}</span>
           </span>
         </div>
       </div>
@@ -963,12 +993,12 @@ export function renderDailyTipCard(overrideIndex = null) {
     <!-- عنوان المعلومة -->
     <h4 class="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
       <span class="text-amber-400 font-black">▫</span>
-      <span>${tip.title}</span>
+      <span>${escapeHtml(tip.title)}</span>
     </h4>
 
     <!-- نص المعلومة -->
     <p class="text-[11.5px] leading-relaxed text-slate-200 font-normal select-text pr-1 pl-1">
-      ${tip.text}
+      ${escapeHtml(tip.text)}
     </p>
 
     <!-- شريط سفلي خفيف -->
@@ -1151,14 +1181,14 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <div>
           <div class="text-xs font-black text-amber-400 flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${tip.id}</span>
+            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
             <span id="tipPauseIndicator" class="hidden text-[8.5px] font-bold text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
               ⏸️ ${isEn ? 'Reading paused' : 'المؤقت متوقف للقراءة'}
             </span>
           </div>
           <div class="text-[10px] text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
-            <span>${tip.categoryTitle}</span>
+            <span>${escapeHtml(tip.categoryTitle)}</span>
           </div>
         </div>
       </div>
@@ -1190,12 +1220,12 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
     <!-- العنوان -->
     <div class="text-xs font-bold text-amber-300 mb-1.5 flex items-center gap-1.5">
       <span>💡</span>
-      <span>${tip.title}</span>
+      <span>${escapeHtml(tip.title)}</span>
     </div>
 
     <!-- نص المعلومة (مريح للقراءة وواضح) -->
     <div class="text-xs sm:text-[12.5px] leading-relaxed text-slate-100 mb-3 select-text font-normal">
-      ${tip.text}
+      ${escapeHtml(tip.text)}
     </div>
 
     <!-- معلومات الشريط السفلي -->
@@ -1378,6 +1408,11 @@ if (typeof window !== 'undefined') {
   window.cycleDailyTipCard = cycleDailyTipCard;
   window.showDailyTipToast = showDailyTipToast;
   window.getDailyTip = getDailyTip;
+  window.loadCustomTips = loadCustomTips;
+  window.getMergedTipsList = getMergedTipsList;
+
+  // تحميل المعلومات المخصصة فورياً
+  loadCustomTips();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initDailyTipsScheduler);
@@ -1391,6 +1426,8 @@ export default {
   TIPS_EN,
   getDailyTipIndex,
   getDailyTip,
+  getMergedTipsList,
+  loadCustomTips,
   renderDailyTipCard,
   cycleDailyTipCard,
   showDailyTipToast,

@@ -2,6 +2,7 @@ import { getCurrentRole, hasFullDataAccess } from '../permissions.js';
 import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlockHtml, getCompanyLogoDataUrl } from '../branding.js';
 import { HEADER_COLORS, COMPANY_NAME_AR, COMPANY_NAME_EN } from '../companyHeaderConfig.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 // إصلاح (بند مؤكد بالاختبار العملي - Test 10): كانت ExcelJS بتتحمّل
 // حصرياً عبر <script> ثابت في index.html من مصدر CDN واحد بس
@@ -32,6 +33,39 @@ function ensureExcelJsLoaded() {
     });
   }
   return exceljsLoadPromise;
+}
+
+// إصلاح (أداء بدء التشغيل): jsPDF + html2canvas (~550KB) كانوا بيتحمّلوا مع كل فتح
+// للتطبيق من index.html رغم إنهم مش مستخدمين غير في تصدير PDF. دلوقتي بيتحمّلوا
+// أول مرة يتطلب فيها تصدير PDF (وsw.js بيسخّن كاشهم في الخلفية عند التثبيت عشان
+// التصدير يفضل شغال أوفلاين).
+let pdfLibsLoadPromise = null;
+function ensurePdfLibsLoaded() {
+  if (window.jspdf && window.html2canvas) return Promise.resolve();
+  if (!pdfLibsLoadPromise) {
+    pdfLibsLoadPromise = Promise.all([
+      window.jspdf ? Promise.resolve(window.jspdf) : loadScriptWithFallback(
+        [
+          'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+          'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
+        ],
+        () => window.jspdf
+      ),
+      window.html2canvas ? Promise.resolve(window.html2canvas) : loadScriptWithFallback(
+        [
+          'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js',
+          'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+          'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js'
+        ],
+        () => window.html2canvas
+      )
+    ]).catch(err => {
+      pdfLibsLoadPromise = null; // نسمح بإعادة المحاولة بعد فشل مؤقت
+      throw err;
+    });
+  }
+  return pdfLibsLoadPromise;
 }
 
 export const PAGE_BREAK_CLASS = "no-page-break";
@@ -97,6 +131,12 @@ function createOffscreenPdfContainer(isAr, paddingCss) {
  * مش موجود بس في الصفحة الأولى زي قبل كده.
  */
 export async function exportToPdf(title, rows, htmlContent, filename, sigLabels = null) {
+  try {
+    await ensurePdfLibsLoaded();
+  } catch (loadError) {
+    console.warn("[exportToPdf] PDF libraries failed to load:", loadError);
+  }
+
   if (typeof window.jspdf === "undefined" || typeof window.html2canvas === "undefined") {
     alert("❌ مكتبات إنشاء PDF غير محملة حالياً، تأكد من الاتصال بالإنترنت وحاول تاني.");
     return;
@@ -271,7 +311,9 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   } catch (err) {
     console.error('Failed to load ExcelJS from all sources:', err);
     alert("❌ تعذر تحميل مكتبة الإكسيل من كل المصادر المتاحة، تأكد من الاتصال بالإنترنت وحاول مرة أخرى.");
-    return;
+    // إصلاح: كان بيرجّع undefined فالمستدعي (reportsView) كان بيعرض
+    // "تم إنشاء التقرير بنجاح" رغم إن مفيش ملف اتنشأ - دلوقتي false صريحة
+    return false;
   }
 
   const currentLang = window.currentLang || localStorage.getItem("lang") || "ar";
@@ -527,11 +569,17 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
             const urls = val.split(" | ").filter(u => u.startsWith("http"));
             if (urls.length > 0) {
               const firstUrl = urls[0];
+              // إصلاح (فقد بيانات): كان بيتحفظ رابط أول مرفق بس وباقي الروابط
+              // بتتمسح من الملف. دلوقتي العدد بيظهر في النص وكل الروابط
+              // بتتحفظ في ملاحظة الخلية (Note) بدل ما تضيع
               cell.value = {
-                text: "📎 عرض المرفقات",
+                text: urls.length > 1 ? `📎 عرض المرفقات (${urls.length})` : "📎 عرض المرفقات",
                 hyperlink: firstUrl,
                 tooltip: firstUrl
               };
+              if (urls.length > 1) {
+                cell.note = urls.map((u, i) => `${i + 1}) ${u}`).join("\n");
+              }
               cell.font = { name: "Arial", color: { argb: "FF1D4ED8" }, underline: true, bold: true, size: 9.5 };
             }
           }
@@ -574,7 +622,8 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
     finalFilename += ".xlsx";
   }
 
-  downloadBlobFile(blob, finalFilename);
+  await downloadBlobFile(blob, finalFilename);
+  return true;
 }
 /**
  * دالة مساعدة عامة وموثوقة لتنزيل ملفات Blob عبر كل بيئات المتصفحات والأجهزة المحمولة وداخل الـ iframe
@@ -671,7 +720,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
         <span class="text-2xl">📊</span>
         <div>
           <div class="text-sm font-black text-emerald-400">${isEn ? 'Excel Report Ready!' : 'تم تجهيز ملف الإكسيل بنجاح'}</div>
-          <div class="text-[11px] text-gray-300 font-mono font-medium truncate max-w-[240px]">${filename}</div>
+          <div class="text-[11px] text-gray-300 font-mono font-medium truncate max-w-[240px]">${escapeHtml(filename)}</div>
         </div>
       </div>
       <button type="button" onclick="document.getElementById('mscanco-download-toast')?.remove()" class="text-gray-400 hover:text-white text-sm px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg">✕</button>
@@ -679,7 +728,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
     
     <div class="flex flex-col gap-2">
       ${targetUrl ? `
-        <a id="mscanco-direct-dl-btn" href="${targetUrl}" download="${filename}" class="w-full text-center py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer no-underline border border-emerald-400/30">
+        <a id="mscanco-direct-dl-btn" href="${escapeHtml(targetUrl)}" download="${escapeHtml(filename)}" class="w-full text-center py-3 px-4 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer no-underline border border-emerald-400/30">
           <span class="text-lg">📥</span>
           <span>${isEn ? 'Click Here to Download File' : 'انقر هنا لتنزيل الملف إلى جهازك مباشرة'}</span>
         </a>

@@ -20,6 +20,7 @@ import { auth, signOut } from './providers/backend/index.js';
 import { extractUserDepartment } from './utils/departmentUtils.js';
 import { clearUserAndMachinesCache, ensureUserAndMachinesLoaded } from './machines.js';
 import { clearCurrentUserProfileCache } from './services/usersApi.js';
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 // إصلاح (ترجمة شاملة): كل نصوص التنبيهات ورسائل الحالة هنا كانت
 // ثابتة بالعربي - دلوقتي بتتقرأ من translations.auth حسب
@@ -235,6 +236,8 @@ if (typeof window.initBrowserNotifications === "function") {
 // ========================================================  
 
 navigateTo("home");
+// مزامنة أي بلاغات/إجراءات محفوظة أوفلاين بعد تسجيل الدخول (بند M10)
+setTimeout(() => { try { window.triggerOfflineSync && window.triggerOfflineSync(); } catch (_) {} }, 1500);
 
 } catch (error) {
 
@@ -525,7 +528,7 @@ if (
     >  
 
       ${t().errorPrefix}  
-      ${result.message || t().loadUsersError}  
+      ${escapeHtml(result.message || t().loadUsersError)}  
 
     </div>  
 
@@ -594,32 +597,32 @@ usersList.forEach(
 
         <div>  
           <b>  
-            ${user.name || t().unnamedUser}  
+            ${escapeHtml(user.name || t().unnamedUser)}  
           </b>  
         </div>  
 
         <div class="text-gray-400">  
-          📱 ${user.phone || ""}  
+          📱 ${escapeHtml(user.phone || "")}  
         </div>  
 
         <div class="text-blue-400">  
           ${t().roleLabel}  
-          ${user.role || "pending"}  
+          ${escapeHtml(user.role || "pending")}  
         </div>  
 
         <div class="text-gray-400">  
           ${t().statusLabel}  
-          ${user.status || "-"}  
+          ${escapeHtml(user.status || "-")}  
         </div>  
 
         <div class="text-gray-400">  
           ${t().shiftLabel}  
-          ${user.shift || "-"}  
+          ${escapeHtml(user.shift || "-")}  
         </div>  
 
         <div class="text-gray-400">  
           ${t().departmentLabel}  
-          ${user.department || "-"}  
+          ${escapeHtml(user.department || "-")}  
         </div>  
 
       </div>  
@@ -682,15 +685,38 @@ try {
   console.warn("SignOut error:", err);
 }
 
-// الاحتفاظ فقط بالمفاتيح المحددة قبل مسح التخزين المحلي
-const preservedKeys = ["attendance_card", "salary_data", "last_pdf_export"];
+// الاحتفاظ بالبيانات المحلية الخاصة بالمستخدم قبل مسح بيانات الجلسة (بند H3).
+// المفاتيح الفعلية لبيانات المرتب هي payroll_local_<uid> (راجع
+// payrollLocalStore.js) - كانت القائمة القديمة بتحفظ مفاتيح مش بتتكتب
+// أصلاً (attendance_card / salary_data) فكل خروج كان بيمسح إعدادات المرتب
+// والـ PIN نهائياً (البيانات محلية 100% ومفيش استرجاع). بنحفظ كمان أي مفتاح
+// يبدأ بـ payroll_local_ + إجراءات الأوفلاين الفاشلة (توثيق للمستخدم).
+const preservedExactKeys = [
+  "attendance_card",
+  "salary_data",
+  "last_pdf_export",
+  "theme",
+  "currentLang",
+  "lang",
+  "failedOfflineActions"
+];
+const preservedPrefixes = ["payroll_local_"];
 const preservedData = {};
-preservedKeys.forEach(key => {
-  const value = localStorage.getItem(key);
-  if (value !== null) {
-    preservedData[key] = value;
+
+for (let i = 0; i < localStorage.length; i++) {
+  const key = localStorage.key(i);
+  if (!key) continue;
+  if (
+    preservedExactKeys.includes(key) ||
+    preservedPrefixes.some(prefix => key.startsWith(prefix))
+  ) {
+    const value = localStorage.getItem(key);
+    if (value !== null) preservedData[key] = value;
   }
-});
+}
+
+// إيقاف اشتراكات لوحة البلاغات قبل مسح الجلسة (بند M13 - مكانش بيتنادى عند الخروج)
+try { if (typeof window.cleanupTicketsBoard === "function") window.cleanupTicketsBoard(); } catch (_) { /* لا شيء */ }
 
 localStorage.clear();
 
@@ -712,43 +738,42 @@ navigateTo(
 };
 
 window.doForgotPassword = async function () {
-  try {
-    const phoneInput = document.getElementById("forgotPhone");
-    const phone = phoneInput ? phoneInput.value.trim() : "";
-    if (!phone) {
-      alert("الرجاء إدخال رقم الموبايل / Please enter mobile number");
-      return;
-    }
-    
-    const btn = document.getElementById("forgotBtn");
-    const originalText = btn.innerHTML;
-    btn.innerHTML = "⏳...";
-    btn.disabled = true;
+  const currentLang = window.currentLang || "ar";
+  const loginT = (translations[currentLang] || translations.ar).login;
+  const val = (id) => (document.getElementById(id)?.value || "");
+  const phone = val("forgotPhone").trim();
+  const code = val("forgotCode").trim();
+  const pass1 = val("forgotNewPass");
+  const pass2 = val("forgotNewPass2");
 
-    const res = await resetPassword(phone);
-    if (res.success || res.message === 'EMAIL_NOT_FOUND') {
-      // Don't leak if user exists or not
-      const currentLang = window.currentLang || "ar";
-      const successMsg = (translations[currentLang] || translations.ar).login.resetLinkSent;
-      alert(successMsg);
+  if (!phone || !code || !pass1) {
+    alert("الرجاء إدخال كل البيانات / Please fill in all fields");
+    return;
+  }
+  if (pass1 !== pass2) {
+    alert(loginT.resetMismatch);
+    return;
+  }
+
+  const btn = document.getElementById("forgotBtn");
+  if (btn) { btn.innerHTML = "⏳..."; btn.disabled = true; }
+
+  try {
+    const res = await resetPassword(phone, code, pass1);
+    if (res.success) {
+      alert(loginT.resetLinkSent);
       document.getElementById('forgotPasswordModal').classList.add('hidden');
-      if (phoneInput) phoneInput.value = '';
+      ["forgotPhone", "forgotCode", "forgotNewPass", "forgotNewPass2"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
     } else {
-      const currentLang = window.currentLang || "ar";
-      const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
-      alert(errorMsg + "\n" + (res.message || ""));
+      alert(loginT.resetError + "\n" + (res.message || ""));
     }
   } catch (error) {
-    const currentLang = window.currentLang || "ar";
-    const errorMsg = (translations[currentLang] || translations.ar).login.resetError;
-    alert(errorMsg);
+    alert(loginT.resetError);
   } finally {
-    const btn = document.getElementById("forgotBtn");
-    if (btn) {
-      const currentLang = window.currentLang || "ar";
-      btn.innerHTML = (translations[currentLang] || translations.ar).login.sendResetLink;
-      btn.disabled = false;
-    }
+    if (btn) { btn.innerHTML = loginT.sendResetLink; btn.disabled = false; }
   }
 };
 

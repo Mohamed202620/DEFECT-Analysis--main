@@ -23,6 +23,7 @@ import {
   extractMachineLine,
   normalizeDigits
 } from "./utils/lineUtils.js";
+import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
 
 export { normalizeDepartment, extractUserDepartment, extractMachineDepartment };
 export { normalizeLine, formatLineLabel, extractMachineLine };
@@ -90,7 +91,12 @@ export function clearUserAndMachinesCache() {
  */
 export function getCurrentUserMachineContext() {
   const role = getCurrentRole();
-  const rawSavedDept = localStorage.getItem("machineDepartment") || "";
+  const rawSavedDept =
+    localStorage.getItem("machineDepartment") ||
+    localStorage.getItem("department") ||
+    localStorage.getItem("area") ||
+    localStorage.getItem("workArea") ||
+    "";
   const dept = normalizeDepartment(rawSavedDept);
 
   return {
@@ -147,12 +153,9 @@ async function doLoadMachineTypesFromFirestore() {
   try {
     const userContext = getCurrentUserMachineContext();
     const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
-    const userDept = extractUserDepartment(userContext);
 
-    // إذا لم يكن المستخدم أدمن، نطلب من Firestore مباشرة استعلام مفلتر لقسمه
-    const filterDept = isAdmin ? null : (userDept || null);
-
-    let result = await fetchMachineTypesApi(filterDept);
+    // جلب جميع الماكينات المعتمدة من Firestore لتخزينها في الكاش الموحد
+    let result = await fetchMachineTypesApi(null);
 
     if (result.status === "success" && result.data.length === 0 && isAdmin) {
       // أول تشغيل: زرع القائمة الافتراضية إذا كانت المجموعة فارغة
@@ -166,8 +169,6 @@ async function doLoadMachineTypesFromFirestore() {
         units: m.units || [],
         active: m.active !== false,
         department: extractMachineDepartment(m),
-        // خط الإنتاج المرتبط بالماكينة ("1" / "2" / "") - نفس الحقل
-        // المستخدم في باقي التطبيق (راجع utils/lineUtils.js)
         line: extractMachineLine(m),
         id: m.id,
         order: typeof m.order === "number" ? m.order : 0
@@ -502,11 +503,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? "User data unavailable. Please log in again."
       : "بيانات المستخدم غير متوفرة. يرجى تسجيل الدخول مجددًا.";
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -516,11 +517,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? "Your work area (Backend / Frontend) is not assigned. Please contact administrator."
       : "لم يتم تحديد قسم العمل (Backend / Frontend) لحسابك. برجاء التواصل مع مسؤول النظام.";
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -534,11 +535,11 @@ export function buildMachineDropdownHtml(baseId, {
       ? (deptUpper ? `No machines available for ${deptUpper} department.` : "No machines available for your work area.")
       : (deptUpper ? `لا توجد ماكينات متاحة لقسم (${deptUpper}) حاليًا.` : "لا توجد ماكينات متاحة ضمن قسمك الحالي.");
     return `
-      <select id="${baseId}Type" class="${typeSelectClass}" disabled>
+      <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}" disabled>
         <option value="" selected>${msg}</option>
       </select>
-      <select id="${baseId}Unit" class="${unitSelectClass} hidden"></select>
-      <input type="hidden" id="${baseId}" value="">
+      <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} hidden"></select>
+      <input type="hidden" id="${escapeHtml(baseId)}" value="">
     `;
   }
 
@@ -548,19 +549,19 @@ export function buildMachineDropdownHtml(baseId, {
   const showUnitInitially = !!(unitsForSelectedType && unitsForSelectedType.length);
 
   const placeholderHtml = includePlaceholder
-    ? `<option value="" disabled ${selectedType ? "" : "selected"}>${placeholderLabel}</option>`
+    ? `<option value="" disabled ${selectedType ? "" : "selected"}>${escapeHtml(placeholderLabel)}</option>`
     : "";
 
   const allHtml = includeAll
-    ? `<option value="${allValue}" ${selectedType === allValue ? "selected" : ""}>${allLabel}</option>`
+    ? `<option value="${allValue}" ${selectedType === allValue ? "selected" : ""}>${escapeHtml(allLabel)}</option>`
     : "";
 
   const typesHtml = visibleTypes.map(m =>
-    `<option value="${m.key}" ${m.key === selectedType ? "selected" : ""}>${m.key}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
+    `<option value="${escapeHtml(m.key)}" ${m.key === selectedType ? "selected" : ""}>${escapeHtml(m.key)}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
   ).join("");
 
   const unitOptionsHtml = showUnitInitially
-    ? `<option value="" disabled ${selectedUnit ? "" : "selected"}>${unitPlaceholderLabel}</option>` +
+    ? `<option value="" disabled ${selectedUnit ? "" : "selected"}>${escapeHtml(unitPlaceholderLabel)}</option>` +
       unitsForSelectedType.map(u =>
         `<option value="${u}" ${u === selectedUnit ? "selected" : ""}>${u}</option>`
       ).join("")
@@ -574,49 +575,92 @@ export function buildMachineDropdownHtml(baseId, {
   const typeRequiredAttr = includePlaceholder ? " required" : "";
 
   return `
-    <select id="${baseId}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${baseId}')" data-machine-dept="${userDept || 'all'}">
+    <select id="${escapeHtml(baseId)}Type" class="${typeSelectClass}"${typeRequiredAttr} onchange="window.__onMachineTypeChange('${escapeJsArg(baseId)}')" data-machine-dept="${userDept || 'all'}" data-placeholder="${escapeHtml(placeholderLabel)}">
       ${placeholderHtml}${allHtml}${typesHtml}${extraTypeOptionsHtml}
     </select>
-    <select id="${baseId}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${baseId}')">
+    <select id="${escapeHtml(baseId)}Unit" class="${unitSelectClass} ${showUnitInitially ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${escapeJsArg(baseId)}')" data-unit-placeholder="${escapeHtml(unitPlaceholderLabel)}">
       ${unitOptionsHtml}
     </select>
-    <input type="hidden" id="${baseId}" value="${hiddenValue}"${onchangeAttr}>
+    <input type="hidden" id="${escapeHtml(baseId)}" value="${hiddenValue}"${onchangeAttr}>
   `;
 }
 
 /**
  * تحديث القوائم المعروضة في DOM فور اكتمال الجلب
  */
-function refreshActiveMachineDropdowns() {
-  // إصلاح: قائمة الاختيار اليدوي للماكينة في شاشة مسح QR
-  // (QrScannerView.js -> baseId="qrManualMachine") كانت غير مُدرجة
-  // هنا، فكانت الأقسام الأخرى (issueMachine/suggestionMachine/
-  // pmMachine/machineTypeSelect) بتتحدّث تلقائياً وتتفعّل بمجرد
-  // اكتمال تحميل قائمة الماكينات الفعلية من Firestore، بينما القائمة
-  // اليدوية في QR كانت تفضل عالقة على حالتها الأولى (المعطّلة أو
-  // القائمة الاحتياطية الافتراضية DEFAULT_MACHINE_TYPES) لو المستخدم
-  // فتح صفحة QR قبل اكتمال التحميل - نفس المسار المفروض يتصرف بنفس
-  // سياق باقي فورمات التطبيق بالظبط.
-  const dropdownBases = ["issueMachine", "suggestionMachine", "pmMachine", "machineTypeSelect", "qrManualMachine", "qrGenMachine"];
+export function refreshActiveMachineDropdowns() {
+  const dropdownBases = [
+    "issueMachine",
+    "suggestionMachine",
+    "pmMachine",
+    "machineTypeSelect",
+    "qrManualMachine",
+    "qrGenMachine",
+    "mMachineFilter",
+    "cbMachineSelect"
+  ];
+
+  const userContext = getCurrentUserMachineContext();
+  const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
+  const userDept = extractUserDepartment(userContext);
+  const currentLang = window.currentLang || "ar";
+  const isEn = currentLang === "en";
+
   for (const base of dropdownBases) {
-    const typeSelect = document.getElementById(base + "Type") || (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null);
+    const typeSelect = document.getElementById(base + "Type") || 
+      (base === "machineTypeSelect" ? document.getElementById("machineTypeSelect") : null) ||
+      (base === "mMachineFilter" ? document.getElementById("mMachineFilter") : null) ||
+      (base === "cbMachineSelect" ? document.getElementById("cbMachineSelect") : null);
+
     if (!typeSelect) continue;
 
-    const visibleTypes = getMachineTypeEntries({ includeInactive: false });
-    const userContext = getCurrentUserMachineContext();
-    const isAdmin = isAdminRole(userContext.role) || hasFullDataAccess(userContext.role);
-    const userDept = extractUserDepartment(userContext);
-
-    if (!isAdmin && !userDept) continue;
-
-    if (visibleTypes.length > 0 && typeSelect.disabled) {
-      typeSelect.disabled = false;
-      const currentLang = window.currentLang || "ar";
-      const isEn = currentLang === "en";
-      typeSelect.innerHTML =
-        `<option value="" disabled selected>${isEn ? 'Select machine type...' : 'اختر نوع الماكينة...'}</option>` +
-        visibleTypes.map(m => `<option value="${m.key}">${m.key}</option>`).join("");
+    // حالة خاصة: فلتر صفحة بناء قوائم الفحص (Checklist Builder)
+    if (base === "cbMachineSelect") {
+      if (typeof window.initChecklistBuilderView === "function") {
+        try { window.initChecklistBuilderView(); } catch (_) {}
+      }
+      continue;
     }
+
+    // حالة خاصة: فلتر صفحة البحث المتقدم
+    if (base === "mMachineFilter") {
+      const allEntries = getMachineTypeEntries({ includeInactive: true });
+      const currentVal = typeSelect.value || "all";
+      typeSelect.innerHTML =
+        `<option value="all">${isEn ? 'All Machines' : 'جميع الماكينات'}</option>` +
+        allEntries.map(m =>
+          `<option value="${escapeHtml(m.key)}" ${m.key === currentVal ? "selected" : ""}>${escapeHtml(m.key)}${m.active === false ? (isEn ? " (Inactive)" : " (معطّل)") : ""}</option>`
+        ).join("") +
+        `<option value="machine2">Machine 2</option><option value="line1">Coating Line 1</option>`;
+      typeSelect.value = currentVal;
+      continue;
+    }
+
+    if (!isAdmin && !userDept) {
+      typeSelect.disabled = true;
+      typeSelect.innerHTML = `<option value="" selected>${isEn ? 'No work area assigned' : 'لم يتم تحديد قسم العمل'}</option>`;
+      continue;
+    }
+
+    const visibleTypes = getMachineTypeEntries({ includeInactive: false });
+    const currentVal = typeSelect.value || "";
+    const placeholder = typeSelect.getAttribute("data-placeholder") || (isEn ? 'Select machine type...' : 'اختر نوع الماكينة...');
+
+    if (visibleTypes.length > 0) {
+      typeSelect.disabled = false;
+      typeSelect.innerHTML =
+        `<option value="" disabled ${currentVal ? "" : "selected"}>${escapeHtml(placeholder)}</option>` +
+        visibleTypes.map(m => `<option value="${escapeHtml(m.key)}" ${m.key === currentVal ? "selected" : ""}>${escapeHtml(m.key)}</option>`).join("");
+      
+      if (currentVal && visibleTypes.some(m => m.key === currentVal)) {
+        typeSelect.value = currentVal;
+      }
+    }
+  }
+
+  // تحديث جدول إدارة الماكينات للأدمن إن كانت الشاشة مفتوحة
+  if (typeof window.loadMachinesAdmin === "function" && document.getElementById("machinesContainer")) {
+    window.loadMachinesAdmin();
   }
 }
 

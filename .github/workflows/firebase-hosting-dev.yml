@@ -26,7 +26,16 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
-      - name: Build project
+      # اختبارات منطقية (بدون شبكة). continue-on-error: لا توقف النشر حتى تتأكد أنها مستقرة على Node 20
+      - name: Run logic tests
+        continue-on-error: true
+        run: |
+          node tests/run-logic-tests.mjs
+          node tests/worker-tests.mjs
+          node tests/integration-upload.mjs
+          node tests/client-reset.mjs
+
+      - name: Build project (syntax + assets + SW build id)
         run: npm run build
 
       - name: Deploy to Firebase Hosting

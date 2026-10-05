@@ -182,15 +182,22 @@ export function getTicketActions(ticket) {
   const actions = [];
 
   // التحقق من قرابة المستخدم بالبلاغ (فني مُسند إليه أم مُبلغ)
+  // الهوية بالـ UID (بند M1): المطابقة بالاسم بقت احتياطي فقط للبلاغات
+  // القديمة اللي مفيهاش UID - اسمين متطابقين كانوا بيتداخلوا وبتظهر أزرار
+  // القاعدة بترفضها (لأنها بتعتمد UID).
   const isAssignee =
     isAdmin ||
-    ticket.assignedToUid === myUid ||
-    (!!myName && ticket.assignedTo === myName);
+    (ticket.assignedToUid
+      ? ticket.assignedToUid === myUid
+      : (!!myName && ticket.assignedTo === myName));
 
+  // أمان (H5): الأدمن مش "مُبلّغ" تلقائياً - كان بيشوف "إصلاح ذاتي" على أي
+  // بلاغ. المُبلّغ = صاحب البلاغ الفعلي فقط (أدمن/مدير بيراجعوا ويأكدوا
+  // عبر canReviewAsManager تحت، مش عبر صفة المُبلّغ).
   const isReporter =
-    isAdmin ||
-    ticket.reportedByUid === myUid ||
-    (!!myName && ticket.reportedBy === myName);
+    ticket.reportedByUid
+      ? ticket.reportedByUid === myUid
+      : (!!myName && ticket.reportedBy === myName);
 
   switch (status) {
 
@@ -199,31 +206,65 @@ export function getTicketActions(ticket) {
       if (isManagerRole(role) || isAdmin) {
         actions.push({ key: "assign", label: ta().assign });
       }
+      // إمكانية إصلاح العطل ذاتياً بواسطة صاحب البلاغ
+      if (isReporter) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
+      }
       break;
 
     case "assigned":
-      // الفني المُسند إليه يظهر له زر بدء التنفيذ، وزر تم الإصلاح مباشرة للتسهيل
+      // الفني المُسند إليه يظهر له زر بدء التنفيذ، تم الإصلاح، والاعتذار/إعادة للانتظار
       if (isAssignee) {
         actions.push({ key: "start", label: ta().start });
         actions.push({ key: "resolve", label: ta().resolve });
+        actions.push({ key: "decline", label: ta().decline || "↩️ اعتذار / إعادة للانتظار" });
+      }
+      if (isReporter && !isAssignee) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
+      }
+      // إصلاح (Workflow - إعادة إسناد): المعالج handleTicketAction("reassign") موجود
+      // في ticketsBoard.js والترجمة ta().reassign موجودة، لكن الزر ماكانش بيتولّد
+      // أبداً من هنا، فمفيش طريقة في الموبايل لنقل تذكرة من فني غايب لفني تاني
+      if (isManagerRole(role) || isAdmin) {
+        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
       }
       break;
 
     case "in_progress":
     case "reopened":
-      // الفني المُسند إليه فقط يقدر ينهي المعالجة ويحوله لـ resolved
+      // الفني المُسند إليه يقدر ينهي المعالجة أو يعتذر ويعيد البلاغ للانتظار
       if (isAssignee) {
         actions.push({ key: "resolve", label: ta().resolve });
+        actions.push({ key: "decline", label: ta().decline || "↩️ اعتذار / إعادة للانتظار" });
+      }
+      if (isReporter && !isAssignee) {
+        actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
+      }
+      if (isManagerRole(role) || isAdmin) {
+        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
       }
       break;
 
-    case "resolved":
-      // المُبلّغ (أو الأدمن) يراجع العمل ويأكد الإغلاق أو يرفض مع السبب
-      if (isReporter) {
-        actions.push({ key: "confirm", label: ta().confirm });
+    case "resolved": {
+      // المُبلّغ (أو الأدمن) يراجع العمل ويأكد الإغلاق أو يرفض مع السبب.
+      // إصلاح (Workflow): (1) المدير/المشرف بقوا يقدروا يراجعوا نيابةً عن المُبلّغ
+      // (لو غادر أو انتهى شيفته كانت التذكرة بتعلق للأبد على "بانتظار التأكيد").
+      // (2) لو المُبلّغ هو اللي أصلح العطل (isSelfResolved) التأكيد بيبقى من طرف
+      // آخر (مدير/مشرف/أدمن) - المُبلّغ يقدر يرفض بس. مطابق لـ firestore.rules STEP 5.
+      const canReviewAsManager = isAdmin || isManagerRole(role);
+      const selfResolved = ticket.isSelfResolved === true;
+      // منع إغلاق بلاغ أصلحه الشخص نفسه (تجاوز التحقق): لو الإصلاح ذاتي
+      // (المُبلّغ = المُصلِح) ومن بيراجع هو نفس المُصلِح، التأكيد لازم
+      // يكون من طرف تاني (مطابق لـ firestore.rules STEP 5)
+      const iResolvedIt = !!ticket.resolvedByUid && ticket.resolvedByUid === myUid;
+      if (canReviewAsManager || isReporter) {
+        if ((canReviewAsManager || !selfResolved) && !(selfResolved && iResolvedIt)) {
+          actions.push({ key: "confirm", label: ta().confirm });
+        }
         actions.push({ key: "reject", label: ta().reject });
       }
       break;
+    }
 
     // "closed" حالة نهائية - لا تحتوي على أزرار تغيير حالة
   }

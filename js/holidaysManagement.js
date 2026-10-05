@@ -52,6 +52,7 @@ import {
   getEgyptianHolidaysUpdatedAt,
   syncEgyptianHolidaysFromGoogle
 } from "./services/googleHolidaysSync.js";
+import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
 
 /**
  * تنسيق تاريخ ISO (YYYY-MM-DD) لعرضه بشكل مقروء بالعربي
@@ -83,7 +84,7 @@ window.loadHolidays = async function () {
   if (result.status !== "success") {
     container.innerHTML = `
       <div class="text-center text-red-400 text-xs py-6">
-        تعذر تحميل الإجازات الرسمية: ${result.message || ""}
+        تعذر تحميل الإجازات الرسمية: ${escapeHtml(result.message || "")}
       </div>
     `;
     return;
@@ -101,11 +102,11 @@ window.loadHolidays = async function () {
   container.innerHTML = result.data.map(h => `
     <div class="flex items-center justify-between bg-[#1E293B] border border-gray-800 rounded-xl p-3">
       <div>
-        <div class="text-xs font-bold text-gray-100">${h.label || "إجازة رسمية"}</div>
+        <div class="text-xs font-bold text-gray-100">${escapeHtml(h.label || "إجازة رسمية")}</div>
         <div class="text-[10px] text-gray-500 mt-0.5">${formatHolidayDate(h.date)}</div>
       </div>
       <button
-        onclick="window.deleteHoliday('${h.id}', '${(h.label || "").replace(/'/g, "\\'")}')"
+        onclick="window.deleteHoliday('${escapeJsArg(h.id)}', '${escapeJsArg(h.label || "")}')"
         class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
         🗑️ حذف
       </button>
@@ -141,7 +142,7 @@ window.syncGoogleHolidaysNow = async function () {
   if (btn) { btn.disabled = false; btn.textContent = "🔄 تحديث من جوجل"; }
 
   if (result.status !== "success") {
-    if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ فشلت المزامنة الحية (${result.message || "خطأ غير معروف"}) - يحتاج الإعداد مفتاح Google Calendar API صالح. سيتم استخدام آخر نسخة محفوظة إن وجدت.</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ فشلت المزامنة الحية (${escapeHtml(result.message || "خطأ غير معروف")}) - يحتاج الإعداد مفتاح Google Calendar API صالح. سيتم استخدام آخر نسخة محفوظة إن وجدت.</span>`;
   } else if (result.offline) {
     if (statusEl) statusEl.innerHTML = `<span class="text-amber-400">⚠️ تعذر الاتصال بجوجل حاليًا - تم استخدام آخر نسخة محفوظة محليًا (${formatSyncTimestamp(result.updatedAt)}).</span>`;
   } else {
@@ -177,7 +178,7 @@ window.loadGoogleHolidaysDropdown = function () {
     } else {
       select.innerHTML =
         `<option value="">-- اختر إجازة من قائمة جوجل --</option>` +
-        holidays.map(h => `<option value="${h.date}" data-label="${(h.label || "").replace(/"/g, "&quot;")}">${formatHolidayDate(h.date)} - ${h.label}</option>`).join("");
+        holidays.map(h => `<option value="${escapeHtml(h.date)}" data-label="${escapeHtml(h.label || "")}">${formatHolidayDate(h.date)} - ${escapeHtml(h.label)}</option>`).join("");
     }
   }
 
@@ -185,7 +186,7 @@ window.loadGoogleHolidaysDropdown = function () {
     listContainer.innerHTML = holidays.length
       ? holidays.map(h => `
           <div class="flex items-center justify-between bg-[#0F172A] border border-gray-800 rounded-lg px-2.5 py-1.5 text-[10px]">
-            <span class="text-gray-300">${h.label}</span>
+            <span class="text-gray-300">${escapeHtml(h.label)}</span>
             <span class="text-gray-500 dir-ltr">${h.date}</span>
           </div>
         `).join("")

@@ -7,7 +7,7 @@
 // ============================================================
 
 import { PageView } from './components/PageView.js';
-import { hasPermission } from './permissions.js';
+import { hasPermission, isAdminRole, isManagerRole, getCurrentRole } from './permissions.js';
 import { translations } from './config.js';
 
 // إصلاح (ترجمة شاملة): نصوص "قيد التطوير"/"غير مصرح" وشاشات
@@ -38,6 +38,8 @@ import { QrScannerView } from './views/QrScannerView.js';
 import { MachineProfileView } from './views/MachineProfileView.js';
 import { DailyAMView } from './views/DailyAMView.js';
 import { FiveSView } from './views/FiveSView.js';
+import { ChecklistBuilderView } from './views/ChecklistBuilderView.js'; // ITEMS-EDITOR
+import { DailyTipsSettingsView } from './views/DailyTipsSettingsView.js';
 
 
 // ============================================================
@@ -250,6 +252,17 @@ case 'fiveS':
     : unauthorizedPage("qr");
 
 
+// ========================================================
+// CHECKLIST ITEMS BUILDER (ITEMS-EDITOR)
+// محرر بنود الفحص للمدير والأدمن
+// ========================================================
+case 'checklistBuilder':
+
+  return (isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole()))
+    ? ChecklistBuilderView()
+    : unauthorizedPage("checklistBuilder");
+
+
 case 'kb':  
 
   return hasPermission("kb")  
@@ -343,6 +356,13 @@ case 'machines':
 case 'system':  
 
   return SystemView();  
+
+
+case 'dailyTipsSettings':
+
+  return hasPermission("settings")
+    ? DailyTipsSettingsView()
+    : unauthorizedPage("settings");
 
 
 // ========================================================  

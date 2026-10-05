@@ -50,6 +50,7 @@ import {
   getEgyptianHolidaysUpdatedAt,
   syncEgyptianHolidaysFromGoogle
 } from "./services/googleHolidaysSync.js";
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 // ============================================================
 // 0. الإجازات الرسمية - كاش محلي (Cache) + جلب من Firestore
@@ -1947,13 +1948,13 @@ export function renderAttendanceCard(customProfile = null) {
               <span class="font-black text-xs text-white truncate max-w-[120px] sm:max-w-[180px]">حاسبة الحضور</span>
               <span class="text-[8.5px] text-[#D4AF37] font-bold px-1 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
             </div>
-            <div class="text-[9.5px] text-slate-300 font-medium truncate max-w-[130px] sm:max-w-[200px]">${name} · ${job}</div>
+            <div class="text-[9.5px] text-slate-300 font-medium truncate max-w-[130px] sm:max-w-[200px]">${escapeHtml(name)} · ${escapeHtml(job)}</div>
           </div>
         </div>
 
         <div class="flex items-center gap-1 shrink-0">
-          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${dayInfo.colorBadge.text}">
-            <span class="w-1 h-1 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${dayInfo.colorBadge.label}</span>
+          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${escapeHtml(dayInfo.colorBadge.text)}">
+            <span class="w-1 h-1 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${escapeHtml(dayInfo.colorBadge.label)}</span>
           </span>
           <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${dayInfo.badgeColorClass}">
             ${dayInfo.shiftType === "ليلي" ? "🌙 ليلي" : (dayInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
@@ -1982,13 +1983,13 @@ export function renderAttendanceCard(customProfile = null) {
         aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
 
       <div id="attendanceRow2" class="grid grid-cols-3 gap-1.5 bg-slate-900/60 p-2 rounded-lg border border-white/5 text-center items-center">
-        <div><div class="text-[8.5px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-[11px] font-black text-[#D4AF37] mt-0.5">${dayInfo.dayInCycleText}</div></div>
+        <div><div class="text-[8.5px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-[11px] font-black text-[#D4AF37] mt-0.5">${escapeHtml(dayInfo.dayInCycleText)}</div></div>
         <div class="border-x border-white/10 px-0.5"><div class="text-[8.5px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[10px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
         <div><div class="text-[8.5px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[10px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
       </div>
 
       <div id="attendanceDayStatus" class="flex items-center gap-1.5 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-200 font-bold">
-        <span>${dayStatusText}</span>
+        <span>${escapeHtml(dayStatusText)}</span>
         ${dayInfo.source === "cycle" ? '<span class="text-[8.5px] text-slate-500 font-normal">(محسوبة تلقائياً)</span>' : ""}
       </div>
 

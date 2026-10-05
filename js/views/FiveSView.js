@@ -6,15 +6,16 @@
 // + 5S Score إجمالي (متوسط التقييمات كنسبة مئوية).
 // ============================================================
 
-import { getDepartmentForMachineValue, normalizeDepartment } from '../machines.js';
+import { getDepartmentForMachineValue, getLineForMachineValue, formatLineLabel, normalizeLine, normalizeDepartment } from '../machines.js';
 import { hasFullDataAccess } from '../permissions.js';
 import {
   buildAttachmentPickerHtml,
   initAttachmentPicker,
   getAttachmentFiles
 } from '../components/attachmentPicker.js';
+import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 
-const FIVE_S_PILLARS = [
+export const FIVE_S_PILLARS = [ // ITEMS-EDITOR
   { id: 'sort', ar: 'Sort - الفرز/التنظيم', en: 'Sort', desc: { ar: 'التخلص من الأدوات/المواد غير الضرورية حول الماكينة', en: 'Unnecessary items removed from the area' } },
   { id: 'setInOrder', ar: 'Set in Order - الترتيب', en: 'Set in Order', desc: { ar: 'الأدوات والمواد مرتبة في أماكنها المحددة', en: 'Tools and parts organized in designated places' } },
   { id: 'shine', ar: 'Shine - النظافة', en: 'Shine', desc: { ar: 'الماكينة والمنطقة المحيطة نظيفة', en: 'Machine and surrounding area are clean' } },
@@ -96,7 +97,7 @@ export const FiveSView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-emerald-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${machine} • ${tr.subtitle}</p>
+      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="fiveSForm" onsubmit="window.handleFiveSSubmit(event)" class="space-y-4">
@@ -111,19 +112,19 @@ export const FiveSView = () => {
 
           <div class="grid grid-cols-5 gap-1.5 pt-1">
             ${[1, 2, 3, 4, 5].map(n => `
-              <button type="button" onclick="window.selectFiveSRating('${p.id}', ${n})" id="fsBtn_${p.id}_${n}"
+              <button type="button" onclick="window.selectFiveSRating('${escapeJsArg(p.id)}', ${n})" id="fsBtn_${escapeHtml(p.id)}_${n}"
                 class="fs-rating-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
                 ${n}
               </button>
             `).join('')}
           </div>
-          <input type="hidden" id="fsRating_${p.id}" value="">
+          <input type="hidden" id="fsRating_${escapeHtml(p.id)}" value="">
 
-          <div id="fsExtras_${p.id}" class="space-y-3 hidden pt-2 border-t border-gray-800">
+          <div id="fsExtras_${escapeHtml(p.id)}" class="space-y-3 hidden pt-2 border-t border-gray-800">
              <div class="flex items-start gap-2">
                <div class="flex-1 space-y-1">
-                  <label id="fsNoteLabel_${p.id}" class="block text-[10px] font-bold text-gray-400">${tr.noteLabel}</label>
-                  <textarea id="fsNote_${p.id}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
+                  <label id="fsNoteLabel_${escapeHtml(p.id)}" class="block text-[10px] font-bold text-gray-400">${tr.noteLabel}</label>
+                  <textarea id="fsNote_${escapeHtml(p.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
                </div>
              </div>
              
@@ -131,9 +132,9 @@ export const FiveSView = () => {
                 ${buildAttachmentPickerHtml(`fsPhoto_${p.id}`, { emptyText: tr.photoEmpty })}
              </div>
 
-             <div id="fsTicketBox_${p.id}" class="hidden">
+             <div id="fsTicketBox_${escapeHtml(p.id)}" class="hidden">
                 <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
-                  <input type="checkbox" id="fsCreateTicket_${p.id}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
+                  <input type="checkbox" id="fsCreateTicket_${escapeHtml(p.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
                   <span class="font-medium text-red-300">${tr.createTicket}</span>
                 </label>
              </div>
@@ -291,6 +292,7 @@ window.handleFiveSSubmit = async function (event) {
   const payload = {
     machine,
     items: items.map(i => ({ pillar: i.pillar, label: i.label, rating: i.rating, note: i.note, photo: i.photo })), // save without ticketRequested for checklists collection
+    templateVersion: window._activeFiveSTemplateVersion || 1, // ITEMS-EDITOR
     score,
     createdBy: {
       name: localStorage.getItem('name') || '',
@@ -317,16 +319,24 @@ window.handleFiveSSubmit = async function (event) {
       // Create tickets for items that requested one
       const ticketItems = items.filter(i => i.rating <= 2 && i.ticketRequested);
       let ticketsCreated = false;
+      let failedTickets = 0;
 
       if (ticketItems.length) {
         const { saveIssueApi } = await import('../services/api.js');
+        // نفس إصلاح الفحص اليومي: الخط من الـQR/الكتالوج بدل قيمة فاضية
+        const fsLineLabel = formatLineLabel(
+          normalizeLine(localStorage.getItem('activeMachineLine')) || getLineForMachineValue(machine)
+        );
         for (const item of ticketItems) {
-          await saveIssueApi({
+          const ticketResult = await saveIssueApi({
             issueId: 'IS-' + Date.now() + '-' + item.pillar,
-            line: '',
+            line: fsLineLabel,
             machine,
             priority: 'Medium',
-            type: 'Breakdown',
+            // إصلاح: ملاحظة 5S (ترتيب/نظافة/تحسين) كانت بتتسجل نوع "عطل مفاجئ"
+            // Breakdown - فكانت بتخلّي حالة الماكينة في ملفها "متوقفة" 🔴
+            // وبتتحسب في إحصائيات الأعطال و MTTR. النوع الصحيح "ملاحظة".
+            type: 'Observation',
             category: '5S / تحسين',
             description: `[5S - ${item.label}] (Rating: ${item.rating}/5) - ${item.note}`,
             location: '',
@@ -344,11 +354,22 @@ window.handleFiveSSubmit = async function (event) {
             createdAt: new Date().toISOString(),
             source: 'fiveS'
           });
+          if (!ticketResult || (ticketResult.status !== 'success' && ticketResult.status !== 'queued')) {
+            failedTickets += 1;
+          }
         }
-        ticketsCreated = true;
+        ticketsCreated = failedTickets < ticketItems.length;
       }
 
-      alert(tr.success + score + '%' + (ticketsCreated ? tr.ticketsCreated : ''));
+      const fsIsEn = (window.currentLang || 'ar') === 'en';
+      alert(
+        tr.success + score + '%' +
+        (failedTickets > 0
+          ? (fsIsEn
+              ? ` — but ${failedTickets} ticket(s) could NOT be created. Please report them manually.`
+              : ` — لكن تعذّر إنشاء ${failedTickets} بلاغ. برجاء تسجيلها يدوياً.`)
+          : (ticketsCreated ? tr.ticketsCreated : ''))
+      );
       window.goBack('machineProfile');
     } else {
       alert(tr.error + (result.message || ''));

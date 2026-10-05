@@ -8,6 +8,7 @@
 import { db, doc, getDoc, setDoc } from './providers/backend/index.js';
 import { loadScriptWithFallback } from './utils/loadExternalScript.js';
 import { isAdminRole, getCurrentRole } from './permissions.js';
+import { escapeHtml } from "./utils/escapeHtml.js";
 
 let exceljsLoadPromise = null;
 function ensureExcelJs() {
@@ -332,6 +333,52 @@ window.previewAmExcelFile = async function(inputEl) {
 
     _parsedAmTemplates = machineMap;
 
+    // ITEMS-EDITOR: فحص الفروق مع القوالب الحالية في Firestore
+    let diffSummaryHtml = '';
+    try {
+      const diffResults = await Promise.all(machineNames.map(async m => {
+        try {
+          const snap = await getDoc(doc(db, 'machineAmTemplates', m));
+          if (!snap.exists()) {
+            return { machine: m, added: machineMap[m].length, modified: 0, removed: 0, isNew: true };
+          }
+          const oldItems = snap.data().items || [];
+          const newItems = machineMap[m];
+          let added = 0;
+          let modified = 0;
+          newItems.forEach(n => {
+            const match = oldItems.find(o => o.id === n.id || (o.ar && o.ar === n.ar));
+            if (!match) added++;
+            else if (match.type !== n.type || match.unit !== n.unit || match.role !== n.role) modified++;
+          });
+          const removed = oldItems.filter(o => !newItems.some(n => n.id === o.id || (o.ar && o.ar === n.ar))).length;
+          return { machine: m, added, modified, removed, isNew: false, oldVersion: snap.data().templateVersion || 1 };
+        } catch (_) {
+          return { machine: m, added: machineMap[m].length, modified: 0, removed: 0, isNew: false };
+        }
+      }));
+
+      diffSummaryHtml = `
+        <div class="mt-2 pt-2 border-t border-gray-700/50 space-y-1">
+          <div class="text-[10px] font-bold text-gray-300">📊 ${isEn ? 'Diff Preview vs Existing Templates:' : 'معاينة الفروق مقارنة بالقوالب الحالية:'}</div>
+          <div class="max-h-36 overflow-y-auto space-y-1">
+            ${diffResults.map(d => `
+              <div class="bg-[#0F172A]/70 px-2 py-1 rounded text-[10px] flex items-center justify-between">
+                <span class="font-medium text-white">${escapeHtml(d.machine)}</span>
+                <span class="flex items-center gap-1.5 font-mono">
+                  ${d.isNew ? `<span class="text-blue-400 font-bold">${isEn ? 'New Template' : 'قالب جديد'}</span>` : `
+                    <span class="text-emerald-400">+${d.added} ${isEn ? 'add' : 'مضاف'}</span>
+                    <span class="text-amber-400">~${d.modified} ${isEn ? 'mod' : 'معدل'}</span>
+                    <span class="text-red-400">-${d.removed} ${isEn ? 'del' : 'محذوف'}</span>
+                  `}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } catch (_) {}
+
     if (previewBox) {
       previewBox.innerHTML = `
         <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 space-y-2">
@@ -339,7 +386,7 @@ window.previewAmExcelFile = async function(inputEl) {
             <span>✅ ${isEn ? 'File analyzed successfully' : 'تم تحليل الملف بنجاح'}</span>
             <span>${machineNames.length} ${isEn ? 'Machines' : 'ماكينة'} (${totalItems} ${isEn ? 'Total Items' : 'بند فحص إجمالاً'})</span>
           </div>
-          <div class="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+          <div class="max-h-32 overflow-y-auto space-y-1.5 pr-1">
             ${machineNames.map(m => `
               <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between text-[11px]">
                 <span class="font-bold text-white">🏭 ${m}</span>
@@ -347,6 +394,7 @@ window.previewAmExcelFile = async function(inputEl) {
               </div>
             `).join('')}
           </div>
+          ${diffSummaryHtml}
         </div>
       `;
     }
@@ -357,7 +405,7 @@ window.previewAmExcelFile = async function(inputEl) {
     if (previewBox) {
       previewBox.innerHTML = `
         <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">
-          ❌ ${err.message}
+          ❌ ${escapeHtml(err.message)}
         </div>
       `;
     }
@@ -387,8 +435,28 @@ window.confirmAmExcelImport = async function() {
     const now = new Date().toISOString();
 
     for (const [machineName, items] of Object.entries(_parsedAmTemplates)) {
+      // ITEMS-EDITOR: الحفاظ على سجل الإصدارات وزيادة templateVersion
+      let nextVersion = 1;
+      let history = [];
+      try {
+        const existingSnap = await getDoc(doc(db, 'machineAmTemplates', machineName));
+        if (existingSnap.exists()) {
+          const oldData = existingSnap.data();
+          nextVersion = (oldData.templateVersion || 1) + 1;
+          history = Array.isArray(oldData.history) ? oldData.history.slice(-9) : [];
+          history.push({
+            version: oldData.templateVersion || 1,
+            updatedAt: oldData.updatedAt || now,
+            updatedBy: oldData.updatedBy || updater,
+            itemsCount: (oldData.items || []).length
+          });
+        }
+      } catch (_) {}
+
       await setDoc(doc(db, 'machineAmTemplates', machineName), {
         items,
+        templateVersion: nextVersion,
+        history,
         updatedAt: now,
         updatedBy: updater
       });

@@ -1,7 +1,6 @@
 import { BottomNav } from "../components/BottomNav.js";
 import { translations } from "../config.js";
 import { isAdminRole } from "../permissions.js";
-import { renderDailyTipCard } from "../dailyTips.js";
 import { countPendingUsersApi } from "../services/usersApi.js";
 
 export const SystemView = () => {
@@ -86,11 +85,6 @@ return `
       ${currentRole}
     </span>
   </div>  
-
-  <!-- ========================================================
-       كارت «معلومة على الماشي» (يتغير يومياً الساعة 12 ظهراً)
-       ======================================================== -->
-  ${renderDailyTipCard()}
 
   <!-- ========================================================
        شبكة خيارات النظام
@@ -196,11 +190,36 @@ return `
       </div>
 
       <span class="font-bold text-xs text-gray-100">
-        ${t.settingsTitle || (currentLang === 'en' ? 'System Settings' : 'إعدادات النظام')}
+        ${t.settingsTitle || (currentLang === 'en' ? 'Attendance Calculator Settings' : 'إعدادات حاسبة الحضور')}
       </span>
 
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
         ${t.settingsDesc || ''}
+      </span>
+    </button>
+    ` : ""}
+
+
+    <!-- ======================================================
+         إعدادات معلومة على الماشي
+         ====================================================== -->
+    ${can("settings") ? `
+    <button
+      type="button"
+      onclick="window.navigateTo('dailyTipsSettings')"
+      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
+    >
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
+      <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
+        💡
+      </div>
+
+      <span class="font-bold text-xs text-gray-100">
+        ${t.dailyTipsTitle || (currentLang === 'en' ? 'Daily Tips Settings' : 'إعدادات معلومة على الماشي')}
+      </span>
+
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+        ${t.dailyTipsDesc || (currentLang === 'en' ? 'Add & manage daily insights' : 'إضافة وإدارة معلومات ومعارف اليوم')}
       </span>
     </button>
     ` : ""}
