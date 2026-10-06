@@ -51,6 +51,22 @@ await t("الدخول يجرّب الصيغ القديمة للحسابات ال
   const c = P.phoneAuthEmailCandidates("01001234567");
   assert.ok(c.includes("201001234567@maintenance-defect-system.local"));
 });
+const { extractErrorCode } = await import("../js/utils/machineErrorOcr.js");
+console.log("machine-screen OCR code extraction");
+await t("يستخرج أكواد الأعطال مع اختلاف المسافات والشرطات", () => {
+  assert.equal(extractErrorCode("ALARM HISTORY\nERR 204"), "ERR204");
+  assert.equal(extractErrorCode("FAULT: 108"), "FAULT108");
+  assert.equal(extractErrorCode("F - 05"), "F-05");
+  assert.equal(extractErrorCode("E 05"), "E05");
+});
+await t("يصحح التباس OCR بين الحروف والأرقام ويدعم الأرقام العربية", () => {
+  assert.equal(extractErrorCode("ERR 2O4"), "ERR204");
+  assert.equal(extractErrorCode("E-٠٥"), "E-05");
+});
+await t("لا يعتبر عنوان ALARM HISTORY كود عطل", () => {
+  assert.equal(extractErrorCode("ALARM HISTORY\nNo active alarms"), "");
+  assert.equal(extractErrorCode("ALARM HISTORY 21"), "");
+});
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
   for (const f of ["01001234567", "٠١٠٠١٢٣٤٥٦٧", "+20 100 123 4567", "0020 1001234567", "+44 7911 123456", "123"]) {

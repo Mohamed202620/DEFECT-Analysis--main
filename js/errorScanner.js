@@ -21,6 +21,7 @@ import {
   fetchAllMachineErrorsApi
 } from './services/api.js';
 import { translations } from './config.js';
+import { extractErrorCode, prepareOcrImages } from './utils/machineErrorOcr.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الميزة (رسائل الحالة، تنبيهات،
 // عناوين النتائج، النموذج الجديد) كانت ثابتة بالعربي - دلوقتي
@@ -44,6 +45,7 @@ let isScanning = false;       // true أثناء تشغيل OCR (لمنع تشغ
 // ============================================================
 
 let tesseractLoadPromise = null;
+let ocrWorkerPromise = null;
 
 function loadTesseract() {
   if (window.Tesseract) {
@@ -60,33 +62,55 @@ function loadTesseract() {
     script.onload = () => resolve(window.Tesseract);
     script.onerror = () => reject(new Error(t().tesseractLoadError));
     document.head.appendChild(script);
+  }).catch(error => {
+    tesseractLoadPromise = null;
+    throw error;
   });
 
   return tesseractLoadPromise;
 }
 
-// ============================================================
-// استخراج كود العطل الأكثر ترجيحاً من النص المستخرج
-// أنماط شائعة: E-12، ERR204، F-05، ALM 21، Fault 108 ...الخ
-// ============================================================
-
-function extractErrorCode(rawText) {
-  const text = String(rawText || '');
-
-  const patterns = [
-    /\b(ERR|ERROR|ALM|ALARM|FAULT|FLT)[-_\s]?\d{1,5}\b/i,
-    /\b[A-Z]{1,4}[-_]\d{1,5}\b/,
-    /\b[A-Z]{1,3}\d{2,5}\b/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      return match[0].toUpperCase().replace(/\s+/g, ' ').trim();
-    }
+async function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = loadTesseract()
+      .then(Tesseract => Tesseract.createWorker('ara+eng'))
+      .catch(error => {
+        ocrWorkerPromise = null;
+        throw error;
+      });
   }
+  return ocrWorkerPromise;
+}
 
-  return '';
+async function recognizeMachineScreen(file) {
+  const [images, worker] = await Promise.all([
+    prepareOcrImages(file),
+    getOcrWorker()
+  ]);
+  const codeReads = [];
+
+  await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  const messageRead = await worker.recognize(images.enhanced);
+  codeReads.push(messageRead);
+
+  await worker.setParameters({ tessedit_pageseg_mode: '11' });
+  codeReads.push(await worker.recognize(images.enhanced));
+
+  await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  codeReads.push(await worker.recognize(images.thresholded));
+
+  const bestCodeRead = codeReads
+    .map(result => ({
+      code: extractErrorCode(result?.data?.text),
+      confidence: Number(result?.data?.confidence) || 0
+    }))
+    .filter(result => result.code)
+    .sort((a, b) => b.confidence - a.confidence)[0];
+
+  return {
+    rawText: messageRead?.data?.text || '',
+    errorCode: bestCodeRead?.code || ''
+  };
 }
 
 // ============================================================
@@ -257,16 +281,12 @@ document.addEventListener('change', async (e) => {
     // إصلاح (Spinner أثناء القراءة): "جاري قراءة الشاشة..." + Spinner
     setStatus(t().readingOcr, false, true);
 
-    const Tesseract = await loadTesseract();
-    // إصلاح (دعم عربي + إنجليزي): شاشات الماكينات ممكن تحتوي نص عربي
-    // كمان (رسائل/تعليمات) - ara+eng بيحسّن التعرف عليها مع الإنجليزي
-    const result = await Tesseract.recognize(scannedImage, 'ara+eng');
-    const rawText = result?.data?.text || '';
+    const { rawText, errorCode } = await recognizeMachineScreen(file);
 
     const codeInput = el('errScanCode');
     const messageInput = el('errScanMessage');
 
-    const suggestedCode = extractErrorCode(rawText);
+    const suggestedCode = errorCode;
 
     // إصلاح (استخراج Message بنمط صريح): لو النص فيه "Message: ..."
     // بشكل صريح بناخده كما هو، وإلا نرجع لنفس السلوك القديم (كل
