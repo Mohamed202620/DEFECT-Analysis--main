@@ -89,7 +89,34 @@ export const ErrorScannerView = () => {
       </button>
     </div>
 
-    <img id="errScanPreview" class="hidden rounded-xl border border-gray-700 w-full max-h-56 object-contain bg-[#0F172A] p-1 shadow-sm"/>
+    <!-- معاينة الصورة + مستطيل تحديد سطر العطل (سجل الأعطال فيه أكثر من سطر، والمستخدم يحدد المطلوب) -->
+    <div id="errScanCropWrap" class="hidden space-y-2">
+      <div class="text-[11px] text-gray-400 text-center">
+        ${t.cropHint || (currentLang === 'en'
+          ? 'Tap the error line in the image (or drag the box) so it covers the whole line, then press Read selected line.'
+          : 'اضغط على سطر العطل المطلوب في الصورة (أو اسحب المستطيل) ليغطي السطر كاملاً، ثم اضغط "اقرأ السطر المحدد".')}
+      </div>
+      <div id="errScanCropStage" class="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl border border-gray-700 bg-[#0F172A] select-none" style="touch-action:pan-y">
+        <img id="errScanPreview" alt="" draggable="false" class="block max-w-full max-h-72 w-auto h-auto"/>
+        <div id="errScanCropBox" class="absolute border-2 border-emerald-400 rounded-sm cursor-move"
+          style="touch-action:none;left:5%;top:38%;width:90%;height:8%;box-shadow:0 0 0 9999px rgba(0,0,0,.55)">
+          <span data-h="nw" style="position:absolute;left:0;top:0;width:24px;height:24px;transform:translate(-50%,-50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
+          <span data-h="ne" style="position:absolute;right:0;top:0;width:24px;height:24px;transform:translate(50%,-50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
+          <span data-h="sw" style="position:absolute;left:0;bottom:0;width:24px;height:24px;transform:translate(-50%,50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
+          <span data-h="se" style="position:absolute;right:0;bottom:0;width:24px;height:24px;transform:translate(50%,50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" id="errScanReadRegionBtn" onclick="window.scanSelectedRegion()"
+          class="bg-emerald-600/20 border border-emerald-500/50 hover:bg-emerald-600/30 rounded-xl p-3 text-emerald-300 font-black transition active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🔍</span> ${t.scanRegionBtn || (currentLang === 'en' ? 'Read selected line' : 'اقرأ السطر المحدد')}
+        </button>
+        <button type="button" id="errScanReadFullBtn" onclick="window.scanFullImage()"
+          class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🖼️</span> ${t.scanFullBtn || (currentLang === 'en' ? 'Read whole image' : 'قراءة الصورة كلها')}
+        </button>
+      </div>
+    </div>
 
     <div id="errScanStatus" class="text-[11px] text-blue-400 text-center min-h-[16px] font-medium">
       ${t.readyStatus || ''}
