@@ -102,6 +102,32 @@ await t("كود مقروء غلط + رسالة مطابقة => كود من ال�
   assert.equal(analyzeAlarmLines(ocrLines(["O6O-SHEET DELIVERY DROPPED SHEET"]), OCR_KB).candidates[0].code, "060");
   assert.equal(analyzeAlarmLines(ocrLines(["41O-COMPLETELY UNKNOWN PROBLEM TEXT"]), OCR_KB).candidates[0].inKb, false);
 });
+const { clampCropRect, pickLineNearCenter } = await import("../js/utils/machineErrorOcr.js");
+console.log("machine-screen OCR: selected line region");
+await t("clampCropRect يبقي المستطيل داخل الصورة وبحد أدنى ويتحمل القيم التالفة", () => {
+  const r = clampCropRect({ x: 0.95, y: 0.99, w: 0.3, h: 0.1 });
+  assert.ok(r.x + r.w <= 1.0000001 && r.y + r.h <= 1.0000001 && r.h >= 0.025);
+  assert.ok(Number.isFinite(clampCropRect({ x: "a", y: NaN, w: undefined, h: null }).x));
+});
+await t("pickLineNearCenter يختار سطر مركز المستطيل ويتجاهل المقصوص والضجيج", () => {
+  const lines = [
+    { text: "060-SHEET DELIVERY DR", confidence: 80, bbox: { y0: 0, y1: 14 } },
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 88, bbox: { y0: 60, y1: 100 } },
+    { text: "113-AIR TABLE NOT ENABLED", confidence: 80, bbox: { y0: 150, y1: 170 } }
+  ];
+  const picked = pickLineNearCenter(lines, 160);
+  assert.equal(picked.length, 1);
+  assert.match(picked[0].text, /^059/);
+  assert.deepEqual(pickLineNearCenter([{ text: "zzz noise", confidence: 90, bbox: { y0: 70, y1: 90 } }], 160), []);
+});
+await t("سطر محدد واحد موجود في KB => confirmed حتى لو الكود في سجل فيه أعطال أخرى", () => {
+  const picked = pickLineNearCenter([
+    { text: "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", confidence: 86, bbox: { y0: 60, y1: 100 } }], 160);
+  const r = analyzeAlarmLines(picked, OCR_KB);
+  assert.equal(r.status, "confirmed");
+  assert.equal(r.selected.code, "059");
+  assert.equal(r.selected.message, "SHEET DELIVERY DID NOT GET SHEET");
+});
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
   for (const f of ["01001234567", "٠١٠٠١٢٣٤٥٦٧", "+20 100 123 4567", "0020 1001234567", "+44 7911 123456", "123"]) {
