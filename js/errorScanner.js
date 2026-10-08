@@ -21,7 +21,7 @@ import {
   fetchAllMachineErrorsApi
 } from './services/api.js';
 import { translations } from './config.js';
-import { extractErrorCode, prepareOcrImages } from './utils/machineErrorOcr.js';
+import { analyzeAlarmLines, prepareOcrImages } from './utils/machineErrorOcr.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الميزة (رسائل الحالة، تنبيهات،
 // عناوين النتائج، النموذج الجديد) كانت ثابتة بالعربي - دلوقتي
@@ -38,6 +38,7 @@ function t() {
 let scannedImage = null;      // الصورة بعد الضغط (Base64) لعرضها وحفظها
 let lastFoundError = null;    // آخر نتيجة عطل تم العثور عليها (لإجراءات الاعتماد/التسجيل)
 let isScanning = false;       // true أثناء تشغيل OCR (لمنع تشغيل مزدوج + التحكم بالـ Spinner)
+let ocrCandidates = [];       // مرشحو OCR (غير مؤكدين) المعروضين للاختيار اليدوي
 
 // ============================================================
 // تحميل مكتبة Tesseract.js بشكل كسول (مرة واحدة فقط عند الحاجة)
@@ -82,35 +83,57 @@ async function getOcrWorker() {
   return ocrWorkerPromise;
 }
 
+function readLines(result) {
+  const lines = Array.isArray(result?.data?.lines) ? result.data.lines : [];
+  if (lines.length) {
+    return lines
+      .map(line => ({ text: String(line.text || '').trim(), confidence: Number(line.confidence) || 0 }))
+      .filter(line => line.text);
+  }
+  // احتياطي: لو المكتبة ما رجّعتش lines نستخدم النص كما هو بثقة الصفحة
+  const pageConfidence = Number(result?.data?.confidence) || 0;
+  return String(result?.data?.text || '')
+    .split(/\r?\n/)
+    .map(text => ({ text: text.trim(), confidence: pageConfidence }))
+    .filter(line => line.text);
+}
+
+// يرجّع النص الخام + قراءات الأسطر لكل تمريرة OCR. القرار (مرشح/مؤكد) بيتاخد بعدين
+// بعد المطابقة مع قاعدة المعرفة - مفيش كود بيتعبّى من هنا مباشرة
 async function recognizeMachineScreen(file) {
   const [images, worker] = await Promise.all([
     prepareOcrImages(file),
     getOcrWorker()
   ]);
-  const codeReads = [];
+  const reads = [];
 
   await worker.setParameters({ tessedit_pageseg_mode: '6' });
   const messageRead = await worker.recognize(images.enhanced);
-  codeReads.push(messageRead);
+  reads.push(readLines(messageRead));
 
   await worker.setParameters({ tessedit_pageseg_mode: '11' });
-  codeReads.push(await worker.recognize(images.enhanced));
+  reads.push(readLines(await worker.recognize(images.enhanced)));
 
   await worker.setParameters({ tessedit_pageseg_mode: '6' });
-  codeReads.push(await worker.recognize(images.thresholded));
-
-  const bestCodeRead = codeReads
-    .map(result => ({
-      code: extractErrorCode(result?.data?.text),
-      confidence: Number(result?.data?.confidence) || 0
-    }))
-    .filter(result => result.code)
-    .sort((a, b) => b.confidence - a.confidence)[0];
+  reads.push(readLines(await worker.recognize(images.thresholded)));
 
   return {
     rawText: messageRead?.data?.text || '',
-    errorCode: bestCodeRead?.code || ''
+    reads
   };
+}
+
+// تحليل كل تمريرة لوحدها (عشان تكرار نفس السطر في تمريرات مختلفة مايتحسبش "تكرار
+// إنذار") واختيار أفضل تمريرة: مؤكدة > الأعلى درجة > الأكثر مرشحين
+function analyzeReads(reads, kbEntries, machineType) {
+  const rank = { confirmed: 2, review: 1, none: 0 };
+  return reads
+    .map(lines => analyzeAlarmLines(lines, kbEntries, { machineType }))
+    .sort((a, b) =>
+      (rank[b.status] - rank[a.status]) ||
+      ((b.candidates[0]?.score || 0) - (a.candidates[0]?.score || 0)) ||
+      (b.candidates.length - a.candidates.length)
+    )[0] || { status: 'none', selected: null, candidates: [] };
 }
 
 // ============================================================
@@ -170,6 +193,46 @@ function setStatus(message, isError = false, showSpinner = false) {
   box.classList.toggle('text-red-400', isError);
   box.classList.toggle('text-blue-400', !isError);
 }
+
+
+// ============================================================
+// عرض مرشحي OCR (منفصلين عن الحقول النهائية) + الاختيار اليدوي
+// ============================================================
+
+function renderOcrCandidates() {
+  const box = el('errScanCandidates');
+  if (!box) return;
+  if (!ocrCandidates.length) {
+    box.innerHTML = '';
+    return;
+  }
+  const tr = t();
+  box.innerHTML = `
+    <div class="text-[11px] font-bold text-amber-400">${escapeHtml(tr.ocrCandidatesTitle)}</div>
+    ${ocrCandidates.map((c, i) => `
+      <button type="button" onclick="window.pickOcrCandidate(${i})"
+        class="w-full text-start p-2.5 rounded-xl bg-[#0F172A] border ${c.inKb ? 'border-emerald-500/40' : 'border-amber-500/30'} hover:border-indigo-400 transition active:scale-95">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-black text-blue-400 text-sm">${escapeHtml(c.code)}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${c.inKb ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
+            ${escapeHtml(c.inKb ? tr.ocrInKb : tr.ocrNotInKb)} · ${c.confidence}%
+          </span>
+        </div>
+        ${c.message ? `<div class="text-[11px] text-gray-300 mt-1">${escapeHtml(c.message)}</div>` : ''}
+      </button>`).join('')}`;
+}
+
+window.pickOcrCandidate = async function (index) {
+  const picked = ocrCandidates[index];
+  if (!picked) return;
+  const codeInput = el('errScanCode');
+  const messageInput = el('errScanMessage');
+  if (codeInput) codeInput.value = picked.code;
+  if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
+  setStatus(t().ocrPicked.replace('{code}', picked.code));
+  // اختيار صريح من المستخدم = مسموح البحث مباشرة
+  await window.searchMachineError(picked.code);
+};
 
 // ============================================================
 // دوال مساعدة لبحث العطل اليدوي وتصفية نوع الماكينة
@@ -281,35 +344,42 @@ document.addEventListener('change', async (e) => {
     // إصلاح (Spinner أثناء القراءة): "جاري قراءة الشاشة..." + Spinner
     setStatus(t().readingOcr, false, true);
 
-    const { rawText, errorCode } = await recognizeMachineScreen(file);
+    const { rawText, reads } = await recognizeMachineScreen(file);
+
+    // قاعدة المعرفة للتحقق (نفس الكاش القصير المستخدم في البحث) - لو فشلت نكمل بدونها
+    // وفي الحالة دي مفيش نتيجة بتتأكد (كل شيء Needs Review)
+    let kbEntries = [];
+    try {
+      kbEntries = await fetchAllMachineErrors();
+    } catch (kbError) {
+      console.warn('OCR: KB unavailable for validation', kbError);
+    }
+
+    const analysis = analyzeReads(reads, kbEntries, String(window.selectedMachineType || '').trim());
+
+    // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
+    const rawBox = el('errScanRaw');
+    if (rawBox) rawBox.value = rawText.trim();
+
+    // 2) المرشحون (مفصولين عن الحقول النهائية)
+    ocrCandidates = analysis.candidates.slice(0, 6);
+    renderOcrCandidates();
 
     const codeInput = el('errScanCode');
     const messageInput = el('errScanMessage');
 
-    const suggestedCode = errorCode;
-
-    // إصلاح (استخراج Message بنمط صريح): لو النص فيه "Message: ..."
-    // بشكل صريح بناخده كما هو، وإلا نرجع لنفس السلوك القديم (كل
-    // النص المستخرج) عشان مانفقدش أي معلومة لو الشاشة مالهاش تنسيق
-    // "Message:" واضح
-    const messageMatch = rawText.match(/Message[:：]\s*(.+)/i);
-    const extractedMessage = messageMatch ? messageMatch[1].trim() : rawText.trim();
-
-    if (codeInput) codeInput.value = suggestedCode;
-    if (messageInput) messageInput.value = extractedMessage;
-
-    setStatus(
-      suggestedCode
-        ? t().codeExtracted.replace('{code}', suggestedCode)
-        : t().codeNotFound
-    );
-
-    // إصلاح (بحث تلقائي بعد نجاح OCR): لو فيه كود اتستخرج فعلاً،
-    // نشغّل البحث فوراً بنفس القيمة المستخرجة مباشرة (مش من قراءة
-    // state/DOM قديمة) - لو مفيش كود واضح، سايبين الأمر للمستخدم
-    // يراجع النص ويبحث يدوياً زي ما كان بالظبط
-    if (suggestedCode) {
-      await window.searchMachineError(suggestedCode);
+    if (analysis.status === 'confirmed' && analysis.selected) {
+      // 3) نتيجة مؤكدة فقط: كود موجود في الـ KB + ثقة كافية + مفيش مرشح أقوى/أعلى
+      const picked = analysis.selected;
+      if (codeInput) codeInput.value = picked.code;
+      if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
+      setStatus(t().ocrConfirmed.replace('{code}', picked.code));
+      await window.searchMachineError(picked.code);
+    } else {
+      // غير موثوق: الحقول تتفضّى (مانسيبش قيمة سابقة/مخمّنة) والمستخدم يختار أو يكتب
+      if (codeInput) codeInput.value = '';
+      if (messageInput) messageInput.value = '';
+      setStatus(ocrCandidates.length ? t().ocrNeedsReview : t().codeNotFound, !ocrCandidates.length);
     }
 
   } catch (err) {
