@@ -95,6 +95,16 @@ export const ErrorScannerView = () => {
       ${t.readyStatus || ''}
     </div>
 
+    <!-- مرشحو OCR (غير مؤكدين) - منفصلين عن الحقول النهائية أدناه -->
+    <div id="errScanCandidates" class="space-y-2"></div>
+
+    <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
+    <details class="text-[11px] text-gray-400">
+      <summary class="cursor-pointer select-none font-bold">${t.ocrRawTextTitle || (currentLang === 'en' ? 'Raw OCR text (review only)' : 'النص الخام من الصورة (للمراجعة فقط)')}</summary>
+      <textarea id="errScanRaw" rows="4" readonly dir="ltr"
+        class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-gray-300 outline-none text-[11px] resize-none"></textarea>
+    </details>
+
     <!-- كود العطل -->
     <div>
       <label for="errScanCode" class="block mb-2 text-xs font-bold text-gray-300">
