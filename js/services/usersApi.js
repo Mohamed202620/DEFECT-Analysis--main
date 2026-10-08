@@ -125,6 +125,11 @@ let usersCache = null; // { data, fetchedAt }
 
 function invalidateUsersCache() {
   usersCache = null;
+  // إصلاح: أي تعديل فعلي (قبول/رفض/تغيير دور/حذف) كان بيمسح كاش "المستخدمين" بس،
+  // وقوائم الفنيين (إسناد البلاغ) والمدراء (إشعارات البلاغ الجديد) كانت بتفضل
+  // قديمة لحد 5 دقايق: فني اتقبل لسه مش ظاهر، وفني اتحذف/اتوقف لسه ظاهر
+  techniciansCache = null;
+  managersAndAdminsCache = null;
 }
 
 /**
@@ -868,6 +873,12 @@ export async function fetchCurrentUserProfileApi(forceRefresh = false) {
       return { status: "error", message: "الحساب غير مفعل.", user: null };
     }
 
+    // لقطة القيم المحلية قبل المزامنة - لو الدور/الصلاحيات/القسم اتغيّروا فعلاً على
+    // السيرفر (أدمن عدّلهم وإحنا برا)، لازم الواجهة تتحدّث من غير Refresh
+    const prevRole = localStorage.getItem("role") || "";
+    const prevPerms = localStorage.getItem("permissions") || "";
+    const prevMachineDept = localStorage.getItem("machineDepartment") || "";
+
     // مزامنة التخزين المحلي (localStorage) بالبيانات الموثقة من Firestore
     if (data.name) localStorage.setItem("name", data.name);
     if (data.phone) localStorage.setItem("phone", data.phone);
@@ -898,6 +909,19 @@ export async function fetchCurrentUserProfileApi(forceRefresh = false) {
     }
 
     cachedCurrentUserProfile = userObj;
+
+    // إصلاح: المزامنة كانت صامتة - الصفحة الأولى بتتعرض بصلاحيات الجلسة السابقة
+    // (localStorage) وتفضل كده حتى لو الدور اتغيّر. نبلّغ الراوتر يعيد الرسم مرة واحدة
+    // (prevRole فاضي = أول دخول، مفيش حاجة قديمة تتصحح)
+    if (
+      prevRole &&
+      (prevRole !== syncedRole || prevPerms !== syncedPerms || prevMachineDept !== (normDept || ""))
+    ) {
+      try {
+        window.dispatchEvent(new CustomEvent("app:profilechanged"));
+      } catch (_) { /* لا شيء */ }
+    }
+
     return { status: "success", user: userObj };
   } catch (error) {
     console.error("Error fetching current user profile from Firestore:", error);

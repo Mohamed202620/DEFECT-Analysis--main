@@ -65,6 +65,7 @@ export {
   fetchTicketsForSearchApi,
   fetchMyNotificationsApi,
   countUnreadNotificationsApi,
+  clearLiveNotificationsCache,
   subscribeToMyNotificationsApi,
   markNotificationReadApi,
   markAllNotificationsAsRead,

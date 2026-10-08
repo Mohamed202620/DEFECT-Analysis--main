@@ -1307,7 +1307,29 @@ async function notifyManagersOfNewTicket(ticketId, ticketData) {
 
 // ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index
 // في Firestore - الترتيب بيتم محلياً بنفس أسلوب subscribeToTicketsBoardApi
+// لقطة الإشعارات من الاشتراك اللحظي (subscribeToMyNotificationsApi) - بتتحدث مع كل
+// Snapshot. بنستخدمها بدل ما نعيد قراءة نفس الإشعارات من السيرفر: كل تنقل كان بيعمل
+// استعلام عدّ، وكل فتح للقائمة قراءة كاملة غير محدودة لنفس البيانات الموجودة عندنا فعلاً.
+// serverConfirmed=false يعني اللقطة جاية من الكاش المحلي (ممكن تكون أقدم) فمانعتمدش عليها
+// لو الاتصال شغال.
+let liveNotifications = null; // { uid, all, unread, serverConfirmed }
+
+export function clearLiveNotificationsCache() {
+  liveNotifications = null;
+}
+
+function getLiveNotifications(uid) {
+  if (!liveNotifications || liveNotifications.uid !== uid) return null;
+  const online = typeof navigator === "undefined" || navigator.onLine;
+  if (online && !liveNotifications.serverConfirmed) return null;
+  return liveNotifications;
+}
+
 export async function fetchMyNotificationsApi(uid) {
+  const live = getLiveNotifications(uid);
+  if (live) {
+    return { status: "success", data: live.all.slice(0, 30) };
+  }
   try {
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
     const querySnapshot = await getDocs(q);
@@ -1338,6 +1360,8 @@ export async function fetchMyNotificationsApi(uid) {
 // بالفعل)، وتُستخدم في مكان واحد بس (رقم الجرس)، من غير أي تغيير في
 // قائمة الإشعارات المعروضة نفسها أو سلوكها الحالي.
 export async function countUnreadNotificationsApi(uid) {
+  const live = getLiveNotifications(uid);
+  if (live) return { status: "success", count: live.unread };
   try {
     // Test 16/17: كانت بتقرأ كل إشعارات المستخدم (بلا limit، ومفيش حذف
     // للإشعارات القديمة) عشان تعدّ غير المقروء - وبتتنادى مع كل render()
@@ -1363,17 +1387,27 @@ export async function countUnreadNotificationsApi(uid) {
 export function subscribeToMyNotificationsApi(uid, callback) {
   try {
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
+    // includeMetadataChanges: لازم عشان نعرف لحظة تأكيد السيرفر للقطة (fromCache→false)
+    // حتى لو البيانات نفسها ماتغيّرتش عن الكاش المحلي
     return onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (querySnapshot) => {
         const notifications = [];
         querySnapshot.forEach(docSnap => {
           notifications.push({ id: docSnap.id, ...docSnap.data() });
         });
         notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        liveNotifications = {
+          uid,
+          all: notifications,
+          unread: notifications.filter(n => !n.read).length,
+          serverConfirmed: !querySnapshot.metadata.fromCache
+        };
         callback({ status: "success", data: notifications.slice(0, 30) });
       },
       (error) => {
+        liveNotifications = null;
         const fallback = emptyResultOnMissingIndex(error, "subscribeToMyNotificationsApi");
         if (fallback) {
           callback(fallback);
