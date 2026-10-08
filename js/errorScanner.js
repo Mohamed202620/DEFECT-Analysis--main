@@ -160,10 +160,14 @@ async function recognizeSelectedRegion(file, rect) {
 
 // تحليل كل تمريرة لوحدها (عشان تكرار نفس السطر في تمريرات مختلفة مايتحسبش "تكرار
 // إنذار") واختيار أفضل تمريرة: مؤكدة > الأعلى درجة > الأكثر مرشحين
-function analyzeReads(reads, kbEntries, machineType) {
+function analyzeReads(reads, kbEntries, machineType, { region = false } = {}) {
   const rank = { confirmed: 2, review: 1, none: 0 };
   return reads
-    .map(lines => analyzeAlarmLines(lines, kbEntries, { machineType }))
+    // سطر حدده المستخدم بنفسه: نخفّض حد استبعاد الثقة (يظهر كمرشح مراجعة بثقته الحقيقية بدل ما
+    // يختفي) ونقبل صيغة بدون شرطة. الاعتماد التلقائي لسه بيحتاج ثقة كافية + مطابقة KB
+    .map(lines => analyzeAlarmLines(lines, kbEntries, region
+      ? { machineType, minLineConfidence: 20, allowLoose: true }
+      : { machineType }))
     .sort((a, b) =>
       (rank[b.status] - rank[a.status]) ||
       ((b.candidates[0]?.score || 0) - (a.candidates[0]?.score || 0)) ||
@@ -417,6 +421,9 @@ async function presentOcrResult(analysis, rawText, { region = false } = {}) {
   // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
   const rawBox = el('errScanRaw');
   if (rawBox) rawBox.value = String(rawText || '').trim();
+  // لو النتيجة مش مؤكدة نفتح النص الخام تلقائياً: المستخدم يشوف الـ OCR قرا إيه بالظبط
+  const rawDetails = el('errScanRawDetails');
+  if (rawDetails) rawDetails.open = analysis.status !== 'confirmed';
 
   // 2) المرشحون (مفصولين عن الحقول النهائية)
   ocrCandidates = analysis.candidates.slice(0, 6);
@@ -473,7 +480,7 @@ async function runOcrScan(mode) {
       console.warn('OCR: KB unavailable for validation', kbError);
     }
 
-    const analysis = analyzeReads(reads, kbEntries, String(window.selectedMachineType || '').trim());
+    const analysis = analyzeReads(reads, kbEntries, String(window.selectedMachineType || '').trim(), { region });
     await presentOcrResult(analysis, rawText, { region });
   } catch (err) {
     console.error('OCR Error:', err);
