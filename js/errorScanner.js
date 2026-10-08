@@ -21,7 +21,16 @@ import {
   fetchAllMachineErrorsApi
 } from './services/api.js';
 import { translations } from './config.js';
-import { analyzeAlarmLines, prepareOcrImages } from './utils/machineErrorOcr.js';
+import {
+  analyzeAlarmLines,
+  prepareOcrImages,
+  prepareRegionImages,
+  pickLineNearCenter,
+  clampCropRect,
+  DEFAULT_CROP_RECT,
+  MIN_CROP_W,
+  MIN_CROP_H
+} from './utils/machineErrorOcr.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الميزة (رسائل الحالة، تنبيهات،
 // عناوين النتائج، النموذج الجديد) كانت ثابتة بالعربي - دلوقتي
@@ -38,6 +47,8 @@ function t() {
 let scannedImage = null;      // الصورة بعد الضغط (Base64) لعرضها وحفظها
 let lastFoundError = null;    // آخر نتيجة عطل تم العثور عليها (لإجراءات الاعتماد/التسجيل)
 let isScanning = false;       // true أثناء تشغيل OCR (لمنع تشغيل مزدوج + التحكم بالـ Spinner)
+let scannedFile = null;       // الصورة الأصلية (بدقتها الكاملة) للقراءة - المعاينة المضغوطة للعرض فقط
+let cropRect = { ...DEFAULT_CROP_RECT }; // مستطيل السطر المحدد (نسب 0..1 من الصورة)
 let ocrCandidates = [];       // مرشحو OCR (غير مؤكدين) المعروضين للاختيار اليدوي
 
 // ============================================================
@@ -87,7 +98,7 @@ function readLines(result) {
   const lines = Array.isArray(result?.data?.lines) ? result.data.lines : [];
   if (lines.length) {
     return lines
-      .map(line => ({ text: String(line.text || '').trim(), confidence: Number(line.confidence) || 0 }))
+      .map(line => ({ text: String(line.text || '').trim(), confidence: Number(line.confidence) || 0, bbox: line.bbox }))
       .filter(line => line.text);
   }
   // احتياطي: لو المكتبة ما رجّعتش lines نستخدم النص كما هو بثقة الصفحة
@@ -120,6 +131,30 @@ async function recognizeMachineScreen(file) {
   return {
     rawText: messageRead?.data?.text || '',
     reads
+  };
+}
+
+// قراءة السطر الذي حدده المستخدم: المقطع مكبّر ومعالج لوحده، بوضع سطر واحد (PSM 7)
+// ثم 6 احتياطي لو المستطيل غطّى أكتر من سطر، ثم نسخة ثنائية. من كل قراءة بناخد السطر
+// الأقرب لمركز المستطيل فقط (السطر المجاور المقصوص جزئياً بيتجاهل)
+async function recognizeSelectedRegion(file, rect) {
+  const [images, worker] = await Promise.all([
+    prepareRegionImages(file, rect),
+    getOcrWorker()
+  ]);
+
+  const run = async (image, psm) => {
+    await worker.setParameters({ tessedit_pageseg_mode: psm });
+    return worker.recognize(image);
+  };
+
+  const first = await run(images.enhanced, '7');
+  const second = await run(images.enhanced, '6');
+  const third = await run(images.thresholded, '7');
+
+  return {
+    rawText: [first, second, third].map(r => String(r?.data?.text || '').trim()).filter(Boolean).join('\n---\n'),
+    reads: [first, second, third].map(r => pickLineNearCenter(readLines(r), images.height))
   };
 }
 
@@ -315,6 +350,8 @@ document.addEventListener('change', async (e) => {
 
   const file = e.target.files[0];
   if (!file) return;
+  // نفس الصورة لو اتختارت تاني لازم تطلق الحدث من جديد
+  e.target.value = '';
 
   if (!file.type.startsWith('image/')) {
     alert(t().notImage);
@@ -326,25 +363,106 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
-  // إصلاح (isScanning): منع تشغيل مسح جديد أثناء مسح قائم بالفعل
+  await loadScreenFile(file);
+});
+
+// اختيار الصورة: عرض المعاينة + مستطيل التحديد فقط. القراءة نفسها بتتم بزر صريح
+// (سطر محدد / الصورة كلها) عشان المستخدم هو اللي يقرر أي عطل في السجل
+async function loadScreenFile(file) {
   if (isScanning) return;
   isScanning = true;
-
   try {
     setStatus(t().preparingImage);
-
     scannedImage = await compressImage(file, 900, 0.75);
+    scannedFile = file;
 
     const preview = el('errScanPreview');
-    if (preview) {
-      preview.src = scannedImage;
-      preview.classList.remove('hidden');
-    }
+    if (preview) preview.src = scannedImage;
+    const wrap = el('errScanCropWrap');
+    if (wrap) wrap.classList.remove('hidden');
 
-    // إصلاح (Spinner أثناء القراءة): "جاري قراءة الشاشة..." + Spinner
+    // نتائج الصورة السابقة ماتفضلش معروضة على صورة جديدة
+    ocrCandidates = [];
+    renderOcrCandidates();
+    const rawBox = el('errScanRaw');
+    if (rawBox) rawBox.value = '';
+    const codeInput = el('errScanCode');
+    if (codeInput) codeInput.value = '';
+    const messageInput = el('errScanMessage');
+    if (messageInput) messageInput.value = '';
+    const resultsBox = el('errorScanResults');
+    if (resultsBox) resultsBox.innerHTML = '';
+
+    cropRect = { ...DEFAULT_CROP_RECT };
+    setupCropSelector();
+    applyCropRect();
+    setStatus(t().cropReady);
+  } catch (err) {
+    console.error('Image prepare error:', err);
+    setStatus(t().ocrError, true);
+  } finally {
+    isScanning = false;
+  }
+}
+
+function setScanButtonsDisabled(disabled) {
+  ['errScanReadRegionBtn', 'errScanReadFullBtn'].forEach(id => {
+    const btn = el(id);
+    if (btn) btn.disabled = disabled;
+  });
+}
+
+// عرض نتيجة التحليل: الخام / المرشحون / المؤكد منفصلين، ولا تعبئة إلا لنتيجة مؤكدة
+async function presentOcrResult(analysis, rawText, { region = false } = {}) {
+  // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
+  const rawBox = el('errScanRaw');
+  if (rawBox) rawBox.value = String(rawText || '').trim();
+
+  // 2) المرشحون (مفصولين عن الحقول النهائية)
+  ocrCandidates = analysis.candidates.slice(0, 6);
+  renderOcrCandidates();
+
+  const codeInput = el('errScanCode');
+  const messageInput = el('errScanMessage');
+
+  if (analysis.status === 'confirmed' && analysis.selected) {
+    // 3) نتيجة مؤكدة فقط: كود موجود في الـ KB + ثقة كافية + مفيش مرشح أقوى/أعلى
+    const picked = analysis.selected;
+    if (codeInput) codeInput.value = picked.code;
+    if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
+    setStatus(t().ocrConfirmed.replace('{code}', picked.code));
+    await window.searchMachineError(picked.code);
+    return;
+  }
+
+  // غير موثوق: الحقول تتفضّى (مانسيبش قيمة سابقة/مخمّنة) والمستخدم يختار أو يكتب
+  if (codeInput) codeInput.value = '';
+  if (messageInput) messageInput.value = '';
+  if (ocrCandidates.length) {
+    setStatus(t().ocrNeedsReview);
+  } else {
+    setStatus(region ? t().ocrRegionNone : t().codeNotFound, true);
+  }
+}
+
+async function runOcrScan(mode) {
+  if (!scannedFile) {
+    setStatus(t().ocrNoImage, true);
+    return;
+  }
+  // منع تشغيل مسح جديد أثناء مسح قائم بالفعل
+  if (isScanning) return;
+  isScanning = true;
+  setScanButtonsDisabled(true);
+
+  try {
+    // "Spinner أثناء القراءة": "جاري قراءة الشاشة..." + Spinner
     setStatus(t().readingOcr, false, true);
 
-    const { rawText, reads } = await recognizeMachineScreen(file);
+    const region = mode === 'region';
+    const { rawText, reads } = region
+      ? await recognizeSelectedRegion(scannedFile, cropRect)
+      : await recognizeMachineScreen(scannedFile);
 
     // قاعدة المعرفة للتحقق (نفس الكاش القصير المستخدم في البحث) - لو فشلت نكمل بدونها
     // وفي الحالة دي مفيش نتيجة بتتأكد (كل شيء Needs Review)
@@ -356,39 +474,92 @@ document.addEventListener('change', async (e) => {
     }
 
     const analysis = analyzeReads(reads, kbEntries, String(window.selectedMachineType || '').trim());
-
-    // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
-    const rawBox = el('errScanRaw');
-    if (rawBox) rawBox.value = rawText.trim();
-
-    // 2) المرشحون (مفصولين عن الحقول النهائية)
-    ocrCandidates = analysis.candidates.slice(0, 6);
-    renderOcrCandidates();
-
-    const codeInput = el('errScanCode');
-    const messageInput = el('errScanMessage');
-
-    if (analysis.status === 'confirmed' && analysis.selected) {
-      // 3) نتيجة مؤكدة فقط: كود موجود في الـ KB + ثقة كافية + مفيش مرشح أقوى/أعلى
-      const picked = analysis.selected;
-      if (codeInput) codeInput.value = picked.code;
-      if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
-      setStatus(t().ocrConfirmed.replace('{code}', picked.code));
-      await window.searchMachineError(picked.code);
-    } else {
-      // غير موثوق: الحقول تتفضّى (مانسيبش قيمة سابقة/مخمّنة) والمستخدم يختار أو يكتب
-      if (codeInput) codeInput.value = '';
-      if (messageInput) messageInput.value = '';
-      setStatus(ocrCandidates.length ? t().ocrNeedsReview : t().codeNotFound, !ocrCandidates.length);
-    }
-
+    await presentOcrResult(analysis, rawText, { region });
   } catch (err) {
     console.error('OCR Error:', err);
     setStatus(t().ocrError, true);
   } finally {
     isScanning = false;
+    setScanButtonsDisabled(false);
   }
-});
+}
+
+window.scanSelectedRegion = () => runOcrScan('region');
+window.scanFullImage = () => runOcrScan('full');
+
+// ============================================================
+// مستطيل تحديد السطر (لمس/ماوس) - إحداثياته نسب من الصورة المعروضة
+// ============================================================
+
+function applyCropRect() {
+  const box = el('errScanCropBox');
+  if (!box) return;
+  box.style.left = `${cropRect.x * 100}%`;
+  box.style.top = `${cropRect.y * 100}%`;
+  box.style.width = `${cropRect.w * 100}%`;
+  box.style.height = `${cropRect.h * 100}%`;
+}
+
+function setupCropSelector() {
+  const stage = el('errScanCropStage');
+  const box = el('errScanCropBox');
+  if (!stage || !box || box.dataset.bound === '1') return;
+  box.dataset.bound = '1';
+
+  let drag = null;
+
+  box.addEventListener('pointerdown', (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const bounds = stage.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    drag = {
+      handle: (ev.target && ev.target.dataset && ev.target.dataset.h) || 'move',
+      startX: ev.clientX,
+      startY: ev.clientY,
+      start: { ...cropRect },
+      bounds
+    };
+    try { box.setPointerCapture(ev.pointerId); } catch (_) { /* لا شيء */ }
+  });
+
+  box.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const dx = (ev.clientX - drag.startX) / drag.bounds.width;
+    const dy = (ev.clientY - drag.startY) / drag.bounds.height;
+    const s = drag.start;
+    let { x, y, w, h } = s;
+
+    if (drag.handle === 'move') {
+      x = s.x + dx;
+      y = s.y + dy;
+    } else {
+      // الحافة المقابلة للمقبض المسحوب تفضل ثابتة، والحجم لا ينزل عن الحد الأدنى
+      if (drag.handle.includes('w')) { w = Math.max(MIN_CROP_W, s.w - dx); x = s.x + s.w - w; }
+      if (drag.handle.includes('e')) { w = Math.max(MIN_CROP_W, s.w + dx); }
+      if (drag.handle.includes('n')) { h = Math.max(MIN_CROP_H, s.h - dy); y = s.y + s.h - h; }
+      if (drag.handle.includes('s')) { h = Math.max(MIN_CROP_H, s.h + dy); }
+    }
+
+    cropRect = clampCropRect({ x, y, w, h });
+    applyCropRect();
+  });
+
+  const endDrag = () => { drag = null; };
+  box.addEventListener('pointerup', endDrag);
+  box.addEventListener('pointercancel', endDrag);
+
+  // ضغطة على السطر المطلوب = ينقل المستطيل عليه (click مش pointerdown عشان
+  // السكرول بالإصبع مايحركش المستطيل بالغلط)
+  stage.addEventListener('click', (ev) => {
+    if (box.contains(ev.target)) return;
+    const bounds = stage.getBoundingClientRect();
+    if (!bounds.height) return;
+    const centerY = (ev.clientY - bounds.top) / bounds.height;
+    cropRect = clampCropRect({ ...cropRect, y: centerY - cropRect.h / 2 });
+    applyCropRect();
+  });
+}
 
 // ============================================================
 // البحث عن العطل في قاعدة المعرفة
@@ -742,13 +913,17 @@ const _verifyMachineError = async function (errorId) {
 window.resetErrorScanner = function () {
 
   scannedImage = null;
+  scannedFile = null;
   lastFoundError = null;
+  ocrCandidates = [];
+  renderOcrCandidates();
 
   const preview = el('errScanPreview');
-  if (preview) {
-    preview.src = '';
-    preview.classList.add('hidden');
-  }
+  if (preview) preview.src = '';
+  const cropWrap = el('errScanCropWrap');
+  if (cropWrap) cropWrap.classList.add('hidden');
+  const rawBox = el('errScanRaw');
+  if (rawBox) rawBox.value = '';
 
   const codeInput = el('errScanCode');
   if (codeInput) codeInput.value = '';
