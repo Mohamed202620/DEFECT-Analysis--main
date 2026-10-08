@@ -100,10 +100,10 @@ export const ErrorScannerView = () => {
         <img id="errScanPreview" alt="" draggable="false" class="block max-w-full max-h-72 w-auto h-auto"/>
         <div id="errScanCropBox" class="absolute border-2 border-emerald-400 rounded-sm cursor-move"
           style="touch-action:none;left:5%;top:38%;width:90%;height:8%;box-shadow:0 0 0 9999px rgba(0,0,0,.55)">
-          <span data-h="nw" style="position:absolute;left:0;top:0;width:24px;height:24px;transform:translate(-50%,-50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
-          <span data-h="ne" style="position:absolute;right:0;top:0;width:24px;height:24px;transform:translate(50%,-50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
-          <span data-h="sw" style="position:absolute;left:0;bottom:0;width:24px;height:24px;transform:translate(-50%,50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
-          <span data-h="se" style="position:absolute;right:0;bottom:0;width:24px;height:24px;transform:translate(50%,50%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white"></span>
+          <span data-h="nw" style="position:absolute;left:0;top:0;width:22px;height:22px;transform:translate(-35%,-95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="ne" style="position:absolute;right:0;top:0;width:22px;height:22px;transform:translate(35%,-95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="sw" style="position:absolute;left:0;bottom:0;width:22px;height:22px;transform:translate(-35%,95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="se" style="position:absolute;right:0;bottom:0;width:22px;height:22px;transform:translate(35%,95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
         </div>
       </div>
       <div class="grid grid-cols-2 gap-2">
@@ -126,7 +126,7 @@ export const ErrorScannerView = () => {
     <div id="errScanCandidates" class="space-y-2"></div>
 
     <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
-    <details class="text-[11px] text-gray-400">
+    <details id="errScanRawDetails" class="text-[11px] text-gray-400">
       <summary class="cursor-pointer select-none font-bold">${t.ocrRawTextTitle || (currentLang === 'en' ? 'Raw OCR text (review only)' : 'النص الخام من الصورة (للمراجعة فقط)')}</summary>
       <textarea id="errScanRaw" rows="4" readonly dir="ltr"
         class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-gray-300 outline-none text-[11px] resize-none"></textarea>
