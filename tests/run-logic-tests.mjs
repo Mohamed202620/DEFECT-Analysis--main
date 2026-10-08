@@ -67,6 +67,41 @@ await t("لا يعتبر عنوان ALARM HISTORY كود عطل", () => {
   assert.equal(extractErrorCode("ALARM HISTORY\nNo active alarms"), "");
   assert.equal(extractErrorCode("ALARM HISTORY 21"), "");
 });
+const { analyzeAlarmLines, parseAlarmLine } = await import("../js/utils/machineErrorOcr.js");
+console.log("machine-screen OCR line analysis + KB validation");
+const OCR_KB = [
+  { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer" },
+  { errorCode: "060", errorMessage: "SHEET DELIVERY DROPPED SHEET", machine: "Palletizer" },
+  { errorCode: "113", errorMessage: "AIR TABLE NOT ENABLED", machine: "Palletizer" },
+  { errorCode: "E05", errorMessage: "MOTOR OVERLOAD", machine: "Palletizer" }
+];
+const ocrLines = (arr, c = 85) => arr.map(text => ({ text, confidence: c }));
+const ALARM_SCREEN = ["ALARM HISTORY", "Message", "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", "56 AM 060-SHEET DELIVERY DROPPED SHEET",
+  "38 AM 060-SHEET DELIVERY DROPPED SHEET", "19 AM 059-SHEET DELIVERY DID NOT GET SHEET", "00 AM 113-AIR TABLE NOT ENABLED",
+  "43 AM 031-TIPPED CAN IN PATTERN RITE", "NE9", "- ALARM HISTORY 1", "iil"];
+await t("Alarm History: لا NE9 ولا عنوان كمرشح، وأكثر من عطل => Needs Review بدون تعبئة", () => {
+  const r = analyzeAlarmLines(ocrLines(ALARM_SCREEN), OCR_KB);
+  assert.deepEqual(r.candidates.map(c => c.code).sort(), ["031", "059", "060", "113"]);
+  assert.equal(r.status, "review");
+  assert.equal(r.selected, null);
+  assert.equal(r.candidates[0].code, "059");
+});
+await t("عطل واحد موجود في KB بثقة كافية => confirmed، وO59 يصحَّح لـ 059", () => {
+  assert.equal(analyzeAlarmLines(ocrLines(["10 AM 113-AIR TABLE NOT ENABLED"]), OCR_KB).status, "confirmed");
+  const r = analyzeAlarmLines(ocrLines(["O59-SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB);
+  assert.equal(r.selected.code, "059");
+});
+await t("كود غير موجود في KB أو ثقة منخفضة أو بلا كود => لا اعتماد ولا اختراع", () => {
+  assert.equal(analyzeAlarmLines(ocrLines(["10 AM 777-MAIN DRIVE FAULT TRIPPED"]), OCR_KB).status, "review");
+  assert.equal(analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 30), OCR_KB).status, "none");
+  assert.equal(analyzeAlarmLines(ocrLines(["Main menu", "Speed 120 ppm"]), OCR_KB).status, "none");
+  assert.equal(analyzeAlarmLines(ocrLines(["NE9"]), OCR_KB).status, "none");
+  assert.equal(parseAlarmLine("BIZ-SOMETHING WENT WRONG HERE"), null);
+});
+await t("كود مقروء غلط + رسالة مطابقة => كود من الـ KB فقط", () => {
+  assert.equal(analyzeAlarmLines(ocrLines(["O6O-SHEET DELIVERY DROPPED SHEET"]), OCR_KB).candidates[0].code, "060");
+  assert.equal(analyzeAlarmLines(ocrLines(["41O-COMPLETELY UNKNOWN PROBLEM TEXT"]), OCR_KB).candidates[0].inKb, false);
+});
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
   for (const f of ["01001234567", "٠١٠٠١٢٣٤٥٦٧", "+20 100 123 4567", "0020 1001234567", "+44 7911 123456", "123"]) {
