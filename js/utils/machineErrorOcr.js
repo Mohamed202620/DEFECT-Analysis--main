@@ -442,13 +442,150 @@ export function findCenterTextBand(rowInk) {
   const center = (n - 1) / 2;
   const dist = b => (b.top <= center && center <= b.bottom) ? 0 : Math.min(Math.abs(b.top - center), Math.abs(b.bottom - center));
   solid.sort((a, b) => dist(a) - dist(b));
-  return solid[0] || null;
+  const chosen = solid[0];
+  if (!chosen) return null;
+  // الفجوة لأقرب شريط تاني (حتى الشرائح الجزئية) - عشان الهامش مايتوسعش فوق الصف المجاور
+  let gapAbove = Infinity;
+  let gapBelow = Infinity;
+  for (const b of bands) {
+    if (b === chosen) continue;
+    if (b.bottom < chosen.top) gapAbove = Math.min(gapAbove, chosen.top - b.bottom - 1);
+    else if (b.top > chosen.bottom) gapBelow = Math.min(gapBelow, b.top - chosen.bottom - 1);
+  }
+  return { top: chosen.top, bottom: chosen.bottom, gapAbove, gapBelow };
 }
 
-// يقص المنطقة من الصورة الأصلية بدقتها الكاملة ويكبّرها ويجهزها لـ OCR:
-// تحويل رمادي + مط التباين + قلب القطبية لو النص أفتح من الخلفية (أبيض على أحمر/أزرق)
-// + عزل شريط السطر الأوسط + هامش أبيض حواليه (Tesseract بيقرأ أفضل مع هامش).
-// بترجّع نسختين: معالجة وثنائية، وارتفاع الصورة النهائية.
+// ------------------------------------------------------------
+// معالجة بكسلات (pure - بدون DOM) عشان تتختبر مباشرة
+// ------------------------------------------------------------
+
+// متوسط محلي (Box blur) بالصورة التكاملية: O(n) مهما كان نصف القطر
+export function boxMean(src, w, h, rx, ry) {
+  const W = w + 1;
+  const integral = new Float64Array(W * (h + 1));
+  for (let y = 0; y < h; y++) {
+    let rowSum = 0;
+    for (let x = 0; x < w; x++) {
+      rowSum += src[y * w + x];
+      integral[(y + 1) * W + (x + 1)] = integral[y * W + (x + 1)] + rowSum;
+    }
+  }
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.max(0, y - ry);
+    const y1 = Math.min(h, y + ry + 1);
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.max(0, x - rx);
+      const x1 = Math.min(w, x + rx + 1);
+      const area = (x1 - x0) * (y1 - y0);
+      const sum = integral[y1 * W + x1] - integral[y0 * W + x1] - integral[y1 * W + x0] + integral[y0 * W + x0];
+      out[y * w + x] = sum / area;
+    }
+  }
+  return out;
+}
+
+// يحوّل أي صورة رمادية لـ "نص غامق على خلفية بيضاء" ثابتة الإضاءة:
+// 1) يطرح الخلفية المحلية (بيشيل انحدار الإضاءة/اللمعان زي أسفل شاشتك الباهت)
+// 2) يحدد قطبية النص (فاتح أو غامق) من الجهة ذات الذيل الأقوى (النص تباينه أعلى من الخلفية)
+// 3) يمط التباين بحيث الخلفية = 255 والنص = 0
+export function normalizeForOcr(lum, w, h, { rx, ry } = {}) {
+  const count = w * h;
+  const meanX = Math.max(2, Math.round(rx || w / 6));
+  const meanY = Math.max(2, Math.round(ry || h / 3));
+  // تكرار البكسلات الحدّية قبل التمويه: النافذة المقصوصة عند الحافة كانت بتحرّف تقدير الخلفية
+  // (وبالتالي بتظهر حبر وهمي على أطراف المقطع)
+  const pw = w + meanX * 2;
+  const ph = h + meanY * 2;
+  const padded = new Uint8Array(pw * ph);
+  for (let y = 0; y < ph; y++) {
+    const sy = Math.min(h - 1, Math.max(0, y - meanY));
+    for (let x = 0; x < pw; x++) {
+      const sx = Math.min(w - 1, Math.max(0, x - meanX));
+      padded[y * pw + x] = lum[sy * w + sx];
+    }
+  }
+  const paddedMean = boxMean(padded, pw, ph, meanX, meanY);
+  const mean = new Float32Array(count);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) mean[y * w + x] = paddedMean[(y + meanY) * pw + (x + meanX)];
+  }
+
+  const diff = new Float32Array(count);
+  const pos = [];
+  const neg = [];
+  for (let i = 0; i < count; i++) {
+    const d = lum[i] - mean[i];
+    diff[i] = d;
+    if (d > 0) pos.push(d); else if (d < 0) neg.push(-d);
+  }
+  const tail = arr => {
+    if (!arr.length) return 0;
+    arr.sort((a, b) => a - b);
+    return arr[Math.min(arr.length - 1, Math.floor(arr.length * 0.995))];
+  };
+  const posTail = tail(pos);
+  const negTail = tail(neg);
+  const textIsBright = posTail > negTail;
+  const scale = Math.max(8, textIsBright ? posTail : negTail);
+
+  const out = new Uint8Array(count);
+  for (let i = 0; i < count; i++) {
+    const ink = textIsBright ? diff[i] : -diff[i];       // قوة "النص" في البكسل
+    // منطقة ميتة 10% من تباين النص: تمسح انحياز تقدير الخلفية وضجيج الحبيبات الخفيف
+    const v = 255 - Math.max(0, Math.min(255, ((ink - scale * 0.1) / (scale * 0.9)) * 255));
+    out[i] = v;
+  }
+  return { gray: out, textIsBright, contrast: scale };
+}
+
+// صفوف الحبر لتحديد شريط السطر (النص غامق: قيمة أقل من 128 تقريباً بعد التسوية)
+function rowInkOf(gray, w, h) {
+  const rowInk = new Float32Array(h);
+  for (let y = 0; y < h; y++) {
+    let ink = 0;
+    for (let x = 0; x < w; x++) if (gray[y * w + x] < 128) ink++;
+    rowInk[y] = ink / w;
+  }
+  return rowInk;
+}
+
+function toLuminance(px, count) {
+  const lum = new Uint8Array(count);
+  for (let i = 0, o = 0; i < count; i++, o += 4) {
+    lum[i] = Math.round(px[o] * 0.299 + px[o + 1] * 0.587 + px[o + 2] * 0.114);
+  }
+  return lum;
+}
+
+function grayToDataUrl(gray, w, h, pad) {
+  const out = document.createElement('canvas');
+  out.width = w + pad * 2;
+  out.height = h + pad * 2;
+  const octx = out.getContext('2d', { willReadFrequently: true });
+  octx.fillStyle = '#fff';
+  octx.fillRect(0, 0, out.width, out.height);
+  const tmp = document.createElement('canvas');
+  tmp.width = w;
+  tmp.height = h;
+  const tctx = tmp.getContext('2d', { willReadFrequently: true });
+  const img = tctx.getImageData(0, 0, w, h);
+  for (let i = 0, o = 0; i < w * h; i++, o += 4) {
+    img.data[o] = img.data[o + 1] = img.data[o + 2] = gray[i];
+    img.data[o + 3] = 255;
+  }
+  tctx.putImageData(img, 0, 0);
+  octx.drawImage(tmp, pad, pad);
+  return out.toDataURL('image/png');
+}
+
+const TARGET_INK_HEIGHT = 44;   // ارتفاع النص المثالي لـ Tesseract (بكسل) بعد التكبير
+
+// قراءة منطقة السطر المحدد بمرحلتين:
+//  (1) مرور خفيف لتحديد شريط السطر الأوسط (مع تسوية الإضاءة) وقياس ارتفاع الحرف الحقيقي
+//  (2) إعادة القص من الصورة الأصلية على الشريط فقط وبمقياس يخلّي ارتفاع الحرف ~44px
+//      (التكبير الثابت القديم كان بيطلع الحرف أصغر/أكبر من اللازم حسب حجم الصورة والمستطيل)
+// بترجّع نسختين: رمادية مسوّاة (enhanced) وثنائية (thresholded)، وارتفاع الصورة النهائية.
 export async function prepareRegionImages(file, rect) {
   const image = await loadImage(file);
   const r = clampCropRect(rect);
@@ -457,93 +594,152 @@ export async function prepareRegionImages(file, rect) {
   const sw = Math.max(1, Math.round(r.w * image.width));
   const sh = Math.max(1, Math.round(r.h * image.height));
 
-  const scale = Math.min(4, Math.max(1, 160 / sh), 3000 / sw);
-  const cw = Math.max(1, Math.round(sw * scale));
-  const ch = Math.max(1, Math.round(sh * scale));
-
-  const crop = document.createElement('canvas');
-  crop.width = cw;
-  crop.height = ch;
-  const cctx = crop.getContext('2d', { willReadFrequently: true });
-  if (!cctx) throw new Error('Could not create an image-processing canvas');
-  cctx.imageSmoothingEnabled = true;
-  cctx.imageSmoothingQuality = 'high';
-  cctx.drawImage(image, sx, sy, sw, sh, 0, 0, cw, ch);
-
-  const imageData = cctx.getImageData(0, 0, cw, ch);
-  const px = imageData.data;
-  const count = cw * ch;
-  const lum = new Uint8Array(count);
-  const hist = new Uint32Array(256);
-  for (let i = 0, o = 0; i < count; i++, o += 4) {
-    const g = Math.round(px[o] * 0.299 + px[o + 1] * 0.587 + px[o + 2] * 0.114);
-    lum[i] = g;
-    hist[g]++;
-  }
-
-  // مط التباين (2%..98%)
-  const pct = target => { let c = 0; for (let i = 0; i < 256; i++) { c += hist[i]; if (c >= target) return i; } return 255; };
-  const low = pct(Math.floor(count * 0.02));
-  const high = pct(Math.floor(count * 0.98));
-  const range = Math.max(1, high - low);
-  for (let i = 0; i < count; i++) {
-    lum[i] = Math.max(0, Math.min(255, Math.round((lum[i] - low) * 255 / range)));
-  }
-
-  const histogramOf = (from, to) => {
-    const h = new Uint32Array(256);
-    for (let i = from; i < to; i++) h[lum[i]]++;
-    return h;
+  const draw = (srcY, srcH, scale) => {
+    const w = Math.max(1, Math.round(sw * scale));
+    const h = Math.max(1, Math.round(srcH * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('Could not create an image-processing canvas');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(image, sx, srcY, sw, srcH, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    return { w, h, lum: toLuminance(data, w * h) };
   };
 
-  // قطبية: النص دايماً أقلية في المساحة. لو الأفتح هو الأقلية يبقى النص فاتح => نقلب
-  const otsu = otsuThreshold(histogramOf(0, count), count);
-  let bright = 0;
-  for (let i = 0; i < count; i++) if (lum[i] > otsu) bright++;
-  if (bright / count < 0.5) {
-    for (let i = 0; i < count; i++) lum[i] = 255 - lum[i];
-  }
+  // (1) مرور تحديد الشريط
+  const scale1 = Math.min(2, Math.max(0.5, 1200 / sw), Math.max(1, 120 / sh));
+  const p1 = draw(sy, sh, scale1);
+  const n1 = normalizeForOcr(p1.lum, p1.w, p1.h, { rx: p1.w / 6, ry: Math.max(3, p1.h * 0.35) });
+  const band = findCenterTextBand(rowInkOf(n1.gray, p1.w, p1.h));
 
-  // عزل شريط السطر الأوسط (النص دلوقتي غامق على فاتح)
-  const otsuInk = otsuThreshold(histogramOf(0, count), count);
-  const rowInk = new Float32Array(ch);
-  for (let y = 0; y < ch; y++) {
-    let ink = 0;
-    for (let x = 0; x < cw; x++) if (lum[y * cw + x] <= otsuInk) ink++;
-    rowInk[y] = ink / cw;
-  }
-  const band = findCenterTextBand(rowInk);
-  let top = 0;
-  let bottom = ch - 1;
+  let srcTop = sy;
+  let srcHeight = sh;
+  let inkHeightSrc = sh * 0.6;
   if (band) {
-    const margin = Math.round((band.bottom - band.top + 1) * 0.25);
-    top = Math.max(0, band.top - margin);
-    bottom = Math.min(ch - 1, band.bottom + margin);
+    inkHeightSrc = Math.max(4, (band.bottom - band.top + 1) / scale1);
+    const wanted = inkHeightSrc * 0.35;
+    // الهامش مايتجاوزش نص الفجوة لأقرب سطر مجاور (بدون ما يسرّب حبر منه)
+    const marginTop = Math.min(wanted, Number.isFinite(band.gapAbove) ? Math.max(0, (band.gapAbove / scale1) / 2 - 1) : wanted);
+    const marginBottom = Math.min(wanted, Number.isFinite(band.gapBelow) ? Math.max(0, (band.gapBelow / scale1) / 2 - 1) : wanted);
+    srcTop = Math.max(0, Math.round(sy + band.top / scale1 - marginTop));
+    const srcBottom = Math.min(image.height, Math.round(sy + (band.bottom + 1) / scale1 + marginBottom));
+    srcHeight = Math.max(1, srcBottom - srcTop);
   }
-  const bandH = bottom - top + 1;
 
-  // عتبة النسخة الثنائية من الشريط المعزول فقط
-  const threshold = otsuThreshold(histogramOf(top * cw, (bottom + 1) * cw), cw * bandH);
+  // (2) القص النهائي بمقياس يناسب حجم الحرف
+  const scale2 = Math.min(5, Math.max(0.5, TARGET_INK_HEIGHT / inkHeightSrc), 3200 / sw);
+  const p2 = draw(srcTop, srcHeight, scale2);
+  const inkH2 = Math.max(8, inkHeightSrc * scale2);
+  const n2 = normalizeForOcr(p2.lum, p2.w, p2.h, { rx: Math.max(6, inkH2 * 4), ry: Math.max(4, inkH2 * 1.2) });
 
-  const pad = Math.max(12, Math.round(bandH * 0.25));
-  const makeCanvas = values => {
-    for (let i = 0, o = 0; i < count; i++, o += 4) {
-      px[o] = px[o + 1] = px[o + 2] = values(lum[i]);
-      px[o + 3] = 255;
-    }
-    cctx.putImageData(imageData, 0, 0);
-    const out = document.createElement('canvas');
-    out.width = cw + pad * 2;
-    out.height = bandH + pad * 2;
-    const octx = out.getContext('2d');
-    octx.fillStyle = '#fff';
-    octx.fillRect(0, 0, out.width, out.height);
-    octx.drawImage(crop, 0, top, cw, bandH, pad, pad, cw, bandH);
-    return out.toDataURL('image/png');
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < n2.gray.length; i++) hist[n2.gray[i]]++;
+  const threshold = otsuThreshold(hist, n2.gray.length);
+  const binary = new Uint8Array(n2.gray.length);
+  for (let i = 0; i < binary.length; i++) binary[i] = n2.gray[i] > threshold ? 255 : 0;
+
+  const pad = Math.max(16, Math.round(p2.h * 0.3));
+  return {
+    enhanced: grayToDataUrl(n2.gray, p2.w, p2.h, pad),
+    thresholded: grayToDataUrl(binary, p2.w, p2.h, pad),
+    height: p2.h + pad * 2
   };
+}
 
-  const enhanced = makeCanvas(v => v);
-  const thresholded = makeCanvas(v => (v > threshold ? 255 : 0));
+// ============================================================
+// مطابقة تقريبية مع قاموس الـ KB (lexicon) عندما تفشل قراءة السطر
+//
+// لما الصورة ضعيفة (انعكاس/ميل/إضاءة) الـ OCR بيطلع نص مشوّه ("M 79-8 DELIVERY UID" بدل
+// "059-SHEET DELIVERY DID NOT GET SHEET"). لكن المفردات المحتملة محدودة: رسائل أعطال
+// الماكينة المختارة في الـ KB. فبنقارن النص المشوّه بكل رسائل الـ KB بتشابه على مستوى
+// الحرف (Levenshtein) ونقدّم أقرب 3 كاقتراحات للمستخدم يختار منها. الكود دايماً من الـ KB
+// نفسه (مفيش اختراع)، والاقتراح مابيتعتمدش تلقائياً أبداً.
+// ============================================================
 
-  return { enhanced, thresholded, height: bandH + pad * 2 };
+export function levenshtein(a, b) {
+  if (a === b) return 0;
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = new Array(n + 1);
+  let cur = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[n];
+}
+
+function wordSimilarity(a, b) {
+  const longest = Math.max(a.length, b.length);
+  return longest ? 1 - levenshtein(a, b) / longest : 0;
+}
+
+// تمييز لاتيني فقط (الحروف العربية الهلوسة من النموذج مالهاش قيمة هنا) + توحيد الالتباس
+function latinWords(text) {
+  return String(text || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .split(' ')
+    .filter(w => w.length >= 2);
+}
+
+// نسبة تغطية رسالة KB بكلمات النص المقروء، مرجّحة بطول الكلمة
+export function messageCoverage(ocrWords, kbMessage) {
+  const kbWords = latinWords(kbMessage).filter(w => w.length >= 3);
+  if (!kbWords.length || !ocrWords.length) return 0;
+  let total = 0;
+  let got = 0;
+  for (const kw of kbWords) {
+    total += kw.length;
+    let best = 0;
+    for (const ow of ocrWords) {
+      const sim = wordSimilarity(ow, kw);
+      if (sim > best) best = sim;
+    }
+    if (best >= 0.6) got += kw.length * best;
+  }
+  return total ? got / total : 0;
+}
+
+export function suggestKbMatches(texts, kbEntries = [], { machineType = '', limit = 3, minScore = 0.3, excludeCodes = [] } = {}) {
+  const kb = (Array.isArray(kbEntries) ? kbEntries : []).filter(e => e && e.errorCode && e.errorMessage);
+  const scoped = machineType ? kb.filter(e => !e.machine || String(e.machine) === String(machineType)) : kb;
+  const ocrWords = [...new Set((Array.isArray(texts) ? texts : [texts]).flatMap(latinWords))];
+  if (!ocrWords.length || !scoped.length) return [];
+  const exclude = new Set(excludeCodes.map(c => confusableKey(c)));
+  const seen = new Set();
+
+  const scored = [];
+  for (const e of scoped) {
+    const key = confusableKey(e.errorCode);
+    if (exclude.has(key) || seen.has(key)) continue;
+    const similarity = messageCoverage(ocrWords, e.errorMessage);
+    if (similarity < minScore) continue;
+    seen.add(key);
+    scored.push({
+      code: String(e.errorCode).toUpperCase(),
+      ocrCode: '',
+      message: e.errorMessage,
+      kbMessage: e.errorMessage,
+      confidence: Math.round(similarity * 100),
+      score: Math.round(similarity * 100),
+      pattern: 'kb-fuzzy',
+      occurrences: 1,
+      lineIndex: 99,
+      inKb: true,
+      kbBy: 'fuzzy',
+      suggested: true
+    });
+  }
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
