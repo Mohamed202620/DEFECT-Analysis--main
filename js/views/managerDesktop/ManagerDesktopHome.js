@@ -391,7 +391,12 @@ export async function initManagerDesktopHomeData() {
     const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
     const totalCount = snapshot ? snapshot.total : tickets.length;
     const pmRecords = (pmRes && pmRes.status === 'success' && Array.isArray(pmRes.data)) ? pmRes.data : [];
-    const users = Array.isArray(usersRes) ? usersRes : [];
+    // إصلاح: fetchUsers() بترجع { status, data } مش مصفوفة مباشرة، فكان الشرط
+    // القديم (Array.isArray(usersRes)) دايماً false وقائمة المستخدمين فاضية: لا
+    // طلبات انضمام في "يحتاج قراراً" ولا عداد معلّقين ولا فنيين في حمل العمل
+    const users = Array.isArray(usersRes)
+      ? usersRes
+      : (usersRes && usersRes.status === 'success' && Array.isArray(usersRes.data) ? usersRes.data : []);
 
     // تخزين مؤقت للتقارير
     cachedDashboardData = { tickets, totalCount, pmRecords, users };
