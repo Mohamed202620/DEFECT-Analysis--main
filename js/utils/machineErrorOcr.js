@@ -347,3 +347,121 @@ export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '' } = 
 
   return { status, selected, candidates };
 }
+
+// ============================================================
+// قراءة منطقة محددة بواسطة المستخدم (سطر واحد من سجل الأعطال)
+//
+// سجل Alarm History كله أعطال حقيقية، والعامل وحده يعرف أيها يقصد، فبدل تخمين السطر
+// بنخليه يحدد مستطيل حوله، ونقرأ المقطع ده بس (مكبّر ومعالج لوحده) بوضع سطر واحد.
+// الإحداثيات كلها نسب (0..1) من أبعاد الصورة المعروضة، فمستقلة عن حجم الشاشة.
+// ============================================================
+
+export const DEFAULT_CROP_RECT = Object.freeze({ x: 0.05, y: 0.38, w: 0.9, h: 0.08 });
+export const MIN_CROP_W = 0.1;
+export const MIN_CROP_H = 0.025;
+
+export function clampCropRect(rect) {
+  const num = (v, fallback) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  let w = Math.min(1, Math.max(MIN_CROP_W, num(rect?.w, DEFAULT_CROP_RECT.w)));
+  let h = Math.min(1, Math.max(MIN_CROP_H, num(rect?.h, DEFAULT_CROP_RECT.h)));
+  const x = Math.min(1 - w, Math.max(0, num(rect?.x, DEFAULT_CROP_RECT.x)));
+  const y = Math.min(1 - h, Math.max(0, num(rect?.y, DEFAULT_CROP_RECT.y)));
+  return { x, y, w, h };
+}
+
+// يختار من أسطر المقطع السطر الأقرب لمركزه الرأسي والذي يُفهم كعطل. السطر المجاور
+// المقصوص جزئياً (بسبب حدود المستطيل) بيبقى أبعد عن المركز فمايتاخدش.
+// lines: [{ text, confidence, bbox?: { y0, y1 } }]، heightPx: ارتفاع صورة المقطع.
+export function pickLineNearCenter(lines, heightPx) {
+  const list = Array.isArray(lines) ? lines : [];
+  if (!list.length) return [];
+  const withBox = list.filter(l => l && l.bbox && Number.isFinite(l.bbox.y0) && Number.isFinite(l.bbox.y1));
+  // لو المكتبة ما رجّعتش إحداثيات، نسيب كل الأسطر للتحليل العادي
+  if (!withBox.length || !Number.isFinite(heightPx)) return list;
+  const center = heightPx / 2;
+  const ranked = withBox
+    .map(l => ({ l, d: Math.abs((l.bbox.y0 + l.bbox.y1) / 2 - center) }))
+    .sort((a, b) => a.d - b.d);
+  for (const { l } of ranked) {
+    if (parseAlarmLine(l.text)) return [l];
+  }
+  return [];
+}
+
+// يقص المنطقة من الصورة الأصلية بدقتها الكاملة ويكبّرها ويجهزها لـ OCR:
+// تحويل رمادي + مط التباين + قلب القطبية لو النص أفتح من الخلفية (أبيض على أحمر/أزرق)
+// + هامش أبيض حول السطر (Tesseract بيقرأ أفضل مع هامش). بترجّع نسختين: معالجة وثنائية.
+export async function prepareRegionImages(file, rect) {
+  const image = await loadImage(file);
+  const r = clampCropRect(rect);
+  const sx = Math.round(r.x * image.width);
+  const sy = Math.round(r.y * image.height);
+  const sw = Math.max(1, Math.round(r.w * image.width));
+  const sh = Math.max(1, Math.round(r.h * image.height));
+
+  const scale = Math.min(4, Math.max(1, 160 / sh), 3000 / sw);
+  const cw = Math.max(1, Math.round(sw * scale));
+  const ch = Math.max(1, Math.round(sh * scale));
+
+  const crop = document.createElement('canvas');
+  crop.width = cw;
+  crop.height = ch;
+  const cctx = crop.getContext('2d', { willReadFrequently: true });
+  if (!cctx) throw new Error('Could not create an image-processing canvas');
+  cctx.imageSmoothingEnabled = true;
+  cctx.imageSmoothingQuality = 'high';
+  cctx.drawImage(image, sx, sy, sw, sh, 0, 0, cw, ch);
+
+  const imageData = cctx.getImageData(0, 0, cw, ch);
+  const px = imageData.data;
+  const count = cw * ch;
+  const lum = new Uint8Array(count);
+  const hist = new Uint32Array(256);
+  for (let i = 0, o = 0; i < count; i++, o += 4) {
+    const g = Math.round(px[o] * 0.299 + px[o + 1] * 0.587 + px[o + 2] * 0.114);
+    lum[i] = g;
+    hist[g]++;
+  }
+
+  // مط التباين (2%..98%)
+  const pct = target => { let c = 0; for (let i = 0; i < 256; i++) { c += hist[i]; if (c >= target) return i; } return 255; };
+  const low = pct(Math.floor(count * 0.02));
+  const high = pct(Math.floor(count * 0.98));
+  const range = Math.max(1, high - low);
+  for (let i = 0; i < count; i++) {
+    lum[i] = Math.max(0, Math.min(255, Math.round((lum[i] - low) * 255 / range)));
+  }
+
+  // قطبية: النص دايماً أقلية في المساحة. لو الأفتح هو الأقلية يبقى النص فاتح => نقلب
+  const stretchedHist = new Uint32Array(256);
+  for (let i = 0; i < count; i++) stretchedHist[lum[i]]++;
+  const otsu = otsuThreshold(stretchedHist, count);
+  let bright = 0;
+  for (let i = 0; i < count; i++) if (lum[i] > otsu) bright++;
+  if (bright / count < 0.5) {
+    for (let i = 0; i < count; i++) lum[i] = 255 - lum[i];
+  }
+
+  const pad = Math.max(12, Math.round(ch * 0.25));
+  const makeCanvas = values => {
+    for (let i = 0, o = 0; i < count; i++, o += 4) {
+      px[o] = px[o + 1] = px[o + 2] = values(lum[i]);
+      px[o + 3] = 255;
+    }
+    cctx.putImageData(imageData, 0, 0);
+    const out = document.createElement('canvas');
+    out.width = cw + pad * 2;
+    out.height = ch + pad * 2;
+    const octx = out.getContext('2d');
+    octx.fillStyle = '#fff';
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.drawImage(crop, pad, pad);
+    return out.toDataURL('image/png');
+  };
+
+  const enhanced = makeCanvas(v => v);
+  const threshold = otsuThreshold((() => { const h = new Uint32Array(256); for (let i = 0; i < count; i++) h[lum[i]]++; return h; })(), count);
+  const thresholded = makeCanvas(v => (v > threshold ? 255 : 0));
+
+  return { enhanced, thresholded, height: ch + pad * 2 };
+}
