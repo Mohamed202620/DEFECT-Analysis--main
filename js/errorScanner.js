@@ -26,6 +26,7 @@ import {
   prepareOcrImages,
   prepareRegionImages,
   pickLineNearCenter,
+  suggestKbMatches,
   clampCropRect,
   DEFAULT_CROP_RECT,
   MIN_CROP_W,
@@ -94,6 +95,32 @@ async function getOcrWorker() {
   return ocrWorkerPromise;
 }
 
+// Worker مخصص لقراءة سطر عطل محدد: إنجليزي فقط + قائمة أحرف مسموحة. السبب (مثبت من النص الخام
+// لصورة فعلية): نموذج ara+eng كان بيهلوس حروف عربية فوق سطر إنجليزي صرف (رسائل أعطال الـ HMI
+// دايماً لاتينية)، فبيبوّظ القراءة. وضع "قراءة الصورة كلها" لسه بيستخدم ara+eng زي ما هو
+const LINE_OCR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:./()&,' ";
+let lineWorkerPromise = null;
+
+async function getLineOcrWorker() {
+  if (!lineWorkerPromise) {
+    lineWorkerPromise = loadTesseract()
+      .then(async Tesseract => {
+        const worker = await Tesseract.createWorker('eng');
+        await worker.setParameters({
+          tessedit_char_whitelist: LINE_OCR_WHITELIST,
+          preserve_interword_spaces: '1',
+          user_defined_dpi: '300'
+        });
+        return worker;
+      })
+      .catch(error => {
+        lineWorkerPromise = null;
+        throw error;
+      });
+  }
+  return lineWorkerPromise;
+}
+
 function readLines(result) {
   const lines = Array.isArray(result?.data?.lines) ? result.data.lines : [];
   if (lines.length) {
@@ -140,7 +167,7 @@ async function recognizeMachineScreen(file) {
 async function recognizeSelectedRegion(file, rect) {
   const [images, worker] = await Promise.all([
     prepareRegionImages(file, rect),
-    getOcrWorker()
+    getLineOcrWorker()
   ]);
 
   const run = async (image, psm) => {
@@ -148,13 +175,19 @@ async function recognizeSelectedRegion(file, rect) {
     return worker.recognize(image);
   };
 
-  const first = await run(images.enhanced, '7');
-  const second = await run(images.enhanced, '6');
-  const third = await run(images.thresholded, '7');
+  // ثلاث قراءات: صورة مسوّاة (سطر واحد) / نسخة ثنائية (سطر واحد) / سطر خام (PSM 13)
+  const results = [
+    await run(images.enhanced, '7'),
+    await run(images.thresholded, '7'),
+    await run(images.enhanced, '13')
+  ];
 
+  const allLines = results.map(readLines);
   return {
-    rawText: [first, second, third].map(r => String(r?.data?.text || '').trim()).filter(Boolean).join('\n---\n'),
-    reads: [first, second, third].map(r => pickLineNearCenter(readLines(r), images.height))
+    rawText: results.map(r => String(r?.data?.text || '').trim()).filter(Boolean).join('\n---\n'),
+    reads: allLines.map(lines => pickLineNearCenter(lines, images.height)),
+    // كل النصوص المقروءة (حتى غير المفهومة كأكواد) لمطابقتها تقريبياً مع قاموس الـ KB
+    texts: allLines.flat().map(line => line.text)
   };
 }
 
@@ -254,7 +287,7 @@ function renderOcrCandidates() {
         <div class="flex items-center justify-between gap-2">
           <span class="font-black text-blue-400 text-sm">${escapeHtml(c.code)}</span>
           <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${c.inKb ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
-            ${escapeHtml(c.inKb ? tr.ocrInKb : tr.ocrNotInKb)} · ${c.confidence}%
+            ${escapeHtml(c.suggested ? tr.ocrSuggested : (c.inKb ? tr.ocrInKb : tr.ocrNotInKb))} · ${c.confidence}%
           </span>
         </div>
         ${c.message ? `<div class="text-[11px] text-gray-300 mt-1">${escapeHtml(c.message)}</div>` : ''}
@@ -417,7 +450,7 @@ function setScanButtonsDisabled(disabled) {
 }
 
 // عرض نتيجة التحليل: الخام / المرشحون / المؤكد منفصلين، ولا تعبئة إلا لنتيجة مؤكدة
-async function presentOcrResult(analysis, rawText, { region = false } = {}) {
+async function presentOcrResult(analysis, rawText, { region = false, suggestions = [] } = {}) {
   // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
   const rawBox = el('errScanRaw');
   if (rawBox) rawBox.value = String(rawText || '').trim();
@@ -426,7 +459,7 @@ async function presentOcrResult(analysis, rawText, { region = false } = {}) {
   if (rawDetails) rawDetails.open = analysis.status !== 'confirmed';
 
   // 2) المرشحون (مفصولين عن الحقول النهائية)
-  ocrCandidates = analysis.candidates.slice(0, 6);
+  ocrCandidates = [...analysis.candidates, ...suggestions].slice(0, 6);
   renderOcrCandidates();
 
   const codeInput = el('errScanCode');
@@ -445,8 +478,11 @@ async function presentOcrResult(analysis, rawText, { region = false } = {}) {
   // غير موثوق: الحقول تتفضّى (مانسيبش قيمة سابقة/مخمّنة) والمستخدم يختار أو يكتب
   if (codeInput) codeInput.value = '';
   if (messageInput) messageInput.value = '';
-  if (ocrCandidates.length) {
+  if (analysis.candidates.length) {
     setStatus(t().ocrNeedsReview);
+  } else if (ocrCandidates.length) {
+    // القراءة نفسها مش واضحة، لكن فيه أعطال قريبة من قاعدة المعرفة نعرضها للاختيار
+    setStatus(t().ocrLowQualityKb);
   } else {
     setStatus(region ? t().ocrRegionNone : t().codeNotFound, true);
   }
@@ -467,7 +503,7 @@ async function runOcrScan(mode) {
     setStatus(t().readingOcr, false, true);
 
     const region = mode === 'region';
-    const { rawText, reads } = region
+    const { rawText, reads, texts = [] } = region
       ? await recognizeSelectedRegion(scannedFile, cropRect)
       : await recognizeMachineScreen(scannedFile);
 
@@ -480,8 +516,16 @@ async function runOcrScan(mode) {
       console.warn('OCR: KB unavailable for validation', kbError);
     }
 
-    const analysis = analyzeReads(reads, kbEntries, String(window.selectedMachineType || '').trim(), { region });
-    await presentOcrResult(analysis, rawText, { region });
+    const machineType = String(window.selectedMachineType || '').trim();
+    const analysis = analyzeReads(reads, kbEntries, machineType, { region });
+
+    // قراءة غير مؤكدة في وضع السطر المحدد: نقارن النص المقروء (حتى لو مشوّه) برسائل الـ KB للماكينة
+    // المختارة ونقترح أقرب أعطال. الكود دايماً من الـ KB، والاقتراح مابيتعتمدش تلقائياً
+    const suggestions = region && analysis.status !== 'confirmed'
+      ? suggestKbMatches(texts, kbEntries, { machineType, excludeCodes: analysis.candidates.map(c => c.code) })
+      : [];
+
+    await presentOcrResult(analysis, rawText, { region, suggestions });
   } catch (err) {
     console.error('OCR Error:', err);
     setStatus(t().ocrError, true);
