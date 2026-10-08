@@ -25,7 +25,7 @@
 // الوضع الحالي، مش بديل كامل لـ Push الحقيقي.
 // ============================================================
 
-import { subscribeToMyNotificationsApi, markNotificationReadApi } from './services/api.js';
+import { subscribeToMyNotificationsApi, markNotificationReadApi, clearLiveNotificationsCache } from './services/api.js';
 
 const SEEN_IDS_KEY_PREFIX = "pushNotif_seenIds_";
 const MAX_STORED_SEEN_IDS = 200;
@@ -108,6 +108,7 @@ export function initBrowserNotifications() {
     unsubscribeFn();
     unsubscribeFn = null;
   }
+  clearLiveNotificationsCache();
 
   const seenIds = loadSeenIds(myUid);
   let isFirstSnapshot = true;
@@ -116,6 +117,12 @@ export function initBrowserNotifications() {
     if (result.status !== "success") return;
 
     const notifications = result.data || [];
+
+    // الشارة بقت بتتحسب من نفس اللقطة الحية (من غير أي طلب شبكة)، فبنحدّثها مع كل
+    // لقطة: إشعار اتقرا من جهاز/تاب تاني أو وصل جديد يظهر فوراً من غير تنقل أو Refresh
+    if (typeof window.refreshNotificationsBadge === "function") {
+      window.refreshNotificationsBadge();
+    }
 
     // أول Snapshot بعد بدء الاشتراك: كل الإشعارات الموجودة فعلاً
     // (حتى لو قديمة من قبل فتح التطبيق) بتتسجل كـ "متعرّف عليها" من
@@ -154,6 +161,7 @@ export function stopBrowserNotifications() {
     unsubscribeFn();
     unsubscribeFn = null;
   }
+  clearLiveNotificationsCache();
 }
 
 window.initBrowserNotifications = initBrowserNotifications;

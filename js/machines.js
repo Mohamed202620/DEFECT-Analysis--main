@@ -70,6 +70,7 @@ let isFetchingMachines = false;
 // DEFAULT_MACHINE_TYPES مش على ماكينات Firestore الحقيقية. دلوقتي
 // كل الاستدعاءات المتزامنة بتنتظر نفس عملية التحميل الجارية.
 let machineTypesLoadPromise = null;
+let machineTypesLoadedAt = 0;
 
 export function isMachineTypesLoaded() {
   return machineTypesLoaded;
@@ -81,6 +82,7 @@ export function isMachineTypesLoaded() {
 export function clearUserAndMachinesCache() {
   machineTypesCache = [];
   machineTypesLoaded = false;
+  machineTypesLoadedAt = 0;
   isFetchingMachines = false;
   machineTypesLoadPromise = null;
   refreshMachineOptionsExport();
@@ -174,6 +176,7 @@ async function doLoadMachineTypesFromFirestore() {
         order: typeof m.order === "number" ? m.order : 0
       }));
       machineTypesLoaded = true;
+      machineTypesLoadedAt = Date.now();
       refreshMachineOptionsExport();
       refreshActiveMachineDropdowns();
     }
@@ -190,6 +193,17 @@ async function doLoadMachineTypesFromFirestore() {
 export async function refreshMachineTypesCache() {
   machineTypesLoaded = false;
   await loadMachineTypesFromFirestore(true);
+}
+
+/**
+ * تجديد كاش الماكينات في الخلفية لو قديم (أو فشل تحميله). الكاش كان بيتحمّل مرة
+ * واحدة عند الدخول بس، فماكينة أضافها/عطّلها أدمن تاني ماكانتش بتوصل لباقي
+ * المستخدمين إلا بعد Refresh. بتتنادى عند الرجوع للتطبيق/عودة الاتصال.
+ */
+export async function refreshMachineTypesIfStale(maxAgeMs = 10 * 60 * 1000) {
+  if (machineTypesLoadPromise) return machineTypesLoadPromise;
+  if (machineTypesLoaded && (Date.now() - machineTypesLoadedAt) < maxAgeMs) return;
+  return loadMachineTypesFromFirestore(true);
 }
 
 /**

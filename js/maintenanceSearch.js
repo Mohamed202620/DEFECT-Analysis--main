@@ -45,6 +45,10 @@ import { escapeJsArg } from "./utils/escapeHtml.js";
 
 let allRecords = [];     // كل السجلات (بلاغات + PM + كايزن) بعد تطبيق نطاق الصلاحيات (من مصدر الجلب نفسه)
 let isLoaded = false;
+let loadedAt = 0;          // وقت آخر تحميل ناجح (للتجديد في الخلفية - stale-while-revalidate)
+let loadedForUid = '';     // مستخدم البيانات المخزّنة (تسجيل خروج/دخول بحساب تاني = كاش جديد)
+let isRevalidating = false;
+const SEARCH_REUSE_MS = 30000; // أقل من كده نعرض المخزّن من غير أي جلب جديد
 let loadError = false;   // فشل تحميل المصادر الثلاثة معاً فعلياً (مش مجرد صفر نتائج)
 let currentType = 'all'; // all | ticket | pm | suggestion
 
@@ -208,9 +212,9 @@ window.handleMaintenanceSearchDateFilterChange = function () {
 // تهيئة الصفحة عند فتحها لأول مرة (تُستدعى من renderCore.js)
 // ============================================================
 
-export async function initMaintenanceSearchView() {
+export async function initMaintenanceSearchView({ silent = false } = {}) {
   const box = el('mResultsBox');
-  if (box) {
+  if (box && !silent) {
     box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-8">جاري تحميل البيانات...</div>`;
   }
 
@@ -233,10 +237,16 @@ export async function initMaintenanceSearchView() {
   const suggestions = (suggestionsResult.status === 'success' && Array.isArray(suggestionsResult.data))
     ? suggestionsResult.data : [];
 
-  loadError =
+  const newLoadError =
     ticketsResult.status !== 'success' &&
     pmResult.status !== 'success' &&
     suggestionsResult.status !== 'success';
+
+  // تجديد صامت فشل (أوفلاين/خطأ مؤقت): نسيب البيانات المعروضة زي ما هي بدل ما
+  // نمسحها، وloadedAt بيفضل قديم فالمحاولة الجاية (عودة الاتصال/فتح الصفحة) تجدد
+  if (silent && newLoadError) return;
+
+  loadError = newLoadError;
 
   allRecords = [
     ...tickets.map(t => ({ ...t, _kind: 'ticket' })),
@@ -245,9 +255,25 @@ export async function initMaintenanceSearchView() {
   ];
 
   isLoaded = true;
+  // فشل كامل = مانعتبرهاش تحميل ناجح، فالفتح الجاي (أو عودة الاتصال) يجلب من جديد
+  loadedAt = loadError ? 0 : Date.now();
+  loadedForUid = myUid;
+
+  // لو الصفحة اتقفلت أثناء الجلب (تنقل) مفيش DOM نرسم فيه
+  if (!el('mResultsBox')) return;
 
   updateFilterVisibilityForType(currentType);
   window.switchMaintenanceSearchType(currentType);
+}
+
+// تجديد صامت للبيانات المعروضة (بدون مؤشر تحميل) - بيحافظ على سرعة الظهور من
+// الكاش، وفي نفس الوقت بيضمن إن بلاغ جديد/تغيير حالة يظهر من غير Refresh
+function revalidateMaintenanceSearch() {
+  if (isRevalidating) return;
+  isRevalidating = true;
+  initMaintenanceSearchView({ silent: true })
+    .catch(err => console.warn('[maintenanceSearch] revalidate failed:', err))
+    .finally(() => { isRevalidating = false; });
 }
 
 // ============================================================
@@ -262,12 +288,23 @@ export async function initMaintenanceSearchView() {
 
 export function renderMaintenanceSearchIfLoaded() {
   if (!isLoaded) return false;
+  // مستخدم تاني (خروج/دخول) = بيانات غير صالحة، لازم تحميل كامل
+  if (loadedForUid !== (localStorage.getItem('userId') || '')) return false;
   const box = el('mResultsBox');
   if (!box) return false;
   updateFilterVisibilityForType(currentType);
   window.switchMaintenanceSearchType(currentType);
+  // نعرض المخزّن فوراً، ولو قديم/فاشل نجدده في الخلفية ونعيد الرسم
+  if (!loadedAt || (Date.now() - loadedAt) >= SEARCH_REUSE_MS) {
+    revalidateMaintenanceSearch();
+  }
   return true;
 }
+
+// تُستدعى من renderCore عند عودة الاتصال/الرجوع للتطبيق
+window.revalidateMaintenanceSearch = function () {
+  if (isLoaded && el('mResultsBox')) revalidateMaintenanceSearch();
+};
 
 // ============================================================
 // تبديل تبويب نوع السجل
