@@ -226,12 +226,17 @@ export function messageSimilarity(a, b) {
 
 // تحليل سطر واحد -> مرشح أو null
 export function parseAlarmLine(rawLine) {
-  const line = normalizeDigits(rawLine)
+  let line = normalizeDigits(rawLine)
     .toUpperCase()
     .replace(/[‐‑‒–—]/g, '-')
     .replace(/\s+/g, ' ')
     .trim();
   if (line.length < 4 || HEADER_WORDS.test(line)) return null;
+
+  // عمود الوقت في سجل الأعطال ("30 AM" / "10:30 AM" / تاريخ + وقت) ملوش علاقة بالكود،
+  // ولو فضل ممكن يتقري "30" كأنه كود
+  line = line.replace(/^(?:\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}\s+)?(?:\d{1,2}(?:[:.]\d{2}){0,2}\s*)?(?:AM|PM)\b\s*/, '').trim();
+  if (line.length < 4) return null;
 
   // 1) "059-SHEET DELIVERY DID NOT GET SHEET" (الصيغة الفعلية لشاشات الإنذارات)
   let m = line.match(/(?:^|\s)([0-9OQILZSB]{2,5})\s?-\s?([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
@@ -241,6 +246,17 @@ export function parseAlarmLine(rawLine) {
     if (/\d/.test(m[1]) && /^\d{2,5}$/.test(code)) {
       const message = cleanOcrMessage(m[2]);
       if (messageLooksReal(message)) return { code, message, pattern: 'numeric-dash' };
+    }
+  }
+
+  // 1b) نفس الصيغة لكن الشرطة اتفقدت في الـ OCR ("059 SHEET DELIVERY ..."): الشرطة الرفيعة
+  // بتضيع كتير. لازم الكود في أول السطر، وغالباً بيتقبل كمرشح مراجعة بس (بدون مطابقة KB)
+  m = line.match(/^([0-9OQILZSB]{2,5})\s+([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
+  if (m) {
+    const code = digitsOnlyFix(m[1]);
+    if (/\d/.test(m[1]) && /^\d{2,5}$/.test(code)) {
+      const message = cleanOcrMessage(m[2]);
+      if (messageLooksReal(message)) return { code, message, pattern: 'numeric-space' };
     }
   }
 
@@ -258,7 +274,11 @@ export function parseAlarmLine(rawLine) {
 }
 
 // تحليل كل الأسطر. lines: [{ text, confidence }]. kbEntries: [{ errorCode, errorMessage, machine }]
-export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '' } = {}) {
+// minLineConfidence: حد استبعاد الأسطر ضعيفة القراءة. في "السطر المحدد" بالمستخدم بنخفضه
+// (المستخدم اختار السطر بنفسه) فيظهر كمرشح مراجعة بثقته الحقيقية بدل ما يختفي - والاعتماد
+// التلقائي لسه محتاج ثقة OCR_CONFIRM_CONFIDENCE + مطابقة KB. allowLoose: يسمح بمرشحين
+// صيغة "059 SHEET..." (بدون شرطة) حتى لو مش في الـ KB؛ غير كده بيتقبلوا لو في الـ KB بس.
+export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '', minLineConfidence = OCR_MIN_LINE_CONFIDENCE, allowLoose = false } = {}) {
   const kb = (Array.isArray(kbEntries) ? kbEntries : []).filter(e => e && e.errorCode);
   const scopedKb = machineType
     ? kb.filter(e => !e.machine || String(e.machine) === String(machineType))
@@ -268,7 +288,7 @@ export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '' } = 
   lines.forEach((entry, index) => {
     const text = typeof entry === 'string' ? entry : entry.text;
     const confidence = typeof entry === 'string' ? 0 : Number(entry.confidence) || 0;
-    if (confidence && confidence < OCR_MIN_LINE_CONFIDENCE) return;
+    if (confidence && confidence < minLineConfidence) return;
     const parsed = parseAlarmLine(text);
     if (parsed) raw.push({ ...parsed, lineIndex: index, confidence, lineText: String(text).trim() });
   });
@@ -309,7 +329,7 @@ export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '' } = 
 
     const baseConfidence = c.confidence || 60;
     let score = baseConfidence;
-    score += c.pattern === 'numeric-dash' ? 12 : 8;
+    score += c.pattern === 'numeric-dash' ? 12 : (c.pattern === 'numeric-space' ? 6 : 8);
     score += Math.min(10, (c.occurrences - 1) * 5);
     score += Math.max(0, 6 - c.lineIndex);            // ميل بسيط للأحدث (الأعلى) - مش حاسم
     if (kbMatch) score += kbBy === 'code' ? 40 : 25;
@@ -327,7 +347,8 @@ export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '' } = 
       kbBy,
       kbMessage: kbMatch ? (kbMatch.errorMessage || '') : ''
     };
-  }).sort((a, b) => b.score - a.score);
+  }).filter(c => allowLoose || c.pattern !== 'numeric-space' || c.inKb)
+    .sort((a, b) => b.score - a.score);
 
   // قرار الاعتماد: مرشح KB واحد واضح فقط (ثقة كافية + فارق عن التاني). غير كده = Needs Review
   let status = candidates.length ? 'review' : 'none';
@@ -388,9 +409,46 @@ export function pickLineNearCenter(lines, heightPx) {
   return [];
 }
 
+// يحدد شريط السطر الأقرب لمركز المقطع بإسقاط أفقي للحبر (كل صف: نسبة البكسل الغامق)،
+// فلو مستطيل المستخدم غطّى شرائح من الصفوف المجاورة بتتشال قبل الـ OCR بدل ما تتدمج
+// في نص مشوّش. بترجّع { top, bottom } (شامل) أو null لو مفيش تمييز واضح.
+export function findCenterTextBand(rowInk) {
+  const n = rowInk.length;
+  if (n < 8) return null;
+  const smooth = new Float32Array(n);
+  for (let y = 0; y < n; y++) {
+    let sum = 0, c = 0;
+    for (let k = -1; k <= 1; k++) { const yy = y + k; if (yy >= 0 && yy < n) { sum += rowInk[yy]; c++; } }
+    smooth[y] = sum / c;
+  }
+  let peak = 0;
+  for (let y = 0; y < n; y++) if (smooth[y] > peak) peak = smooth[y];
+  if (peak < 0.03) return null;
+  const cutoff = Math.max(0.2 * peak, 0.015);
+  const gapTolerance = Math.max(2, Math.round(n * 0.03));
+
+  const bands = [];
+  let cur = null;
+  for (let y = 0; y < n; y++) {
+    if (smooth[y] >= cutoff) {
+      if (cur && y - cur.bottom <= gapTolerance + 1) cur.bottom = y;
+      else { cur = { top: y, bottom: y }; bands.push(cur); }
+    }
+  }
+  if (!bands.length) return null;
+  const tallest = Math.max(...bands.map(b => b.bottom - b.top + 1));
+  // شرائح الصفوف المجاورة المقصوصة قصيرة جداً مقارنة بالسطر الكامل
+  const solid = bands.filter(b => (b.bottom - b.top + 1) >= tallest * 0.45);
+  const center = (n - 1) / 2;
+  const dist = b => (b.top <= center && center <= b.bottom) ? 0 : Math.min(Math.abs(b.top - center), Math.abs(b.bottom - center));
+  solid.sort((a, b) => dist(a) - dist(b));
+  return solid[0] || null;
+}
+
 // يقص المنطقة من الصورة الأصلية بدقتها الكاملة ويكبّرها ويجهزها لـ OCR:
 // تحويل رمادي + مط التباين + قلب القطبية لو النص أفتح من الخلفية (أبيض على أحمر/أزرق)
-// + هامش أبيض حول السطر (Tesseract بيقرأ أفضل مع هامش). بترجّع نسختين: معالجة وثنائية.
+// + عزل شريط السطر الأوسط + هامش أبيض حواليه (Tesseract بيقرأ أفضل مع هامش).
+// بترجّع نسختين: معالجة وثنائية، وارتفاع الصورة النهائية.
 export async function prepareRegionImages(file, rect) {
   const image = await loadImage(file);
   const r = clampCropRect(rect);
@@ -432,17 +490,42 @@ export async function prepareRegionImages(file, rect) {
     lum[i] = Math.max(0, Math.min(255, Math.round((lum[i] - low) * 255 / range)));
   }
 
+  const histogramOf = (from, to) => {
+    const h = new Uint32Array(256);
+    for (let i = from; i < to; i++) h[lum[i]]++;
+    return h;
+  };
+
   // قطبية: النص دايماً أقلية في المساحة. لو الأفتح هو الأقلية يبقى النص فاتح => نقلب
-  const stretchedHist = new Uint32Array(256);
-  for (let i = 0; i < count; i++) stretchedHist[lum[i]]++;
-  const otsu = otsuThreshold(stretchedHist, count);
+  const otsu = otsuThreshold(histogramOf(0, count), count);
   let bright = 0;
   for (let i = 0; i < count; i++) if (lum[i] > otsu) bright++;
   if (bright / count < 0.5) {
     for (let i = 0; i < count; i++) lum[i] = 255 - lum[i];
   }
 
-  const pad = Math.max(12, Math.round(ch * 0.25));
+  // عزل شريط السطر الأوسط (النص دلوقتي غامق على فاتح)
+  const otsuInk = otsuThreshold(histogramOf(0, count), count);
+  const rowInk = new Float32Array(ch);
+  for (let y = 0; y < ch; y++) {
+    let ink = 0;
+    for (let x = 0; x < cw; x++) if (lum[y * cw + x] <= otsuInk) ink++;
+    rowInk[y] = ink / cw;
+  }
+  const band = findCenterTextBand(rowInk);
+  let top = 0;
+  let bottom = ch - 1;
+  if (band) {
+    const margin = Math.round((band.bottom - band.top + 1) * 0.25);
+    top = Math.max(0, band.top - margin);
+    bottom = Math.min(ch - 1, band.bottom + margin);
+  }
+  const bandH = bottom - top + 1;
+
+  // عتبة النسخة الثنائية من الشريط المعزول فقط
+  const threshold = otsuThreshold(histogramOf(top * cw, (bottom + 1) * cw), cw * bandH);
+
+  const pad = Math.max(12, Math.round(bandH * 0.25));
   const makeCanvas = values => {
     for (let i = 0, o = 0; i < count; i++, o += 4) {
       px[o] = px[o + 1] = px[o + 2] = values(lum[i]);
@@ -451,17 +534,16 @@ export async function prepareRegionImages(file, rect) {
     cctx.putImageData(imageData, 0, 0);
     const out = document.createElement('canvas');
     out.width = cw + pad * 2;
-    out.height = ch + pad * 2;
+    out.height = bandH + pad * 2;
     const octx = out.getContext('2d');
     octx.fillStyle = '#fff';
     octx.fillRect(0, 0, out.width, out.height);
-    octx.drawImage(crop, pad, pad);
+    octx.drawImage(crop, 0, top, cw, bandH, pad, pad, cw, bandH);
     return out.toDataURL('image/png');
   };
 
   const enhanced = makeCanvas(v => v);
-  const threshold = otsuThreshold((() => { const h = new Uint32Array(256); for (let i = 0; i < count; i++) h[lum[i]]++; return h; })(), count);
   const thresholded = makeCanvas(v => (v > threshold ? 255 : 0));
 
-  return { enhanced, thresholded, height: ch + pad * 2 };
+  return { enhanced, thresholded, height: bandH + pad * 2 };
 }
