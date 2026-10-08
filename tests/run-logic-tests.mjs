@@ -102,7 +102,7 @@ await t("كود مقروء غلط + رسالة مطابقة => كود من ال�
   assert.equal(analyzeAlarmLines(ocrLines(["O6O-SHEET DELIVERY DROPPED SHEET"]), OCR_KB).candidates[0].code, "060");
   assert.equal(analyzeAlarmLines(ocrLines(["41O-COMPLETELY UNKNOWN PROBLEM TEXT"]), OCR_KB).candidates[0].inKb, false);
 });
-const { clampCropRect, pickLineNearCenter } = await import("../js/utils/machineErrorOcr.js");
+const { clampCropRect, pickLineNearCenter, findCenterTextBand, normalizeForOcr, suggestKbMatches } = await import("../js/utils/machineErrorOcr.js");
 console.log("machine-screen OCR: selected line region");
 await t("clampCropRect يبقي المستطيل داخل الصورة وبحد أدنى ويتحمل القيم التالفة", () => {
   const r = clampCropRect({ x: 0.95, y: 0.99, w: 0.3, h: 0.1 });
@@ -127,6 +127,71 @@ await t("سطر محدد واحد موجود في KB => confirmed حتى لو ا
   assert.equal(r.status, "confirmed");
   assert.equal(r.selected.code, "059");
   assert.equal(r.selected.message, "SHEET DELIVERY DID NOT GET SHEET");
+});
+await t("الشرطة المفقودة وعمود الوقت: 059 SHEET يُقرأ، و30 AM لا يصير كود", () => {
+  const r = parseAlarmLine("42 AM 059 SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(r.code, "059");
+  assert.equal(parseAlarmLine("10:30 AM 113-AIR TABLE NOT ENABLED").code, "113");
+  assert.equal(parseAlarmLine("30 AM"), null);
+  assert.equal(analyzeAlarmLines(ocrLines(["30 PPM SPEED CURRENT VALUE"]), OCR_KB).candidates.length, 0);
+  assert.equal(analyzeAlarmLines(ocrLines(["059 SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB).status, "confirmed");
+});
+await t("سطر محدد بثقة منخفضة يظهر مرشح مراجعة ولا يُعتمد أبداً", () => {
+  const opts = { minLineConfidence: 20, allowLoose: true };
+  assert.equal(analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 40), OCR_KB).status, "none");
+  const r = analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 40), OCR_KB, opts);
+  assert.equal(r.status, "review");
+  assert.equal(r.selected, null);
+  assert.equal(r.candidates[0].confidence, 40);
+});
+await t("findCenterTextBand يعزل سطر المركز ويتجاهل شرائح الصفوف المجاورة", () => {
+  const ink = new Float32Array(100);
+  for (let y = 0; y < 4; y++) ink[y] = 0.3;
+  for (let y = 40; y < 62; y++) ink[y] = 0.3;
+  for (let y = 94; y < 100; y++) ink[y] = 0.3;
+  const b = findCenterTextBand(ink);
+  assert.ok(b.top >= 38 && b.top <= 41 && b.bottom >= 60 && b.bottom <= 63);
+  assert.equal(findCenterTextBand(new Float32Array(50)), null);
+});
+await t("normalizeForOcr: نص فاتح على خلفية متدرجة => نص غامق على خلفية بيضاء، والعكس", () => {
+  const W = 200, H = 40, lum = new Uint8Array(W * H);
+  const isText = (x, y) => y >= 14 && y < 26 && x >= 20 && x < 180 && ((x >> 1) % 3 !== 0);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    lum[y * W + x] = Math.max(0, Math.min(255, 200 - Math.round(y * 1.5) + (isText(x, y) ? 55 : 0)));
+  }
+  const r = normalizeForOcr(lum, W, H, { rx: 30, ry: 12 });
+  assert.equal(r.textIsBright, true);
+  let text = 0, nText = 0, bg = 0, nBg = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (isText(x, y)) { text += r.gray[y * W + x]; nText++; } else if (y < 8 || y > 32) { bg += r.gray[y * W + x]; nBg++; }
+  }
+  assert.ok(text / nText < 110 && bg / nBg > 235);
+  const inverted = new Uint8Array(lum.map(v => 255 - v));
+  assert.equal(normalizeForOcr(inverted, W, H, { rx: 30, ry: 12 }).textIsBright, false);
+});
+await t("suggestKbMatches: نص OCR مشوّه (من صورة فعلية) => 059 أول اقتراح، بكود من الـ KB وللماكينة المختارة فقط", () => {
+  const kb = [
+    { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer" },
+    { errorCode: "060", errorMessage: "SHEET DELIVERY DROPPED SHEET", machine: "Palletizer" },
+    { errorCode: "113", errorMessage: "AIR TABLE NOT ENABLED", machine: "Palletizer" },
+    { errorCode: "E05", errorMessage: "MOTOR OVERLOAD", machine: "Labeler" }
+  ];
+  const garbage = ["تي جاه يضق ري رن ge 3¥ er, am ب بجي 7", "M 79-8 DELIVERY UID", "GET SF ل اصع امه الهو"];
+  const s = suggestKbMatches(garbage, kb, { machineType: "Palletizer" });
+  assert.equal(s[0].code, "059");
+  assert.ok(s[0].suggested && s[0].inKb);
+  assert.ok(!s.some(x => x.code === "E05"));
+  assert.equal(suggestKbMatches(["شاشة التحكم الرئيسية"], kb, {}).length, 0);
+  assert.equal(suggestKbMatches(["QWERTY ZXCVB"], kb, {}).length, 0);
+  assert.ok(!suggestKbMatches(garbage, kb, { machineType: "Palletizer", excludeCodes: ["059"] }).some(x => x.code === "059"));
+});
+await t("findCenterTextBand يرجّع الفجوة لأقرب سطر مجاور (لتحديد الهامش الآمن)", () => {
+  const ink = new Float32Array(100);
+  for (let y = 0; y < 4; y++) ink[y] = 0.3;
+  for (let y = 40; y < 62; y++) ink[y] = 0.3;
+  for (let y = 94; y < 100; y++) ink[y] = 0.3;
+  const b = findCenterTextBand(ink);
+  assert.ok(b.gapAbove > 30 && b.gapBelow > 25 && Number.isFinite(b.gapAbove));
 });
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
