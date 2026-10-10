@@ -66,7 +66,7 @@ export const ErrorScannerView = () => {
       </label>
       <select id="machineTypeSelect"
         aria-label="${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}"
-        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value;"
+        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value; if (window.errRowsReevaluate) window.errRowsReevaluate();"
         class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
         ${machineOptionsHtml}
       </select>
@@ -93,8 +93,8 @@ export const ErrorScannerView = () => {
     <div id="errScanCropWrap" class="hidden space-y-2">
       <div class="text-[11px] text-gray-400 text-center">
         ${t.cropHint || (currentLang === 'en'
-          ? 'Tap the error line in the image (or drag the box) so it covers the whole line, then press Read selected line.'
-          : 'اضغط على سطر العطل المطلوب في الصورة (أو اسحب المستطيل) ليغطي السطر كاملاً، ثم اضغط "اقرأ السطر المحدد".')}
+          ? 'Press Analyze all faults, or tap one line (or drag the box) and press Read selected line.'
+          : 'اضغط "تحليل كل الأعطال"، أو اضغط على سطر واحد (أو اسحب المستطيل) ثم "قراءة السطر المحدد".')}
       </div>
       <div id="errScanCropStage" class="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl border border-gray-700 bg-[#0F172A] select-none" style="touch-action:pan-y">
         <img id="errScanPreview" alt="" draggable="false" class="block max-w-full max-h-72 w-auto h-auto"/>
@@ -107,13 +107,13 @@ export const ErrorScannerView = () => {
         </div>
       </div>
       <div class="grid grid-cols-2 gap-2">
-        <button type="button" id="errScanReadRegionBtn" onclick="window.scanSelectedRegion()"
-          class="bg-emerald-600/20 border border-emerald-500/50 hover:bg-emerald-600/30 rounded-xl p-3 text-emerald-300 font-black transition active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-          <span>🔍</span> ${t.scanRegionBtn || (currentLang === 'en' ? 'Read selected line' : 'اقرأ السطر المحدد')}
-        </button>
         <button type="button" id="errScanReadFullBtn" onclick="window.scanFullImage()"
-          class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
-          <span>🖼️</span> ${t.scanFullBtn || (currentLang === 'en' ? 'Read whole image' : 'قراءة الصورة كلها')}
+          class="bg-emerald-600/20 border border-emerald-500/50 hover:bg-emerald-600/30 rounded-xl p-3 text-emerald-300 font-black transition active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🔍</span> ${t.scanFullBtn || (currentLang === 'en' ? 'Analyze all faults' : 'تحليل كل الأعطال')}
+        </button>
+        <button type="button" id="errScanReadRegionBtn" onclick="window.scanSelectedRegion()"
+          class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🎯</span> ${t.scanRegionBtn || (currentLang === 'en' ? 'Read selected line' : 'قراءة السطر المحدد')}
         </button>
       </div>
     </div>
@@ -122,8 +122,8 @@ export const ErrorScannerView = () => {
       ${t.readyStatus || ''}
     </div>
 
-    <!-- مرشحو OCR (غير مؤكدين) - منفصلين عن الحقول النهائية أدناه -->
-    <div id="errScanCandidates" class="space-y-2"></div>
+    <!-- الأعطال المستخرجة من الصورة (غير نهائية حتى يعتمدها المستخدم) - منفصلة عن الحقول أدناه -->
+    <div id="errScanRows" class="space-y-2"></div>
 
     <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
     <details id="errScanRawDetails" class="text-[11px] text-gray-400">
