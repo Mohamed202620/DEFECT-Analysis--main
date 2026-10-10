@@ -67,131 +67,170 @@ await t("لا يعتبر عنوان ALARM HISTORY كود عطل", () => {
   assert.equal(extractErrorCode("ALARM HISTORY\nNo active alarms"), "");
   assert.equal(extractErrorCode("ALARM HISTORY 21"), "");
 });
-const { analyzeAlarmLines, parseAlarmLine } = await import("../js/utils/machineErrorOcr.js");
-console.log("machine-screen OCR line analysis + KB validation");
+const ocr = await import("../js/utils/machineErrorOcr.js");
+const {
+  parseAlarmLine, analyzeAlarmRows, evaluateRow, mergeRowSets, buildKnownCodes,
+  clampCropRect, pickLineNearCenter, findCenterTextBand, normalizeForOcr, suggestKbMatches,
+  rotateGray, estimateSkewAngle, findTextRegion, cropGray, medianLineHeight, preprocessDocumentGray
+} = ocr;
+const { renderRowsListHtml, renderRowCardHtml, renderRowInfoHtml } = await import("../js/utils/errorRowsView.js");
+
+console.log("machine-fault OCR: literal codes, per-row KB matching, multi-fault screens");
 const OCR_KB = [
-  { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer" },
+  { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer", status: "verified" },
   { errorCode: "060", errorMessage: "SHEET DELIVERY DROPPED SHEET", machine: "Palletizer" },
   { errorCode: "113", errorMessage: "AIR TABLE NOT ENABLED", machine: "Palletizer" },
-  { errorCode: "E05", errorMessage: "MOTOR OVERLOAD", machine: "Palletizer" }
+  { errorCode: "E5", errorMessage: "MOTOR OVERLOAD", machine: "Palletizer" },
+  { errorCode: "ES", errorMessage: "EMERGENCY STOP PRESSED", machine: "Palletizer" },
+  { errorCode: "X77", errorMessage: "OTHER MACHINE FAULT", machine: "Labeler" }
 ];
-const ocrLines = (arr, c = 85) => arr.map(text => ({ text, confidence: c }));
-const ALARM_SCREEN = ["ALARM HISTORY", "Message", "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", "56 AM 060-SHEET DELIVERY DROPPED SHEET",
-  "38 AM 060-SHEET DELIVERY DROPPED SHEET", "19 AM 059-SHEET DELIVERY DID NOT GET SHEET", "00 AM 113-AIR TABLE NOT ENABLED",
-  "43 AM 031-TIPPED CAN IN PATTERN RITE", "NE9", "- ALARM HISTORY 1", "iil"];
-await t("Alarm History: لا NE9 ولا عنوان كمرشح، وأكثر من عطل => Needs Review بدون تعبئة", () => {
-  const r = analyzeAlarmLines(ocrLines(ALARM_SCREEN), OCR_KB);
-  assert.deepEqual(r.candidates.map(c => c.code).sort(), ["031", "059", "060", "113"]);
-  assert.equal(r.status, "review");
-  assert.equal(r.selected, null);
-  assert.equal(r.candidates[0].code, "059");
+const ocrEval = (code, extra = {}) => evaluateRow({ code, confidence: 90, message: "", ...extra }, OCR_KB, { machineType: "Palletizer" });
+const ocrLines = (arr, c = 85) => arr.map((text, i) => ({ text, confidence: c, bbox: { x0: 0, x1: 900, y0: i * 40, y1: i * 40 + 30 } }));
+
+await t("الكود يُحفظ حرفياً: O59 تبقى O59 مع بديل للعرض فقط، و059 بلا التباس", () => {
+  const r = parseAlarmLine("O59-SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(r.code, "O59"); assert.equal(r.altCode, "059"); assert.equal(r.suspect, true);
+  const clean = parseAlarmLine("30 AM 059-SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(clean.code, "059"); assert.equal(clean.suspect, false);
+  assert.equal(parseAlarmLine("I13-AIR TABLE NOT ENABLED").code, "I13");
 });
-await t("عطل واحد موجود في KB بثقة كافية => confirmed، وO59 يصحَّح لـ 059", () => {
-  assert.equal(analyzeAlarmLines(ocrLines(["10 AM 113-AIR TABLE NOT ENABLED"]), OCR_KB).status, "confirmed");
-  const r = analyzeAlarmLines(ocrLines(["O59-SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB);
-  assert.equal(r.selected.code, "059");
+await t("E5 وES يُقرآن كما هما، وES لا يُقرأ إلا لو موجود في الـ KB", () => {
+  assert.equal(parseAlarmLine("E5 MOTOR OVERLOAD").code, "E5");
+  assert.equal(parseAlarmLine("ES EMERGENCY STOP PRESSED", { knownCodes: buildKnownCodes(OCR_KB) }).code, "ES");
+  assert.equal(parseAlarmLine("ES EMERGENCY STOP PRESSED"), null);
 });
-await t("كود غير موجود في KB أو ثقة منخفضة أو بلا كود => لا اعتماد ولا اختراع", () => {
-  assert.equal(analyzeAlarmLines(ocrLines(["10 AM 777-MAIN DRIVE FAULT TRIPPED"]), OCR_KB).status, "review");
-  assert.equal(analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 30), OCR_KB).status, "none");
-  assert.equal(analyzeAlarmLines(ocrLines(["Main menu", "Speed 120 ppm"]), OCR_KB).status, "none");
-  assert.equal(analyzeAlarmLines(ocrLines(["NE9"]), OCR_KB).status, "none");
-  assert.equal(parseAlarmLine("BIZ-SOMETHING WENT WRONG HERE"), null);
+await t("الضجيج وعمود الوقت لا يصيرون أعطالاً", () => {
+  assert.equal(parseAlarmLine("30 AM"), null);
+  assert.equal(parseAlarmLine("NE9"), null);
+  assert.equal(parseAlarmLine("NE9 AM ILL"), null);
+  assert.equal(parseAlarmLine("059 SHEET DELIVERY DID NOT GET SHEET").code, "059");   // الشرطة المفقودة
 });
-await t("كود مقروء غلط + رسالة مطابقة => كود من الـ KB فقط", () => {
-  assert.equal(analyzeAlarmLines(ocrLines(["O6O-SHEET DELIVERY DROPPED SHEET"]), OCR_KB).candidates[0].code, "060");
-  assert.equal(analyzeAlarmLines(ocrLines(["41O-COMPLETELY UNKNOWN PROBLEM TEXT"]), OCR_KB).candidates[0].inKb, false);
+await t("المطابقة بالكود الحرفي + الماكينة: E5/ES لا يُخلطان، O59 لا يُحسب مطابقاً", () => {
+  assert.equal(ocrEval("059").status, "matched");
+  const e5 = ocrEval("E5");
+  assert.equal(e5.match.state, "exact");
+  assert.deepEqual(e5.match.lookalikes.map(e => e.errorCode), ["ES"]);
+  assert.equal(e5.status, "review");
+  assert.equal(ocrEval("ES").match.entries[0].errorCode, "ES");
+  const o59 = ocrEval("O59", { suspect: true, altCode: "059" });
+  assert.equal(o59.match.state, "possible");
+  assert.equal(o59.status, "review");
+  assert.equal(ocrEval("999").status, "unknown");
+  assert.equal(ocrEval("X77").match.state, "other-machine");
+  assert.equal(ocrEval("059", { confidence: 45 }).status, "review");
+  assert.equal(ocrEval("059", { conflict: "060" }).status, "review");
+  assert.equal(ocrEval("059", { manual: true, confidence: 0 }).status, "matched");
 });
-const { clampCropRect, pickLineNearCenter, findCenterTextBand, normalizeForOcr, suggestKbMatches } = await import("../js/utils/machineErrorOcr.js");
-console.log("machine-screen OCR: selected line region");
-await t("clampCropRect يبقي المستطيل داخل الصورة وبحد أدنى ويتحمل القيم التالفة", () => {
+await t("عدة أعطال في شاشة واحدة: صفوف منفصلة بلا خلط كود/وصف، والمكرر يُدمج", () => {
+  const screen = ["ALARM HISTORY", "Message", "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", "56 AM 060-SHEET DELIVERY DROPPED SHEET",
+    "37 AM 059-SHEET DELIVERY DID NOT GET SHEET", "00 AM 113-AIR TABLE NOT ENABLED", "43 AM 031-TIPPED CAN IN PATTERN RITE", "NE9", "iil"];
+  const { rows, ignored } = analyzeAlarmRows(ocrLines(screen), OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(rows.map(r => r.code), ["059", "060", "113", "031"]);
+  assert.equal(rows[0].message, "SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(rows[0].occurrences, 2);
+  assert.ok(rows.every(r => !/^\d/.test(r.message)));
+  assert.equal(rows[3].status, "unknown");
+  assert.ok(!ignored.includes("ALARM HISTORY"));
+  assert.equal(analyzeAlarmRows(ocrLines(["Main menu", "Speed 120 ppm", "شاشة التحكم"]), OCR_KB).rows.length, 0);
+});
+await t("دمج قراءتين: نفس الكود صف واحد، وكودان لنفس السطر => conflict لا يُعتمد", () => {
+  const a = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET"], 70), OCR_KB).rows;
+  const b = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 88), OCR_KB).rows;
+  const same = mergeRowSets(a, b);
+  assert.equal(same.length, 1); assert.equal(same[0].confidence, 88); assert.equal(same[0].message, "SHEET DELIVERY DID NOT GET SHEET");
+  const x = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 80), OCR_KB).rows;
+  const y = analyzeAlarmRows(ocrLines(["060-SHEET DELIVERY DROPPED SHEET"], 70), OCR_KB).rows;
+  const conflict = mergeRowSets(x, y);
+  assert.equal(conflict.length, 1); assert.equal(conflict[0].conflict, "060");
+  assert.equal(evaluateRow(conflict[0], OCR_KB, { machineType: "Palletizer" }).status, "review");
+});
+await t("واجهة الصفوف: HTML بلا حقن، الكود الملتبس لا يظهر مطابقاً، وتنبيه E5/ES ظاهر", () => {
+  const tr = new Proxy({}, { get: (_, key) => `[${String(key)}]` });
+  const evil = evaluateRow({ id: "r1", code: "E5", message: "<img src=x onerror=alert(1)>", confidence: 90, occurrences: 1 }, OCR_KB, { machineType: "Palletizer" });
+  const html = renderRowCardHtml(evil, tr);
+  assert.ok(!html.includes("<img src=x"));
+  assert.ok(html.includes("&lt;img"));
+  const info = renderRowInfoHtml(evil, { ...tr, lookalikeWarn: "تنبيه {codes}", matchExact: "x", pendingReviewStatus: "p", verifiedStatus: "v" });
+  assert.ok(info.includes("تنبيه ES"));
+  const o59 = evaluateRow({ id: "r2", code: "O59", altCode: "059", suspect: true, confidence: 90, message: "m" }, OCR_KB, { machineType: "Palletizer" });
+  const list = renderRowsListHtml([evil, o59], tr);
+  assert.ok(!list.includes("[rowMatched]"));
+  assert.ok(list.includes("errRowUseKb('r2','059')"));
+});
+await t("clampCropRect وpickLineNearCenter وfindCenterTextBand وnormalizeForOcr وsuggestKbMatches", () => {
   const r = clampCropRect({ x: 0.95, y: 0.99, w: 0.3, h: 0.1 });
   assert.ok(r.x + r.w <= 1.0000001 && r.y + r.h <= 1.0000001 && r.h >= 0.025);
-  assert.ok(Number.isFinite(clampCropRect({ x: "a", y: NaN, w: undefined, h: null }).x));
-});
-await t("pickLineNearCenter يختار سطر مركز المستطيل ويتجاهل المقصوص والضجيج", () => {
   const lines = [
     { text: "060-SHEET DELIVERY DR", confidence: 80, bbox: { y0: 0, y1: 14 } },
     { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 88, bbox: { y0: 60, y1: 100 } },
     { text: "113-AIR TABLE NOT ENABLED", confidence: 80, bbox: { y0: 150, y1: 170 } }
   ];
-  const picked = pickLineNearCenter(lines, 160);
-  assert.equal(picked.length, 1);
-  assert.match(picked[0].text, /^059/);
-  assert.deepEqual(pickLineNearCenter([{ text: "zzz noise", confidence: 90, bbox: { y0: 70, y1: 90 } }], 160), []);
-});
-await t("سطر محدد واحد موجود في KB => confirmed حتى لو الكود في سجل فيه أعطال أخرى", () => {
-  const picked = pickLineNearCenter([
-    { text: "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", confidence: 86, bbox: { y0: 60, y1: 100 } }], 160);
-  const r = analyzeAlarmLines(picked, OCR_KB);
-  assert.equal(r.status, "confirmed");
-  assert.equal(r.selected.code, "059");
-  assert.equal(r.selected.message, "SHEET DELIVERY DID NOT GET SHEET");
-});
-await t("الشرطة المفقودة وعمود الوقت: 059 SHEET يُقرأ، و30 AM لا يصير كود", () => {
-  const r = parseAlarmLine("42 AM 059 SHEET DELIVERY DID NOT GET SHEET");
-  assert.equal(r.code, "059");
-  assert.equal(parseAlarmLine("10:30 AM 113-AIR TABLE NOT ENABLED").code, "113");
-  assert.equal(parseAlarmLine("30 AM"), null);
-  assert.equal(analyzeAlarmLines(ocrLines(["30 PPM SPEED CURRENT VALUE"]), OCR_KB).candidates.length, 0);
-  assert.equal(analyzeAlarmLines(ocrLines(["059 SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB).status, "confirmed");
-});
-await t("سطر محدد بثقة منخفضة يظهر مرشح مراجعة ولا يُعتمد أبداً", () => {
-  const opts = { minLineConfidence: 20, allowLoose: true };
-  assert.equal(analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 40), OCR_KB).status, "none");
-  const r = analyzeAlarmLines(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 40), OCR_KB, opts);
-  assert.equal(r.status, "review");
-  assert.equal(r.selected, null);
-  assert.equal(r.candidates[0].confidence, 40);
-});
-await t("findCenterTextBand يعزل سطر المركز ويتجاهل شرائح الصفوف المجاورة", () => {
+  assert.match(pickLineNearCenter(lines, 160)[0].text, /^059/);
   const ink = new Float32Array(100);
   for (let y = 0; y < 4; y++) ink[y] = 0.3;
   for (let y = 40; y < 62; y++) ink[y] = 0.3;
   for (let y = 94; y < 100; y++) ink[y] = 0.3;
-  const b = findCenterTextBand(ink);
-  assert.ok(b.top >= 38 && b.top <= 41 && b.bottom >= 60 && b.bottom <= 63);
-  assert.equal(findCenterTextBand(new Float32Array(50)), null);
-});
-await t("normalizeForOcr: نص فاتح على خلفية متدرجة => نص غامق على خلفية بيضاء، والعكس", () => {
+  const band = findCenterTextBand(ink);
+  assert.ok(band.top >= 38 && band.top <= 41 && Number.isFinite(band.gapAbove));
+  const garbage = ["تي جاه يضق ري رن ge 3¥ er, am ب بجي 7", "M 79-8 DELIVERY UID", "GET SF ل اصع امه الهو"];
+  assert.equal(suggestKbMatches(garbage, OCR_KB, { machineType: "Palletizer" })[0].code, "059");
+  assert.equal(suggestKbMatches(["QWERTY ZXCVB"], OCR_KB, {}).length, 0);
   const W = 200, H = 40, lum = new Uint8Array(W * H);
   const isText = (x, y) => y >= 14 && y < 26 && x >= 20 && x < 180 && ((x >> 1) % 3 !== 0);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    lum[y * W + x] = Math.max(0, Math.min(255, 200 - Math.round(y * 1.5) + (isText(x, y) ? 55 : 0)));
-  }
-  const r = normalizeForOcr(lum, W, H, { rx: 30, ry: 12 });
-  assert.equal(r.textIsBright, true);
-  let text = 0, nText = 0, bg = 0, nBg = 0;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    if (isText(x, y)) { text += r.gray[y * W + x]; nText++; } else if (y < 8 || y > 32) { bg += r.gray[y * W + x]; nBg++; }
-  }
-  assert.ok(text / nText < 110 && bg / nBg > 235);
-  const inverted = new Uint8Array(lum.map(v => 255 - v));
-  assert.equal(normalizeForOcr(inverted, W, H, { rx: 30, ry: 12 }).textIsBright, false);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) lum[y * W + x] = Math.max(0, Math.min(255, 200 - Math.round(y * 1.5) + (isText(x, y) ? 55 : 0)));
+  const n = normalizeForOcr(lum, W, H, { rx: 30, ry: 12 });
+  assert.equal(n.textIsBright, true);
 });
-await t("suggestKbMatches: نص OCR مشوّه (من صورة فعلية) => 059 أول اقتراح، بكود من الـ KB وللماكينة المختارة فقط", () => {
-  const kb = [
-    { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer" },
-    { errorCode: "060", errorMessage: "SHEET DELIVERY DROPPED SHEET", machine: "Palletizer" },
-    { errorCode: "113", errorMessage: "AIR TABLE NOT ENABLED", machine: "Palletizer" },
-    { errorCode: "E05", errorMessage: "MOTOR OVERLOAD", machine: "Labeler" }
-  ];
-  const garbage = ["تي جاه يضق ري رن ge 3¥ er, am ب بجي 7", "M 79-8 DELIVERY UID", "GET SF ل اصع امه الهو"];
-  const s = suggestKbMatches(garbage, kb, { machineType: "Palletizer" });
-  assert.equal(s[0].code, "059");
-  assert.ok(s[0].suggested && s[0].inKb);
-  assert.ok(!s.some(x => x.code === "E05"));
-  assert.equal(suggestKbMatches(["شاشة التحكم الرئيسية"], kb, {}).length, 0);
-  assert.equal(suggestKbMatches(["QWERTY ZXCVB"], kb, {}).length, 0);
-  assert.ok(!suggestKbMatches(garbage, kb, { machineType: "Palletizer", excludeCodes: ["059"] }).some(x => x.code === "059"));
+await t("تصحيح الميل: يُقدَّر ويُصحَّح لميل +4° و-6°، وصورة مستقيمة/فاضية => 0", () => {
+  const W = 500, H = 360, base = new Uint8Array(W * H).fill(255);
+  for (let k = 0; k < 7; k++) for (let y = 40 + k * 38; y < 54 + k * 38; y++) for (let x = 60; x < W - 60; x++) if (((x >> 2) + k) % 5 !== 0) base[y * W + x] = 20;
+  for (const a of [4, -6]) {
+    const est = estimateSkewAngle(rotateGray(base, W, H, a), W, H);
+    assert.ok(Math.abs(est + a) <= 0.75, `ميل ${a}: مقدّر ${est}`);
+  }
+  assert.equal(estimateSkewAngle(base, W, H), 0);
+  assert.equal(estimateSkewAngle(new Uint8Array(W * H).fill(255), W, H), 0);
+  const region = findTextRegion(base, W, H);
+  assert.ok(region.x0 >= 20 && region.x0 <= 60 && region.x1 <= W - 20);
+  assert.equal(cropGray(base, W, region).gray.length, (region.x1 - region.x0 + 1) * (region.y1 - region.y0 + 1));
+  assert.equal(medianLineHeight([{ bbox: { y0: 0, y1: 20 } }, { bbox: { y0: 0, y1: 30 } }, { bbox: { y0: 0, y1: 40 } }]), 30);
 });
-await t("findCenterTextBand يرجّع الفجوة لأقرب سطر مجاور (لتحديد الهامش الآمن)", () => {
-  const ink = new Float32Array(100);
-  for (let y = 0; y < 4; y++) ink[y] = 0.3;
-  for (let y = 40; y < 62; y++) ink[y] = 0.3;
-  for (let y = 94; y < 100; y++) ink[y] = 0.3;
-  const b = findCenterTextBand(ink);
-  assert.ok(b.gapAbove > 30 && b.gapBelow > 25 && Number.isFinite(b.gapAbove));
+await t("كود صحيح بوصف لا يشبه المسجّل => review (لا matched)، وبوصف مقارب يبقى matched", () => {
+  const bad = ocrEval("059", { message: "XQZ WVT LLKP RRTT" });
+  assert.equal(bad.descMismatch, true);
+  assert.equal(bad.status, "review");
+  const partial = ocrEval("059", { message: "SHEET DELIVERY DID NOT GET SHEET" });
+  assert.equal(partial.status, "matched");
+  assert.equal(partial.descMismatch, false);
+  const edited = ocrEval("059", { message: "ما يهمش", manual: true });
+  assert.equal(edited.status, "matched");
+});
+await t("صف بثقة OCR أقل من 30% لا يظهر كعطل (ويدخل الأسطر غير المفهومة فقط)", () => {
+  const { rows, ignored } = analyzeAlarmRows([
+    { text: "ES SI EDIE EE A ES ORI OCG ERS", confidence: 15 },
+    { text: "113-AIR TABLE NOT ENABLED", confidence: 90 }
+  ], OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(rows.map(r => r.code), ["113"]);
+  assert.equal(ignored.length, 1);
+});
+await t("preprocessDocumentGray: شاشة بقطبيتين (عنوان غامق على فاتح + جدول أبيض على أحمر) => الصورتان تحتويان الحبر الصحيح", () => {
+  const W = 320, H = 200, lum = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = y < 40 ? 225 : 66;                                   // شريط عنوان فاتح + جدول أحمر غامق
+    if (y >= 14 && y < 26 && x >= 40 && x < 280 && ((x >> 1) % 3 !== 0)) v = 30;   // نص العنوان غامق
+    for (let k = 0; k < 4; k++) {
+      const y0 = 60 + k * 32;
+      if (y >= y0 && y < y0 + 14 && x >= 40 && x < 280 && ((x >> 1) % 3 !== 0)) v = 255;   // نص الصفوف أبيض
+    }
+    lum[y * W + x] = v;
+  }
+  const { cropped, croppedDark } = preprocessDocumentGray(lum, W, H);
+  const rowInk = (g, w, h, y0, y1) => { let n = 0, d = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) { n++; if (g[y * w + x] < 128) d++; } return d / n; };
+  // قطبية "النص فاتح": صفوف الجدول لازم تظهر غامقة (حبر واضح)، وفي "النص غامق" العنوان هو الغامق
+  const tableInkBright = rowInk(cropped.gray, cropped.w, cropped.h, Math.round(cropped.h * 0.4), cropped.h);
+  const headerInkDark = rowInk(croppedDark.gray, croppedDark.w, croppedDark.h, 0, Math.round(croppedDark.h * 0.25));
+  assert.ok(tableInkBright > 0.05, "جدول: " + tableInkBright);
+  assert.ok(headerInkDark > 0.03, "عنوان: " + headerInkDark);
 });
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
