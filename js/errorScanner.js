@@ -22,16 +22,29 @@ import {
 } from './services/api.js';
 import { translations } from './config.js';
 import {
-  analyzeAlarmLines,
   prepareOcrImages,
   prepareRegionImages,
+  prepareDocumentImage,
   pickLineNearCenter,
   suggestKbMatches,
+  analyzeAlarmRows,
+  evaluateRow,
+  mergeRowSets,
+  medianLineHeight,
+  normalizeCode,
   clampCropRect,
   DEFAULT_CROP_RECT,
   MIN_CROP_W,
   MIN_CROP_H
 } from './utils/machineErrorOcr.js';
+import {
+  renderRowsListHtml,
+  renderRowCardHtml,
+  renderRowInfoHtml,
+  statusMeta,
+  badgeClass,
+  approveMeta
+} from './utils/errorRowsView.js';
 
 // إصلاح (ترجمة شاملة): كل نصوص هذه الميزة (رسائل الحالة، تنبيهات،
 // عناوين النتائج، النموذج الجديد) كانت ثابتة بالعربي - دلوقتي
@@ -50,7 +63,12 @@ let lastFoundError = null;    // آخر نتيجة عطل تم العثور عل
 let isScanning = false;       // true أثناء تشغيل OCR (لمنع تشغيل مزدوج + التحكم بالـ Spinner)
 let scannedFile = null;       // الصورة الأصلية (بدقتها الكاملة) للقراءة - المعاينة المضغوطة للعرض فقط
 let cropRect = { ...DEFAULT_CROP_RECT }; // مستطيل السطر المحدد (نسب 0..1 من الصورة)
-let ocrCandidates = [];       // مرشحو OCR (غير مؤكدين) المعروضين للاختيار اليدوي
+let scanRows = [];            // الأعطال المستخرجة من الصورة (كل عطل: كود حرفي + وصف + حالة مطابقة)
+let scanIgnored = [];         // أسطر قُرئت لكن لم تُفهم كأعطال (للعرض فقط)
+let rowsVisible = false;      // true بعد أول تحليل/إضافة يدوية
+let workingImage = null;      // نسخة الصورة المعالجة (إضاءة/ميل/قص) لإعادة قراءة سطر - الأصل في scannedFile
+let rowKb = [];               // قاعدة المعرفة المستخدمة في آخر تقييم
+let nextRowId = 1;
 
 // ============================================================
 // تحميل مكتبة Tesseract.js بشكل كسول (مرة واحدة فقط عند الحاجة)
@@ -161,12 +179,12 @@ async function recognizeMachineScreen(file) {
   };
 }
 
-// قراءة السطر الذي حدده المستخدم: المقطع مكبّر ومعالج لوحده، بوضع سطر واحد (PSM 7)
-// ثم 6 احتياطي لو المستطيل غطّى أكتر من سطر، ثم نسخة ثنائية. من كل قراءة بناخد السطر
-// الأقرب لمركز المستطيل فقط (السطر المجاور المقصوص جزئياً بيتجاهل)
-async function recognizeSelectedRegion(file, rect) {
+// قراءة منطقة (سطر) من صورة: المصدر File (الصورة الأصلية) أو DataURL (الصورة المعالجة).
+// المقطع بيتعالج لوحده (سطر واحد، مقياس مناسب لحجم الحرف) ويتقرأ ثلاث مرات: مسوّى/ثنائي/سطر خام.
+// من كل قراءة بناخد السطر الأقرب لمركز المنطقة فقط (السطر المجاور المقصوص بيتجاهل)
+async function recognizeRegion(source, rect) {
   const [images, worker] = await Promise.all([
-    prepareRegionImages(file, rect),
+    prepareRegionImages(source, rect),
     getLineOcrWorker()
   ]);
 
@@ -175,37 +193,45 @@ async function recognizeSelectedRegion(file, rect) {
     return worker.recognize(image);
   };
 
-  // ثلاث قراءات: صورة مسوّاة (سطر واحد) / نسخة ثنائية (سطر واحد) / سطر خام (PSM 13)
   const results = [
     await run(images.enhanced, '7'),
     await run(images.thresholded, '7'),
     await run(images.enhanced, '13')
   ];
-
   const allLines = results.map(readLines);
+
   return {
     rawText: results.map(r => String(r?.data?.text || '').trim()).filter(Boolean).join('\n---\n'),
     reads: allLines.map(lines => pickLineNearCenter(lines, images.height)),
-    // كل النصوص المقروءة (حتى غير المفهومة كأكواد) لمطابقتها تقريبياً مع قاموس الـ KB
+    // كل النصوص المقروءة (حتى غير المفهومة كأكواد) لاقتراح أقرب أعطال من القاعدة
     texts: allLines.flat().map(line => line.text)
   };
 }
 
-// تحليل كل تمريرة لوحدها (عشان تكرار نفس السطر في تمريرات مختلفة مايتحسبش "تكرار
-// إنذار") واختيار أفضل تمريرة: مؤكدة > الأعلى درجة > الأكثر مرشحين
-function analyzeReads(reads, kbEntries, machineType, { region = false } = {}) {
-  const rank = { confirmed: 2, review: 1, none: 0 };
-  return reads
-    // سطر حدده المستخدم بنفسه: نخفّض حد استبعاد الثقة (يظهر كمرشح مراجعة بثقته الحقيقية بدل ما
-    // يختفي) ونقبل صيغة بدون شرطة. الاعتماد التلقائي لسه بيحتاج ثقة كافية + مطابقة KB
-    .map(lines => analyzeAlarmLines(lines, kbEntries, region
-      ? { machineType, minLineConfidence: 20, allowLoose: true }
-      : { machineType }))
-    .sort((a, b) =>
-      (rank[b.status] - rank[a.status]) ||
-      ((b.candidates[0]?.score || 0) - (a.candidates[0]?.score || 0)) ||
-      (b.candidates.length - a.candidates.length)
-    )[0] || { status: 'none', selected: null, candidates: [] };
+// قراءة الشاشة كاملة بقراءتين (قطبية النص فاتح / غامق)، كتلة نص (PSM 6)
+async function recognizeDocument(doc) {
+  const worker = await getLineOcrWorker();
+  const run = async image => {
+    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    return worker.recognize(image);
+  };
+  const a = await run(doc.enhanced);
+  const b = await run(doc.inverted);
+  return {
+    linesA: readLines(a),
+    linesB: readLines(b),
+    rawText: String(a?.data?.text || '').trim()
+  };
+}
+
+// أفضل صف من قراءة منطقة واحدة (أو null لو مفيش سطر مفهوم)
+function bestRowFromRegionRead(read, kbEntries, machineType) {
+  let merged = [];
+  for (const lines of read.reads) {
+    const rows = analyzeAlarmRows(lines, kbEntries, { machineType }).rows;
+    merged = merged.length ? mergeRowSets(merged, rows) : rows;
+  }
+  return merged.sort((a, b) => b.confidence - a.confidence)[0] || null;
 }
 
 // ============================================================
@@ -268,47 +294,371 @@ function setStatus(message, isError = false, showSpinner = false) {
 
 
 // ============================================================
-// عرض مرشحي OCR (منفصلين عن الحقول النهائية) + الاختيار اليدوي
+// الأعطال المستخرجة (عدة أعطال في صورة واحدة): تحليل / تعديل / إعادة قراءة سطر / اعتماد
+//
+// القاعدة: الكود يتعرض حرفياً كما قُرئ ولا يتخمّن؛ الصف مابيتحسبش "مطابق" إلا بمطابقة حرفية في
+// الـ KB لنفس الماكينة وبثقة كافية. الحفظ في الـ KB بيتم بس بعد اعتماد المستخدم للصف، وعبر نفس
+// مسار searchMachineError/saveNewMachineError الموجود (صلاحيات + منع التكرار + pending_review).
 // ============================================================
 
-function renderOcrCandidates() {
-  const box = el('errScanCandidates');
+function currentMachineType() {
+  return String(window.selectedMachineType || '').trim();
+}
+
+async function loadKbEntries() {
+  try {
+    return await fetchAllMachineErrors();
+  } catch (error) {
+    console.warn('OCR: KB unavailable for matching', error);
+    return [];
+  }
+}
+
+function findRow(id) {
+  return scanRows.find(r => r.id === id) || null;
+}
+
+function newRowId(prefix = 'm') {
+  return `${prefix}${nextRowId++}`;
+}
+
+function rowSuggestions(row) {
+  if (row.status === 'matched') return [];
+  const texts = [row.message, row.rawLine, ...(row.texts || [])].filter(Boolean);
+  if (!texts.length) return [];
+  return suggestKbMatches(texts, rowKb, {
+    machineType: currentMachineType(),
+    limit: 2,
+    minScore: 0.45,
+    excludeCodes: [row.code].filter(Boolean)
+  });
+}
+
+function showRawText(text, open) {
+  const rawBox = el('errScanRaw');
+  if (rawBox) rawBox.value = String(text || '').trim();
+  const details = el('errScanRawDetails');
+  if (details) details.open = !!open;
+}
+
+function renderRows() {
+  const box = el('errScanRows');
   if (!box) return;
-  if (!ocrCandidates.length) {
+  if (!rowsVisible) {
     box.innerHTML = '';
     return;
   }
   const tr = t();
-  box.innerHTML = `
-    <div class="text-[11px] font-bold text-amber-400">${escapeHtml(tr.ocrCandidatesTitle)}</div>
-    ${ocrCandidates.map((c, i) => `
-      <button type="button" onclick="window.pickOcrCandidate(${i})"
-        class="w-full text-start p-2.5 rounded-xl bg-[#0F172A] border ${c.inKb ? 'border-emerald-500/40' : 'border-amber-500/30'} hover:border-indigo-400 transition active:scale-95">
-        <div class="flex items-center justify-between gap-2">
-          <span class="font-black text-blue-400 text-sm">${escapeHtml(c.code)}</span>
-          <span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${c.inKb ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
-            ${escapeHtml(c.suggested ? tr.ocrSuggested : (c.inKb ? tr.ocrInKb : tr.ocrNotInKb))} · ${c.confidence}%
-          </span>
-        </div>
-        ${c.message ? `<div class="text-[11px] text-gray-300 mt-1">${escapeHtml(c.message)}</div>` : ''}
-      </button>`).join('')}`;
+  const suggestions = {};
+  scanRows.forEach(row => { suggestions[row.id] = rowSuggestions(row); });
+  const ignored = scanIgnored.length
+    ? `<details class="text-[11px] text-gray-500"><summary class="cursor-pointer select-none">${escapeHtml(tr.ignoredTitle.replace('{n}', scanIgnored.length))}</summary>
+         <div dir="ltr" class="mt-1 space-y-0.5 text-gray-400">${scanIgnored.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div></details>`
+    : '';
+  box.innerHTML = renderRowsListHtml(scanRows, tr, suggestions) + ignored;
 }
 
-window.pickOcrCandidate = async function (index) {
-  const picked = ocrCandidates[index];
-  if (!picked) return;
-  const codeInput = el('errScanCode');
-  const messageInput = el('errScanMessage');
-  if (codeInput) codeInput.value = picked.code;
-  if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
-  setStatus(t().ocrPicked.replace('{code}', picked.code));
-  // اختيار صريح من المستخدم = مسموح البحث مباشرة
-  await window.searchMachineError(picked.code);
+function refreshRowCard(id) {
+  const row = findRow(id);
+  const card = el(`errRow_${id}`);
+  if (!row) return;
+  if (!card) { renderRows(); return; }
+  card.outerHTML = renderRowCardHtml(row, t(), { suggestions: rowSuggestions(row) });
+}
+
+// تحديث الشارة + الاعتماد + معلومات المطابقة فقط (من غير إعادة بناء الحقول: التركيز يفضل في الخانة)
+function syncRowControls(row) {
+  const tr = t();
+  const info = el(`errRowInfo_${row.id}`);
+  if (info) info.innerHTML = renderRowInfoHtml(row, tr, { suggestions: rowSuggestions(row) });
+  const badge = el(`errRowBadge_${row.id}`);
+  if (badge) {
+    const meta = statusMeta(row, tr);
+    badge.textContent = meta.label;
+    badge.className = badgeClass(meta);
+  }
+  const approveBtn = el(`errRowApproveBtn_${row.id}`);
+  if (approveBtn) {
+    const meta = approveMeta(row, tr);
+    approveBtn.textContent = meta.label;
+    approveBtn.className = meta.cls;
+    approveBtn.disabled = meta.disabled;
+  }
+}
+
+function evaluateInPlace(row) {
+  Object.assign(row, evaluateRow(row, rowKb, { machineType: currentMachineType() }));
+  return row;
+}
+
+// تغيير نوع الماكينة بعد التحليل يغيّر نتيجة المطابقة (code + machine)
+window.errRowsReevaluate = function () {
+  if (!scanRows.length) return;
+  scanRows.forEach(evaluateInPlace);
+  renderRows();
 };
 
-// ============================================================
-// دوال مساعدة لبحث العطل اليدوي وتصفية نوع الماكينة
-// ============================================================
+// تعديل يدوي: الصف بيبقى "يدوي" (موثوق من المستخدم) وأي التباس/تعارض قراءة بيتشال، والاعتماد السابق بيتلغي
+window.errRowEdit = function (id, field, value) {
+  const row = findRow(id);
+  if (!row) return;
+  if (field === 'code') row.code = normalizeCode(value).slice(0, 24);
+  else row.message = String(value || '');
+  Object.assign(row, { manual: true, suspect: false, altCode: '', conflict: null, approved: false, unreadable: false });
+  evaluateInPlace(row);
+  syncRowControls(row);
+};
+
+// اختيار كود من القاعدة (مشابه/مقترح): قرار صريح من المستخدم، والوصف بيتملا من القاعدة لو فاضي
+window.errRowUseKb = function (id, code) {
+  const row = findRow(id);
+  if (!row) return;
+  const wanted = normalizeCode(code);
+  const machineType = currentMachineType();
+  const entry = rowKb.find(e => normalizeCode(e.errorCode) === wanted && (!machineType || !e.machine || e.machine === machineType))
+    || rowKb.find(e => normalizeCode(e.errorCode) === wanted);
+  row.code = wanted;
+  if (!String(row.message || '').trim() && entry) row.message = entry.errorMessage || '';
+  Object.assign(row, { manual: true, suspect: false, altCode: '', conflict: null, approved: false, unreadable: false });
+  evaluateInPlace(row);
+  refreshRowCard(id);
+};
+
+// استبدال وصف OCR بالوصف المسجّل للكود في القاعدة (قرار صريح من المستخدم)
+window.errRowUseKbMessage = function (id) {
+  const row = findRow(id);
+  if (!row || !row.kbMessage) return;
+  row.message = row.kbMessage;
+  Object.assign(row, { manual: true, approved: false });
+  evaluateInPlace(row);
+  refreshRowCard(id);
+};
+
+window.errRowRemove = function (id) {
+  scanRows = scanRows.filter(r => r.id !== id);
+  renderRows();
+};
+
+window.errRowAdd = function () {
+  const row = evaluateInPlace({
+    id: newRowId('m'), code: '', altCode: '', suspect: false, message: '', confidence: 0,
+    bbox: null, rawLine: '', occurrences: 1, manual: true, unreadable: true
+  });
+  scanRows.push(row);
+  rowsVisible = true;
+  renderRows();
+  el(`errRow_${row.id}`)?.querySelector('input')?.focus();
+};
+
+window.errRowApproveMatched = function () {
+  scanRows.forEach(row => { if (row.status === 'matched') row.approved = true; });
+  renderRows();
+};
+
+// اعتماد صف: بيتنقل الكود/الوصف للحقلين المعروضين ويشغّل نفس مسار البحث/العرض/الحفظ الحالي
+// (لو الكود موجود: السبب والحل المسجّلين فقط؛ لو غير موجود: نموذج الإضافة بصلاحياتك)
+window.errRowApprove = async function (id) {
+  const row = findRow(id);
+  if (!row) return;
+  // قراءة ملتبسة + كود واحد مشابه في القاعدة: الزر بيعرض الكود اللي هيتعتمد (rowApproveAs)،
+  // فالاعتماد هنا = اختيار صريح لهذا الكود من القاعدة
+  if (row.match && row.match.state === 'possible' && row.match.lookalikes.length === 1) {
+    window.errRowUseKb(id, row.match.lookalikes[0].errorCode);
+  }
+  if (!normalizeCode(row.code)) {
+    alert(t().enterCodeFirst);
+    return;
+  }
+  row.approved = true;
+  refreshRowCard(id);
+  const codeInput = el('errScanCode');
+  const messageInput = el('errScanMessage');
+  if (codeInput) codeInput.value = row.code;
+  if (messageInput) messageInput.value = row.message || '';
+  await window.searchMachineError(row.code);
+  el('errorScanResults')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+// إعادة قراءة هذا السطر فقط (من الصورة المعالجة، بموضعه المحفوظ). القيم الحالية ما بتتغيرش لو فشلت
+window.errRowReread = async function (id) {
+  const row = findRow(id);
+  if (!row || isScanning) return;
+  if (!row.bbox || !workingImage) {
+    setStatus(t().rowNoBox, true);
+    return;
+  }
+  isScanning = true;
+  setScanButtonsDisabled(true);
+  row.busy = true;
+  refreshRowCard(id);
+
+  try {
+    setStatus(t().readingOcr, false, true);
+    const W = workingImage.width;
+    const H = workingImage.height;
+    const b = row.bbox;
+    const lineH = Math.max(8, b.y1 - b.y0);
+    const padY = lineH * 0.3;
+    const rect = clampCropRect({
+      x: (b.x0 - 12) / W,
+      y: (b.y0 - padY) / H,
+      w: (b.x1 - b.x0 + 24) / W,
+      h: (lineH + padY * 2) / H
+    });
+    const machineType = currentMachineType();
+    const read = await recognizeRegion(workingImage.enhanced, rect);
+    const found = bestRowFromRegionRead(read, rowKb, machineType);
+
+    if (found) {
+      Object.assign(row, {
+        code: found.code, altCode: found.altCode, suspect: found.suspect, message: found.message,
+        confidence: found.confidence, conflict: found.conflict || null, rawLine: found.rawLine,
+        manual: false, approved: false, unreadable: false, texts: read.texts
+      });
+      evaluateInPlace(row);
+      setStatus(t().rowRereadOk);
+    } else {
+      row.texts = read.texts;
+      setStatus(t().rowRereadFail, true);
+    }
+  } catch (error) {
+    console.error('Row re-read error:', error);
+    setStatus(t().ocrError, true);
+  } finally {
+    row.busy = false;
+    isScanning = false;
+    setScanButtonsDisabled(false);
+    refreshRowCard(id);
+  }
+};
+
+// تحليل كل الأعطال في الصورة: تحسين الصورة (إضاءة/ميل/قص/مقياس) ثم قراءتين ودمجهم في صفوف منفصلة
+function scoreRows(lines) {
+  return lines.length ? lines.length * 100 + lines.reduce((sum, r) => sum + r.confidence, 0) / lines.length : 0;
+}
+
+async function runAnalyzeAll() {
+  if (!scannedFile) {
+    setStatus(t().ocrNoImage, true);
+    return;
+  }
+  if (isScanning) return;
+  isScanning = true;
+  setScanButtonsDisabled(true);
+
+  try {
+    const machineType = currentMachineType();
+    setStatus(t().improvingImage, false, true);
+    rowKb = await loadKbEntries();
+
+    const attempt = async options => {
+      const doc = await prepareDocumentImage(scannedFile, options);
+      setStatus(t().readingOcr, false, true);
+      const read = await recognizeDocument(doc);
+      const a = analyzeAlarmRows(read.linesA, rowKb, { machineType });
+      const b = analyzeAlarmRows(read.linesB, rowKb, { machineType });
+      const rows = mergeRowSets(a.rows, b.rows);
+      return { doc, read, rows, ignored: [...new Set([...a.ignored, ...b.ignored])] };
+    };
+
+    let best = await attempt(null);
+
+    // حرف صغير جداً أو كبير جداً على Tesseract: نعيد المحاولة بمقياس يخلّي ارتفاع السطر ~40px
+    const median = medianLineHeight([...best.read.linesA, ...best.read.linesB]);
+    if (median && (median < 22 || median > 90)) {
+      const longEdge = Math.max(best.doc.sourceWidth, best.doc.sourceHeight);
+      const scale = Math.min(4200 / longEdge, Math.max(0.3, best.doc.scale * (40 / median)));
+      if (Math.abs(scale - best.doc.scale) / best.doc.scale > 0.15) {
+        const retry = await attempt({ scale });
+        if (scoreRows(retry.rows) > scoreRows(best.rows)) best = retry;
+      }
+    }
+
+    workingImage = best.doc;
+    scanRows = best.rows.map(row => evaluateRow(row, rowKb, { machineType }));
+    scanIgnored = best.ignored;
+    rowsVisible = true;
+    nextRowId = scanRows.length + 1;
+
+    let rawText = best.read.rawText;
+    if (!scanRows.length) {
+      // مفيش أعطال مفهومة: نعرض النص الخام بالمحرك العربي+الإنجليزي الأصلي للمراجعة اليدوية
+      try {
+        const legacy = await recognizeMachineScreen(scannedFile);
+        rawText = [rawText, legacy.rawText].filter(Boolean).join('\n---\n');
+      } catch (legacyError) {
+        console.warn('Legacy OCR fallback failed', legacyError);
+      }
+    }
+    showRawText(rawText, !scanRows.length);
+    renderRows();
+
+    if (scanRows.length) {
+      setStatus(t().rowsFound.replace('{n}', scanRows.length));
+    } else {
+      setStatus(t().rowsNone, true);
+    }
+    el('errScanRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    console.error('OCR Error:', error);
+    setStatus(t().ocrError, true);
+  } finally {
+    isScanning = false;
+    setScanButtonsDisabled(false);
+  }
+}
+
+// قراءة السطر الذي حدده المستخدم بالمستطيل (من الصورة الأصلية): يضيف/يحدّث صف واحد
+async function runSelectedRegion() {
+  if (!scannedFile) {
+    setStatus(t().ocrNoImage, true);
+    return;
+  }
+  if (isScanning) return;
+  isScanning = true;
+  setScanButtonsDisabled(true);
+
+  try {
+    const machineType = currentMachineType();
+    setStatus(t().readingOcr, false, true);
+    rowKb = await loadKbEntries();
+    const read = await recognizeRegion(scannedFile, cropRect);
+    const found = bestRowFromRegionRead(read, rowKb, machineType);
+
+    let row;
+    if (found) {
+      // إحداثيات المقطع مش إحداثيات الصورة المعالجة، فمفيش bbox لإعادة القراءة (بتتم بالمستطيل)
+      const existing = scanRows.find(r => normalizeCode(r.code) === normalizeCode(found.code));
+      row = existing || { id: newRowId('s') };
+      Object.assign(row, { ...found, id: row.id, bbox: null, approved: false, unreadable: false, texts: read.texts, occurrences: existing ? existing.occurrences : 1 });
+      evaluateInPlace(row);
+      if (!existing) scanRows.push(row);
+      setStatus(t().rowRereadOk);
+    } else {
+      // قراءة غير مفهومة: صف فاضي للإدخال اليدوي + اقتراحات من القاعدة بدل نتيجة وهمية
+      row = evaluateInPlace({
+        id: newRowId('s'), code: '', altCode: '', suspect: false, message: '', confidence: 0,
+        bbox: null, rawLine: '', occurrences: 1, manual: false, unreadable: true, texts: read.texts
+      });
+      scanRows.push(row);
+      setStatus(t().selectedReadNone, true);
+    }
+
+    rowsVisible = true;
+    showRawText(read.rawText, !found);
+    renderRows();
+    el(`errRow_${row.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (error) {
+    console.error('OCR Error:', error);
+    setStatus(t().ocrError, true);
+  } finally {
+    isScanning = false;
+    setScanButtonsDisabled(false);
+  }
+}
+
+window.scanSelectedRegion = () => runSelectedRegion();
+window.scanFullImage = () => runAnalyzeAll();
 
 function normalizeSearchTerm(term) {
   return String(term || '').trim().toLowerCase();
@@ -404,7 +754,7 @@ document.addEventListener('change', async (e) => {
 });
 
 // اختيار الصورة: عرض المعاينة + مستطيل التحديد فقط. القراءة نفسها بتتم بزر صريح
-// (سطر محدد / الصورة كلها) عشان المستخدم هو اللي يقرر أي عطل في السجل
+// (تحليل كل الأعطال / قراءة السطر المحدد) - والصورة الأصلية بتفضل محفوظة بدون تعديل
 async function loadScreenFile(file) {
   if (isScanning) return;
   isScanning = true;
@@ -419,10 +769,12 @@ async function loadScreenFile(file) {
     if (wrap) wrap.classList.remove('hidden');
 
     // نتائج الصورة السابقة ماتفضلش معروضة على صورة جديدة
-    ocrCandidates = [];
-    renderOcrCandidates();
-    const rawBox = el('errScanRaw');
-    if (rawBox) rawBox.value = '';
+    scanRows = [];
+    scanIgnored = [];
+    rowsVisible = false;
+    workingImage = null;
+    renderRows();
+    showRawText('', false);
     const codeInput = el('errScanCode');
     if (codeInput) codeInput.value = '';
     const messageInput = el('errScanMessage');
@@ -448,95 +800,6 @@ function setScanButtonsDisabled(disabled) {
     if (btn) btn.disabled = disabled;
   });
 }
-
-// عرض نتيجة التحليل: الخام / المرشحون / المؤكد منفصلين، ولا تعبئة إلا لنتيجة مؤكدة
-async function presentOcrResult(analysis, rawText, { region = false, suggestions = [] } = {}) {
-  // 1) النص الخام: للعرض والمراجعة فقط، مش بيدخل أي حقل نهائي
-  const rawBox = el('errScanRaw');
-  if (rawBox) rawBox.value = String(rawText || '').trim();
-  // لو النتيجة مش مؤكدة نفتح النص الخام تلقائياً: المستخدم يشوف الـ OCR قرا إيه بالظبط
-  const rawDetails = el('errScanRawDetails');
-  if (rawDetails) rawDetails.open = analysis.status !== 'confirmed';
-
-  // 2) المرشحون (مفصولين عن الحقول النهائية)
-  ocrCandidates = [...analysis.candidates, ...suggestions].slice(0, 6);
-  renderOcrCandidates();
-
-  const codeInput = el('errScanCode');
-  const messageInput = el('errScanMessage');
-
-  if (analysis.status === 'confirmed' && analysis.selected) {
-    // 3) نتيجة مؤكدة فقط: كود موجود في الـ KB + ثقة كافية + مفيش مرشح أقوى/أعلى
-    const picked = analysis.selected;
-    if (codeInput) codeInput.value = picked.code;
-    if (messageInput) messageInput.value = picked.message || picked.kbMessage || '';
-    setStatus(t().ocrConfirmed.replace('{code}', picked.code));
-    await window.searchMachineError(picked.code);
-    return;
-  }
-
-  // غير موثوق: الحقول تتفضّى (مانسيبش قيمة سابقة/مخمّنة) والمستخدم يختار أو يكتب
-  if (codeInput) codeInput.value = '';
-  if (messageInput) messageInput.value = '';
-  if (analysis.candidates.length) {
-    setStatus(t().ocrNeedsReview);
-  } else if (ocrCandidates.length) {
-    // القراءة نفسها مش واضحة، لكن فيه أعطال قريبة من قاعدة المعرفة نعرضها للاختيار
-    setStatus(t().ocrLowQualityKb);
-  } else {
-    setStatus(region ? t().ocrRegionNone : t().codeNotFound, true);
-  }
-}
-
-async function runOcrScan(mode) {
-  if (!scannedFile) {
-    setStatus(t().ocrNoImage, true);
-    return;
-  }
-  // منع تشغيل مسح جديد أثناء مسح قائم بالفعل
-  if (isScanning) return;
-  isScanning = true;
-  setScanButtonsDisabled(true);
-
-  try {
-    // "Spinner أثناء القراءة": "جاري قراءة الشاشة..." + Spinner
-    setStatus(t().readingOcr, false, true);
-
-    const region = mode === 'region';
-    const { rawText, reads, texts = [] } = region
-      ? await recognizeSelectedRegion(scannedFile, cropRect)
-      : await recognizeMachineScreen(scannedFile);
-
-    // قاعدة المعرفة للتحقق (نفس الكاش القصير المستخدم في البحث) - لو فشلت نكمل بدونها
-    // وفي الحالة دي مفيش نتيجة بتتأكد (كل شيء Needs Review)
-    let kbEntries = [];
-    try {
-      kbEntries = await fetchAllMachineErrors();
-    } catch (kbError) {
-      console.warn('OCR: KB unavailable for validation', kbError);
-    }
-
-    const machineType = String(window.selectedMachineType || '').trim();
-    const analysis = analyzeReads(reads, kbEntries, machineType, { region });
-
-    // قراءة غير مؤكدة في وضع السطر المحدد: نقارن النص المقروء (حتى لو مشوّه) برسائل الـ KB للماكينة
-    // المختارة ونقترح أقرب أعطال. الكود دايماً من الـ KB، والاقتراح مابيتعتمدش تلقائياً
-    const suggestions = region && analysis.status !== 'confirmed'
-      ? suggestKbMatches(texts, kbEntries, { machineType, excludeCodes: analysis.candidates.map(c => c.code) })
-      : [];
-
-    await presentOcrResult(analysis, rawText, { region, suggestions });
-  } catch (err) {
-    console.error('OCR Error:', err);
-    setStatus(t().ocrError, true);
-  } finally {
-    isScanning = false;
-    setScanButtonsDisabled(false);
-  }
-}
-
-window.scanSelectedRegion = () => runOcrScan('region');
-window.scanFullImage = () => runOcrScan('full');
 
 // ============================================================
 // مستطيل تحديد السطر (لمس/ماوس) - إحداثياته نسب من الصورة المعروضة
@@ -728,6 +991,13 @@ function renderFoundError(data) {
           ${isPending ? tr.pendingReviewStatus : tr.verifiedStatus}
         </span>
       </div>
+
+      ${(() => {
+        const selectedMachine = String(window.selectedMachineType || '').trim();
+        return selectedMachine && data.machine && data.machine !== selectedMachine
+          ? `<div class="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">⚠️ ${escapeHtml(tr.foundOtherMachine.replace('{machine}', data.machine).replace('{selected}', selectedMachine))}</div>`
+          : '';
+      })()}
 
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.errorCodeLabel}</div>
@@ -966,8 +1236,11 @@ window.resetErrorScanner = function () {
   scannedImage = null;
   scannedFile = null;
   lastFoundError = null;
-  ocrCandidates = [];
-  renderOcrCandidates();
+  scanRows = [];
+  scanIgnored = [];
+  rowsVisible = false;
+  workingImage = null;
+  renderRows();
 
   const preview = el('errScanPreview');
   if (preview) preview.src = '';
