@@ -70,16 +70,18 @@ function otsuThreshold(histogram, pixelCount) {
   return threshold;
 }
 
-function loadImage(file) {
+// يقبل File (الصورة الأصلية) أو رابط/DataURL (الصورة المعالجة المحفوظة لإعادة قراءة سطر)
+function loadImage(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    const url = URL.createObjectURL(file);
+    const isUrl = typeof source === 'string';
+    const url = isUrl ? source : URL.createObjectURL(source);
     image.onload = () => {
-      URL.revokeObjectURL(url);
+      if (!isUrl) URL.revokeObjectURL(url);
       resolve(image);
     };
     image.onerror = error => {
-      URL.revokeObjectURL(url);
+      if (!isUrl) URL.revokeObjectURL(url);
       reject(error);
     };
     image.src = url;
@@ -170,12 +172,8 @@ export async function prepareOcrImages(file) {
 // كان بيتحط في خانة الرسالة. الدوال دي pure (بدون DOM/Firebase) عشان تتختبر مباشرة.
 // ============================================================
 
-export const OCR_MIN_LINE_CONFIDENCE = 55;   // أقل من كده السطر مايدخلش مرشحين
-export const OCR_CONFIRM_CONFIDENCE = 60;    // حد اعتماد النتيجة (مع تطابق KB)
-export const OCR_CONFIRM_MARGIN = 12;        // الفرق المطلوب عن أقرب مرشح تاني
 
 const HEADER_WORDS = /^(ALARM(S)?\s*HISTORY|ALARM(S)?|HISTORY|MESSAGE|DESCRIPTION|TIME|DATE|ACK|PAGE|ACTIVE|CLEAR|RESET)\b/;
-const MESSAGE_STOP = /\b(AM|PM)\s*$/;
 
 function digitsOnlyFix(token) {
   return token.replace(/[OQILZSB]/g, ch => OCR_CONFUSABLE_DIGITS[ch]);
@@ -224,8 +222,33 @@ export function messageSimilarity(a, b) {
   return shared / Math.max(A.size, B.size);
 }
 
-// تحليل سطر واحد -> مرشح أو null
-export function parseAlarmLine(rawLine) {
+// ------------------------------------------------------------
+// الكود يتحفظ حرفياً كما قُرئ. أي التباس محتمل (O/0 I/1 S/5 B/8) بيتعلّم كـ suspect مع بديل
+// altCode للعرض فقط، ومابيتحوّلش تلقائياً: ES وE5 مثلاً ممكن يكونوا عطلين مختلفين في الـ KB.
+// ------------------------------------------------------------
+
+export function normalizeCode(code) {
+  return String(code || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+const TIME_PREFIX = /^(?:\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}\s+)?(?:\d{1,2}(?:[:.]\d{2}){0,2}\s*)?(?:AM|PM)\b\s*/;
+
+function altDigits(token) {
+  const alt = digitsOnlyFix(token);
+  return alt !== token && /^\d+$/.test(alt) ? alt : '';
+}
+
+function wordsWithLetters(message, minLetters, minCount) {
+  return message.split(/\s+/).filter(w => (w.match(/[A-Z]/g) || []).length >= minLetters).length >= minCount;
+}
+
+function buildParsed(code, message, pattern, altCode = '') {
+  return { code, altCode, suspect: !!altCode, message, pattern };
+}
+
+// تحليل سطر واحد -> { code (حرفي), altCode, suspect, message, pattern } أو null.
+// knownCodes: Set بأكواد الـ KB (مطبّعة) تسمح بالتعرف على أكواد حروف فقط مثل ES
+export function parseAlarmLine(rawLine, { knownCodes = null } = {}) {
   let line = normalizeDigits(rawLine)
     .toUpperCase()
     .replace(/[‐‑‒–—]/g, '-')
@@ -233,140 +256,200 @@ export function parseAlarmLine(rawLine) {
     .trim();
   if (line.length < 4 || HEADER_WORDS.test(line)) return null;
 
-  // عمود الوقت في سجل الأعطال ("30 AM" / "10:30 AM" / تاريخ + وقت) ملوش علاقة بالكود،
-  // ولو فضل ممكن يتقري "30" كأنه كود
-  line = line.replace(/^(?:\d{1,4}[\/.-]\d{1,2}[\/.-]\d{1,4}\s+)?(?:\d{1,2}(?:[:.]\d{2}){0,2}\s*)?(?:AM|PM)\b\s*/, '').trim();
-  if (line.length < 4) return null;
+  // عمود الوقت ("30 AM" / "10:30 AM" / تاريخ + وقت) ملوش علاقة بالكود
+  line = line.replace(TIME_PREFIX, '').trim();
+  if (line.length < 3) return null;
 
-  // 1) "059-SHEET DELIVERY DID NOT GET SHEET" (الصيغة الفعلية لشاشات الإنذارات)
-  let m = line.match(/(?:^|\s)([0-9OQILZSB]{2,5})\s?-\s?([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
-  if (m) {
-    const code = digitsOnlyFix(m[1]);
-    // الكود لازم يبقى فيه رقم حقيقي في الأصل (مش كلمة زي "BIZ")
-    if (/\d/.test(m[1]) && /^\d{2,5}$/.test(code)) {
-      const message = cleanOcrMessage(m[2]);
-      if (messageLooksReal(message)) return { code, message, pattern: 'numeric-dash' };
-    }
+  let m;
+
+  // 1) "059-SHEET DELIVERY DID NOT GET SHEET"
+  m = line.match(/(?:^|\s)([0-9OQILZSB]{2,5})\s?-\s?([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
+  if (m && /\d/.test(m[1])) {
+    const message = cleanOcrMessage(m[2]);
+    if (messageLooksReal(message)) return buildParsed(m[1], message, 'numeric-dash', altDigits(m[1]));
   }
 
-  // 1b) نفس الصيغة لكن الشرطة اتفقدت في الـ OCR ("059 SHEET DELIVERY ..."): الشرطة الرفيعة
-  // بتضيع كتير. لازم الكود في أول السطر، وغالباً بيتقبل كمرشح مراجعة بس (بدون مطابقة KB)
+  // 1b) نفس الصيغة والشرطة اتفقدت في الـ OCR ("059 SHEET DELIVERY ...") - الكود في أول السطر
   m = line.match(/^([0-9OQILZSB]{2,5})\s+([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
-  if (m) {
-    const code = digitsOnlyFix(m[1]);
-    if (/\d/.test(m[1]) && /^\d{2,5}$/.test(code)) {
-      const message = cleanOcrMessage(m[2]);
-      if (messageLooksReal(message)) return { code, message, pattern: 'numeric-space' };
-    }
+  if (m && /\d/.test(m[1])) {
+    const message = cleanOcrMessage(m[2]);
+    if (messageLooksReal(message)) return buildParsed(m[1], message, 'numeric-space', altDigits(m[1]));
   }
 
-  // 2) بادئة صريحة: ERR 204 / ALM-12 / FAULT 108 / E05
+  // 2) بادئة صريحة: ERR 204 / ALM-12 / FAULT 108 / E05 / E5
   m = line.match(/(?:^|\s)(ERR(?:OR)?|ALM|ALARM|FAULT|FLT|E|F)\s?[-_:]?\s?([0-9OQILZSB]{1,5})(?=\s|$|-|:)\s*[-:]?\s*(.*)$/);
   if (m && /\d/.test(m[2])) {
-    const suffix = digitsOnlyFix(m[2]);
-    if (/^\d{1,5}$/.test(suffix)) {
-      const prefix = m[1] === 'ERROR' ? 'ERR' : m[1];
-      return { code: `${prefix}${suffix}`, message: cleanOcrMessage(m[3]), pattern: 'prefixed' };
+    const prefix = m[1] === 'ERROR' ? 'ERR' : m[1];
+    const alt = altDigits(m[2]);
+    return buildParsed(`${prefix}${m[2]}`, cleanOcrMessage(m[3]), 'prefixed', alt ? `${prefix}${alt}` : '');
+  }
+
+  // 3) حروف + أرقام ملتصقة (NE9 / F12): بدون مفردات KB لازم رسالة حقيقية بعدها
+  m = line.match(/^([A-Z]{1,3}\d{1,4})(?=\s|-|:)\s*[-:]?\s*(.+)$/);
+  if (m) {
+    const message = cleanOcrMessage(m[2]);
+    if (messageLooksReal(message) && wordsWithLetters(message, 3, 2)) {
+      return buildParsed(m[1], message, 'alnum');
+    }
+  }
+
+  // 4) كود معروف في الـ KB (يشمل أكواد حروف فقط زي ES) في أول السطر
+  if (knownCodes && knownCodes.size) {
+    m = line.match(/^([A-Z0-9][A-Z0-9_./]{0,9})(?=\s|:|-|$)\s*[-:]?\s*(.*)$/);
+    if (m && knownCodes.has(m[1])) {
+      const message = cleanOcrMessage(m[2]);
+      if ((message.match(/[A-Z]/g) || []).length >= 3) return buildParsed(m[1], message, 'kb-code');
     }
   }
 
   return null;
 }
 
-// تحليل كل الأسطر. lines: [{ text, confidence }]. kbEntries: [{ errorCode, errorMessage, machine }]
-// minLineConfidence: حد استبعاد الأسطر ضعيفة القراءة. في "السطر المحدد" بالمستخدم بنخفضه
-// (المستخدم اختار السطر بنفسه) فيظهر كمرشح مراجعة بثقته الحقيقية بدل ما يختفي - والاعتماد
-// التلقائي لسه محتاج ثقة OCR_CONFIRM_CONFIDENCE + مطابقة KB. allowLoose: يسمح بمرشحين
-// صيغة "059 SHEET..." (بدون شرطة) حتى لو مش في الـ KB؛ غير كده بيتقبلوا لو في الـ KB بس.
-export function analyzeAlarmLines(lines, kbEntries = [], { machineType = '', minLineConfidence = OCR_MIN_LINE_CONFIDENCE, allowLoose = false } = {}) {
-  const kb = (Array.isArray(kbEntries) ? kbEntries : []).filter(e => e && e.errorCode);
-  const scopedKb = machineType
-    ? kb.filter(e => !e.machine || String(e.machine) === String(machineType))
-    : kb;
+// ------------------------------------------------------------
+// مطابقة صف مع الـ KB: بالكود الحرفي ونوع الماكينة. الأكواد المتشابهة شكلاً (E5/ES، O59/059)
+// بتظهر كـ lookalikes للتنبيه فقط ولا تُحسب مطابقة أبداً.
+// ------------------------------------------------------------
 
-  const raw = [];
-  lines.forEach((entry, index) => {
-    const text = typeof entry === 'string' ? entry : entry.text;
-    const confidence = typeof entry === 'string' ? 0 : Number(entry.confidence) || 0;
-    if (confidence && confidence < minLineConfidence) return;
-    const parsed = parseAlarmLine(text);
-    if (parsed) raw.push({ ...parsed, lineIndex: index, confidence, lineText: String(text).trim() });
+export const OCR_VERIFY_CONFIDENCE = 60;
+
+export function buildKnownCodes(kbEntries) {
+  const set = new Set();
+  for (const e of Array.isArray(kbEntries) ? kbEntries : []) {
+    if (e && e.errorCode) set.add(normalizeCode(e.errorCode));
+  }
+  return set;
+}
+
+export function matchRowToKb(row, kbEntries, { machineType = '' } = {}) {
+  const kb = (Array.isArray(kbEntries) ? kbEntries : []).filter(e => e && e.errorCode);
+  const code = normalizeCode(row && row.code);
+  if (!code) return { state: 'none', entries: [], lookalikes: [] };
+
+  const inScope = e => !machineType || !e.machine || String(e.machine) === String(machineType);
+  const exactAll = kb.filter(e => normalizeCode(e.errorCode) === code);
+  const exactScoped = exactAll.filter(inScope);
+
+  const key = confusableKey(code);
+  const lookalikes = kb.filter(e => {
+    const other = normalizeCode(e.errorCode);
+    return other !== code && inScope(e) && confusableKey(other) === key;
   });
 
-  // تجميع حسب الكود (نفس الإنذار بيتكرر في التاريخ) - ونحتفظ بأعلى ثقة وأقرب سطر للأعلى
+  if (exactScoped.length) return { state: 'exact', entries: exactScoped, lookalikes };
+  if (exactAll.length) return { state: 'other-machine', entries: exactAll, lookalikes };
+  if (lookalikes.length) return { state: 'possible', entries: [], lookalikes };
+  return { state: 'none', entries: [], lookalikes: [] };
+}
+
+// حالة الصف:
+//  matched = مطابقة حرفية + قراءة موثوقة + بلا التباس (أخضر)
+//  review  = يحتاج مراجعة (ثقة منخفضة/التباس/كود مشابه/ماكينة أخرى/قراءتان مختلفتان)
+//  unknown = كود غير موجود في الـ KB
+export const OCR_DESC_MIN_AGREEMENT = 0.4;
+
+export function evaluateRow(row, kbEntries, { machineType = '' } = {}) {
+  const match = matchRowToKb(row, kbEntries, { machineType });
+
+  // اتفاق الوصف المقروء مع الوصف المسجّل للكود: لو الوصف مايشبهش المسجّل فالكود نفسه مشكوك فيه
+  // (غالباً الكود اتقرا غلط لكود قريب) فمايتسميش "مطابق". الصف اليدوي معفي (المستخدم كتبه)
+  let descMismatch = false;
+  let kbMessage = '';
+  if (match.state === 'exact') {
+    const entry = match.entries[0] || {};
+    kbMessage = String(entry.errorMessage || '');
+    const read = String(row.message || '').trim();
+    if (!row.manual && kbMessage && read.length >= 6) {
+      descMismatch = messageCoverage(latinWords(read), kbMessage) < OCR_DESC_MIN_AGREEMENT;
+    }
+  }
+
+  const reliable = (!!row.manual || (Number(row.confidence) || 0) >= OCR_VERIFY_CONFIDENCE) && !row.suspect && !row.conflict && !descMismatch;
+  let status = 'review';
+  if (match.state === 'none') status = 'unknown';
+  else if (match.state === 'exact' && reliable && match.lookalikes.length === 0) status = 'matched';
+  return { ...row, match, reliable, status, descMismatch, kbMessage };
+}
+
+// تحليل كل أسطر OCR إلى أعطال منفصلة (كل صف: كود + وصف + ثقة + موضع) بلا خلط بينهم.
+// lines: [{ text, confidence, bbox?: {x0,y0,x1,y1} }]
+export function analyzeAlarmRows(lines, kbEntries = [], { machineType = '' } = {}) {
+  const knownCodes = buildKnownCodes(kbEntries);
+  const parsedRows = [];
+  const ignored = [];
+
+  (Array.isArray(lines) ? lines : []).forEach((entry, lineIndex) => {
+    const text = String(typeof entry === 'string' ? entry : entry.text || '').trim();
+    const lineConfidence = typeof entry === 'string' ? 0 : Number(entry.confidence) || 0;
+    // قراءة شبه عشوائية (ثقة < 30): مش عطل، ومايتعرضش كصف (بيظهر في الأسطر غير المفهومة فقط)
+    const parsed = lineConfidence > 0 && lineConfidence < 30 ? null : parseAlarmLine(text, { knownCodes });
+    if (!parsed) {
+      // عناوين الجدول (ALARM HISTORY / Message ...) مش "أسطر غير مفهومة" - بنتجاهلها بصمت
+      if (text.length >= 4 && !HEADER_WORDS.test(text.toUpperCase())) ignored.push(text);
+      return;
+    }
+    parsedRows.push({
+      ...parsed,
+      confidence: typeof entry === 'string' ? 0 : Math.round(Number(entry.confidence) || 0),
+      bbox: (typeof entry === 'object' && entry.bbox) || null,
+      rawLine: text,
+      occurrences: 1,
+      lineIndex,
+      manual: false
+    });
+  });
+
+  // نفس الإنذار بيتكرر في سجل التاريخ: صف واحد بأعلى ثقة وعدد مرات الظهور
   const byCode = new Map();
-  for (const c of raw) {
-    const key = confusableKey(c.code);
-    const prev = byCode.get(key);
-    if (!prev) {
-      byCode.set(key, { ...c, occurrences: 1 });
-    } else {
-      prev.occurrences++;
-      if (c.confidence > prev.confidence) {
-        prev.confidence = c.confidence;
-        if (c.message.length >= prev.message.length) prev.message = c.message;
-        prev.code = c.code;
+  for (const row of parsedRows) {
+    const key = normalizeCode(row.code);
+    const existing = byCode.get(key);
+    if (!existing) { byCode.set(key, row); continue; }
+    existing.occurrences += 1;
+    if (row.confidence > existing.confidence) {
+      Object.assign(existing, { ...row, occurrences: existing.occurrences, lineIndex: Math.min(existing.lineIndex, row.lineIndex) });
+    }
+  }
+
+  const rows = [...byCode.values()]
+    .sort((a, b) => a.lineIndex - b.lineIndex)
+    .map((row, index) => evaluateRow({ ...row, id: `r${index + 1}` }, kbEntries, { machineType }));
+
+  return { rows, ignored };
+}
+
+function verticalOverlap(a, b) {
+  if (!a || !b) return 0;
+  const overlap = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+  const smaller = Math.min(a.y1 - a.y0, b.y1 - b.y0);
+  return smaller > 0 ? overlap / smaller : 0;
+}
+
+// دمج صفوف قراءتين مستقلتين لنفس الصورة. نفس الكود => صف واحد (أعلى ثقة)، ونفس السطر بكودين
+// مختلفين => نسيب الأعلى ثقة ونعلّم conflict بالكود التاني (مش بيتحسب موثوق أبداً)
+export function mergeRowSets(primary, secondary) {
+  const out = (primary || []).map(row => ({ ...row }));
+  for (const s of secondary || []) {
+    const sameCode = out.findIndex(p => normalizeCode(p.code) === normalizeCode(s.code));
+    if (sameCode !== -1) {
+      const p = out[sameCode];
+      if (s.confidence > p.confidence) {
+        Object.assign(p, { confidence: s.confidence, bbox: s.bbox || p.bbox, rawLine: s.rawLine });
       }
+      if ((s.message || '').length > (p.message || '').length) p.message = s.message;
+      p.occurrences = Math.max(p.occurrences || 1, s.occurrences || 1);
+      continue;
     }
+    const sameLine = out.findIndex(p => verticalOverlap(p.bbox, s.bbox) >= 0.5);
+    if (sameLine !== -1) {
+      const p = out[sameLine];
+      if (s.confidence > p.confidence) out[sameLine] = { ...s, conflict: p.code };
+      else p.conflict = s.code;
+      continue;
+    }
+    out.push({ ...s });
   }
-
-  const candidates = [...byCode.values()].map(c => {
-    // مطابقة KB: بالكود (متسامح مع الالتباس)، أو بتشابه الرسالة لو الكود نفسه اتقرا غلط
-    const byCodeMatch = scopedKb.filter(e => confusableKey(e.errorCode) === confusableKey(c.code));
-    let kbMatch = byCodeMatch[0] || null;
-    let kbBy = kbMatch ? 'code' : '';
-    if (kbMatch && byCodeMatch.length > 1 && c.message) {
-      kbMatch = byCodeMatch
-        .map(e => ({ e, s: messageSimilarity(c.message, e.errorMessage) }))
-        .sort((a, b) => b.s - a.s)[0].e;
-    }
-    if (!kbMatch && c.message) {
-      const best = scopedKb
-        .map(e => ({ e, s: messageSimilarity(c.message, e.errorMessage) }))
-        .sort((a, b) => b.s - a.s)[0];
-      if (best && best.s >= 0.75) { kbMatch = best.e; kbBy = 'message'; }
-    }
-
-    const baseConfidence = c.confidence || 60;
-    let score = baseConfidence;
-    score += c.pattern === 'numeric-dash' ? 12 : (c.pattern === 'numeric-space' ? 6 : 8);
-    score += Math.min(10, (c.occurrences - 1) * 5);
-    score += Math.max(0, 6 - c.lineIndex);            // ميل بسيط للأحدث (الأعلى) - مش حاسم
-    if (kbMatch) score += kbBy === 'code' ? 40 : 25;
-
-    return {
-      code: kbMatch ? String(kbMatch.errorCode).toUpperCase() : c.code,   // من الـ KB فقط، لا اختراع
-      ocrCode: c.code,
-      message: c.message,
-      confidence: Math.round(baseConfidence),
-      score: Math.round(score),
-      pattern: c.pattern,
-      occurrences: c.occurrences,
-      lineIndex: c.lineIndex,
-      inKb: !!kbMatch,
-      kbBy,
-      kbMessage: kbMatch ? (kbMatch.errorMessage || '') : ''
-    };
-  }).filter(c => allowLoose || c.pattern !== 'numeric-space' || c.inKb)
-    .sort((a, b) => b.score - a.score);
-
-  // قرار الاعتماد: مرشح KB واحد واضح فقط (ثقة كافية + فارق عن التاني). غير كده = Needs Review
-  let status = candidates.length ? 'review' : 'none';
-  let selected = null;
-  if (candidates.length) {
-    const [top, second] = candidates;
-    const margin = second ? top.score - second.score : Infinity;
-    const effective = top.kbBy === 'message' ? Math.max(top.confidence, 0) : top.confidence;
-    // في Alarm History الأحدث غالباً في الأعلى: لا نعتمد كود من سطر أدنى لو فيه مرشح
-    // أعلى منه (حتى لو مجهول للـ KB) - ده قرار للمستخدم، مش للـ OCR
-    const isTopmost = candidates.every(c => c === top || top.lineIndex <= c.lineIndex);
-    if (top.inKb && isTopmost && effective >= OCR_CONFIRM_CONFIDENCE && margin >= OCR_CONFIRM_MARGIN) {
-      status = 'confirmed';
-      selected = top;
-    }
-  }
-
-  return { status, selected, candidates };
+  out.sort((a, b) => (a.bbox ? a.bbox.y0 : 1e9) - (b.bbox ? b.bbox.y0 : 1e9));
+  return out.map((row, index) => ({ ...row, id: `r${index + 1}` }));
 }
 
 // ============================================================
@@ -489,7 +572,7 @@ export function boxMean(src, w, h, rx, ry) {
 // 1) يطرح الخلفية المحلية (بيشيل انحدار الإضاءة/اللمعان زي أسفل شاشتك الباهت)
 // 2) يحدد قطبية النص (فاتح أو غامق) من الجهة ذات الذيل الأقوى (النص تباينه أعلى من الخلفية)
 // 3) يمط التباين بحيث الخلفية = 255 والنص = 0
-export function normalizeForOcr(lum, w, h, { rx, ry } = {}) {
+export function normalizeForOcr(lum, w, h, { rx, ry, localGain = false, polarity = 'auto' } = {}) {
   const count = w * h;
   const meanX = Math.max(2, Math.round(rx || w / 6));
   const meanY = Math.max(2, Math.round(ry || h / 3));
@@ -511,29 +594,48 @@ export function normalizeForOcr(lum, w, h, { rx, ry } = {}) {
     for (let x = 0; x < w; x++) mean[y * w + x] = paddedMean[(y + meanY) * pw + (x + meanX)];
   }
 
+  // الذيل (99.5%) لتباين كل جهة بمدرّج تكراري (256 خانة) بدل فرز ملايين العناصر - أسرع بكتير على الموبايل
   const diff = new Float32Array(count);
-  const pos = [];
-  const neg = [];
+  const posHist = new Uint32Array(256);
+  const negHist = new Uint32Array(256);
+  let posN = 0;
+  let negN = 0;
   for (let i = 0; i < count; i++) {
     const d = lum[i] - mean[i];
     diff[i] = d;
-    if (d > 0) pos.push(d); else if (d < 0) neg.push(-d);
+    if (d > 0) { posHist[Math.min(255, Math.round(d))]++; posN++; }
+    else if (d < 0) { negHist[Math.min(255, Math.round(-d))]++; negN++; }
   }
-  const tail = arr => {
-    if (!arr.length) return 0;
-    arr.sort((a, b) => a - b);
-    return arr[Math.min(arr.length - 1, Math.floor(arr.length * 0.995))];
+  const tailOf = (hist, n) => {
+    if (!n) return 0;
+    const target = n * 0.995;
+    let acc = 0;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; }
+    return 255;
   };
-  const posTail = tail(pos);
-  const negTail = tail(neg);
-  const textIsBright = posTail > negTail;
+  const posTail = tailOf(posHist, posN);
+  const negTail = tailOf(negHist, negN);
+  // polarity: 'bright' (النص أفتح من الخلفية) / 'dark' / 'auto' (من الذيل الأقوى للتباين).
+  // في تحضير الشاشة كاملة بنطلب الاتنين صراحةً (شاشات HMI فيها أجزاء بقطبيتين مختلفتين) وبنقرأ الصورتين
+  const textIsBright = polarity === 'bright' ? true : polarity === 'dark' ? false : posTail > negTail;
   const scale = Math.max(8, textIsBright ? posTail : negTail);
+
+  // localGain: تباين النص بيختلف عبر الصورة (لمعان/انعكاس/صفوف سفلية أخفت). بنقدّر مقياس التباين
+  // المحلي من متوسط الانحراف المطلق حوالين كل بكسل (النص الكثيف ~25% من المساحة)، مع حد أدنى
+  // عشان مانكبّرش الضجيج في المناطق الفاضية
+  let localScale = null;
+  if (localGain) {
+    const mag = new Uint8Array(count);
+    for (let i = 0; i < count; i++) mag[i] = Math.min(255, Math.abs(diff[i]));
+    localScale = boxMean(mag, w, h, meanX, meanY);
+  }
 
   const out = new Uint8Array(count);
   for (let i = 0; i < count; i++) {
     const ink = textIsBright ? diff[i] : -diff[i];       // قوة "النص" في البكسل
+    const sc = localScale ? Math.min(scale, Math.max(localScale[i] * 3.5, scale * 0.12)) : scale;
     // منطقة ميتة 10% من تباين النص: تمسح انحياز تقدير الخلفية وضجيج الحبيبات الخفيف
-    const v = 255 - Math.max(0, Math.min(255, ((ink - scale * 0.1) / (scale * 0.9)) * 255));
+    const v = 255 - Math.max(0, Math.min(255, ((ink - sc * 0.1) / (sc * 0.9)) * 255));
     out[i] = v;
   }
   return { gray: out, textIsBright, contrast: scale };
@@ -742,4 +844,201 @@ export function suggestKbMatches(texts, kbEntries = [], { machineType = '', limi
     });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+// ============================================================
+// تحضير صورة الشاشة كاملة لقراءة عدة أعطال: تسوية الإضاءة + تصحيح الميل + قص منطقة النص
+// + تكبير/تصغير لمقياس مناسب. الصورة الأصلية (File) ما بتتغيرش أبداً؛ كل المعالجة على نسخة.
+// ============================================================
+
+// تدوير محتوى الصورة بزاوية deg (بالدرجات، مع عقارب الساعة في إحداثيات y-down) حول المركز،
+// بنفس الأبعاد، والمساحة الفاضية بيضاء. bilinear
+export function rotateGray(src, w, h, deg) {
+  const out = new Uint8Array(w * h).fill(255);
+  const rad = (deg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const cx = (w - 1) / 2;
+  const cy = (h - 1) / 2;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const sx = cos * dx + sin * dy + cx;
+      const sy = -sin * dx + cos * dy + cy;
+      if (sx < 0 || sy < 0 || sx > w - 1 || sy > h - 1) continue;
+      const x0 = Math.floor(sx);
+      const y0 = Math.floor(sy);
+      const x1 = Math.min(w - 1, x0 + 1);
+      const y1 = Math.min(h - 1, y0 + 1);
+      const fx = sx - x0;
+      const fy = sy - y0;
+      const top = src[y0 * w + x0] * (1 - fx) + src[y0 * w + x1] * fx;
+      const bottom = src[y1 * w + x0] * (1 - fx) + src[y1 * w + x1] * fx;
+      out[y * w + x] = Math.round(top * (1 - fy) + bottom * fy);
+    }
+  }
+  return out;
+}
+
+// زاوية التصحيح (بالدرجات) التي إذا طُبّقت بـ rotateGray تخلّي الأسطر أفقية. بحث خشن (1°) ثم
+// دقيق (0.25°) على أقصى حدّة لمسقط الحبر الأفقي. بترجّع 0 لو مفيش تحسن واضح (نص قليل/متناثر).
+export function estimateSkewAngle(gray, w, h, { maxAngle = 10 } = {}) {
+  const stride = Math.max(1, Math.round(Math.max(w, h) / 600));
+  const xs = [];
+  const ys = [];
+  for (let y = 0; y < h; y += stride) {
+    for (let x = 0; x < w; x += stride) {
+      if (gray[y * w + x] < 128) { xs.push(x / stride); ys.push(y / stride); }
+    }
+  }
+  if (xs.length < 80) return 0;
+
+  const diag = Math.ceil(Math.hypot(w, h) / stride) + 2;
+  const score = deg => {
+    const rad = (deg * Math.PI) / 180;
+    const sin = Math.sin(rad);
+    const cos = Math.cos(rad);
+    const bins = new Float32Array(diag * 2);
+    for (let i = 0; i < xs.length; i++) {
+      bins[Math.round(xs[i] * sin + ys[i] * cos) + diag]++;
+    }
+    let sum = 0;
+    for (let i = 0; i < bins.length; i++) sum += bins[i] * bins[i];
+    return sum;
+  };
+
+  let best = 0;
+  let bestScore = score(0);
+  const base = bestScore;
+  for (let a = -maxAngle; a <= maxAngle; a += 1) {
+    const sc = score(a);
+    if (sc > bestScore) { bestScore = sc; best = a; }
+  }
+  for (let a = best - 1; a <= best + 1; a += 0.25) {
+    const sc = score(a);
+    if (sc > bestScore) { bestScore = sc; best = a; }
+  }
+  return bestScore > base * 1.03 ? Math.round(best * 100) / 100 : 0;
+}
+
+// مستطيل منطقة النص (إسقاط الحبر) لقص الإطار الفاضي/حواف الشاشة. بيرجع الصورة كاملة لو مش واضح.
+export function findTextRegion(gray, w, h) {
+  const rowInk = new Float32Array(h);
+  const colInk = new Float32Array(w);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (gray[y * w + x] < 128) { rowInk[y]++; colInk[x]++; }
+    }
+  }
+  const edge = (arr, size) => {
+    let peak = 0;
+    for (let i = 0; i < arr.length; i++) if (arr[i] > peak) peak = arr[i];
+    if (peak <= 0) return null;
+    const cut = Math.max(0.1 * peak, size * 0.004);
+    let first = 0;
+    let last = arr.length - 1;
+    while (first < arr.length && arr[first] < cut) first++;
+    while (last >= 0 && arr[last] < cut) last--;
+    return first <= last ? { first, last } : null;
+  };
+  const rows = edge(rowInk, w);
+  const cols = edge(colInk, h);
+  const full = { x0: 0, y0: 0, x1: w - 1, y1: h - 1 };
+  if (!rows || !cols) return full;
+
+  const mx = Math.max(8, Math.round(w * 0.02));
+  const my = Math.max(8, Math.round(h * 0.02));
+  const region = {
+    x0: Math.max(0, cols.first - mx),
+    x1: Math.min(w - 1, cols.last + mx),
+    y0: Math.max(0, rows.first - my),
+    y1: Math.min(h - 1, rows.last + my)
+  };
+  const area = (region.x1 - region.x0 + 1) * (region.y1 - region.y0 + 1);
+  return area < w * h * 0.2 ? full : region;
+}
+
+export function cropGray(src, w, region) {
+  const cw = region.x1 - region.x0 + 1;
+  const ch = region.y1 - region.y0 + 1;
+  const out = new Uint8Array(cw * ch);
+  for (let y = 0; y < ch; y++) {
+    out.set(src.subarray((region.y0 + y) * w + region.x0, (region.y0 + y) * w + region.x0 + cw), y * cw);
+  }
+  return { gray: out, w: cw, h: ch };
+}
+
+// النواة النقية لتحضير الشاشة (بدون canvas): تسوية إضاءة -> تصحيح ميل -> قص منطقة النص.
+// بتطلّع صورتين: النص فاتح (أبيض على أحمر/أزرق) والنص غامق. الشاشات المختلطة (شريط عنوان غامق
+// على فاتح + جدول فاتح على غامق) مالهاش قطبية واحدة، فبنقرأ الاتنين وبنسيب التحليل يقبل بس الأسطر
+// اللي بتتفهم كأعطال (القراءة بالقطبية الغلط بتطلع نص عبثي بيسقط).
+// بتستخدمها prepareDocumentImage في المتصفح والاختبارات بنفس الكود بالظبط.
+export function preprocessDocumentGray(lum, w, h) {
+  const opts = { rx: w / 4, ry: h / 8, localGain: true };
+  let bright = normalizeForOcr(lum, w, h, { ...opts, polarity: 'bright' }).gray;
+  let dark = normalizeForOcr(lum, w, h, { ...opts, polarity: 'dark' }).gray;
+
+  // خريطة الحبر (الأغمق من الاتنين) لتقدير الميل وقص المنطقة
+  let ink = new Uint8Array(w * h);
+  for (let i = 0; i < ink.length; i++) ink[i] = Math.min(bright[i], dark[i]);
+
+  const skewDeg = estimateSkewAngle(ink, w, h);
+  if (Math.abs(skewDeg) >= 0.3) {
+    bright = rotateGray(bright, w, h, skewDeg);
+    dark = rotateGray(dark, w, h, skewDeg);
+    ink = rotateGray(ink, w, h, skewDeg);
+  }
+
+  const region = findTextRegion(ink, w, h);
+  return {
+    cropped: cropGray(bright, w, region),
+    croppedDark: cropGray(dark, w, region),
+    skewDeg,
+    region
+  };
+}
+
+// scale: لو null بيتحدد تلقائياً (الضلع الأطول ~1800px؛ الصور الصغيرة بتتكبر لحد 2.5x)
+export async function prepareDocumentImage(source, { scale = null } = {}) {
+  const image = await loadImage(source);
+  const longEdge = Math.max(image.width, image.height);
+  const s = scale || Math.min(2.5, Math.max(0.3, 1800 / longEdge));
+  const w = Math.max(16, Math.round(image.width * s));
+  const h = Math.max(16, Math.round(image.height * s));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) throw new Error('Could not create an image-processing canvas');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, w, h);
+  const lum = toLuminance(ctx.getImageData(0, 0, w, h).data, w * h);
+
+  const { cropped, croppedDark, skewDeg, region } = preprocessDocumentGray(lum, w, h);
+
+  const pad = 16;
+  return {
+    enhanced: grayToDataUrl(cropped.gray, cropped.w, cropped.h, pad),         // النص الفاتح => غامق
+    inverted: grayToDataUrl(croppedDark.gray, croppedDark.w, croppedDark.h, pad), // النص الغامق => غامق
+    width: cropped.w + pad * 2,
+    height: cropped.h + pad * 2,
+    pad,
+    scale: s,
+    sourceWidth: image.width,
+    sourceHeight: image.height,
+    skewDeg,
+    region
+  };
+}
+
+// ارتفاع السطر النموذجي (وسيط) من أسطر بها bbox - لتحديد لو لازم إعادة المحاولة بمقياس مختلف
+export function medianLineHeight(lines) {
+  const hs = (lines || [])
+    .map(l => (l && l.bbox ? l.bbox.y1 - l.bbox.y0 : 0))
+    .filter(v => v > 3)
+    .sort((a, b) => a - b);
+  return hs.length ? hs[Math.floor(hs.length / 2)] : 0;
 }
