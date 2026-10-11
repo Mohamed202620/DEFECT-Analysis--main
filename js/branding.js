@@ -228,7 +228,7 @@ export function renderHeader() {
               onclick="${notifAction}"
               aria-label="${isEn ? "Notifications" : "الإشعارات"}"
               title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="app-header-button relative w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button relative min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -247,7 +247,7 @@ export function renderHeader() {
               onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
               aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
               title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="app-header-button w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -269,13 +269,13 @@ export function renderHeader() {
             <button
               type="button"
               onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
               style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >AR</button>
             <button
               type="button"
               onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[30px] sm:min-w-[32px] h-6 sm:h-7 px-2 sm:px-2.5 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
               style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >EN</button>
           </div>

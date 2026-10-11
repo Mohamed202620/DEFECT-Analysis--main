@@ -41,6 +41,80 @@ await t("اسم المُبلّغ في تحذير البلاغ النشط يمر 
   assert.ok(issueViewSource.includes("${escapeHtml(t.reportedBy || t.reporter?.name ||"));
 });
 
+const [indexSource, brandingSource, attachmentPickerSource] = await Promise.all([
+  readFile(new URL("../index.html", import.meta.url), "utf8"),
+  readFile(new URL("../js/branding.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/components/attachmentPicker.js", import.meta.url), "utf8")
+]);
+await t("PWA viewport leaves browser zoom available", () => {
+  const viewport = indexSource.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || "";
+  assert.ok(viewport.includes("width=device-width"));
+  assert.ok(!/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i.test(viewport));
+  assert.ok(!indexSource.includes("touches.length > 1"));
+  assert.ok(!indexSource.includes("gesturestart"));
+});
+await t("light theme applies a light base palette while dark remains dark", () => {
+  assert.match(indexSource, /:root\s*\{[\s\S]*?--app-main-bg:\s*#f1f5f9/i);
+  assert.match(indexSource, /\.dark,[\s\S]*?--app-main-bg:\s*#0f172a/i);
+  assert.match(indexSource, /--app-card-bg:\s*#ffffff/i);
+  assert.match(indexSource, /--app-text:\s*#0f172a/i);
+});
+await t("mobile header controls expose at least 44px touch targets", () => {
+  assert.ok((brandingSource.match(/min-w-\[44px\] min-h-\[44px\]/g) || []).length >= 4);
+});
+await t("attachment processing failures are announced visibly", async () => {
+  const { initAttachmentPicker } = await import("../js/components/attachmentPicker.js");
+  const groupId = "attachmentFailureTest";
+  const errorClasses = new Set(["hidden"]);
+  const errorNode = {
+    textContent: "",
+    classList: {
+      add: name => errorClasses.add(name),
+      remove: name => errorClasses.delete(name)
+    }
+  };
+  const emptyNode = { classList: { add() {}, remove() {} } };
+  const gridNode = { innerHTML: "", querySelectorAll: () => [] };
+  const cameraInput = { value: "", onchange: null };
+  const nodes = new Map([
+    [`${groupId}_camera_btn`, { onclick: null }],
+    [`${groupId}_gallery_btn`, { onclick: null }],
+    [`${groupId}_camera_input`, cameraInput],
+    [`${groupId}_gallery_input`, { onchange: null }],
+    [`${groupId}_preview_grid`, gridNode],
+    [`${groupId}_empty_text`, emptyNode],
+    [`${groupId}_error`, errorNode]
+  ]);
+  const originalGetElementById = document.getElementById;
+  const originalConsoleError = console.error;
+  let errorLogged = false;
+  document.getElementById = id => nodes.get(id) || null;
+  console.error = () => { errorLogged = true; };
+
+  try {
+    window.currentLang = "en";
+    initAttachmentPicker(groupId);
+    cameraInput.onchange({
+      target: {
+        files: [{ type: "text/plain", name: "invalid.txt", size: 1 }],
+        value: "selected"
+      }
+    });
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.match(errorNode.textContent, /Could not process "invalid\.txt"/);
+    assert.equal(errorClasses.has("hidden"), false);
+    assert.equal(cameraInput.value, "");
+    assert.equal(errorLogged, true);
+  } finally {
+    document.getElementById = originalGetElementById;
+    console.error = originalConsoleError;
+    delete window.currentLang;
+  }
+
+  assert.match(attachmentPickerSource, /role="alert" aria-live="polite"/);
+});
+
 const { buildChecklistTemplateDocument } = await import("../js/services/checklistTemplateSync.js");
 const { isOfflineActionOwnedBy } = await import("../js/services/offlineQueue.js");
 const checklistDraft = {

@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" id="html-tag">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="HandheldFriendly" content="true">
   <meta name="MobileOptimized" content="width">
   <meta name="format-detection" content="telephone=no">
@@ -27,31 +27,6 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MaintSystem">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-
-  <!-- تحسين استجابة اللمس وتسريع التمرير بالكامل وإزالة أي اعتراض لحركة الأصابع -->
-  <script>
-    (function optimizeTouchAndScroll() {
-      // 1. منع إيماءات التكبير الخاصة بسفاري فقط (Pinch Zoom) دون التأثير على تمرير الصفحة
-      document.addEventListener('gesturestart', function (e) {
-        e.preventDefault();
-      }, { passive: false });
-
-      document.addEventListener('gesturechange', function (e) {
-        e.preventDefault();
-      }, { passive: false });
-
-      document.addEventListener('gestureend', function (e) {
-        e.preventDefault();
-      }, { passive: false });
-
-      // 2. منع التكبير المتعدد بالإصبعين على مستوى بداية اللمس فقط بدون أي مستمع معطل على touchmove
-      document.addEventListener('touchstart', function (e) {
-        if (e.touches && e.touches.length > 1) {
-          e.preventDefault();
-        }
-      }, { passive: false });
-    })();
-  </script>
 
   <!-- تحميل مسبق (Preload) للوجو الرسمي للشركة عشان يبقى جاهز
        فوراً في هيدر التطبيق وفي أول تقرير PDF يتصدّر (راجع
@@ -123,7 +98,7 @@
 
   <style>
     :root {
-      --app-main-bg: #0f172a; 
+      --app-main-bg: #f1f5f9;
       /* الهيدر العلوي (appHeader) بقى دايماً بلوحة الألوان الصناعية
          الداكنة (slate-900) بغض النظر عن وضع فاتح/داكن لباقي
          التطبيق - نفس فكرة أشرطة التحكم في لوحات الصيانة/الإنتاج
@@ -132,9 +107,9 @@
          النهاري وتقطع عن هوية الشركة (الشعار والألوان مصممين على
          خلفية غامقة أصلاً - راجع js/branding.js -> renderHeader) */
       --app-header-bg: rgba(15, 23, 42, 0.93);
-      --app-card-bg: rgba(30, 41, 59, 0.4);
-      --app-border: rgba(255, 255, 255, 0.08);
-      --app-text: #f3f4f6;
+      --app-card-bg: #ffffff;
+      --app-border: rgba(15, 23, 42, 0.12);
+      --app-text: #0f172a;
     }
     
     .dark, body.dark, html.dark, [data-theme="dark"] {
