@@ -121,6 +121,14 @@ export function makeDevFirebaseRc(existingRc, config) {
   next.projects ||= {};
   next.projects.default = PRODUCTION_FIREBASE_CONFIG.projectId;
   next.targets ||= {};
+  const productionHostingTargets =
+    next.targets[PRODUCTION_FIREBASE_CONFIG.projectId]?.hosting;
+  if (productionHostingTargets) {
+    delete productionHostingTargets.dev;
+    if (Object.keys(productionHostingTargets).length === 0) {
+      delete next.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting;
+    }
+  }
   next.targets[config.projectId] ||= {};
   next.targets[config.projectId].hosting ||= {};
   next.targets[config.projectId].hosting.dev = [config.hostingSite];

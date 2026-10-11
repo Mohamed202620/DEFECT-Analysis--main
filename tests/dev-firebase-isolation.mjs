@@ -74,15 +74,38 @@ test("valid inputs create a dev-only client config and target mapping", () => {
     }
   }, config);
   assert.equal(rc.projects.default, PRODUCTION_FIREBASE_CONFIG.projectId);
+  assert.equal(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.dev, undefined);
   assert.deepEqual(rc.targets[config.projectId].hosting.dev, [config.hostingSite]);
   assert.deepEqual(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.main, [PRODUCTION_FIREBASE_CONFIG.projectId]);
 });
-test("dev workflow no longer references production project or deploy secret", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8");
-  assert.match(workflow, /FIREBASE_DEV_SERVICE_ACCOUNT/);
-  assert.match(workflow, /projectId: \$\{\{ vars\.FIREBASE_DEV_PROJECT_ID \}\}/);
-  assert.doesNotMatch(workflow, /FIREBASE_SERVICE_ACCOUNT(?!_DEV)/);
-  assert.doesNotMatch(workflow, /projectId:\s*maintenance-defect-system/);
+test("checked-in Firebase target keeps dev out of production", async () => {
+  const rc = JSON.parse(await readFile(new URL("../.firebaserc", import.meta.url), "utf8"));
+  assert.equal(rc.projects.default, PRODUCTION_FIREBASE_CONFIG.projectId);
+  assert.equal(
+    rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.main[0],
+    PRODUCTION_FIREBASE_CONFIG.projectId
+  );
+  assert.equal(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.dev, undefined);
+});
+test("dev and production workflows use isolated project IDs and credentials", async () => {
+  const [devWorkflow, mainWorkflow] = await Promise.all([
+    readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8")
+  ]);
+
+  const devProjectInputs = [...devWorkflow.matchAll(/^\s*projectId:\s*(.+)$/gm)].map(([, value]) => value.trim());
+  const mainProjectInputs = [...mainWorkflow.matchAll(/^\s*projectId:\s*(.+)$/gm)].map(([, value]) => value.trim());
+  assert.deepEqual(devProjectInputs, ["${{ vars.FIREBASE_DEV_PROJECT_ID }}"]);
+  assert.deepEqual(mainProjectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
+  assert.match(devWorkflow, /FIREBASE_DEV_SERVICE_ACCOUNT/);
+  assert.doesNotMatch(devWorkflow, /secrets\.FIREBASE_SERVICE_ACCOUNT/);
+  assert.match(mainWorkflow, /secrets\.FIREBASE_SERVICE_ACCOUNT/);
+  assert.doesNotMatch(mainWorkflow, /FIREBASE_DEV_/);
+
+  const configuredDevProjectId = process.env.FIREBASE_DEV_PROJECT_ID?.trim();
+  if (configuredDevProjectId) {
+    assert.notEqual(configuredDevProjectId, PRODUCTION_FIREBASE_CONFIG.projectId);
+  }
 });
 
 console.log(`Dev isolation tests: ${passed} passed`);
