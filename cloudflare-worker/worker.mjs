@@ -210,29 +210,8 @@ async function migrateLegacyAccount(data, request, env) {
   }
 
   const existingUser = lookup.body?.users?.[0] || null;
-  if (existingUser?.disabled) throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
-
-  let authUser = existingUser
-    ? { uid: existingUser.localId, disabled: existingUser.disabled }
-    : null;
-  if (authUser) {
-    const existingProfile = await fsGetFields(env, `users/${authUser.uid}`);
-    if (strField(existingProfile?.migratedFromId) === legacyDoc.id) {
-      await retireLegacyDocument(env, legacyDoc, authUser.uid);
-      throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
-    }
-    const updated = await identityToolkit(env, "update", {
-      localId: authUser.uid,
-      password,
-      validSince: String(Math.floor(Date.now() / 1000))
-    });
-    if (!updated.ok) {
-      console.error("legacy auth password update failed", updated.message);
-      throw new HttpError(500, "INTERNAL", "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى.");
-    }
-  } else {
-    authUser = await createAuthUser(env, email, password);
-  }
+  if (existingUser) throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
+  const authUser = await createAuthUser(env, email, password);
 
   const profileFields = { ...(legacyDoc.fields || {}) };
   delete profileFields.password;

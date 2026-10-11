@@ -273,6 +273,23 @@ await t("ترحيل كلمات السر النصية القديمة يستبدل
   assert.ok(!store.get(`users/${uid}`).password);
   assert.ok(!store.get("users/legacy-plain").password);
 });
+await t("رفض ترحيل حساب Auth موجود يحمي دور الحساب وسر إعادة تعيينه", async () => {
+  baseSetup();
+  const phone = "01008887766";
+  setUser("legacy-admin", "admin", "active", { phone, password: "LegacyAdmin123" });
+  setUser("registered-user", "reporter", "active", { phone });
+  setAuth("registered-user", phone);
+  assert.equal((await call("registerEmployeeCode", { code: "ATTACKER99" }, "registered-user")).status, 200);
+  calls.length = 0;
+
+  const result = await call("migrateLegacyAccount", { phone, password: "LegacyAdmin123" }, "");
+  assert.equal(result.status, 403);
+  assert.equal(store.get("users/registered-user").role.stringValue, "reporter");
+  assert.equal(store.get("users/legacy-admin").role.stringValue, "admin");
+  assert.equal(store.get("users/legacy-admin").password.stringValue, "LegacyAdmin123");
+  assert.ok(secretOf("registered-user"));
+  assert.ok(!calls.some((c) => c.t === "idt" && c.action === "update"));
+});
 await t("registerEmployeeCode يخزّن هاشاً (لا نص صريح) مرة واحدة فقط", async () => {
   baseSetup();
   const r = await call("registerEmployeeCode", { code: "EMP-7788" }, "tech1");
