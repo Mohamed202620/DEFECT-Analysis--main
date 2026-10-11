@@ -194,7 +194,7 @@ export function cleanOcrMessage(text) {
     .split(/\s+/)
     .filter(Boolean);
   // نشيل الرموز المفردة والذيل التافه (زي "iil") بدون المساس بالكلمات الحقيقية
-  while (words.length && (words[words.length - 1].length <= 2 && !/^\d+$/.test(words[words.length - 1]) || /^[^A-Za-z0-9]+$/.test(words[words.length - 1]))) {
+  while (words.length && ([...words[words.length - 1]].length <= 2 && !/^\d+$/.test(words[words.length - 1]) || /^[^\p{L}\p{N}]+$/u.test(words[words.length - 1]))) {
     words.pop();
   }
   const joined = words.join(' ').replace(/^[-–—:.\s]+/, '').trim();
@@ -202,9 +202,9 @@ export function cleanOcrMessage(text) {
 }
 
 function messageLooksReal(message) {
-  const letters = (message.match(/[A-Za-z]/g) || []).length;
+  const letters = (message.match(/\p{L}/gu) || []).length;
   if (message.length < 6 || letters / message.length < 0.6) return false;
-  return message.split(/\s+/).filter(w => w.length >= 2).length >= 2;
+  return message.split(/\s+/).filter(w => [...w].length >= 2).length >= 2;
 }
 
 function tokenSet(text) {
@@ -263,14 +263,14 @@ export function parseAlarmLine(rawLine, { knownCodes = null } = {}) {
   let m;
 
   // 1) "059-SHEET DELIVERY DID NOT GET SHEET"
-  m = line.match(/(?:^|\s)([0-9OQILZSB]{2,5})\s?-\s?([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
+  m = line.match(/(?:^|\s)([0-9OQILZSB]{2,5})\s?-\s?(.{4,})$/);
   if (m && /\d/.test(m[1])) {
     const message = cleanOcrMessage(m[2]);
     if (messageLooksReal(message)) return buildParsed(m[1], message, 'numeric-dash', altDigits(m[1]));
   }
 
   // 1b) نفس الصيغة والشرطة اتفقدت في الـ OCR ("059 SHEET DELIVERY ...") - الكود في أول السطر
-  m = line.match(/^([0-9OQILZSB]{2,5})\s+([A-Z][A-Z0-9 ,/'.()&-]{4,})$/);
+  m = line.match(/^([0-9OQILZSB]{2,5})\s+(.{4,})$/);
   if (m && /\d/.test(m[1])) {
     const message = cleanOcrMessage(m[2]);
     if (messageLooksReal(message)) return buildParsed(m[1], message, 'numeric-space', altDigits(m[1]));
@@ -298,7 +298,7 @@ export function parseAlarmLine(rawLine, { knownCodes = null } = {}) {
     m = line.match(/^([A-Z0-9][A-Z0-9_./]{0,9})(?=\s|:|-|$)\s*[-:]?\s*(.*)$/);
     if (m && knownCodes.has(m[1])) {
       const message = cleanOcrMessage(m[2]);
-      if ((message.match(/[A-Z]/g) || []).length >= 3) return buildParsed(m[1], message, 'kb-code');
+      if (messageLooksReal(message)) return buildParsed(m[1], message, 'kb-code');
     }
   }
 
@@ -358,7 +358,7 @@ export function evaluateRow(row, kbEntries, { machineType = '' } = {}) {
     const entry = match.entries[0] || {};
     kbMessage = String(entry.errorMessage || '');
     const read = String(row.message || '').trim();
-    if (!row.manual && kbMessage && read.length >= 6) {
+    if (!row.manual && kbMessage && read.length >= 6 && latinWords(read).length) {
       descMismatch = messageCoverage(latinWords(read), kbMessage) < OCR_DESC_MIN_AGREEMENT;
     }
   }

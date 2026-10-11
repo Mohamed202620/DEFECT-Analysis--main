@@ -229,6 +229,30 @@ await t("عدة أعطال في شاشة واحدة: صفوف منفصلة بل�
   assert.ok(!ignored.includes("ALARM HISTORY"));
   assert.equal(analyzeAlarmRows(ocrLines(["Main menu", "Speed 120 ppm", "شاشة التحكم"]), OCR_KB).rows.length, 0);
 });
+await t("مجموعة OCR قابلة للتكرار: الإنجليزية والعربية والأرقام الملتبسة والثقة والضجيج", () => {
+  const fixtures = [
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 85, code: "059", status: "matched" },
+    { text: "٠٥٩-تعذر تغذية الورق", confidence: 85, code: "059", status: "matched" },
+    { text: "O59-SHEET DELIVERY DID NOT GET SHEET", confidence: 85, code: "O59", status: "review" },
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 45, code: "059", status: "review" },
+    { text: "SPEED 120 PPM", confidence: 90, code: null, status: null }
+  ];
+  let extracted = 0;
+  let missed = 0;
+  let falseConfirmed = 0;
+  for (const fixture of fixtures) {
+    const { rows } = analyzeAlarmRows([{ text: fixture.text, confidence: fixture.confidence }], OCR_KB, { machineType: "Palletizer" });
+    const row = rows[0];
+    if (fixture.code && row?.code === fixture.code) extracted++;
+    if (fixture.code && row?.code !== fixture.code) missed++;
+    if (row && row.status === "matched" && fixture.status !== "matched") falseConfirmed++;
+    assert.equal(row?.code || null, fixture.code, fixture.text);
+    assert.equal(row?.status || null, fixture.status, fixture.text);
+  }
+  assert.equal(extracted, 4);
+  assert.equal(missed, 0);
+  assert.equal(falseConfirmed, 0);
+});
 await t("يتعرف على كود قاعدة المعرفة عندما يقرأ OCR الكود وحده", () => {
   const { rows } = analyzeAlarmRows(ocrLines(["ALARM HISTORY", "059", "SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB, { machineType: "Palletizer" });
   assert.equal(rows.length, 1);
