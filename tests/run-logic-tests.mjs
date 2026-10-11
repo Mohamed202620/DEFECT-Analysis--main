@@ -207,8 +207,9 @@ await t("offline checklist sync refuses invalid targets and stale versions", () 
     /Checklist version conflict/
   );
 });
-const [ticketsApiSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
+const [ticketsApiSource, ticketDetailsSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
   readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/components/TicketDetailsModal.js", import.meta.url), "utf8"),
   readFile(new URL("../js/services/checklistApi.js", import.meta.url), "utf8"),
   readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
   readFile(new URL("../js/views/ChecklistBuilderView.js", import.meta.url), "utf8"),
@@ -216,6 +217,9 @@ const [ticketsApiSource, checklistApiSource, checklistIndexesSource, checklistVi
   readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
 ]);
 const suggestionsApiSource = await readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8");
+await t("unknown ticket log statuses are escaped before timeline rendering", () => {
+  assert.match(ticketDetailsSource, /\$\{statusLabel\(log\.toStatus\) \|\| escapeHtml\(log\.toStatus \|\| ""\)\}/);
+});
 await t("report API index failures are not returned as empty successful reports", () => {
   const ticketsReport = ticketsApiSource.slice(
     ticketsApiSource.indexOf("export async function fetchTicketsForReportApi"),
