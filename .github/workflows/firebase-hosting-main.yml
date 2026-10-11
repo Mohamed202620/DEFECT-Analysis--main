@@ -14,6 +14,13 @@ jobs:
         # actions/checkout v4 (pinned tag commit)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - name: Set up Java for Firebase Emulator
+        # actions/setup-java v4.7.1 (pinned tag commit)
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: 21
+
       - name: Set up Node.js
         # actions/setup-node v4 (pinned tag commit)
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020

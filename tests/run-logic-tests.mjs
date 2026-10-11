@@ -277,6 +277,8 @@ await t("deployment workflows require app and rules tests and immutable action p
     assert.ok(workflow.includes("run: npm run test:rules"));
     assert.match(workflow, /uses:\s*[^@\n]+@[0-9a-f]{40}/i);
     assert.doesNotMatch(workflow, /uses:\s*[^@\n]+@v\d+/i);
+    assert.match(workflow, /uses:\s*actions\/setup-java@[0-9a-f]{40}/i);
+    assert.match(workflow, /java-version:\s*21/);
   }
 });
 const [machineErrorsSource, errorScannerSource, knowledgeBaseSource, firestoreRules, firestoreIndexes, suggestionsSource] = await Promise.all([
