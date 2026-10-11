@@ -91,6 +91,46 @@ await t("main and dev deployment workflows stop when npm test fails", () => {
     assert.ok(!workflow.includes("continue-on-error"));
   }
 });
+const [machineErrorsSource, errorScannerSource, knowledgeBaseSource, firestoreRules, firestoreIndexes, suggestionsSource] = await Promise.all([
+  readFile(new URL("../js/services/machineErrorsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/errorScanner.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/knowledgeBase.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8")
+]);
+await t("machine-error writes enforce pending review and stable code identity", () => {
+  const rulesStart = firestoreRules.indexOf("match /machineErrors/{errorId}");
+  const rulesEnd = firestoreRules.indexOf("match /machineErrorLogs/{logId}", rulesStart);
+  const rules = firestoreRules.slice(rulesStart, rulesEnd);
+  assert.ok(rules.includes('errorId == "error_" + request.resource.data.errorCode'));
+  assert.ok(rules.includes('request.resource.data.status == "pending_review"'));
+  assert.ok(rules.includes('request.resource.data.status == "verified"'));
+  assert.ok(machineErrorsSource.includes('doc(db, "machineErrors", machineErrorDocumentId(normalized))'));
+  assert.ok(machineErrorsSource.includes('status: "pending_review"'));
+  assert.ok(machineErrorsSource.includes('existing.status !== "success"'));
+});
+await t("machine-error history query has its index and reports retrieval errors", () => {
+  const indexes = JSON.parse(firestoreIndexes);
+  assert.ok(indexes.indexes.some(index =>
+    index.collectionGroup === "machineErrorLogs" &&
+    index.fields.some(field => field.fieldPath === "errorCode") &&
+    index.fields.some(field => field.fieldPath === "scannedAt")
+  ));
+  assert.ok(machineErrorsSource.includes('return { status: "error", message: error.message, data: [] }'));
+  assert.ok(errorScannerSource.includes("if (result.status === 'error')"));
+  assert.ok(errorScannerSource.includes("tr.historyLoadError"));
+  assert.ok(knowledgeBaseSource.includes("periodLoadError = result.status === 'error'"));
+  assert.ok(knowledgeBaseSource.includes("tr.periodLoadError"));
+});
+await t("ticket and Kaizen transitions commit status and history together", () => {
+  assert.ok(ticketsApiSource.includes("async function updateTicketWithLog"));
+  assert.ok(ticketsApiSource.includes("batch.update(doc(db, \"tickets\", ticketId), updateData)"));
+  assert.ok(ticketsApiSource.includes("batch.set(doc(collection(db, \"tickets\", ticketId, \"logs\"))"));
+  assert.ok(suggestionsSource.includes("async function updateSuggestionWithLog"));
+  assert.ok(suggestionsSource.includes('batch.update(doc(db, "suggestions", suggestionId), updateData)'));
+  assert.ok(suggestionsSource.includes('doc(collection(db, "suggestions", suggestionId, "logs"))'));
+});
 
 // ---------- phone ----------
 const P = await import("../js/utils/phoneUtils.js");

@@ -1170,7 +1170,12 @@ async function loadErrorHistory(code) {
 
   const result = await fetchMachineErrorHistoryApi(code);
 
-  if (result.status !== 'success' || !result.data || !result.data.length) {
+  if (result.status === 'error') {
+    box.innerHTML = `<div class="text-center text-amber-400 text-[11px] py-2">${escapeHtml(tr.historyLoadError)}</div>`;
+    return;
+  }
+
+  if (!result.data || !result.data.length) {
     box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">${tr.noHistory}</div>`;
     return;
   }

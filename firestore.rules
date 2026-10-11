@@ -632,10 +632,21 @@ service cloud.firestore {
     match /machineErrors/{errorId} {
       allow read: if isActive();
       allow create: if isActive()
+                    && request.resource.data.errorCode is string
+                    && request.resource.data.errorCode.size() > 0
+                    && request.resource.data.errorCode.size() <= 256
+                    && errorId == "error_" + request.resource.data.errorCode
+                    && request.resource.data.status == "pending_review"
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
                         || request.resource.data.department == myProfile().machineDepartment);
-      allow update: if isActive() && (isAdmin() || isManagerRole());
+      allow update: if isActive() && (isAdmin() || isManagerRole())
+                    && resource.data.status == "pending_review"
+                    && request.resource.data.status == "verified"
+                    && request.resource.data.errorCode == resource.data.errorCode
+                    && request.resource.data.department == resource.data.department
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["status", "verifiedAt", "verifiedBy"]);
       allow delete: if isAdmin();
     }
 

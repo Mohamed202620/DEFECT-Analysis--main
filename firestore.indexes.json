@@ -179,6 +179,20 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "machineErrorLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "errorCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scannedAt",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
