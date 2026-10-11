@@ -1548,11 +1548,15 @@ window.saveCurrentChecklistTemplate = async function () {
         collection: adapter.collection,
         targetId: currentTargetId,
         items: currentItems,
+        loadedVersion: loadedTemplateVersion,
         updatedAt: now,
         updatedBy: updater
       });
       alert(tr.offlineQueued);
-    } catch (_) {}
+    } catch (error) {
+      console.error("Error queuing offline checklist template:", error);
+      alert(isEn ? 'Could not save the template locally. Please try again.' : 'تعذر حفظ القالب محلياً. حاول مرة أخرى.');
+    }
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.innerHTML = `<span>💾</span><span>${tr.saveBtn}</span>`;

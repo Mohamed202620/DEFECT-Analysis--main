@@ -46,6 +46,13 @@ const matchFilter = (fields, f) => {
 
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
+  if (url.includes("identitytoolkit.googleapis.com") && url.includes("accounts:signUp")) {
+    const body = JSON.parse(opts.body);
+    calls.push({ t: "idt", action: "signUp", body });
+    const id = `legacy-${authEmails.size + 1}`;
+    authEmails.set(id, body.email);
+    return J({ localId: id });
+  }
   if (url.includes("service_accounts/v1/jwk")) return J({ keys: [jwk] });
   if (url === "https://oauth2.googleapis.com/token") {
     const a = new URLSearchParams(opts.body).get("assertion").split(".");
@@ -60,9 +67,17 @@ globalThis.fetch = async (url, opts = {}) => {
   assert.equal(opts.headers?.Authorization, "Bearer AT", "طلب بدون Bearer لحساب الخدمة: " + url);
 
   if (url.includes("identitytoolkit.googleapis.com")) {
-    const action = url.split("accounts:")[1]; const body = JSON.parse(opts.body);
+    const action = url.split("accounts:")[1].split("?")[0]; const body = JSON.parse(opts.body);
     calls.push({ t: "idt", action, body });
-    if (action === "lookup") { const id = body.localId[0]; return authEmails.has(id) ? J({ users: [{ localId: id, email: authEmails.get(id) }] }) : J({}); }
+    if (action === "lookup") {
+      const id = body.localId?.[0] || [...authEmails].find(([, email]) => email === body.email?.[0])?.[0];
+      return id && authEmails.has(id) ? J({ users: [{ localId: id, email: authEmails.get(id) }] }) : J({ users: [] });
+    }
+    if (action === "signUp") {
+      const id = `legacy-${authEmails.size + 1}`;
+      authEmails.set(id, body.email);
+      return J({ localId: id });
+    }
     return J({ localId: body.localId });
   }
   if (url.endsWith("documents:runQuery")) {
@@ -112,7 +127,7 @@ globalThis.fetch = async (url, opts = {}) => {
   throw new Error("fetch غير مُحاكى: " + url);
 };
 
-const env = { FIREBASE_PROJECT_ID: PID, IMGBB_API_KEY: "SECRETKEY", SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@x.iam", private_key: saPem }) };
+const env = { FIREBASE_PROJECT_ID: PID, FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY", IMGBB_API_KEY: "SECRETKEY", SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@x.iam", private_key: saPem }) };
 const ORIGIN = "https://maintenance-defect-system.web.app";
 
 async function call(fn, data, tokenOrUid, headers = {}) {
@@ -148,8 +163,8 @@ await t("توكن منتهي أو لمشروع آخر = 401", async () => {
   assert.equal((await call("deleteUserAccount", { userId: "x" }, await makeToken("admin1", { exp: Math.floor(Date.now() / 1000) - 100 }))).status, 401);
   assert.equal((await call("deleteUserAccount", { userId: "x" }, await makeToken("admin1", { aud: "other" }))).status, 401);
 });
-await t("دوال غير موجودة = 404 (منها مسار إعادة التعيين بواسطة الأدمن الذي أُلغي للخصوصية)", async () => {
-  assert.equal((await call("migrateLegacyAccount", {}, "admin1")).status, 404);
+await t("المسارات غير المدعومة = 404 (منها إعادة التعيين بواسطة الأدمن التي ألغيت للخصوصية)", async () => {
+  assert.equal((await call("unknownEndpoint", {}, "admin1")).status, 404);
   assert.equal((await call("adminResetUserPassword", { userId: "tech1", newPassword: "newpass123" }, "admin1")).status, 404);
   assert.ok(!calls.some((c) => c.t === "idt"));
 });
@@ -212,6 +227,51 @@ await t("تطبيع الكود والهاتف", () => {
   assert.equal(normalizeCode(" ab-١٢٣ 4 "), "AB1234");
   assert.equal(normalizePhone("٠١٠٠١٢٣٤٥٦٧").canonical, "01001234567");
   assert.ok(phoneVariants("01001234567").includes("201001234567"));
+});
+await t("ترحيل كلمة سر PBKDF2 القديمة ينشئ حساب Auth، ينقل الملف الشخصي ويحذف الأسرار القديمة", async () => {
+  baseSetup();
+  const phone = "01001234567";
+  const salt = "00112233445566778899aabbccddeeff";
+  const hash = (await import("node:crypto")).pbkdf2Sync("LegacyPass123", Buffer.from(salt, "hex"), 150000, 32, "sha256").toString("hex");
+  setUser("legacy-user", "technician", "active", {
+    phone,
+    passwordHash: hash,
+    salt,
+    department: "maintenance"
+  });
+
+  const wrong = await call("migrateLegacyAccount", { phone, password: "WrongPass123" }, "");
+  assert.equal(wrong.status, 403);
+  assert.match(wrong.body.error.message, /رقم الموبايل أو كلمة السر غير صحيحة/);
+  assert.equal([...authEmails.values()].includes(`${phone}@${DOMAIN}`), false);
+
+  const migrated = await call("migrateLegacyAccount", { phone, password: "LegacyPass123" }, "");
+  assert.equal(migrated.status, 200);
+  assert.equal(migrated.body.result.status, "success");
+  const uid = [...authEmails].find(([, email]) => email === `${phone}@${DOMAIN}`)?.[0];
+  assert.ok(uid);
+  assert.equal(store.get(`users/${uid}`).role.stringValue, "technician");
+  assert.equal(store.get(`users/${uid}`).department.stringValue, "maintenance");
+  assert.ok(!store.get(`users/${uid}`).passwordHash);
+  assert.equal(store.get("users/legacy-user").role.stringValue, "migrated");
+  assert.ok(!store.get("users/legacy-user").passwordHash);
+  assert.ok(!JSON.stringify(migrated.body).includes(hash));
+});
+await t("ترحيل كلمات السر النصية القديمة يستبدلها بحساب Auth ويحذف النص القديم", async () => {
+  baseSetup();
+  const phone = "01009998877";
+  setUser("legacy-plain", "operator", "active", {
+    phone,
+    password: "LegacyPlain123"
+  });
+
+  const migrated = await call("migrateLegacyAccount", { phone, password: "LegacyPlain123" }, "");
+  assert.equal(migrated.status, 200);
+  const uid = [...authEmails].find(([, email]) => email === `${phone}@${DOMAIN}`)?.[0];
+  assert.ok(uid);
+  assert.equal(store.get(`users/${uid}`).role.stringValue, "operator");
+  assert.ok(!store.get(`users/${uid}`).password);
+  assert.ok(!store.get("users/legacy-plain").password);
 });
 await t("registerEmployeeCode يخزّن هاشاً (لا نص صريح) مرة واحدة فقط", async () => {
   baseSetup();

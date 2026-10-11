@@ -18,6 +18,7 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 | الاسم | النوع | القيمة |
 |---|---|---|
 | `FIREBASE_PROJECT_ID` | Text | `maintenance-defect-system` |
+| `FIREBASE_API_KEY` | Text | Firebase project's web API key (used only to create a migrated Auth account) |
 | `SERVICE_ACCOUNT_JSON` | **Secret** | محتوى ملف JSON كاملًا |
 | `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB (ولّد مفتاحًا جديدًا من imgbb.com/api: القديم كان ظاهرًا في الكود) |
 | `ALLOWED_ORIGINS` | Text (اختياري) | نطاقات التطبيق مفصولة بفواصل. الافتراضي: نطاقات `maintenance-defect-system` و`my-dev-2026` و`localhost:3000` |
@@ -53,7 +54,6 @@ firebase deploy --only hosting,firestore:rules,firestore:indexes
 - الأمان هنا بقدر **صعوبة تخمين كود الموظف**. كود من ٣ أرقام ضعيف نسبيًا؛ الأفضل كود أطول أو غير متسلسل.
 
 ## القيود
-- `migrateLegacyAccount` (ترحيل الحسابات القديمة) **غير مدعومة**؛ مستخدم قديم غير مرحَّل لن يستطيع الدخول.
 - مستخدم نسي كود الموظف **لا يمكنه استعادة كلمة السر** (لا يوجد تدخل من الأدمن بالتصميم). ومن سجّل بكود فارغ سابقًا لا يملك وسيلة استعادة.
 - من يعرف رقم هاتف شخص يمكنه استهلاك محاولاته الخمس اليومية فيمنعه مؤقتًا من الاستعادة (ثمن الحماية من التخمين).
 - الحد المجاني: 100 ألف طلب يوميًا، و10 ms CPU للطلب. رفع الصور يمر كتدفق مباشر لهذا السبب. لو ظهرت أخطاء `Exceeded CPU Time Limits` في Metrics فأبلغني.

@@ -222,6 +222,7 @@ function isPermanentSyncError(message) {
   const PERMANENT_MARKERS = [
     "permission", "insufficient", "not-found", "not found", "no document",
     "already-exists", "invalid-argument", "invalid",
+    "checklist version conflict",
     "غير موجود", "مطلوب", "مطلوبة", "مطلوبين", "لازم", "متاح", "غير صالح"
   ];
   return PERMANENT_MARKERS.some(marker => msg.includes(marker));
@@ -390,6 +391,21 @@ async function _syncOfflineTicketActionsApiImpl() {
       } else if (type === "new_defect") {
         const { saveDefectApi } = await import("./defectsApi.js");
         result = await saveDefectApi(payload, { skipOfflineQueue: true });
+      } else if (type === "save_checklist_template") {
+        try {
+          const { buildChecklistTemplateDocument } = await import("./checklistTemplateSync.js");
+          const { collection: targetCollection, targetId } = item.action;
+          const templateRef = doc(db, targetCollection, targetId);
+          const current = await getDoc(templateRef);
+          const template = buildChecklistTemplateDocument(
+            item.action,
+            current.exists() ? current.data() : null
+          );
+          await setDoc(templateRef, template);
+          result = { status: "success" };
+        } catch (error) {
+          result = { status: "error", message: error.message };
+        }
       } else if (type === "new_machine_error") {
         const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
         result = await saveMachineErrorApi(payload, { skipOfflineQueue: true });
@@ -421,9 +437,13 @@ async function _syncOfflineTicketActionsApiImpl() {
           // من الطابور مع console.warn بس (مثلاً permission-denied لأن التذكرة اتسحبت
           // من الفني أو حالتها اتغيرت) فتضيع ملاحظات الإصلاح من غير ما المستخدم يعرف.
           // دلوقتي بنحتفظ بنسخة توثيقية (بدون الصور) ونبلّغ المستخدم بعد المزامنة.
-          recordFailedOfflineAction(item, msg);
+          const recorded = recordFailedOfflineAction(item, msg);
           failed++;
-          await removeQueuedAction(item.localId);
+          if (recorded) {
+            await removeQueuedAction(item.localId);
+          } else {
+            console.error("[Sync] Could not archive failed offline action; preserving it in the queue:", item.localId);
+          }
         } else {
           console.warn(`[Sync] Transient/unknown error for offline action ${item.localId}, keeping in queue:`, msg);
         }
@@ -447,10 +467,23 @@ function recordFailedOfflineAction(item, reason) {
       ticketId,
       reason: String(reason || "").slice(0, 300),
       notes: payload?.mechanicNotes || payload?.assignedTo || "",
+      ...(type === "save_checklist_template" && {
+        checklist: {
+          collection: item.action?.collection,
+          targetId: item.action?.targetId,
+          items: item.action?.items,
+          updatedAt: item.action?.updatedAt,
+          updatedBy: item.action?.updatedBy
+        }
+      }),
       at: new Date().toISOString()
     });
     localStorage.setItem(FAILED_OFFLINE_ACTIONS_KEY, JSON.stringify(list.slice(-50)));
-  } catch (_) { /* توثيق فقط - مايوقفش المزامنة */ }
+    return true;
+  } catch (error) {
+    console.error("[OfflineSync] Could not save failed action details:", error);
+    return false;
+  }
 }
 
 // TICKETS

@@ -122,8 +122,8 @@ async function runOfflineSync() {
       setBanner(
         true,
         isEn
-          ? `⚠️ ${failed} offline action(s) could not be applied (ticket state changed). Please review the tickets.`
-          : `⚠️ تعذر تنفيذ ${failed} إجراء محفوظ أوفلاين (حالة التذكرة تغيّرت). برجاء مراجعة التذاكر.`,
+          ? `⚠️ ${failed} offline change(s) could not be applied. Please review the pending items before continuing.`
+          : `⚠️ تعذر تطبيق ${failed} تغيير محفوظ أوفلاين. راجع العناصر المعلقة قبل المتابعة.`,
         "bg-amber-600 text-white"
       );
       setTimeout(hideBanner, 10000);

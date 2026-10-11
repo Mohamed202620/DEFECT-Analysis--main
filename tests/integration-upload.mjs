@@ -94,8 +94,8 @@ await t("المدخلات غير الصالحة تُرجع null بدون طلب 
   assert.equal(await serverProxyStorageProvider.uploadImage("data:text/html;base64,PHNjcmlwdD4=", "x"), null);
   assert.equal(seen.workerUrls.length, before);
 });
-await t("callCloudFunction يتجه للـ Worker بنفس البروتوكول (دالة غير مدعومة = رسالة عربية واضحة)", async () => {
-  await assert.rejects(() => callCloudFunction("migrateLegacyAccount", {}), (e) => /غير متاحة/.test(e.message));
+await t("callCloudFunction يتجه للـ Worker وتظهر أخطاء مدخلات ترحيل الحساب بوضوح", async () => {
+  await assert.rejects(() => callCloudFunction("migrateLegacyAccount", {}), (e) => /بيانات غير صالحة/.test(e.message));
   assert.ok(seen.workerUrls.at(-1).endsWith("/migrateLegacyAccount"));
 });
 await t("مستخدم غير مفعّل لا يستطيع الرفع عبر العميل", async () => {

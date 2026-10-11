@@ -1,5 +1,6 @@
 // اختبارات منطقية (بدون شبكة/Firebase) للإصلاحات الأساسية. التشغيل: node tests/run-logic-tests.mjs
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 // stubs بسيطة لبيئة المتصفح (config.js بيقرأ window/localStorage وقت التحميل)
 const _store = new Map();
@@ -34,6 +35,61 @@ await t("escapeJsArg لا يسمح بالخروج من سلسلة onclick", () =
 await t("safeUrl يرفض javascript:", () => {
   assert.equal(safeUrl("javascript:alert(1)"), "");
   assert.ok(safeUrl("https://i.ibb.co/a.png").startsWith("https://"));
+});
+const issueViewSource = await readFile(new URL("../js/views/issueView.js", import.meta.url), "utf8");
+await t("اسم المُبلّغ في تحذير البلاغ النشط يمر عبر escapeHtml", () => {
+  assert.ok(issueViewSource.includes("${escapeHtml(t.reportedBy || t.reporter?.name ||"));
+});
+
+const { buildChecklistTemplateDocument } = await import("../js/services/checklistTemplateSync.js");
+const checklistDraft = {
+  collection: "machineAmTemplates",
+  targetId: "Machine 01",
+  items: [{ id: "item-1" }],
+  loadedVersion: 1,
+  updatedAt: "2026-10-11T00:00:00.000Z",
+  updatedBy: "Manager"
+};
+await t("offline checklist sync creates the next version and preserves history", () => {
+  const firstSave = buildChecklistTemplateDocument(checklistDraft);
+  assert.equal(firstSave.templateVersion, 2);
+  assert.deepEqual(firstSave.history, [{
+    version: 1,
+    updatedAt: checklistDraft.updatedAt,
+    updatedBy: checklistDraft.updatedBy,
+    itemsCount: 1
+  }]);
+
+  const nextSave = buildChecklistTemplateDocument(
+    { ...checklistDraft, loadedVersion: 2 },
+    { templateVersion: 2, history: [{ version: 1 }] }
+  );
+  assert.equal(nextSave.templateVersion, 3);
+  assert.equal(nextSave.history.length, 2);
+});
+await t("offline checklist sync refuses invalid targets and stale versions", () => {
+  assert.throws(() => buildChecklistTemplateDocument({ ...checklistDraft, collection: "users" }), /Invalid checklist template action/);
+  assert.throws(
+    () => buildChecklistTemplateDocument(checklistDraft, { templateVersion: 2 }),
+    /Checklist version conflict/
+  );
+});
+const [ticketsApiSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/ChecklistBuilderView.js", import.meta.url), "utf8"),
+  readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8"),
+  readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
+]);
+await t("checklist offline queue is connected to the sync dispatcher", () => {
+  assert.ok(checklistViewSource.includes("loadedVersion: loadedTemplateVersion"));
+  assert.ok(ticketsApiSource.includes('type === "save_checklist_template"'));
+  assert.ok(ticketsApiSource.includes("buildChecklistTemplateDocument"));
+});
+await t("main and dev deployment workflows stop when npm test fails", () => {
+  for (const workflow of [mainWorkflowSource, devWorkflowSource]) {
+    assert.ok(workflow.includes("run: npm test"));
+    assert.ok(!workflow.includes("continue-on-error"));
+  }
 });
 
 // ---------- phone ----------

@@ -7,6 +7,7 @@
 //   - uploadImageViaImgbb      رفع صورة لـ ImgBB (المفتاح سر هنا فقط)
 //   - registerEmployeeCode     تسجيل كود الموظف مجزّأً (hash) وقت إنشاء الحساب (مرة واحدة لكل حساب)
 //   - migrateEmployeeCodes     (Admin) نقل أكواد الموظفين القديمة من users إلى مجموعة مغلقة
+//   - migrateLegacyAccount     ترحيل آمن للحسابات القديمة عند أول تسجيل دخول
 //   - deleteUserAccount        (Admin) حذف حساب Auth + مستند المستخدم
 //   - updateUserRoleAccount    (Admin) تغيير دور، بحماية "آخر Admin"
 // دالة عامة (بدون تسجيل دخول):
@@ -79,6 +80,192 @@ const safeEqual = (a, b) => {
   let r = 0; for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return r === 0;
 };
+const LEGACY_GENERIC_ERROR = "رقم الموبايل أو كلمة السر غير صحيحة.";
+const LEGACY_MIGRATION_MAX_ATTEMPTS = 10;
+const LEGACY_MIGRATION_WINDOW_MS = 15 * 60_000;
+const LEGACY_PASSWORD_ITERATIONS = 150_000;
+
+async function verifyLegacyPassword(password, fields) {
+  const passwordHash = strField(fields.passwordHash);
+  const saltHex = strField(fields.salt);
+  if (passwordHash && saltHex) {
+    if (!/^[0-9a-f]+$/i.test(saltHex) || saltHex.length % 2 !== 0) return false;
+    const salt = Uint8Array.from(saltHex.match(/.{2}/g), (byte) => parseInt(byte, 16));
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations: LEGACY_PASSWORD_ITERATIONS, hash: "SHA-256" },
+      key,
+      256
+    );
+    return safeEqual(toHex(bits).toLowerCase(), passwordHash.toLowerCase());
+  }
+  const plainPassword = strField(fields.password);
+  return !!plainPassword && safeEqual(plainPassword, password);
+}
+
+async function createAuthUser(env, email, password) {
+  if (!env.FIREBASE_API_KEY) {
+    throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_API_KEY).");
+  }
+  const response = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${encodeURIComponent(env.FIREBASE_API_KEY)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, returnSecureToken: false })
+    }
+  );
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || !body.localId) {
+    if (body?.error?.message === "WEAK_PASSWORD") {
+      throw new HttpError(412, "FAILED_PRECONDITION", "كلمة السر القديمة أقصر من الحد الأدنى المطلوب (٦ أحرف) - تواصل مع المسؤول.");
+    }
+    console.error("legacy auth account creation failed", response.status, body?.error?.message);
+    throw new HttpError(500, "INTERNAL", "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى.");
+  }
+  return { uid: body.localId, disabled: false };
+}
+
+async function retireLegacyDocument(env, legacyDoc, newUid) {
+  const fields = legacyDoc.fields || {};
+  const updateFields = {
+    legacyRole: { stringValue: strField(fields.role) },
+    legacyStatus: { stringValue: strField(fields.status) },
+    role: { stringValue: "migrated" },
+    status: { stringValue: "migrated" },
+    permissions: { stringValue: "" },
+    migratedToUid: { stringValue: newUid },
+    migratedAt: { stringValue: new Date().toISOString() }
+  };
+  await fsCommit(env, [{
+    update: { name: docName(env, `users/${legacyDoc.id}`), fields: updateFields },
+    updateMask: { fieldPaths: [...Object.keys(updateFields), "password", "passwordHash", "salt"] },
+    currentDocument: { exists: true }
+  }]);
+}
+
+async function migrateLegacyAccount(data, request, env) {
+  const rawPhone = data?.phone;
+  const rawPassword = data?.password;
+  if (
+    typeof rawPhone !== "string" || typeof rawPassword !== "string" ||
+    !rawPhone.trim() || !rawPassword.trim() ||
+    rawPhone.length > 40 || rawPassword.length > 200
+  ) {
+    throw new HttpError(400, "INVALID_ARGUMENT", "بيانات غير صالحة.");
+  }
+
+  const phone = rawPhone.trim();
+  const password = rawPassword.trim();
+  const phoneInfo = normalizePhone(phone);
+  if (!phoneInfo.ok) throw new HttpError(400, "INVALID_ARGUMENT", "بيانات غير صالحة.");
+
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const ipBudget = await consumeBudget(
+    env,
+    `legacy_ip_${await sha256Hex(ip)}`,
+    40,
+    60 * 60_000
+  );
+  if (!ipBudget.ok) throw new HttpError(429, "RESOURCE_EXHAUSTED", "محاولات كثيرة جداً، يرجى المحاولة لاحقاً.");
+
+  const legacyDocs = await fsRunQuery(env, {
+    from: [{ collectionId: "users" }],
+    where: {
+      fieldFilter: {
+        field: { fieldPath: "phone" },
+        op: "IN",
+        value: { arrayValue: { values: phoneVariants(phone).map((value) => ({ stringValue: value })) } }
+      }
+    },
+    limit: 10
+  });
+  const withCredentials = legacyDocs.filter(({ fields }) =>
+    (strField(fields.passwordHash) && strField(fields.salt)) || strField(fields.password)
+  );
+  if (!withCredentials.length) throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
+
+  const phoneBudget = await consumeBudget(
+    env,
+    `legacy_phone_${await sha256Hex(phoneInfo.canonical)}`,
+    LEGACY_MIGRATION_MAX_ATTEMPTS,
+    LEGACY_MIGRATION_WINDOW_MS
+  );
+  if (!phoneBudget.ok) throw new HttpError(429, "RESOURCE_EXHAUSTED", "محاولات كثيرة جداً، يرجى المحاولة لاحقاً.");
+
+  let legacyDoc = null;
+  for (const candidate of withCredentials) {
+    if (await verifyLegacyPassword(password, candidate.fields)) {
+      legacyDoc = candidate;
+      break;
+    }
+  }
+  if (!legacyDoc) throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
+
+  const email = `${phoneInfo.canonical}@${AUTH_EMAIL_DOMAIN}`;
+  const lookup = await identityToolkit(env, "lookup", { email: [email] });
+  if (!lookup.ok) {
+    console.error("legacy auth lookup failed", lookup.message);
+    throw new HttpError(500, "INTERNAL", "تعذّر التحقق من الحساب، حاول مرة أخرى.");
+  }
+
+  const existingUser = lookup.body?.users?.[0] || null;
+  if (existingUser?.disabled) throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
+
+  let authUser = existingUser
+    ? { uid: existingUser.localId, disabled: existingUser.disabled }
+    : null;
+  if (authUser) {
+    const existingProfile = await fsGetFields(env, `users/${authUser.uid}`);
+    if (strField(existingProfile?.migratedFromId) === legacyDoc.id) {
+      await retireLegacyDocument(env, legacyDoc, authUser.uid);
+      throw new HttpError(403, "PERMISSION_DENIED", LEGACY_GENERIC_ERROR);
+    }
+    const updated = await identityToolkit(env, "update", {
+      localId: authUser.uid,
+      password,
+      validSince: String(Math.floor(Date.now() / 1000))
+    });
+    if (!updated.ok) {
+      console.error("legacy auth password update failed", updated.message);
+      throw new HttpError(500, "INTERNAL", "حدث خطأ أثناء ترقية الحساب، يرجى المحاولة مرة أخرى.");
+    }
+  } else {
+    authUser = await createAuthUser(env, email, password);
+  }
+
+  const profileFields = { ...(legacyDoc.fields || {}) };
+  delete profileFields.password;
+  delete profileFields.passwordHash;
+  delete profileFields.salt;
+  profileFields.migratedFromId = { stringValue: legacyDoc.id };
+  profileFields.migratedAt = { stringValue: new Date().toISOString() };
+
+  try {
+    await fsCommit(env, [{
+      update: {
+        name: docName(env, `users/${authUser.uid}`),
+        fields: profileFields
+      }
+    }]);
+    if (legacyDoc.id !== authUser.uid) {
+      await retireLegacyDocument(env, legacyDoc, authUser.uid);
+    } else {
+      await fsCommit(env, [{
+        update: { name: docName(env, `users/${legacyDoc.id}`), fields: {} },
+        updateMask: { fieldPaths: ["password", "passwordHash", "salt"] },
+        currentDocument: { exists: true }
+      }]);
+    }
+  } catch (error) {
+    console.error("legacy profile migration failed", error?.message || error);
+    throw new HttpError(500, "INTERNAL", "تم ترقية الحساب لكن حدث خطأ أثناء نقل البيانات، يرجى المحاولة مرة أخرى.");
+  }
+
+  await fsCommit(env, [{ delete: docName(env, `resetAttempts/legacy_phone_${await sha256Hex(phoneInfo.canonical)}`) }])
+    .catch(() => {});
+  return { status: "success" };
+}
 
 // ---------- base64url ----------
 const b64urlToBytes = (s) => {
@@ -533,10 +720,14 @@ export default {
     try {
       if (!env.FIREBASE_PROJECT_ID) throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_PROJECT_ID).");
 
-      // دالة عامة (بدون توكن): المستخدم نسي كلمة السر فمفيش جلسة أصلاً - الحماية بحد المحاولات
+      // دوال عامة (بدون توكن): لا يوجد حساب Auth قبل الترحيل، أو المستخدم نسي كلمة السر.
       if (path === "resetPasswordWithEmployeeCode") {
         const body = await request.json().catch(() => ({}));
         return json({ result: await resetPasswordWithEmployeeCode(body.data, request, env) }, 200, cors);
+      }
+      if (path === "migrateLegacyAccount") {
+        const body = await request.json().catch(() => ({}));
+        return json({ result: await migrateLegacyAccount(body.data, request, env) }, 200, cors);
       }
 
       const bearer = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -551,7 +742,7 @@ export default {
       if (!handler) throw new HttpError(404, "NOT_FOUND", "هذه الخدمة غير متاحة على السيرفر الحالي.");
 
       const body = await request.json().catch(() => ({}));
-      return json({ result: await handler(body.data, caller, env) }, 200, cors);
+      return json({ result: await handler(body.data, caller, env, request) }, 200, cors);
     } catch (e) {
       if (e instanceof HttpError) return json({ error: { message: e.message, status: e.code } }, e.status, cors);
       console.error("unhandled", e && e.message);

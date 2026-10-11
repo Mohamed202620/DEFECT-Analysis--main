@@ -75,7 +75,7 @@ window.checkActiveTicketForMachine = async function() {
               <span class="text-gray-400">${isEn ? 'Description:' : 'الوصف:'}</span> ${escapeHtml(t.description || '')}
             </div>
             <div class="flex items-center gap-3 text-[10px] text-slate-400 pt-0.5 flex-wrap">
-              <span>👤 ${isEn ? 'Reported by:' : 'المُبلّغ:'} <b class="text-slate-200">${t.reportedBy || t.reporter?.name || (isEn ? 'Unknown' : 'غير محدد')}</b></span>
+              <span>👤 ${isEn ? 'Reported by:' : 'المُبلّغ:'} <b class="text-slate-200">${escapeHtml(t.reportedBy || t.reporter?.name || (isEn ? 'Unknown' : 'غير محدد'))}</b></span>
               ${t.reporter?.shift ? `<span>🕒 ${isEn ? 'Shift:' : 'الوردية:'} <b class="text-amber-300">${escapeHtml(t.reporter.shift)}</b></span>` : ''}
               ${t.assignedTo ? `<span>🛠️ ${isEn ? 'Assigned to:' : 'المسند إليه:'} <b class="text-blue-300">${escapeHtml(t.assignedTo)}</b></span>` : ''}
             </div>
@@ -520,4 +520,3 @@ export const IssueView = () => {
   </div>
   `;
 };
-
