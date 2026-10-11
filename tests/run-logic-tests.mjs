@@ -42,6 +42,7 @@ await t("اسم المُبلّغ في تحذير البلاغ النشط يمر 
 });
 
 const { buildChecklistTemplateDocument } = await import("../js/services/checklistTemplateSync.js");
+const { isOfflineActionOwnedBy } = await import("../js/services/offlineQueue.js");
 const checklistDraft = {
   collection: "machineAmTemplates",
   targetId: "Machine 01",
@@ -74,8 +75,10 @@ await t("offline checklist sync refuses invalid targets and stale versions", () 
     /Checklist version conflict/
   );
 });
-const [ticketsApiSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
+const [ticketsApiSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
   readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/checklistApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
   readFile(new URL("../js/views/ChecklistBuilderView.js", import.meta.url), "utf8"),
   readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8"),
   readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
@@ -84,6 +87,28 @@ await t("checklist offline queue is connected to the sync dispatcher", () => {
   assert.ok(checklistViewSource.includes("loadedVersion: loadedTemplateVersion"));
   assert.ok(ticketsApiSource.includes('type === "save_checklist_template"'));
   assert.ok(ticketsApiSource.includes("buildChecklistTemplateDocument"));
+});
+await t("offline actions are replayed only for their original authenticated user", () => {
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, "user-a"), true);
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, "user-b"), false);
+  assert.equal(isOfflineActionOwnedBy({ action: { type: "close" } }, "user-b"), false);
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, ""), false);
+  assert.ok(ticketsApiSource.includes("Preserving offline action without matching owner identity"));
+});
+await t("checklist history reads are bounded and covered by a composite index", () => {
+  assert.ok(checklistApiSource.includes('orderBy("createdAt", "desc")'));
+  assert.ok(checklistApiSource.includes("limit(maxCount)"));
+  assert.ok(checklistApiSource.includes("limit(1)"));
+  assert.ok(checklistApiSource.includes("maxCount < 1 || maxCount > 100"));
+  assert.ok(checklistApiSource.includes("if (!url)"));
+  assert.ok(!checklistApiSource.includes("photo: url || null"));
+  const indexes = JSON.parse(checklistIndexesSource);
+  assert.ok(indexes.indexes.some(index =>
+    index.collectionGroup === "machineChecklists" &&
+    ["machine", "type", "createdAt"].every(field =>
+      index.fields.some(entry => entry.fieldPath === field)
+    )
+  ));
 });
 await t("main and dev deployment workflows stop when npm test fails", () => {
   for (const workflow of [mainWorkflowSource, devWorkflowSource]) {

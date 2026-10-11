@@ -23,7 +23,7 @@ import { normalizeLine } from "../utils/lineUtils.js";
 // التنفيذ/مغلق...) بتفضل من غير حد لأن حجمها الطبيعي محدود أصلاً
 // (تذاكر مفتوحة حالياً، مش الأرشيف كله)
 const TICKETS_BOARD_DEFAULT_LIMIT = 300;
-import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction } from "./offlineQueue.js";
+import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction, isOfflineActionOwnedBy } from "./offlineQueue.js";
 // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): استيراد مباشر من
 // usersApi.js (مش من services/api.js) عشان نتجنب Circular Import، بما
 // إن api.js نفسه بيعمل Re-export من ticketsApi.js
@@ -361,6 +361,12 @@ async function _syncOfflineTicketActionsApiImpl() {
   let failed = 0;
   for (const item of queued) {
     try {
+      if (!isOfflineActionOwnedBy(item, authUser.uid)) {
+        console.warn("[Sync] Preserving offline action without matching owner identity:", item.localId);
+        failed++;
+        continue;
+      }
+
       const { type, ticketId, payload } = item.action || {};
       let result;
 

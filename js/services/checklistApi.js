@@ -43,7 +43,13 @@ async function saveChecklistRecord(type, payload) {
     for (const item of items) {
       if (item.photo) {
         const [url] = await uploadBase64Images([item.photo], `${type}-${item.id || "item"}`);
-        itemsWithUploadedPhotos.push({ ...item, photo: url || null });
+        if (!url) {
+          return {
+            status: "error",
+            message: "تعذر رفع صورة بند الفحص؛ لم يتم حفظ السجل للحفاظ على الصورة. تحقق من الاتصال وحاول مجدداً."
+          };
+        }
+        itemsWithUploadedPhotos.push({ ...item, photo: url });
       } else {
         itemsWithUploadedPhotos.push(item);
       }
@@ -81,17 +87,15 @@ export async function fetchLatestChecklistApi(machine, type) {
     const q = query(
       collection(db, "machineChecklists"),
       where("machine", "==", machine),
-      where("type", "==", type)
+      where("type", "==", type),
+      orderBy("createdAt", "desc"),
+      limit(1)
     );
 
     const snap = await getDocs(q);
-    let latest = null;
-    snap.forEach(docSnap => {
-      const data = docSnap.data();
-      if (!latest || (data.createdAt || "") > (latest.createdAt || "")) {
-        latest = { id: docSnap.id, ...data };
-      }
-    });
+    const latest = snap.empty
+      ? null
+      : { id: snap.docs[0].id, ...snap.docs[0].data() };
 
     return { status: "success", data: latest };
   } catch (error) {
@@ -106,19 +110,24 @@ export async function fetchLatestChecklistApi(machine, type) {
  * اللي بتقرر تعرض الزرار ده لمين - راجع MachineProfileView.js)
  */
 export async function fetchChecklistHistoryApi(machine, type, maxCount = 10) {
+  if (!Number.isInteger(maxCount) || maxCount < 1 || maxCount > 100) {
+    return { status: "error", message: "maxCount must be an integer between 1 and 100", data: [] };
+  }
+
   try {
     const q = query(
       collection(db, "machineChecklists"),
       where("machine", "==", machine),
-      where("type", "==", type)
+      where("type", "==", type),
+      orderBy("createdAt", "desc"),
+      limit(maxCount)
     );
 
     const snap = await getDocs(q);
     const records = [];
     snap.forEach(docSnap => records.push({ id: docSnap.id, ...docSnap.data() }));
 
-    records.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    return { status: "success", data: records.slice(0, maxCount) };
+    return { status: "success", data: records };
   } catch (error) {
     console.error(`Error fetching ${type} checklist history:`, error);
     return { status: "error", message: error.message, data: [] };
