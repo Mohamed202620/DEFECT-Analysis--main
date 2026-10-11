@@ -81,7 +81,7 @@ export function validateDevDeploymentConfig(env = process.env) {
     serviceAccount.type !== "service_account" ||
     serviceAccount.project_id !== projectId ||
     typeof serviceAccount.client_email !== "string" ||
-    !serviceAccount.client_email.endsWith(".iam.gserviceaccount.com") ||
+    !serviceAccount.client_email.endsWith(`@${projectId}.iam.gserviceaccount.com`) ||
     typeof serviceAccount.private_key !== "string" ||
     !serviceAccount.private_key.includes("-----BEGIN PRIVATE KEY-----") ||
     !serviceAccount.private_key.includes("-----END PRIVATE KEY-----")

@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import worker, { normalizePhone, phoneVariants, normalizeCode } from "../cloudflare-worker/worker.mjs";
 
-const PID = "demo-project";
+const PID = "maintenance-defect-system";
 const DOMAIN = "maintenance-defect-system.local";
 const b64u = (buf) => Buffer.from(buf).toString("base64url");
 const enc = (o) => b64u(JSON.stringify(o));
@@ -127,7 +127,20 @@ globalThis.fetch = async (url, opts = {}) => {
   throw new Error("fetch غير مُحاكى: " + url);
 };
 
-const env = { FIREBASE_PROJECT_ID: PID, FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY", IMGBB_API_KEY: "SECRETKEY", SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@x.iam", private_key: saPem }) };
+const env = {
+  FIREBASE_ENV: "production",
+  FIREBASE_PROJECT_ID: PID,
+  FIREBASE_HOSTING_SITE: PID,
+  FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY",
+  IMGBB_API_KEY: "SECRETKEY",
+  ALLOWED_ORIGINS: "https://maintenance-defect-system.web.app,https://maintenance-defect-system.firebaseapp.com,https://my-dev-2026.web.app",
+  SERVICE_ACCOUNT_JSON: JSON.stringify({
+    type: "service_account",
+    project_id: PID,
+    client_email: "sa@maintenance-defect-system.iam.gserviceaccount.com",
+    private_key: saPem
+  })
+};
 const ORIGIN = "https://maintenance-defect-system.web.app";
 
 async function call(fn, data, tokenOrUid, headers = {}) {
@@ -150,9 +163,69 @@ console.log("المصادقة");
 baseSetup();
 await t("health + CORS لنطاق مسموح فقط", async () => {
   const r = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: ORIGIN } }), env);
-  assert.equal(r.status, 200); assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), {
+    ok: true,
+    environment: "production",
+    projectId: PID,
+    hostingSite: PID
+  });
+  assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
   assert.equal(r2.headers.get("Access-Control-Allow-Origin"), null);
+});
+await t("Worker dev requires a separate project and Hosting origin", async () => {
+  const devEnv = {
+    ...env,
+    FIREBASE_ENV: "development",
+    FIREBASE_PROJECT_ID: "dev-sandbox-2026",
+    FIREBASE_HOSTING_SITE: "dev-sandbox-2026",
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app",
+    SERVICE_ACCOUNT_JSON: JSON.stringify({
+      type: "service_account",
+      project_id: "dev-sandbox-2026",
+      client_email: "dev-deployer@dev-sandbox-2026.iam.gserviceaccount.com",
+      private_key: saPem
+    })
+  };
+  const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), {
+    ok: true,
+    environment: "development",
+    projectId: "dev-sandbox-2026",
+    hostingSite: "dev-sandbox-2026"
+  });
+
+  const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
+    ...devEnv,
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
+  });
+  assert.equal(productionOrigin.status, 500);
+});
+await t("incomplete or mixed Worker project configuration fails closed", async () => {
+  const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    ALLOWED_ORIGINS: ""
+  });
+  assert.equal(noOrigins.status, 500);
+
+  const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    SERVICE_ACCOUNT_JSON: JSON.stringify({
+      type: "service_account",
+      project_id: "another-project",
+      client_email: "sa@another-project.iam.gserviceaccount.com",
+      private_key: saPem
+    })
+  });
+  assert.equal(mixedProject.status, 500);
+
+  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    FIREBASE_ENV: "development"
+  });
+  assert.equal(devOnProduction.status, 500);
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {

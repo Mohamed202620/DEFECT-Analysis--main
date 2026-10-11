@@ -8,6 +8,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -44,12 +46,18 @@ jobs:
       - name: Build project (syntax + assets + SW build id)
         run: npm run build
 
+      - name: Validate production deploy credential project
+        run: node scripts/validate-production-deploy.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DEV_PROJECT_ID: ${{ vars.FIREBASE_DEV_PROJECT_ID }}
+
       - name: Deploy to Firebase Hosting
         # FirebaseExtended/action-hosting-deploy v0 tag (pinned commit)
         uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: maintenance-defect-system
           channelId: live
           target: main
+          disableComment: true

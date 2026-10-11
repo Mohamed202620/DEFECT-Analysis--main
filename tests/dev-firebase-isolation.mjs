@@ -9,6 +9,8 @@ import {
   PRODUCTION_BACKEND_WORKER_URL,
   PRODUCTION_FIREBASE_CONFIG
 } from "../js/firebaseDefaults.js";
+import { validateProductionDeploymentConfig } from "../scripts/validate-production-deploy.mjs";
+import { validateDevWorkerHealth } from "../scripts/verify-dev-worker.mjs";
 
 const developmentEnv = () => ({
   FIREBASE_DEV_PROJECT_ID: "maintenance-defect-dev",
@@ -55,6 +57,56 @@ test("production Worker and mismatched deployer account are rejected", () => {
     ...JSON.parse(account.FIREBASE_DEV_SERVICE_ACCOUNT),
     project_id: PRODUCTION_FIREBASE_CONFIG.projectId
   });
+  test("Worker readiness rejects mismatched environment, project, and Hosting site", () => {
+    const expected = {
+      projectId: "maintenance-defect-dev",
+      hostingSite: "maintenance-defect-dev"
+    };
+    const response = {
+      ok: true,
+      url: "https://maintenance-defect-dev.example.workers.dev/health",
+      body: { ok: true, environment: "development", ...expected }
+    };
+    assert.doesNotThrow(() => validateDevWorkerHealth(
+      "https://maintenance-defect-dev.example.workers.dev",
+      expected,
+      response
+    ));
+    assert.throws(() => validateDevWorkerHealth(
+      "https://maintenance-defect-dev.example.workers.dev",
+      expected,
+      { ...response, body: { ...response.body, projectId: PRODUCTION_FIREBASE_CONFIG.projectId } }
+    ), /configured dev project and Hosting site/);
+    assert.throws(() => validateDevWorkerHealth(
+      PRODUCTION_BACKEND_WORKER_URL,
+      expected,
+      response
+    ), /separate HTTPS Worker/);
+  });
+  test("production credential guard validates ownership without disclosing credentials", () => {
+    const credential = (project_id) => JSON.stringify({
+      type: "service_account",
+      project_id,
+      client_email: `deployer@${project_id}.iam.gserviceaccount.com`,
+      private_key: "never-print-this"
+    });
+    assert.doesNotThrow(() => validateProductionDeploymentConfig({
+      FIREBASE_SERVICE_ACCOUNT: credential(PRODUCTION_FIREBASE_CONFIG.projectId),
+      FIREBASE_DEV_PROJECT_ID: "maintenance-defect-dev"
+    }));
+    assert.throws(() => validateProductionDeploymentConfig({
+      FIREBASE_SERVICE_ACCOUNT: JSON.stringify({
+        type: "service_account",
+        project_id: PRODUCTION_FIREBASE_CONFIG.projectId,
+        client_email: "sa@maintenance-defect-dev.iam.gserviceaccount.com",
+        private_key: "never-print-this"
+      })
+    }), /must belong to the production project/);
+    assert.throws(() => validateProductionDeploymentConfig({
+      FIREBASE_SERVICE_ACCOUNT: credential(PRODUCTION_FIREBASE_CONFIG.projectId),
+      FIREBASE_DEV_PROJECT_ID: PRODUCTION_FIREBASE_CONFIG.projectId
+    }), /FIREBASE_DEV_PROJECT_ID must not be the production project/);
+  });
   assert.throws(() => validateDevDeploymentConfig(account), /belonging to the dev project/);
 });
 test("valid inputs create a dev-only client config and target mapping", () => {
@@ -99,8 +151,13 @@ test("dev and production workflows use isolated project IDs and credentials", as
   assert.deepEqual(mainProjectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
   assert.match(devWorkflow, /FIREBASE_DEV_SERVICE_ACCOUNT/);
   assert.doesNotMatch(devWorkflow, /secrets\.FIREBASE_SERVICE_ACCOUNT/);
+  assert.match(devWorkflow, /Verify isolated dev Worker configuration/);
+  assert.match(devWorkflow, /permissions:\s*\n\s+contents: read/);
   assert.match(mainWorkflow, /secrets\.FIREBASE_SERVICE_ACCOUNT/);
-  assert.doesNotMatch(mainWorkflow, /FIREBASE_DEV_/);
+  assert.doesNotMatch(mainWorkflow, /projectId:\s*\$\{\{\s*vars\.FIREBASE_DEV_PROJECT_ID/);
+  assert.doesNotMatch(mainWorkflow, /secrets\.FIREBASE_DEV_SERVICE_ACCOUNT/);
+  assert.match(mainWorkflow, /Validate production deploy credential project/);
+  assert.match(mainWorkflow, /permissions:\s*\n\s+contents: read/);
 
   const configuredDevProjectId = process.env.FIREBASE_DEV_PROJECT_ID?.trim();
   if (configuredDevProjectId) {

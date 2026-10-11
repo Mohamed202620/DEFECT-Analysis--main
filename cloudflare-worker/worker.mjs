@@ -19,16 +19,19 @@
 // Secrets / Variables المطلوبة (Settings -> Variables and Secrets):
 //   SERVICE_ACCOUNT_JSON  (Secret)  محتوى ملف مفتاح حساب الخدمة كاملاً
 //   IMGBB_API_KEY         (Secret)  مفتاح ImgBB
-//   FIREBASE_PROJECT_ID   (Text)    مثال: maintenance-defect-system
-//   ALLOWED_ORIGINS       (Text, اختياري) نطاقات مفصولة بفواصل
+//   FIREBASE_ENV          (Text)    development أو production
+//   FIREBASE_PROJECT_ID   (Text)    Firebase project for this Worker only
+//   FIREBASE_HOSTING_SITE (Text)    Hosting site served by this Worker
+//   ALLOWED_ORIGINS       (Text)    Exact HTTPS origins, comma-separated
 // ============================================================
 
-const DEFAULT_ORIGINS = [
+const PRODUCTION_FIREBASE_PROJECT_ID = "maintenance-defect-system";
+const PRODUCTION_HOSTING_SITE = "maintenance-defect-system";
+const PRODUCTION_ORIGINS = [
   "https://maintenance-defect-system.web.app",
   "https://maintenance-defect-system.firebaseapp.com",
   "https://my-dev-2026.web.app",
-  "https://my-dev-2026.firebaseapp.com",
-  "http://localhost:3000"
+  "https://my-dev-2026.firebaseapp.com"
 ];
 
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
@@ -307,9 +310,7 @@ let tokenCache = { value: null, exp: 0 };
 async function getAccessToken(env) {
   if (tokenCache.value && Date.now() < tokenCache.exp - 60_000) return tokenCache.value;
 
-  let sa;
-  try { sa = JSON.parse(env.SERVICE_ACCOUNT_JSON); }
-  catch { throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (SERVICE_ACCOUNT_JSON)."); }
+  const sa = parseServiceAccount(env);
 
   const now = Math.floor(Date.now() / 1000);
   const claim = {
@@ -671,8 +672,88 @@ async function resetPasswordWithEmployeeCode(data, request, env) {
 }
 
 // ---------- CORS + التوجيه ----------
-function corsHeaders(request, env) {
-  const allowed = (env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()) : DEFAULT_ORIGINS);
+function parseServiceAccount(env) {
+  let serviceAccount;
+  try { serviceAccount = JSON.parse(env.SERVICE_ACCOUNT_JSON); }
+  catch { throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (SERVICE_ACCOUNT_JSON)."); }
+  if (
+    serviceAccount.type !== "service_account" ||
+    serviceAccount.project_id !== env.FIREBASE_PROJECT_ID ||
+    typeof serviceAccount.client_email !== "string" ||
+    !serviceAccount.client_email.endsWith(`@${env.FIREBASE_PROJECT_ID}.iam.gserviceaccount.com`) ||
+    typeof serviceAccount.private_key !== "string"
+  ) {
+    throw new HttpError(500, "INTERNAL", "حساب خدمة Worker يجب أن يخص مشروع Firebase المحدد.");
+  }
+  return serviceAccount;
+}
+
+function validateWorkerEnvironment(env) {
+  if (env.FIREBASE_ENV !== "development" && env.FIREBASE_ENV !== "production") {
+    throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_ENV).");
+  }
+
+  const projectId = String(env.FIREBASE_PROJECT_ID || "");
+  if (!/^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)) {
+    throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_PROJECT_ID).");
+  }
+
+  const hostingSite = String(env.FIREBASE_HOSTING_SITE || "");
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/.test(hostingSite)) {
+    throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_HOSTING_SITE).");
+  }
+
+  if (env.FIREBASE_ENV === "production") {
+    if (projectId !== PRODUCTION_FIREBASE_PROJECT_ID || hostingSite !== PRODUCTION_HOSTING_SITE) {
+      throw new HttpError(500, "INTERNAL", "إعداد Worker الإنتاج يجب أن يطابق مشروع وموقع الإنتاج.");
+    }
+  } else if (
+    projectId === PRODUCTION_FIREBASE_PROJECT_ID ||
+    hostingSite === PRODUCTION_HOSTING_SITE ||
+    hostingSite === "my-dev-2026"
+  ) {
+    throw new HttpError(500, "INTERNAL", "إعداد Worker التطوير يجب أن يستخدم مشروع وموقع dev منفصلين.");
+  }
+
+  if (!env.FIREBASE_API_KEY || !env.IMGBB_API_KEY) {
+    throw new HttpError(500, "INTERNAL", "إعداد Worker غير مكتمل (FIREBASE_API_KEY أو IMGBB_API_KEY).");
+  }
+
+  const serviceAccount = parseServiceAccount(env);
+  const configuredOrigins = String(env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (!configuredOrigins.length) {
+    throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (ALLOWED_ORIGINS).");
+  }
+
+  const allowedOrigins = [];
+  for (const origin of configuredOrigins) {
+    let parsed;
+    try { parsed = new URL(origin); }
+    catch { throw new HttpError(500, "INTERNAL", "ALLOWED_ORIGINS يحتوي نطاقًا غير صالح."); }
+    if (parsed.protocol !== "https:" || parsed.origin !== origin || allowedOrigins.includes(origin)) {
+      throw new HttpError(500, "INTERNAL", "ALLOWED_ORIGINS يجب أن يحتوي نطاقات HTTPS فريدة فقط.");
+    }
+    allowedOrigins.push(origin);
+  }
+
+  const hostingOrigin = `https://${hostingSite}.web.app`;
+  if (!allowedOrigins.includes(hostingOrigin)) {
+    throw new HttpError(500, "INTERNAL", "ALLOWED_ORIGINS يجب أن يتضمن موقع Hosting المطابق لهذا Worker.");
+  }
+  if (
+    env.FIREBASE_ENV === "development" &&
+    allowedOrigins.some((origin) => PRODUCTION_ORIGINS.includes(origin))
+  ) {
+    throw new HttpError(500, "INTERNAL", "Worker التطوير لا يسمح بنطاقات Hosting الإنتاجية.");
+  }
+
+  return { environment: env.FIREBASE_ENV, projectId, hostingSite, allowedOrigins, serviceAccount };
+}
+
+function corsHeaders(request, allowedOrigins) {
   const origin = request.headers.get("Origin") || "";
   const h = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -680,7 +761,7 @@ function corsHeaders(request, env) {
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
   };
-  if (allowed.includes(origin)) h["Access-Control-Allow-Origin"] = origin;
+  if (allowedOrigins.includes(origin)) h["Access-Control-Allow-Origin"] = origin;
   return h;
 }
 
@@ -689,15 +770,24 @@ const json = (body, status, cors) =>
 
 export default {
   async fetch(request, env) {
-    const cors = corsHeaders(request, env);
-    const path = new URL(request.url).pathname.replace(/^\/+|\/+$/g, "");
-
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    if (request.method === "GET" && (path === "" || path === "health")) return json({ ok: true }, 200, cors);
-    if (request.method !== "POST") return json({ error: { message: "Method not allowed", status: "INVALID_ARGUMENT" } }, 405, cors);
-
+    let cors = {};
     try {
-      if (!env.FIREBASE_PROJECT_ID) throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_PROJECT_ID).");
+      const workerConfig = validateWorkerEnvironment(env);
+      cors = corsHeaders(request, workerConfig.allowedOrigins);
+      const path = new URL(request.url).pathname.replace(/^\/+|\/+$/g, "");
+
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+      if (request.method === "GET" && (path === "" || path === "health")) {
+        return json({
+          ok: true,
+          environment: workerConfig.environment,
+          projectId: workerConfig.projectId,
+          hostingSite: workerConfig.hostingSite
+        }, 200, cors);
+      }
+      if (request.method !== "POST") {
+        return json({ error: { message: "Method not allowed", status: "INVALID_ARGUMENT" } }, 405, cors);
+      }
 
       // دوال عامة (بدون توكن): لا يوجد حساب Auth قبل الترحيل، أو المستخدم نسي كلمة السر.
       if (path === "resetPasswordWithEmployeeCode") {
