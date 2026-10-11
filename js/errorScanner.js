@@ -28,6 +28,7 @@ import {
   pickLineNearCenter,
   suggestKbMatches,
   analyzeAlarmRows,
+  analyzeAlarmReadSets,
   evaluateRow,
   mergeRowSets,
   medianLineHeight,
@@ -627,10 +628,8 @@ async function runAnalyzeAll() {
       const doc = await prepareDocumentImage(scannedFile, options);
       setStatus(t().readingOcr, false, true);
       const read = await recognizeDocument(doc);
-      const a = analyzeAlarmRows(read.linesA, rowKb, { machineType });
-      const b = analyzeAlarmRows(read.linesB, rowKb, { machineType });
-      const rows = mergeRowSets(a.rows, b.rows);
-      return { doc, read, rows, ignored: [...new Set([...a.ignored, ...b.ignored])] };
+      const analyzed = analyzeAlarmReadSets([read.linesA, read.linesB], rowKb, { machineType });
+      return { doc, read, rows: analyzed.rows, ignored: analyzed.ignored };
     };
 
     let best = await attempt(null);
@@ -657,7 +656,15 @@ async function runAnalyzeAll() {
       // مفيش أعطال مفهومة: نعرض النص الخام بالمحرك العربي+الإنجليزي الأصلي للمراجعة اليدوية
       try {
         const legacy = await recognizeMachineScreen(scannedFile);
-        rawText = [rawText, legacy.rawText].filter(Boolean).join('\n---\n');
+        const fallback = analyzeAlarmReadSets(legacy.reads, rowKb, { machineType });
+        if (fallback.rows.length) {
+          scanRows = fallback.rows.map(row => evaluateRow(row, rowKb, { machineType }));
+          scanIgnored = [...new Set([...scanIgnored, ...fallback.ignored])];
+          nextRowId = scanRows.length + 1;
+        }
+        rawText = [rawText, legacy.rawText, ...legacy.reads.map(lines => lines.map(line => line.text).filter(Boolean).join('\n'))]
+          .filter(Boolean)
+          .join('\n---\n');
       } catch (legacyError) {
         console.warn('Legacy OCR fallback failed', legacyError);
       }

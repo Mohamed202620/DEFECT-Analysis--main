@@ -417,6 +417,19 @@ export function analyzeAlarmRows(lines, kbEntries = [], { machineType = '' } = {
   return { rows, ignored };
 }
 
+export function analyzeAlarmReadSets(readSets, kbEntries = [], { machineType = '' } = {}) {
+  let rows = [];
+  const ignored = new Set();
+
+  for (const lines of Array.isArray(readSets) ? readSets : []) {
+    const analyzed = analyzeAlarmRows(lines, kbEntries, { machineType });
+    rows = rows.length ? mergeRowSets(rows, analyzed.rows) : analyzed.rows;
+    analyzed.ignored.forEach(line => ignored.add(line));
+  }
+
+  return { rows, ignored: [...ignored] };
+}
+
 function verticalOverlap(a, b) {
   if (!a || !b) return 0;
   const overlap = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);

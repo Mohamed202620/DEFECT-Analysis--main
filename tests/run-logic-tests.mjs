@@ -69,7 +69,7 @@ await t("لا يعتبر عنوان ALARM HISTORY كود عطل", () => {
 });
 const ocr = await import("../js/utils/machineErrorOcr.js");
 const {
-  parseAlarmLine, analyzeAlarmRows, evaluateRow, mergeRowSets, buildKnownCodes,
+  parseAlarmLine, analyzeAlarmRows, analyzeAlarmReadSets, evaluateRow, mergeRowSets, buildKnownCodes,
   clampCropRect, pickLineNearCenter, findCenterTextBand, normalizeForOcr, suggestKbMatches,
   rotateGray, estimateSkewAngle, findTextRegion, cropGray, medianLineHeight, preprocessDocumentGray
 } = ocr;
@@ -132,6 +132,16 @@ await t("عدة أعطال في شاشة واحدة: صفوف منفصلة بل�
   assert.equal(rows[3].status, "unknown");
   assert.ok(!ignored.includes("ALARM HISTORY"));
   assert.equal(analyzeAlarmRows(ocrLines(["Main menu", "Speed 120 ppm", "شاشة التحكم"]), OCR_KB).rows.length, 0);
+});
+await t("قراءات OCR الاحتياطية تُحلل وتُدمج بدل عرضها كنص خام فقط", () => {
+  const fallback = analyzeAlarmReadSets([
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 72),
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 80),
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 90)
+  ], OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(fallback.rows.map(row => row.code), ["059", "060"]);
+  assert.equal(fallback.rows[0].confidence, 90);
+  assert.equal(fallback.rows[0].occurrences, 1);
 });
 await t("دمج قراءتين: نفس الكود صف واحد، وكودان لنفس السطر => conflict لا يُعتمد", () => {
   const a = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET"], 70), OCR_KB).rows;
