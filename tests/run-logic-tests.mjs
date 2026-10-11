@@ -46,6 +46,20 @@ const [indexSource, brandingSource, attachmentPickerSource] = await Promise.all(
   readFile(new URL("../js/branding.js", import.meta.url), "utf8"),
   readFile(new URL("../js/components/attachmentPicker.js", import.meta.url), "utf8")
 ]);
+const [pmApiSource, managerDesktopSource] = await Promise.all([
+  readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
+]);
+await t("manager dashboard counts PM records without downloading the collection", () => {
+  const countApi = pmApiSource.match(/export async function fetchPmRecordCountApi\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(countApi, /getCountFromServer/);
+  assert.doesNotMatch(countApi, /getDocs/);
+  assert.match(managerDesktopSource, /fetchPmRecordCountApi\(\)/);
+  assert.doesNotMatch(managerDesktopSource, /fetchPmRecordsApi\(\)/);
+  assert.match(managerDesktopSource, /pmRecordCount \?\? '--'/);
+  assert.match(managerDesktopSource, /let _managerDesktopLoadInFlight = null/);
+  assert.match(managerDesktopSource, /if \(!_managerDesktopLoadInFlight\)/);
+});
 await t("PWA viewport leaves browser zoom available", () => {
   const viewport = indexSource.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || "";
   assert.ok(viewport.includes("width=device-width"));

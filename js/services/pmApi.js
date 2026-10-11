@@ -11,6 +11,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getCountFromServer,
   orderBy,
   query,
   where
@@ -105,6 +106,18 @@ export async function fetchPmRecordsApi() {
 
 }
 
+export async function fetchPmRecordCountApi() {
+  try {
+    const countSnapshot = await getCountFromServer(
+      query(collection(db, "pmRecords"))
+    );
+    return { status: "success", count: countSnapshot.data().count };
+  } catch (error) {
+    console.error("Error counting PM records:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 
 // ============================================================
 // جلب سجلات الصيانة الوقائية لصفحة "البحث والفلترة المتقدمة"
@@ -139,5 +152,4 @@ export async function fetchPmRecordsForSearchApi({ isFullAccess, myName }) {
   }
 
 }
-
 
