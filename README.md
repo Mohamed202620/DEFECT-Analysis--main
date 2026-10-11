@@ -61,19 +61,14 @@
 
 تم إعداد Workflowين للنشر التلقائي:
 
-- الدفع إلى فرع `dev` ينشر إلى `my-dev-2026.web.app`.
+- الدفع إلى فرع `dev` ينشر إلى Firebase project منفصل محدد عبر إعدادات `FIREBASE_DEV_*` (ولا يوجد fallback إلى مشروع الإنتاج).
 - الدفع إلى فرع `main` ينشر إلى `maintenance-defect-system.web.app`.
 
-قبل أول Push، أضف Secret باسم `FIREBASE_SERVICE_ACCOUNT` إلى مستودع GitHub:
+قبل تهيئة dev، أنشئ Firebase project منفصلًا، وأضف Web App وHosting site وservice account خاصًا به. أضف متغيرات GitHub Actions التالية لقيم مشروع dev فقط: `FIREBASE_DEV_PROJECT_ID`, `FIREBASE_DEV_API_KEY`, `FIREBASE_DEV_APP_ID`, `FIREBASE_DEV_AUTH_DOMAIN`, `FIREBASE_DEV_MESSAGING_SENDER_ID`, `FIREBASE_DEV_STORAGE_BUCKET`, `FIREBASE_DEV_FUNCTIONS_REGION`, `FIREBASE_DEV_HOSTING_SITE`, و`FIREBASE_DEV_BACKEND_WORKER_URL`. أضف Secret باسم `FIREBASE_DEV_SERVICE_ACCOUNT` يحتوي service account JSON من مشروع dev فقط. يقوم فحص ما قبل النشر برفض القيم الناقصة، قيم Firebase الإنتاجية، أو حساب خدمة تابع لمشروع آخر.
 
-1. افتح Firebase Console واختر مشروع `maintenance-defect-system`.
-2. اذهب إلى **Project settings → Service accounts**.
-3. اضغط **Generate new private key** ونزّل ملف JSON.
-4. في GitHub افتح **Settings → Secrets and variables → Actions**.
-5. اضغط **New repository secret**.
-6. استخدم الاسم `FIREBASE_SERVICE_ACCOUNT` والصق محتوى ملف JSON كاملًا.
+يجب كذلك نشر Cloudflare Worker مستقل مرتبط بمشروع dev (بما في ذلك Firebase project ID وservice-account secret وImgBB secret الخاصة ببيئة dev عند استخدامها). اضبط `FIREBASE_DEV_BACKEND_WORKER_URL` على عنوانه؛ workflow يرفض عنوان Worker الإنتاجي. لا تستخدم بيانات أو credentials إنتاجية لإعداد dev.
 
-لا ترفع ملف JSON إلى Git أو تضعه داخل المشروع. النشر يقتصر على Firebase Hosting، ولا ينشر قواعد Firestore أو Functions.
+لا ترفع ملفات service-account إلى Git أو تضعها داخل المشروع. إعداد dev الناتج مؤقت في GitHub runner. النشر يقتصر على Firebase Hosting، ولا ينشر قواعد Firestore أو Functions؛ يجب نشر/مراجعة rules وindexes وWorker يدويًا على مشروع dev قبل اختبار التطبيق. لا تنشئ متغيرات dev بقيم افتراضية للإنتاج.
 
 المشروع بيتواصل مباشرة من المتصفح مع Firestore (بدون باك-إند وسيط)، لكنه **بيستخدم Firebase Authentication حقيقي** (Email/Password، عبر تحويل رقم الهاتف لإيميل داخلي - راجع `js/auth/login.js` و`phoneToAuthEmail` في `config.js`)، والحسابات القديمة (نظام الدخول المخصص القديم) بتترحّل تلقائياً لحساب Auth حقيقي عند أول تسجيل دخول ليها بعد هذا التحديث. بناءً عليه، **`firestore.rules` فعلاً بتقدر تفرّق بين مستخدم عادي وأدمن/مدير** عن طريق قراءة مستند `users/{uid}` الخاص بالمستخدم المسجّل دخوله فعليًا (`request.auth.uid`) والتحقق من حقل `role` فيه - راجع الدوال المساعدة `myProfile()`/`myRole()`/`isActive()` في أول `firestore.rules`. ⚠️ *(تحديث: نسخة سابقة من هذا القسم كانت بتقول إن مفيش Firebase Authentication حقيقي وإن الـ Rules مقدرش تفرّق بين الأدوار - ده لم يكن يعكس الكود الفعلي بشكل دقيق، وتم تصحيحه هنا)*.
 

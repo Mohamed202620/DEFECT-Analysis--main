@@ -1,6 +1,6 @@
 # الـ Worker البديل المجاني لـ Cloud Functions
 
-يعمل على Cloudflare Workers (خطة Free، بدون بطاقة) ويغني عن ترقية Firebase إلى Blaze.
+يعمل على Cloudflare Workers (خطة Free، بدون بطاقة) ويغني عن ترقية Firebase إلى Blaze. الإعداد الحالي في هذا الدليل خاص بمشروع الإنتاج `maintenance-defect-system`؛ لا تستخدم Worker الإنتاج أو بياناته مع تطبيق dev.
 **لا تنشر `functions/` ولا تستخدم `firebase deploy` بدون `--only`** (سيحاول نشر الدوال ويفشل على Spark).
 
 ## الخطوات (تنفذ من الموبايل)
@@ -21,7 +21,7 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 | `FIREBASE_API_KEY` | Text | Firebase project's web API key (used only to create a migrated Auth account) |
 | `SERVICE_ACCOUNT_JSON` | **Secret** | محتوى ملف JSON كاملًا |
 | `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB (ولّد مفتاحًا جديدًا من imgbb.com/api: القديم كان ظاهرًا في الكود) |
-| `ALLOWED_ORIGINS` | Text (اختياري) | نطاقات التطبيق مفصولة بفواصل. الافتراضي: نطاقات `maintenance-defect-system` و`my-dev-2026` و`localhost:3000` |
+| `ALLOWED_ORIGINS` | Text | نطاقات الإنتاج المسموح بها مفصولة بفواصل. لا تضف نطاق dev أو `my-dev-2026` إلى Worker الإنتاج. |
 
 اضغط **Deploy** بعد الحفظ، ثم احذف ملف JSON من الجهاز.
 
@@ -59,3 +59,9 @@ firebase deploy --only hosting,firestore:rules,firestore:indexes
 - الحد المجاني: 100 ألف طلب يوميًا، و10 ms CPU للطلب. رفع الصور يمر كتدفق مباشر لهذا السبب. لو ظهرت أخطاء `Exceeded CPU Time Limits` في Metrics فأبلغني.
 - فحص "آخر Admin" غير ذري (لا transaction): يحدث خلل فقط لو نزّل أدمنان بعضهما في اللحظة نفسها.
 - إن سُرّب `SERVICE_ACCOUNT_JSON` فهو مفتاح Admin كامل: ألغِه من Firebase/Google Cloud وولّد غيره.
+
+## إعداد dev المعزول
+
+لا توجّه dev إلى `odd-sun-fab8` أو إلى Worker مرتبط بمشروع `maintenance-defect-system`. أنشئ Worker منفصلًا، وانسخ إليه `worker.mjs`، ثم اربطه بمشروع Firebase dev فقط. استخدم API key وservice-account JSON وImgBB secret مخصصة لـ dev، واضبط `FIREBASE_PROJECT_ID` على معرّف مشروع dev و`ALLOWED_ORIGINS` على نطاق Hosting dev الجديد فقط (مثل `https://<FIREBASE_DEV_HOSTING_SITE>.web.app`، وأضف نطاق Firebase Hosting البديل فقط إذا كان مستخدمًا). لا تستخدم `my-dev-2026.web.app`؛ هذا الموقع القديم مسجل حاليًا تحت مشروع الإنتاج. عيّن عنوان Worker dev في GitHub Actions variable `FIREBASE_DEV_BACKEND_WORKER_URL`.
+
+قبل استخدام التطبيق، أنشئ Firebase Web App وHosting site في المشروع المنفصل، فعّل Authentication بالطريقة المستخدمة في التطبيق، أنشئ Firestore، وانشر `firestore.rules` و`firestore.indexes.json` إلى مشروع dev فقط بعد مراجعتها. امنح GitHub deployer صلاحية Hosting اللازمة فقط، واجعل حساب الخدمة الخاص بـ Worker منفصلًا ومحصورًا بمشروع dev. هذه الخطوات لم تُنفذ أو تُتحقق من Firebase/Cloudflare Console.

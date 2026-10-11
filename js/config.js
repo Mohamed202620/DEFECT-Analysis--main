@@ -15,6 +15,11 @@ import {
   onAuthStateChanged
 } from "./firebase.js";
 import { phoneToCanonicalAuthEmail, phoneToLegacyAuthEmail } from "./utils/phoneUtils.js";
+import {
+  DEFAULT_FIREBASE_FUNCTIONS_REGION,
+  PRODUCTION_BACKEND_WORKER_URL,
+  PRODUCTION_FIREBASE_CONFIG
+} from "./firebaseDefaults.js";
 
 
 // ============================================================
@@ -53,36 +58,67 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 // إعدادات Firebase
 // ============================================================
 
-export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+const appConfig = window.APP_CONFIG || {};
+const isDevelopmentConfig = appConfig.APP_ENV === "development";
+const firebaseConfig = {
+  apiKey: appConfig.FIREBASE_API_KEY || PRODUCTION_FIREBASE_CONFIG.apiKey,
+  authDomain: appConfig.FIREBASE_AUTH_DOMAIN || PRODUCTION_FIREBASE_CONFIG.authDomain,
+  projectId: appConfig.FIREBASE_PROJECT_ID || PRODUCTION_FIREBASE_CONFIG.projectId,
+  storageBucket: appConfig.FIREBASE_STORAGE_BUCKET || PRODUCTION_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: appConfig.FIREBASE_MESSAGING_SENDER_ID || PRODUCTION_FIREBASE_CONFIG.messagingSenderId,
+  appId: appConfig.FIREBASE_APP_ID || PRODUCTION_FIREBASE_CONFIG.appId
+};
 
-export const FIREBASE_PROJECT_ID =
-  window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
+if (isDevelopmentConfig) {
+  const missingDevelopmentValues = [
+    ["FIREBASE_PROJECT_ID", firebaseConfig.projectId],
+    ["FIREBASE_API_KEY", appConfig.FIREBASE_API_KEY],
+    ["FIREBASE_AUTH_DOMAIN", appConfig.FIREBASE_AUTH_DOMAIN],
+    ["FIREBASE_STORAGE_BUCKET", appConfig.FIREBASE_STORAGE_BUCKET],
+    ["FIREBASE_MESSAGING_SENDER_ID", appConfig.FIREBASE_MESSAGING_SENDER_ID],
+    ["FIREBASE_APP_ID", appConfig.FIREBASE_APP_ID],
+    ["BACKEND_WORKER_URL", appConfig.BACKEND_WORKER_URL]
+  ].filter(([, value]) => typeof value !== "string" || !value.trim());
+
+  if (missingDevelopmentValues.length) {
+    throw new Error(
+      `Development Firebase configuration is incomplete: ${missingDevelopmentValues.map(([key]) => key).join(", ")}`
+    );
+  }
+
+  if (
+    firebaseConfig.projectId === PRODUCTION_FIREBASE_CONFIG.projectId ||
+    firebaseConfig.apiKey === PRODUCTION_FIREBASE_CONFIG.apiKey ||
+    firebaseConfig.authDomain === PRODUCTION_FIREBASE_CONFIG.authDomain ||
+    firebaseConfig.storageBucket === PRODUCTION_FIREBASE_CONFIG.storageBucket ||
+    firebaseConfig.messagingSenderId === PRODUCTION_FIREBASE_CONFIG.messagingSenderId ||
+    firebaseConfig.appId === PRODUCTION_FIREBASE_CONFIG.appId
+  ) {
+    throw new Error("Development Firebase configuration must not use production project credentials.");
+  }
+}
+
+export const FIREBASE_API_KEY = firebaseConfig.apiKey;
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 
 // عنوان الـ Worker (Cloudflare) البديل المجاني لـ Cloud Functions (خطة Spark).
 // عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
 // الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
 // لـ Cloud Functions الأصلية (خطة Blaze).
-export const BACKEND_WORKER_URL =
-  window.APP_CONFIG?.BACKEND_WORKER_URL || "https://odd-sun-fab8.mom379339.workers.dev";
+export const BACKEND_WORKER_URL = isDevelopmentConfig
+  ? appConfig.BACKEND_WORKER_URL
+  : appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
 
 export const FIREBASE_FUNCTIONS_REGION =
-  window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
+  appConfig.FIREBASE_FUNCTIONS_REGION || DEFAULT_FIREBASE_FUNCTIONS_REGION;
 
-const firebaseConfig = {
-
-  apiKey: window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
-
-  authDomain: window.APP_CONFIG?.FIREBASE_AUTH_DOMAIN || "maintenance-defect-system.firebaseapp.com",
-
-  projectId: FIREBASE_PROJECT_ID,
-
-  storageBucket: window.APP_CONFIG?.FIREBASE_STORAGE_BUCKET || "maintenance-defect-system.firebasestorage.app",
-
-  messagingSenderId: window.APP_CONFIG?.FIREBASE_MESSAGING_SENDER_ID || "1065779979535",
-
-  appId: window.APP_CONFIG?.FIREBASE_APP_ID || "1:1065779979535:web:6d53e69c4cfde57b414a7a"
-
-};
+if (isDevelopmentConfig) {
+  const workerUrl = new URL(BACKEND_WORKER_URL);
+  const productionWorkerUrl = new URL(PRODUCTION_BACKEND_WORKER_URL);
+  if (workerUrl.protocol !== "https:" || workerUrl.origin === productionWorkerUrl.origin) {
+    throw new Error("Development must use a separate HTTPS backend Worker.");
+  }
+}
 
 // ============================================================
 // ثوابت التطبيق
