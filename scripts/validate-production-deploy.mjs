@@ -20,11 +20,6 @@ export function validateProductionDeploymentConfig(env = process.env) {
   ) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT must belong to the production project.");
   }
-
-  const developmentProjectId = env.FIREBASE_DEV_PROJECT_ID?.trim();
-  if (developmentProjectId === PRODUCTION_FIREBASE_CONFIG.projectId) {
-    throw new Error("FIREBASE_DEV_PROJECT_ID must not be the production project.");
-  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,6 +1,6 @@
 # الـ Worker البديل المجاني لـ Cloud Functions
 
-يعمل على Cloudflare Workers (خطة Free، بدون بطاقة) ويغني عن ترقية Firebase إلى Blaze. الإعداد الحالي في هذا الدليل خاص بمشروع الإنتاج `maintenance-defect-system`؛ لا تستخدم Worker الإنتاج أو بياناته مع تطبيق dev.
+يعمل على Cloudflare Workers (خطة Free، بدون بطاقة) ويغني عن ترقية Firebase إلى Blaze. الإعداد الحالي في هذا الدليل خاص بمشروع `maintenance-defect-system`؛ موقع `dev` يستخدم Worker نفسه وبيانات Firebase نفسها.
 **لا تنشر `functions/` ولا تستخدم `firebase deploy` بدون `--only`** (سيحاول نشر الدوال ويفشل على Spark).
 
 ## الخطوات (تنفذ من الموبايل)
@@ -23,7 +23,7 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 | `FIREBASE_API_KEY` | Text | Firebase project's web API key (used only to create a migrated Auth account) |
 | `SERVICE_ACCOUNT_JSON` | **Secret** | محتوى ملف JSON كاملًا |
 | `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB (ولّد مفتاحًا جديدًا من imgbb.com/api: القديم كان ظاهرًا في الكود) |
-| `ALLOWED_ORIGINS` | Text | نطاقات الإنتاج المسموح بها مفصولة بفواصل؛ مطلوب ولا يوجد fallback. |
+| `ALLOWED_ORIGINS` | Text | نطاقات الموقعين `maintenance-defect-system` و`my-dev-2026` المسموح بها مفصولة بفواصل؛ مطلوب ولا يوجد fallback. |
 
 لـ live Hosting deploy الحالي، حساب GitHub deployer يحتاج `roles/firebasehosting.admin` و`roles/serviceusage.apiKeysViewer` على المشروع. لا تستخدمه لحساب Worker.
 
@@ -64,30 +64,14 @@ firebase deploy --only hosting,firestore:rules,firestore:indexes
 - فحص "آخر Admin" غير ذري (لا transaction): يحدث خلل فقط لو نزّل أدمنان بعضهما في اللحظة نفسها.
 - إن سُرّب `SERVICE_ACCOUNT_JSON` فهو مفتاح Admin كامل: ألغِه من Firebase/Google Cloud وولّد غيره.
 
-## إعداد dev المعزول
+## موقع Firebase Hosting لفرع dev
 
-لا توجّه dev إلى `odd-sun-fab8` أو إلى Worker مرتبط بمشروع `maintenance-defect-system`. أنشئ Worker منفصلًا، وانسخ إليه `worker.mjs`، ثم اربطه بمشروع Firebase dev فقط. لا تنسخ إعدادات أو أسرار Worker الإنتاج.
+موقع `my-dev-2026.web.app` منفصل عن موقع الإنتاج على مستوى Hosting فقط، لكنه يستخدم مشروع Firebase الحالي نفسه وCloudflare Worker الإنتاجي. لذلك تسجيل الدخول وقراءة/كتابة Firestore من موقع dev تتصل بالبيانات الفعلية؛ استخدم حسابات وبيانات اختبار معتمدة، ولا تنفذ اختبارات تدميرية.
 
-في Cloudflare Dashboard → Workers & Pages أنشئ Worker dev جديدًا، والصق محتوى `worker.mjs`، ثم من Settings → Variables and Secrets أضف:
+يجب أن يتضمن إعداد `ALLOWED_ORIGINS` في Worker الإنتاج origin التالي حتى تعمل طلبات الواجهة من موقع dev:
 
-| الاسم | النوع | القيمة |
-|---|---|---|
-| `FIREBASE_ENV` | Text | `development` |
-| `FIREBASE_PROJECT_ID` | Text | معرّف Firebase dev |
-| `FIREBASE_HOSTING_SITE` | Text | معرّف موقع Hosting dev |
-| `ALLOWED_ORIGINS` | Text | `https://<FIREBASE_DEV_HOSTING_SITE>.web.app` فقط؛ أضف نطاق dev البديل فقط عند استخدامه |
-| `FIREBASE_API_KEY` | Text | Web API key الخاص بتطبيق Firebase dev |
-| `SERVICE_ACCOUNT_JSON` | **Secret** | JSON لحساب خدمة Worker خاص بمشروع dev |
-| `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB مستقل لبيئة dev |
-
-احفظ الإعدادات وانشر Worker dev. لا تضع `maintenance-defect-system` أو `my-dev-2026` ضمن إعداد dev. الكود يرفض وضع dev على مشروع الإنتاج، أو حساب خدمة لا يخص المشروع المحدد، أو origins إنتاجية، أو موقع Hosting غير المطابق. endpoint `/health` يعرض فقط البيئة ومعرّف المشروع وموقع Hosting (بيانات عامة) كي يتحقق الـ workflow من التطابق، ولا يعرض bindings السرية.
-
-أنشئ حساب خدمة Worker منفصلًا عن GitHub deployer. امنحه `roles/firebaseauth.admin` و`roles/datastore.user` على مشروع dev فقط؛ راجع IAM permissions الفعلية بعد إضافة الأدوار، لأن حسابه يستطيع القراءة/الكتابة عبر Admin REST متجاوزًا Firestore Security Rules. لا تمنحه Owner أو Editor. خزّن مفاتيحه كـ Cloudflare Secrets فقط، ولا تطبعها أو ترفعها إلى Git.
-
-في Firebase Console، أنشئ Web App وموقع Hosting في مشروع dev، فعّل Email/Password ضمن Authentication، وأضف نطاق Hosting dev إلى Authorized domains، وأنشئ Firestore database. راجع القواعد والفهارس ثم انشرهما يدويًا إلى مشروع dev فقط:
-
-```sh
-firebase deploy --only firestore:rules,firestore:indexes --project <FIREBASE_DEV_PROJECT_ID>
+```text
+https://my-dev-2026.web.app
 ```
 
-أضف عنوان Worker dev إلى GitHub variable `FIREBASE_DEV_BACKEND_WORKER_URL`. يجب أيضًا ضبط متغيرات Web App وHosting المدرجة في جذر README، وGitHub Secret `FIREBASE_DEV_SERVICE_ACCOUNT` لحساب Hosting مستقل محدود بصلاحية Firebase Hosting على مشروع dev. هذا المستودع لا يستطيع فحص Cloudflare bindings أو IAM grants الحية؛ اعتبر الإعداد غير مكتمل حتى تُراجعها يدويًا.
+لا تنشئ Worker أو Firebase project منفصلًا لهذا المسار، ولا تغيّر إعدادات `FIREBASE_PROJECT_ID` أو حساب خدمة Worker للإنتاج. نشر فرع `dev` يحدّث موقع Hosting `my-dev-2026` فقط؛ ولا ينشر Worker أو Functions أو Firestore rules/indexes.

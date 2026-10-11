@@ -59,7 +59,6 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 // ============================================================
 
 const appConfig = window.APP_CONFIG || {};
-const isDevelopmentConfig = appConfig.APP_ENV === "development";
 const firebaseConfig = {
   apiKey: appConfig.FIREBASE_API_KEY || PRODUCTION_FIREBASE_CONFIG.apiKey,
   authDomain: appConfig.FIREBASE_AUTH_DOMAIN || PRODUCTION_FIREBASE_CONFIG.authDomain,
@@ -69,35 +68,6 @@ const firebaseConfig = {
   appId: appConfig.FIREBASE_APP_ID || PRODUCTION_FIREBASE_CONFIG.appId
 };
 
-if (isDevelopmentConfig) {
-  const missingDevelopmentValues = [
-    ["FIREBASE_PROJECT_ID", firebaseConfig.projectId],
-    ["FIREBASE_API_KEY", appConfig.FIREBASE_API_KEY],
-    ["FIREBASE_AUTH_DOMAIN", appConfig.FIREBASE_AUTH_DOMAIN],
-    ["FIREBASE_STORAGE_BUCKET", appConfig.FIREBASE_STORAGE_BUCKET],
-    ["FIREBASE_MESSAGING_SENDER_ID", appConfig.FIREBASE_MESSAGING_SENDER_ID],
-    ["FIREBASE_APP_ID", appConfig.FIREBASE_APP_ID],
-    ["BACKEND_WORKER_URL", appConfig.BACKEND_WORKER_URL]
-  ].filter(([, value]) => typeof value !== "string" || !value.trim());
-
-  if (missingDevelopmentValues.length) {
-    throw new Error(
-      `Development Firebase configuration is incomplete: ${missingDevelopmentValues.map(([key]) => key).join(", ")}`
-    );
-  }
-
-  if (
-    firebaseConfig.projectId === PRODUCTION_FIREBASE_CONFIG.projectId ||
-    firebaseConfig.apiKey === PRODUCTION_FIREBASE_CONFIG.apiKey ||
-    firebaseConfig.authDomain === PRODUCTION_FIREBASE_CONFIG.authDomain ||
-    firebaseConfig.storageBucket === PRODUCTION_FIREBASE_CONFIG.storageBucket ||
-    firebaseConfig.messagingSenderId === PRODUCTION_FIREBASE_CONFIG.messagingSenderId ||
-    firebaseConfig.appId === PRODUCTION_FIREBASE_CONFIG.appId
-  ) {
-    throw new Error("Development Firebase configuration must not use production project credentials.");
-  }
-}
-
 export const FIREBASE_API_KEY = firebaseConfig.apiKey;
 export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 
@@ -105,20 +75,11 @@ export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 // عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
 // الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
 // لـ Cloud Functions الأصلية (خطة Blaze).
-export const BACKEND_WORKER_URL = isDevelopmentConfig
-  ? appConfig.BACKEND_WORKER_URL
-  : appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
+export const BACKEND_WORKER_URL =
+  appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
 
 export const FIREBASE_FUNCTIONS_REGION =
   appConfig.FIREBASE_FUNCTIONS_REGION || DEFAULT_FIREBASE_FUNCTIONS_REGION;
-
-if (isDevelopmentConfig) {
-  const workerUrl = new URL(BACKEND_WORKER_URL);
-  const productionWorkerUrl = new URL(PRODUCTION_BACKEND_WORKER_URL);
-  if (workerUrl.protocol !== "https:" || workerUrl.origin === productionWorkerUrl.origin) {
-    throw new Error("Development must use a separate HTTPS backend Worker.");
-  }
-}
 
 // ============================================================
 // ثوابت التطبيق

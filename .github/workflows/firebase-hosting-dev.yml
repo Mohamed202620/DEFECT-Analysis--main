@@ -46,33 +46,17 @@ jobs:
       - name: Build project (syntax + assets + SW build id)
         run: npm run build
 
-      - name: Validate and generate isolated dev Firebase config
-        run: node scripts/prepare-dev-deploy.mjs
+      - name: Validate shared Firebase deploy credential
+        run: node scripts/validate-production-deploy.mjs
         env:
-          FIREBASE_DEV_PROJECT_ID: ${{ vars.FIREBASE_DEV_PROJECT_ID }}
-          FIREBASE_DEV_API_KEY: ${{ vars.FIREBASE_DEV_API_KEY }}
-          FIREBASE_DEV_APP_ID: ${{ vars.FIREBASE_DEV_APP_ID }}
-          FIREBASE_DEV_AUTH_DOMAIN: ${{ vars.FIREBASE_DEV_AUTH_DOMAIN }}
-          FIREBASE_DEV_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_DEV_MESSAGING_SENDER_ID }}
-          FIREBASE_DEV_STORAGE_BUCKET: ${{ vars.FIREBASE_DEV_STORAGE_BUCKET }}
-          FIREBASE_DEV_FUNCTIONS_REGION: ${{ vars.FIREBASE_DEV_FUNCTIONS_REGION }}
-          FIREBASE_DEV_BACKEND_WORKER_URL: ${{ vars.FIREBASE_DEV_BACKEND_WORKER_URL }}
-          FIREBASE_DEV_HOSTING_SITE: ${{ vars.FIREBASE_DEV_HOSTING_SITE }}
-          FIREBASE_DEV_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_DEV_SERVICE_ACCOUNT }}
-
-      - name: Verify isolated dev Worker configuration
-        run: node scripts/verify-dev-worker.mjs
-        env:
-          FIREBASE_DEV_PROJECT_ID: ${{ vars.FIREBASE_DEV_PROJECT_ID }}
-          FIREBASE_DEV_HOSTING_SITE: ${{ vars.FIREBASE_DEV_HOSTING_SITE }}
-          FIREBASE_DEV_BACKEND_WORKER_URL: ${{ vars.FIREBASE_DEV_BACKEND_WORKER_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase Hosting
         # FirebaseExtended/action-hosting-deploy v0 tag (pinned commit)
         uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
         with:
-          firebaseServiceAccount: ${{ secrets.FIREBASE_DEV_SERVICE_ACCOUNT }}
-          projectId: ${{ vars.FIREBASE_DEV_PROJECT_ID }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: maintenance-defect-system
           channelId: live
           target: dev
           disableComment: true
