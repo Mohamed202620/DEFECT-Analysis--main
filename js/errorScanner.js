@@ -1112,7 +1112,7 @@ function renderFoundError(data) {
 
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.errorCodeLabel}</div>
-        <div class="font-bold text-blue-400">${data.errorCode || '-'}</div>
+        <div class="font-bold text-blue-400">${escapeHtml(data.errorCode || '-')}</div>
       </div>
 
       ${data.machine || data.line ? `
@@ -1123,17 +1123,17 @@ function renderFoundError(data) {
 
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.causeLabel}</div>
-        <div class="text-gray-100">${data.cause || tr.notSpecified}</div>
+        <div class="text-gray-100">${escapeHtml(data.cause || tr.notSpecified)}</div>
       </div>
 
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.solutionLabel}</div>
-        <div class="text-gray-100">${data.solution || tr.notSpecified}</div>
+        <div class="text-gray-100">${escapeHtml(data.solution || tr.notSpecified)}</div>
       </div>
 
       <div class="text-sm">
         <div class="text-gray-400 text-[11px]">${tr.stepsLabel}</div>
-        <div class="text-gray-100 whitespace-pre-line">${data.steps || tr.notSpecified}</div>
+        <div class="text-gray-100 whitespace-pre-line">${escapeHtml(data.steps || tr.notSpecified)}</div>
       </div>
 
       <div class="grid grid-cols-1 gap-2 pt-2">

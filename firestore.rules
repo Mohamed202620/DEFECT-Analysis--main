@@ -121,6 +121,156 @@ service cloud.firestore {
       return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
     }
 
+    function requestReferencesMachineInDepartment() {
+      let machinePath = /databases/$(database)/documents/machineTypes/$(request.resource.data.machineTypeId);
+      return request.resource.data.machineTypeId is string
+          && exists(machinePath)
+          && get(machinePath).data.department == request.resource.data.department
+          && get(machinePath).data.get("active", true) == true
+          && (
+            (
+              request.resource.data.get("machineUnit", "") == ""
+              && request.resource.data.machine == get(machinePath).data.key
+            )
+            ||
+            (
+              request.resource.data.machineUnit is string
+              && request.resource.data.machineUnit in get(machinePath).data.get("units", [])
+              && request.resource.data.machine == get(machinePath).data.key + " " + request.resource.data.machineUnit
+            )
+          );
+    }
+
+    function ticketLogMatchesTransition(ticketId) {
+      let ticketPath = /databases/$(database)/documents/tickets/$(ticketId);
+      let before = get(ticketPath);
+      let after = getAfter(ticketPath);
+      return exists(ticketPath)
+          && existsAfter(ticketPath)
+          && before.data.get("updatedAt", null) != after.data.get("updatedAt", null)
+          && before.data.status == request.resource.data.fromStatus
+          && after.data.status == request.resource.data.toStatus
+          && (
+            (
+              request.resource.data.action == "assign"
+              && request.resource.data.fromStatus == "pending"
+              && request.resource.data.toStatus == "assigned"
+              && (isAdmin() || isManagerRole())
+            )
+            ||
+            (
+              request.resource.data.action == "reassign"
+              && request.resource.data.fromStatus in ["assigned", "in_progress", "reopened"]
+              && request.resource.data.toStatus == "assigned"
+              && (isAdmin() || isManagerRole())
+            )
+            ||
+            (
+              request.resource.data.action == "start"
+              && request.resource.data.fromStatus == "assigned"
+              && request.resource.data.toStatus == "in_progress"
+            )
+            ||
+            (
+              request.resource.data.action == "resolve"
+              && request.resource.data.fromStatus in ["pending", "assigned", "in_progress", "reopened"]
+              && request.resource.data.toStatus == "resolved"
+            )
+            ||
+            (
+              request.resource.data.action == "close"
+              && request.resource.data.fromStatus == "resolved"
+              && request.resource.data.toStatus == "closed"
+            )
+            ||
+            (
+              request.resource.data.action == "reject"
+              && request.resource.data.fromStatus == "resolved"
+              && request.resource.data.toStatus == "in_progress"
+            )
+            ||
+            (
+              request.resource.data.action == "reopen"
+              && request.resource.data.fromStatus == "resolved"
+              && request.resource.data.toStatus == "reopened"
+            )
+            ||
+            (
+              request.resource.data.action in ["decline", "release"]
+              && request.resource.data.fromStatus in ["assigned", "in_progress", "reopened"]
+              && request.resource.data.toStatus == "pending"
+            )
+            ||
+            (
+              request.resource.data.action == "shift_update"
+              && request.resource.data.fromStatus in ["pending", "assigned", "in_progress", "reopened", "resolved"]
+              && request.resource.data.toStatus == request.resource.data.fromStatus
+              && after.data.get("lastShiftUpdate", {}).get("reporterUid", "") == request.auth.uid
+            )
+          );
+    }
+
+    function suggestionLogMatchesTransition(suggestionId) {
+      let suggestionPath = /databases/$(database)/documents/suggestions/$(suggestionId);
+      let before = get(suggestionPath);
+      let after = getAfter(suggestionPath);
+      return exists(suggestionPath)
+          && existsAfter(suggestionPath)
+          && before.data.get("updatedAt", null) != after.data.get("updatedAt", null)
+          && before.data.status == request.resource.data.fromStatus
+          && after.data.status == request.resource.data.toStatus
+          && (
+            (
+              request.resource.data.action == "review"
+              && request.resource.data.fromStatus == "new"
+              && request.resource.data.toStatus == "under_review"
+              && isAdmin()
+            )
+            ||
+            (
+              request.resource.data.action == "reject"
+              && request.resource.data.fromStatus in ["new", "under_review"]
+              && request.resource.data.toStatus == "rejected"
+              && isAdmin()
+            )
+            ||
+            (
+              request.resource.data.action == "request_revision"
+              && request.resource.data.fromStatus == "under_review"
+              && request.resource.data.toStatus == "revision_requested"
+              && isAdmin()
+            )
+            ||
+            (
+              request.resource.data.action == "return_to_review"
+              && request.resource.data.fromStatus == "revision_requested"
+              && request.resource.data.toStatus == "under_review"
+              && isAdmin()
+            )
+            ||
+            (
+              request.resource.data.action == "resubmit"
+              && request.resource.data.fromStatus == "revision_requested"
+              && request.resource.data.toStatus == "under_review"
+              && before.data.get("submittedByUid", "") == request.auth.uid
+            )
+            ||
+            (
+              request.resource.data.action == "approve_assign"
+              && request.resource.data.fromStatus == "under_review"
+              && request.resource.data.toStatus == "in_progress"
+              && isAdmin()
+            )
+            ||
+            (
+              request.resource.data.action == "implement"
+              && request.resource.data.fromStatus == "in_progress"
+              && request.resource.data.toStatus == "implemented"
+              && (isAdmin() || before.data.get("assignedToUid", "") == request.auth.uid)
+            )
+          );
+    }
+
     // ==========================================================
     // users
     // ==========================================================
@@ -355,7 +505,23 @@ service cloud.firestore {
       // يقرأها هو أصلاً (نفس شرط قراءة التذكرة)
       match /logs/{logId} {
         allow read: if isActive();
-        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow create: if isActive()
+                      && request.resource.data.keys().hasOnly(
+                           ["action", "fromStatus", "toStatus", "note", "by", "byUid", "byRole", "at"])
+                      && request.resource.data.byUid == request.auth.uid
+                      && request.resource.data.byRole == myRole()
+                      && request.resource.data.by == myProfile().name
+                      && request.resource.data.action in [
+                           "assign", "reassign", "start", "resolve", "close", "reject",
+                           "reopen", "decline", "release", "shift_update"
+                         ]
+                      && request.resource.data.fromStatus is string
+                      && request.resource.data.toStatus is string
+                      && request.resource.data.note is string
+                      && request.resource.data.note.size() <= 5000
+                      && request.resource.data.at is string
+                      && request.resource.data.at.size() <= 64
+                      && ticketLogMatchesTransition(ticketId);
         allow update, delete: if false;
       }
     }
@@ -462,14 +628,7 @@ service cloud.firestore {
       // ده تاني على نفس السجل
       allow update: if isActive()
                     && resource.data.status == "revision_requested"
-                    && (
-                         resource.data.submittedByUid == request.auth.uid
-                         ||
-                         (
-                           !("submittedByUid" in resource.data)
-                           && resource.data.name == myProfile().name
-                         )
-                       )
+                    && resource.data.get("submittedByUid", "") == request.auth.uid
                     && request.resource.data.status == "under_review"
                     && request.resource.data.title is string
                     && request.resource.data.title.size() > 0
@@ -491,7 +650,23 @@ service cloud.firestore {
       // tickets/{ticketId}/logs بالضبط
       match /logs/{logId} {
         allow read: if isActive();
-        allow create: if isActive() && request.resource.data.byUid == request.auth.uid;
+        allow create: if isActive()
+                      && request.resource.data.keys().hasOnly(
+                           ["action", "fromStatus", "toStatus", "note", "by", "byUid", "byRole", "at"])
+                      && request.resource.data.byUid == request.auth.uid
+                      && request.resource.data.byRole == myRole()
+                      && request.resource.data.by == myProfile().name
+                      && request.resource.data.action in [
+                           "review", "reject", "request_revision", "return_to_review",
+                           "resubmit", "approve_assign", "implement"
+                         ]
+                      && request.resource.data.fromStatus is string
+                      && request.resource.data.toStatus is string
+                      && request.resource.data.note is string
+                      && request.resource.data.note.size() <= 5000
+                      && request.resource.data.at is string
+                      && request.resource.data.at.size() <= 64
+                      && suggestionLogMatchesTransition(suggestionId);
         allow update, delete: if false;
       }
     }
@@ -632,14 +807,35 @@ service cloud.firestore {
     match /machineErrors/{errorId} {
       allow read: if isActive();
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly([
+                         "errorCode", "errorMessage", "machine", "line", "cause", "solution",
+                         "steps", "createdBy", "department", "machineTypeId", "machineUnit",
+                         "imageUrl", "status", "createdAt"
+                       ])
                     && request.resource.data.errorCode is string
                     && request.resource.data.errorCode.size() > 0
                     && request.resource.data.errorCode.size() <= 256
                     && errorId == "error_" + request.resource.data.errorCode
                     && request.resource.data.status == "pending_review"
                     && request.resource.data.department in ["backend", "frontend"]
+                    && request.resource.data.machine is string
+                    && request.resource.data.machine.size() > 0
+                    && request.resource.data.machine.size() <= 256
+                    && request.resource.data.get("errorMessage", "") is string
+                    && request.resource.data.get("errorMessage", "").size() <= 5000
+                    && request.resource.data.get("cause", "") is string
+                    && request.resource.data.get("cause", "").size() <= 5000
+                    && request.resource.data.get("solution", "") is string
+                    && request.resource.data.get("solution", "").size() <= 5000
+                    && request.resource.data.get("steps", "") is string
+                    && request.resource.data.get("steps", "").size() <= 5000
+                    && request.resource.data.get("line", "") is string
+                    && request.resource.data.get("line", "").size() <= 120
+                    && request.resource.data.createdBy is map
+                    && request.resource.data.createdBy.keys().hasOnly(["name", "phone", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment);
+                        || request.resource.data.department == myProfile().machineDepartment)
+                    && requestReferencesMachineInDepartment();
       allow update: if isActive() && (isAdmin() || isManagerRole())
                     && resource.data.status == "pending_review"
                     && request.resource.data.status == "verified"
@@ -653,9 +849,24 @@ service cloud.firestore {
     match /machineErrorLogs/{logId} {
       allow read: if isActive();
       allow create: if isActive()
+                    && request.resource.data.keys().hasOnly([
+                         "errorCode", "machine", "line", "scannedBy", "department",
+                         "machineTypeId", "machineUnit", "imageUrl", "scannedAt"
+                       ])
                     && request.resource.data.department in ["backend", "frontend"]
+                    && request.resource.data.errorCode is string
+                    && request.resource.data.errorCode.size() > 0
+                    && request.resource.data.errorCode.size() <= 256
+                    && request.resource.data.machine is string
+                    && request.resource.data.machine.size() > 0
+                    && request.resource.data.machine.size() <= 256
+                    && request.resource.data.get("line", "") is string
+                    && request.resource.data.get("line", "").size() <= 120
+                    && request.resource.data.scannedBy is map
+                    && request.resource.data.scannedBy.keys().hasOnly(["name", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment);
+                        || request.resource.data.department == myProfile().machineDepartment)
+                    && requestReferencesMachineInDepartment();
       // سجل تكرار تلقائي فقط (Append-Only) - بلا تعديل أو حذف، بنفس
       // مبدأ /tickets/{ticketId}/logs فوق
       allow update, delete: if false;
@@ -666,7 +877,8 @@ service cloud.firestore {
       allow create: if isActive()
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment);
+                        || request.resource.data.department == myProfile().machineDepartment)
+                    && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }
 
@@ -686,7 +898,8 @@ service cloud.firestore {
                     && request.resource.data.type in ["am", "5s"]
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment);
+                        || request.resource.data.department == myProfile().machineDepartment)
+                    && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }
 

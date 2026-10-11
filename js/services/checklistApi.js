@@ -7,7 +7,11 @@
 // ============================================================
 
 import { db } from "../providers/backend/index.js";
-import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
+import {
+  getDepartmentForMachineValue,
+  getCurrentUserMachineContext,
+  getMachineTypeReference
+} from "../machines.js";
 import { uploadBase64Images } from "./imageUpload.js";
 
 import {
@@ -34,6 +38,10 @@ async function saveChecklistRecord(type, payload) {
       getDepartmentForMachineValue(payload?.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(payload?.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
     // رفع صور بنود "Not OK" (لو موجودة) قبل الحفظ - نفس أسلوب
     // saveIssueApi (uploadBase64Images ثم تخزين الروابط فقط)
@@ -57,6 +65,7 @@ async function saveChecklistRecord(type, payload) {
 
     const docRef = await addDoc(collection(db, "machineChecklists"), {
       ...payload,
+      ...machineReference,
       items: itemsWithUploadedPhotos,
       type,
       department,

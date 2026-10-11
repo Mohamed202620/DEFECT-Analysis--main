@@ -510,19 +510,13 @@ export async function returnSuggestionToReviewApi(suggestionId) {
  */
 export async function resubmitSuggestionApi(suggestionId, { title, line, machine, category, problem, solution, impact, images } = {}) {
   const myUid = localStorage.getItem("userId") || "";
-  const myName = localStorage.getItem("name") || "";
   try {
     const suggestion = await getSuggestionSnapshot(suggestionId);
     if (!suggestion || suggestion.status !== "revision_requested") {
       return { status: "error", message: "إعادة الإرسال متاحة فقط للمقترحات في حالة يحتاج تعديل" };
     }
 
-    // نفس احتياطي الملكية المُضاف في getSuggestionActions (permissions.js):
-    // submittedByUid هو المرجع الأساسي، وبيتم الرجوع للاسم فقط لو
-    // الحقل ده فاضي/غير موجود على السجل (مقترحات قديمة سابقة لإضافته)
-    const isOwner =
-      (!!suggestion.submittedByUid && suggestion.submittedByUid === myUid) ||
-      (!suggestion.submittedByUid && !!myName && suggestion.name === myName);
+    const isOwner = !!suggestion.submittedByUid && suggestion.submittedByUid === myUid;
 
     if (!isOwner) {
       return { status: "error", message: "إعادة الإرسال متاحة فقط لصاحب المقترح نفسه" };
@@ -550,11 +544,6 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
         ...(impact && impact.trim() && { impact: impact.trim() }),
         ...(finalImageUrls.length > 0 && { imageUrls: finalImageUrls }),
 
-        // تصحيح ذاتي لسجل قديم مفيهوش submittedByUid: بنثبّته دلوقتي
-        // على معرّف المستخدم الحالي (صاحب المقترح الفعلي حسب الاسم)
-        // عشان الإشعارات وأزرار التحكم القادمة (طلب تعديل تاني، رفض،
-        // تنفيذ...) تشتغل صح من هنا وطالع، من غير ما تتكرر المشكلة
-        ...(!suggestion.submittedByUid && myUid && { submittedByUid: myUid })
       }),
       {
         action: "resubmit", fromStatus: "revision_requested", toStatus: "under_review",

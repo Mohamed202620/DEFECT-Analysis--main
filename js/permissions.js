@@ -283,18 +283,14 @@ window.getTicketActions = getTicketActions;
 // ============================================================
 
 export function getSuggestionActions(suggestion) {
-
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
-  const myName = localStorage.getItem("name") || "";
   const status = String(suggestion?.status || "new").trim().toLowerCase();
 
   const isAdmin = isAdminRole(role);
   const isAssignedTechnician = !!myUid && suggestion?.assignedToUid === myUid;
 
-  const isOwner =
-    (!!suggestion?.submittedByUid && suggestion.submittedByUid === myUid) ||
-    (!suggestion?.submittedByUid && !!myName && suggestion?.name === myName);
+  const isOwner = !!suggestion?.submittedByUid && suggestion.submittedByUid === myUid;
 
   const actions = [];
 

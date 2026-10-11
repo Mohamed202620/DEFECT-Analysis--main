@@ -347,6 +347,15 @@ export function findMachineEntryByValue(fullValue) {
   return null;
 }
 
+export function getMachineTypeReference(fullValue) {
+  const match = findMachineEntryByValue(fullValue);
+  if (!match?.entry?.id) return null;
+  return {
+    machineTypeId: match.entry.id,
+    ...(match.unit ? { machineUnit: String(match.unit) } : {})
+  };
+}
+
 /**
  * حل قيمة ماكينة بالكامل: وجودها فعلياً + قسمها + خط إنتاجها +
  * صيغتها المعيارية المستخدمة في كل التطبيق.

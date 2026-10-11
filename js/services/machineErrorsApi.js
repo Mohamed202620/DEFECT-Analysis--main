@@ -7,7 +7,11 @@
 
 import { db } from "../providers/backend/index.js";
 import { uploadBase64Image } from "./imageUpload.js";
-import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
+import {
+  getDepartmentForMachineValue,
+  getCurrentUserMachineContext,
+  getMachineTypeReference
+} from "../machines.js";
 
 import {
   collection,
@@ -172,9 +176,14 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
       getDepartmentForMachineValue(restPayload.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(restPayload.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
     await setDoc(errorRef, {
       ...restPayload,
+      ...machineReference,
       errorCode: normalized,
       department,
       ...(imageUrl && { imageUrl }),
@@ -272,11 +281,16 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
       getDepartmentForMachineValue(restPayload.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(restPayload.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
     const docRef = await addDoc(
       collection(db, "machineErrorLogs"),
       {
         ...restPayload,
+        ...machineReference,
         errorCode: normalized,
         department,
         ...(imageUrl && { imageUrl }),

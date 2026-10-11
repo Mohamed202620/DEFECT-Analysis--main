@@ -22,6 +22,7 @@ const t = async (name, fn) => {
 
 // ---------- escapeHtml ----------
 const { escapeHtml, escapeJsArg, safeUrl } = await import("../js/utils/escapeHtml.js");
+const { parseQrPayload } = await import("../js/utils/qrPayload.js");
 console.log("escapeHtml");
 await t("يهرّب وسوم HTML وعلامات التنصيص", () => {
   assert.equal(escapeHtml(`<img src=x onerror=alert(1)>`), "&lt;img src=x onerror=alert(1)&gt;");
@@ -35,6 +36,14 @@ await t("escapeJsArg لا يسمح بالخروج من سلسلة onclick", () =
 await t("safeUrl يرفض javascript:", () => {
   assert.equal(safeUrl("javascript:alert(1)"), "");
   assert.ok(safeUrl("https://i.ibb.co/a.png").startsWith("https://"));
+});
+await t("QR payload parsing preserves raw machine values and extracts structured machine IDs", () => {
+  assert.deepEqual(parseQrPayload("Bodymaker 01"), { value: "Bodymaker 01", line: "" });
+  assert.deepEqual(parseQrPayload("MID:machine-backend"), { value: "machine-backend", line: "" });
+  assert.deepEqual(parseQrPayload('{"m":"Bodymaker","u":"01","line":"1"}'), {
+    value: "Bodymaker 01",
+    line: "1"
+  });
 });
 const issueViewSource = await readFile(new URL("../js/views/issueView.js", import.meta.url), "utf8");
 await t("اسم المُبلّغ في تحذير البلاغ النشط يمر عبر escapeHtml", () => {
@@ -261,10 +270,13 @@ await t("checklist history reads are bounded and covered by a composite index", 
     )
   ));
 });
-await t("main and dev deployment workflows stop when npm test fails", () => {
+await t("deployment workflows require app and rules tests and immutable action pins", () => {
   for (const workflow of [mainWorkflowSource, devWorkflowSource]) {
     assert.ok(workflow.includes("run: npm test"));
     assert.ok(!workflow.includes("continue-on-error"));
+    assert.ok(workflow.includes("run: npm run test:rules"));
+    assert.match(workflow, /uses:\s*[^@\n]+@[0-9a-f]{40}/i);
+    assert.doesNotMatch(workflow, /uses:\s*[^@\n]+@v\d+/i);
   }
 });
 const [machineErrorsSource, errorScannerSource, knowledgeBaseSource, firestoreRules, firestoreIndexes, suggestionsSource] = await Promise.all([
@@ -285,6 +297,15 @@ await t("machine-error writes enforce pending review and stable code identity", 
   assert.ok(machineErrorsSource.includes('doc(db, "machineErrors", machineErrorDocumentId(normalized))'));
   assert.ok(machineErrorsSource.includes('status: "pending_review"'));
   assert.ok(machineErrorsSource.includes('existing.status !== "success"'));
+  assert.ok(machineErrorsSource.includes("getMachineTypeReference(restPayload.machine)"));
+  assert.ok(pmApiSource.includes("getMachineTypeReference(payload.machine)"));
+  assert.ok(checklistApiSource.includes("getMachineTypeReference(payload?.machine)"));
+});
+await t("untrusted machine-error content is escaped before HTML rendering", () => {
+  assert.match(errorScannerSource, /\$\{escapeHtml\(data\.(errorCode|cause|solution|steps)/);
+  for (const field of ["errorCode", "cause", "solution", "steps"]) {
+    assert.ok(errorScannerSource.includes(`escapeHtml(data.${field}`), `${field} must be escaped`);
+  }
 });
 await t("machine-error history query has its index and reports retrieval errors", () => {
   const indexes = JSON.parse(firestoreIndexes);
@@ -617,6 +638,14 @@ await t("المدير يستطيع تأكيد إصلاح ذاتي قام به غ
   asUser("manager", "M1", "Mona");
   const k = keys({ status: "resolved", isSelfResolved: true, resolvedByUid: "U9", reportedByUid: "U9", reportedBy: "Ali" });
   assert.ok(k.includes("confirm"), k.join(","));
+});
+await t("تطابق الاسم وحده لا يعرض إعادة إرسال مقترح قديم بلا submittedByUid", () => {
+  asUser("technician", "U2", "Ali");
+  const actions = PERM.getSuggestionActions({
+    status: "revision_requested",
+    name: "Ali"
+  }).map(action => action.key);
+  assert.ok(!actions.includes("resubmit"), actions.join(","));
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
