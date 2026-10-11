@@ -69,6 +69,8 @@ let rowsVisible = false;      // true بعد أول تحليل/إضافة يدو
 let workingImage = null;      // نسخة الصورة المعالجة (إضاءة/ميل/قص) لإعادة قراءة سطر - الأصل في scannedFile
 let rowKb = [];               // قاعدة المعرفة المستخدمة في آخر تقييم
 let nextRowId = 1;
+let activeScanRowId = null;
+let scannerSearchRequest = 0;
 
 // ============================================================
 // تحميل مكتبة Tesseract.js بشكل كسول (مرة واحدة فقط عند الحاجة)
@@ -469,15 +471,85 @@ window.errRowApprove = async function (id) {
     alert(t().enterCodeFirst);
     return;
   }
-  row.approved = true;
-  refreshRowCard(id);
+  activeScanRowId = row.id;
   const codeInput = el('errScanCode');
   const messageInput = el('errScanMessage');
   if (codeInput) codeInput.value = row.code;
   if (messageInput) messageInput.value = row.message || '';
   await window.searchMachineError(row.code);
-  el('errorScanResults')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+
+window.errRowNavigate = function (direction) {
+  const currentIndex = scanRows.findIndex(row => row.id === activeScanRowId);
+  const nextRow = scanRows[currentIndex + Number(direction)];
+  if (nextRow) window.errRowApprove(nextRow.id);
+};
+
+window.closeErrorScannerResult = function () {
+  scannerSearchRequest++;
+  const rowId = activeScanRowId;
+  activeScanRowId = null;
+  const resultsBox = el('errorScanResults');
+  if (resultsBox) resultsBox.innerHTML = '';
+  if (rowId) el(`errRowApproveBtn_${rowId}`)?.focus({ preventScroll: true });
+};
+
+function showScannerResultModal(content) {
+  const resultsBox = el('errorScanResults');
+  if (!resultsBox) return;
+
+  const tr = t();
+  const rowIndex = scanRows.findIndex(row => row.id === activeScanRowId);
+  const hasActiveRow = rowIndex >= 0;
+  const currentRow = hasActiveRow ? scanRows[rowIndex] : null;
+  const progress = hasActiveRow
+    ? tr.resultProgress
+      .replace('{current}', String(rowIndex + 1))
+      .replace('{total}', String(scanRows.length))
+      .replace('{code}', currentRow.code)
+    : '';
+  const navigation = hasActiveRow && scanRows.length > 1
+    ? `<div class="flex items-center justify-between gap-2">
+        <button type="button" onclick="window.errRowNavigate(-1)" ${rowIndex === 0 ? 'disabled' : ''}
+          class="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-xs font-bold text-white disabled:opacity-40">${escapeHtml(tr.previousFault)}</button>
+        <span class="text-[11px] text-indigo-200 font-bold text-center">${escapeHtml(progress)}</span>
+        <button type="button" onclick="window.errRowNavigate(1)" ${rowIndex === scanRows.length - 1 ? 'disabled' : ''}
+          class="px-3 py-2 rounded-lg bg-indigo-600 border border-indigo-500 text-xs font-bold text-white disabled:opacity-40">${escapeHtml(tr.nextFault)}</button>
+      </div>`
+    : '';
+
+  resultsBox.innerHTML = `
+    <div class="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5" role="dialog" aria-modal="true" aria-label="${escapeHtml(tr.resultDialogTitle)}">
+      <button type="button" tabindex="-1" aria-label="${escapeHtml(tr.closeDetails)}" onclick="window.closeErrorScannerResult()"
+        class="absolute inset-0 bg-black/75 backdrop-blur-sm"></button>
+      <section class="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-600 bg-[#0F172A] p-3 sm:p-4 shadow-2xl space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <h3 class="text-sm font-black text-indigo-300">${escapeHtml(tr.resultDialogTitle)}</h3>
+            ${hasActiveRow && scanRows.length === 1 ? `<p class="text-[11px] text-gray-400 mt-1">${escapeHtml(progress)}</p>` : ''}
+          </div>
+          <button type="button" aria-label="${escapeHtml(tr.closeDetails)}" onclick="window.closeErrorScannerResult()"
+            class="shrink-0 w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-lg font-bold">×</button>
+        </div>
+        ${navigation}
+        ${content}
+      </section>
+    </div>`;
+  resultsBox.querySelector('section > div button')?.focus({ preventScroll: true });
+}
+
+function markActiveScanRowReviewed() {
+  const row = findRow(activeScanRowId);
+  if (!row || row.approved) return;
+  row.approved = true;
+  refreshRowCard(row.id);
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && el('errorScanResults')?.querySelector('[role="dialog"]')) {
+    window.closeErrorScannerResult();
+  }
+});
 
 // إعادة قراءة هذا السطر فقط (من الصورة المعالجة، بموضعه المحفوظ). القيم الحالية ما بتتغيرش لو فشلت
 window.errRowReread = async function (id) {
@@ -750,6 +822,8 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
+  scannerSearchRequest++;
+  activeScanRowId = null;
   await loadScreenFile(file);
 });
 
@@ -884,6 +958,7 @@ function setupCropSelector() {
 // الحقول من الـ DOM. الاستدعاء العادي من الزر (بدون parameters) يفضل
 // شغال بالظبط زي ما كان.
 window.searchMachineError = async function (overrideCode, overrideManual) {
+  const searchRequest = ++scannerSearchRequest;
 
   const codeInput = el('errScanCode');
   const code = (overrideCode !== undefined && overrideCode !== null && overrideCode !== '')
@@ -901,18 +976,15 @@ window.searchMachineError = async function (overrideCode, overrideManual) {
   }
 
   const resultsBox = el('errorScanResults');
-  if (resultsBox) {
-    resultsBox.innerHTML = `<div class="text-center text-gray-400 text-xs py-6">${t().searchingKb}</div>`;
-  }
+  showScannerResultModal(`<div class="text-center text-gray-400 text-xs py-6">${escapeHtml(t().searchingKb)}</div>`);
 
   // أولاً: البحث برقم العطل إن وجد
   if (code) {
     const result = await findMachineErrorByCode(code);
+    if (searchRequest !== scannerSearchRequest) return;
 
     if (result.status !== 'success') {
-      if (resultsBox) {
-        resultsBox.innerHTML = `<div class="text-center text-red-400 text-xs py-6">❌ ${escapeHtml(result.message || t().genericSearchError)}</div>`;
-      }
+      showScannerResultModal(`<div class="text-center text-red-400 text-xs py-6">❌ ${escapeHtml(result.message || t().genericSearchError)}</div>`);
       return;
     }
 
@@ -921,6 +993,7 @@ window.searchMachineError = async function (overrideCode, overrideManual) {
 
       if (selectedMachineType) {
         const sameCodeErrors = await fetchMachineErrorsByCode(code);
+        if (searchRequest !== scannerSearchRequest) return;
         const matchedByMachine = chooseErrorByMachineType(sameCodeErrors, selectedMachineType);
 
         if (sameCodeErrors.length > 1 && !matchedByMachine) {
@@ -944,6 +1017,7 @@ window.searchMachineError = async function (overrideCode, overrideManual) {
   // ثانياً: البحث اليدوي إن كان هناك نص
   if (manualSearch) {
     const candidates = await searchMachineErrorsByText(manualSearch);
+    if (searchRequest !== scannerSearchRequest) return;
 
     if (candidates.length) {
       const matchedByMachine = chooseErrorByMachineType(candidates, selectedMachineType);
@@ -974,6 +1048,7 @@ window.searchMachineError = async function (overrideCode, overrideManual) {
 function renderFoundError(data) {
   const resultsBox = el('errorScanResults');
   if (!resultsBox) return;
+  markActiveScanRowReviewed();
 
   const tr = t();
   const isPending = data.status === 'pending_review';
@@ -982,7 +1057,7 @@ function renderFoundError(data) {
     typeof window.hasPermission === 'function' &&
     window.hasPermission('machines');
 
-  resultsBox.innerHTML = `
+  showScannerResultModal(`
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-lg space-y-3">
 
       <div class="flex items-center justify-between">
@@ -1041,7 +1116,7 @@ function renderFoundError(data) {
       <div id="errorHistoryBox" class="pt-2"></div>
 
     </div>
-  `;
+  `);
 }
 
 // ============================================================
@@ -1084,10 +1159,11 @@ async function loadErrorHistory(code) {
 function renderNotFound(code) {
   const resultsBox = el('errorScanResults');
   if (!resultsBox) return;
+  markActiveScanRowReviewed();
 
   const tr = t();
 
-  resultsBox.innerHTML = `
+  showScannerResultModal(`
     <div class="bg-[#1E293B] rounded-2xl p-4 border border-red-500/30 shadow-lg space-y-3">
       <h3 class="text-sm font-bold text-red-400">${tr.notFoundTitle}</h3>
       <p class="text-[11px] text-gray-400">${tr.notFoundDesc}</p>
@@ -1125,7 +1201,7 @@ function renderNotFound(code) {
         ${tr.addNewBtn}
       </button>
     </div>
-  `;
+  `);
 }
 
 // ============================================================
@@ -1233,6 +1309,8 @@ const _verifyMachineError = async function (errorId) {
 
 window.resetErrorScanner = function () {
 
+  scannerSearchRequest++;
+  activeScanRowId = null;
   scannedImage = null;
   scannedFile = null;
   lastFoundError = null;
