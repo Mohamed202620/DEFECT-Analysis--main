@@ -214,16 +214,21 @@ async function recognizeRegion(source, rect) {
 // قراءة الشاشة كاملة بقراءتين (قطبية النص فاتح / غامق)، كتلة نص (PSM 6)
 async function recognizeDocument(doc) {
   const worker = await getLineOcrWorker();
-  const run = async image => {
-    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+  const run = async (image, mode) => {
+    await worker.setParameters({ tessedit_pageseg_mode: mode });
     return worker.recognize(image);
   };
-  const a = await run(doc.enhanced);
-  const b = await run(doc.inverted);
+  const a = await run(doc.enhanced, '6');
+  const b = await run(doc.inverted, '6');
+  const sparse = await run(doc.enhanced, '11');
+  const linesA = readLines(a);
+  const linesB = readLines(b);
+  const sparseLines = readLines(sparse);
   return {
-    linesA: readLines(a),
-    linesB: readLines(b),
-    rawText: String(a?.data?.text || '').trim()
+    linesA,
+    linesB,
+    sparseLines,
+    rawText: [a, b, sparse].map(result => String(result?.data?.text || '').trim()).filter(Boolean).join('\n---\n')
   };
 }
 
@@ -628,14 +633,14 @@ async function runAnalyzeAll() {
       const doc = await prepareDocumentImage(scannedFile, options);
       setStatus(t().readingOcr, false, true);
       const read = await recognizeDocument(doc);
-      const analyzed = analyzeAlarmReadSets([read.linesA, read.linesB], rowKb, { machineType });
+      const analyzed = analyzeAlarmReadSets([read.linesA, read.linesB, read.sparseLines], rowKb, { machineType });
       return { doc, read, rows: analyzed.rows, ignored: analyzed.ignored };
     };
 
     let best = await attempt(null);
 
     // حرف صغير جداً أو كبير جداً على Tesseract: نعيد المحاولة بمقياس يخلّي ارتفاع السطر ~40px
-    const median = medianLineHeight([...best.read.linesA, ...best.read.linesB]);
+    const median = medianLineHeight([...best.read.linesA, ...best.read.linesB, ...best.read.sparseLines]);
     if (median && (median < 22 || median > 90)) {
       const longEdge = Math.max(best.doc.sourceWidth, best.doc.sourceHeight);
       const scale = Math.min(4200 / longEdge, Math.max(0.3, best.doc.scale * (40 / median)));
@@ -680,7 +685,31 @@ async function runAnalyzeAll() {
     el('errScanRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch (error) {
     console.error('OCR Error:', error);
-    setStatus(t().ocrError, true);
+    try {
+      setStatus(t().ocrFallback, false, true);
+      const legacy = await recognizeMachineScreen(scannedFile);
+      const fallback = analyzeAlarmReadSets(legacy.reads, rowKb, { machineType: currentMachineType() });
+      if (fallback.rows.length) {
+        scanRows = fallback.rows.map(row => evaluateRow(row, rowKb, { machineType: currentMachineType() }));
+        scanIgnored = fallback.ignored;
+        rowsVisible = true;
+        nextRowId = scanRows.length + 1;
+        showRawText([legacy.rawText, ...legacy.reads.map(lines => lines.map(line => line.text).filter(Boolean).join('\n'))]
+          .filter(Boolean)
+          .join('\n---\n'), false);
+        renderRows();
+        setStatus(t().rowsFound.replace('{n}', scanRows.length));
+        el('errScanRows')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      showRawText([legacy.rawText, ...legacy.reads.map(lines => lines.map(line => line.text).filter(Boolean).join('\n'))]
+        .filter(Boolean)
+        .join('\n---\n'), true);
+      setStatus(t().rowsNone, true);
+    } catch (fallbackError) {
+      console.error('Fallback OCR Error:', fallbackError);
+      setStatus(t().ocrError, true);
+    }
   } finally {
     isScanning = false;
     setScanButtonsDisabled(false);

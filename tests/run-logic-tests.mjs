@@ -133,6 +133,13 @@ await t("عدة أعطال في شاشة واحدة: صفوف منفصلة بل�
   assert.ok(!ignored.includes("ALARM HISTORY"));
   assert.equal(analyzeAlarmRows(ocrLines(["Main menu", "Speed 120 ppm", "شاشة التحكم"]), OCR_KB).rows.length, 0);
 });
+await t("يتعرف على كود قاعدة المعرفة عندما يقرأ OCR الكود وحده", () => {
+  const { rows } = analyzeAlarmRows(ocrLines(["ALARM HISTORY", "059", "SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB, { machineType: "Palletizer" });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].code, "059");
+  assert.equal(rows[0].status, "matched");
+  assert.equal(analyzeAlarmRows(ocrLines(["999"]), OCR_KB, { machineType: "Palletizer" }).rows.length, 0);
+});
 await t("قراءات OCR الاحتياطية تُحلل وتُدمج بدل عرضها كنص خام فقط", () => {
   const fallback = analyzeAlarmReadSets([
     ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 72),

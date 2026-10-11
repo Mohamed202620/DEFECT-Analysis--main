@@ -381,7 +381,13 @@ export function analyzeAlarmRows(lines, kbEntries = [], { machineType = '' } = {
     const text = String(typeof entry === 'string' ? entry : entry.text || '').trim();
     const lineConfidence = typeof entry === 'string' ? 0 : Number(entry.confidence) || 0;
     // قراءة شبه عشوائية (ثقة < 30): مش عطل، ومايتعرضش كصف (بيظهر في الأسطر غير المفهومة فقط)
-    const parsed = lineConfidence > 0 && lineConfidence < 30 ? null : parseAlarmLine(text, { knownCodes });
+    let parsed = lineConfidence > 0 && lineConfidence < 30 ? null : parseAlarmLine(text, { knownCodes });
+    if (!parsed && !(lineConfidence > 0 && lineConfidence < 30)) {
+      const codeOnly = normalizeCode(text);
+      if (knownCodes.has(codeOnly)) {
+        parsed = buildParsed(codeOnly, '', 'kb-code-only');
+      }
+    }
     if (!parsed) {
       // عناوين الجدول (ALARM HISTORY / Message ...) مش "أسطر غير مفهومة" - بنتجاهلها بصمت
       if (text.length >= 4 && !HEADER_WORDS.test(text.toUpperCase())) ignored.push(text);
