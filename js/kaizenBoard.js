@@ -1,4 +1,5 @@
 import { exportToPdf, PAGE_BREAK_CLASS } from './services/exportUtility.js';
+import { localDateStamp } from './utils/reportData.js';
 // ============================================================
 // kaizenBoard.js
 // لوحة متابعة الكايزن (مراجعة واعتماد المقترحات) - نفس تجربة
@@ -977,7 +978,7 @@ window.generateKaizenMonthlyReport = async function () {
     `;
 
     const title = isAr ? "💡 التقرير الشهري لمقترحات الكايزن" : "💡 Kaizen Monthly Report";
-    const filename = `kaizen-monthly-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const filename = `kaizen-monthly-report-${localDateStamp()}.pdf`;
 
     const infoRows = [
       { label: isAr ? "الفترة" : "Period", value: isAr ? `آخر ${KAIZEN_REPORT_DAYS} يوم` : `Last ${KAIZEN_REPORT_DAYS} days` }

@@ -964,10 +964,8 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 // على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً - بيقلل
 // عدد المستندات المقروءة فعلياً من Firestore في كل تقرير شهري.
 // ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
-// (reportedBy+createdAt وassignedTo+createdAt) - راجع firestore.indexes.json
-// المُرفق. لحد ما الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان
-// (عبر emptyResultOnMissingIndex) بدل ما توقع الصفحة، وهتتسجل تحذير
-// في console يوضح الحاجة للـ Index.
+// (reportedBy+createdAt وassignedTo+createdAt) - راجع firestore.indexes.json.
+// فشل الـ Index يرجع خطأ صريحاً حتى لا يظهر التقرير كأنه لا يحتوي سجلات.
 export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }) {
   try {
     const ticketsRef = collection(db, "tickets");
@@ -994,8 +992,6 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
 
     return { status: "success", data: tickets };
   } catch (error) {
-    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForReportApi");
-    if (fallback) return fallback;
     console.error("Error fetching tickets for report:", error);
     return { status: "error", message: error.message };
   }

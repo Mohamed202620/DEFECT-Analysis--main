@@ -115,6 +115,50 @@ await t("attachment processing failures are announced visibly", async () => {
   assert.match(attachmentPickerSource, /role="alert" aria-live="polite"/);
 });
 
+const reportData = await import("../js/utils/reportData.js");
+await t("custom report range includes full final day and excludes adjacent records", () => {
+  const start = new Date("2026-04-01T00:00:00");
+  const end = new Date("2026-04-02T23:59:59.999");
+  const fixture = [
+    { id: "before", createdAt: new Date(start.getTime() - 1).toISOString() },
+    { id: "start", createdAt: start.toISOString() },
+    { id: "last-millisecond", createdAt: end.toISOString() },
+    { id: "after", createdAt: new Date(end.getTime() + 1).toISOString() },
+    { id: "missing-date" }
+  ];
+  const result = reportData.filterRecordsByDateRange(fixture, "custom", "2026-04-01", "2026-04-02");
+  assert.deepEqual(result.map(record => record.id), ["start", "last-millisecond"]);
+});
+await t("invalid and reversed custom report ranges fail explicitly", () => {
+  assert.throws(
+    () => reportData.filterRecordsByDateRange([], "custom", "2026-04-03", "2026-04-02"),
+    /must not be after/
+  );
+  assert.throws(
+    () => reportData.filterRecordsByDateRange([], "custom", "not-a-date", ""),
+    /Invalid report start date/
+  );
+});
+await t("monthly ticket status totals classify reopened consistently and sum to total", () => {
+  const fixture = [
+    { status: "pending" },
+    { status: "assigned" },
+    { status: "reopened" },
+    { status: "resolved" },
+    { status: "closed" },
+    { status: "legacy-new-state" }
+  ];
+  const counts = reportData.getMonthlyTicketStatusCounts(fixture);
+  assert.deepEqual(counts, { total: 6, closed: 1, resolved: 1, inProgress: 2, pending: 2 });
+  assert.equal(counts.pending + counts.inProgress + counts.resolved + counts.closed, counts.total);
+  assert.equal(reportData.formatReportTicketStatus("reopened", true), "In Progress");
+  assert.equal(reportData.formatReportTicketStatus("reopened", false), "قيد التنفيذ");
+});
+await t("report filename date uses the local calendar date", () => {
+  const localDate = new Date(2026, 0, 1, 0, 15);
+  assert.equal(reportData.localDateStamp(localDate), "2026-01-01");
+});
+
 const { buildChecklistTemplateDocument } = await import("../js/services/checklistTemplateSync.js");
 const { isOfflineActionOwnedBy } = await import("../js/services/offlineQueue.js");
 const checklistDraft = {
@@ -157,6 +201,21 @@ const [ticketsApiSource, checklistApiSource, checklistIndexesSource, checklistVi
   readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8"),
   readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
 ]);
+const suggestionsApiSource = await readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8");
+await t("report API index failures are not returned as empty successful reports", () => {
+  const ticketsReport = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("export async function fetchTicketsForReportApi"),
+    ticketsApiSource.indexOf("export async function fetchTicketsForSearchApi")
+  );
+  const suggestionsReport = suggestionsApiSource.slice(
+    suggestionsApiSource.indexOf("export async function fetchSuggestionsForReportApi"),
+    suggestionsApiSource.indexOf("export async function fetchSuggestionsForSearchApi")
+  );
+  assert.ok(ticketsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(suggestionsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(!ticketsReport.includes('return { status: "success", data: [] }'));
+  assert.ok(!suggestionsReport.includes('return { status: "success", data: [] }'));
+});
 await t("checklist offline queue is connected to the sync dispatcher", () => {
   assert.ok(checklistViewSource.includes("loadedVersion: loadedTemplateVersion"));
   assert.ok(ticketsApiSource.includes('type === "save_checklist_template"'));

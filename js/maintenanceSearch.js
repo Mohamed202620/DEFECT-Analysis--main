@@ -1,4 +1,5 @@
 import { exportToPdf, exportToExcel, PAGE_BREAK_CLASS } from './services/exportUtility.js';
+import { localDateStamp } from './utils/reportData.js';
 // ============================================================
 // maintenanceSearch.js
 // منطق صفحة "البحث والفلترة المتقدمة" (maintenanceSearch)
@@ -842,7 +843,7 @@ window.exportMaintenanceSearchResultsPdf = async function () {
     }).join("");
 
     const title = isAr ? "🔎 تقرير البحث والفلترة المتقدمة" : "🔎 Advanced Search Report";
-    const filename = `maintenance-search-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const filename = `maintenance-search-${localDateStamp()}.pdf`;
     
     const infoRows = [
       { label: isAr ? "إجمالي النتائج" : "Total Results", value: lastFilteredList.length }

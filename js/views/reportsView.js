@@ -7,6 +7,12 @@ import {
 } from '../services/api.js';
 import { COMPANY_NAME_AR, COMPANY_NAME_EN, COMPANY_SHORT } from '../branding.js';
 import { parseTicketDate } from '../ticketStatusConstants.js';
+import {
+  filterRecordsByDateRange,
+  formatReportTicketStatus,
+  localDateStamp,
+  sortRecordsNewestFirst
+} from '../utils/reportData.js';
 
 export const ReportsView = () => {
   const isEn = window.currentLang === 'en';
@@ -222,62 +228,6 @@ window.handleReportDateFilterChange = function () {
   }
 };
 
-// ============================================================
-// دوال الفلترة المساعدة
-// ============================================================
-function getReportRecordDate(item) {
-  // نفس قراءة التاريخ المستخدمة في باقي الشاشات (Timestamp / seconds / ISO / ms)
-  return parseTicketDate(item?.createdAt || item?.date || item?.timestamp || null);
-}
-
-// إصلاح (اتساق الفلاتر مع شاشة البحث): حدود الفترات بنفس منطق
-// maintenanceSearch.js (getDateRangeBounds) بالظبط، والسجلات بدون تاريخ
-// صالح بتُستبعد من أي فترة محددة (وتظهر فقط في "جميع السجلات") بدل ما
-// كانت بتتضمّن في كل فترة وتنفخ الأعداد
-function filterRecordsByDateRange(records, filterType, fromDate, toDate) {
-  if (!filterType || filterType === 'all') return records;
-
-  const now = new Date();
-  let start = null;
-  let end = null;
-
-  if (filterType === 'today') {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  } else if (filterType === 'last7') {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  } else if (filterType === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  } else if (filterType === 'year') {
-    start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
-    end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-  } else if (filterType === 'custom') {
-    if (fromDate) start = new Date(fromDate + 'T00:00:00');
-    if (toDate) end = new Date(toDate + 'T23:59:59');
-    if (!start && !end) return records;
-  }
-
-  return records.filter(item => {
-    const itemDate = getReportRecordDate(item);
-    if (!itemDate) return false;
-    if (start && itemDate < start) return false;
-    if (end && itemDate > end) return false;
-    return true;
-  });
-}
-
-// ترتيب الأحدث أولاً (نفس ترتيب الشاشات) - getDocs بدون orderBy بيرجّع
-// السجلات بترتيب معرّف المستند العشوائي، فكان الإكسيل بيطلع بترتيب غير زمني
-function sortRecordsNewestFirst(records) {
-  return [...records].sort((a, b) => {
-    const da = getReportRecordDate(a);
-    const db = getReportRecordDate(b);
-    return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
-  });
-}
-
 // إصلاح (إخفاء الأخطاء): نتيجة الجلب الفاشلة (status === 'error') كانت
 // بتتعامل كأنها "لا توجد سجلات" (res.data || [])، وفي التقرير الشامل كانت
 // تطلع ورقة فاضية بدون أي تنبيه. دلوقتي الفشل بيوقف التصدير برسالة خطأ
@@ -286,12 +236,6 @@ function unwrapReportFetch(res) {
     throw new Error((res && res.message) || 'Report data fetch failed');
   }
   return res.data;
-}
-
-function localDateStamp() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function formatReportDate(raw) {
@@ -310,16 +254,7 @@ function formatReportDate(raw) {
 function formatReportStatus(status, kind, isEn) {
   const s = String(status || '').toLowerCase().trim();
   if (kind === 'ticket') {
-    // نفس تسميات الشاشات (ticketStatusConstants.STATUS_LABELS و config.js)
-    const arMap = {
-      pending: 'جديد', assigned: 'تم الإسناد', in_progress: 'قيد التنفيذ',
-      resolved: 'بانتظار تأكيد المُبلغ', closed: 'مغلقة', reopened: 'قيد التنفيذ'
-    };
-    const enMap = {
-      pending: 'New', assigned: 'Assigned', in_progress: 'In Progress',
-      resolved: 'Awaiting Reporter Confirmation', closed: 'Closed', reopened: 'In Progress'
-    };
-    return isEn ? (enMap[s] || status || 'New') : (arMap[s] || status || 'جديد');
+    return formatReportTicketStatus(s, isEn);
   }
   if (kind === 'suggestion') {
     // نفس حالات مقترحات الكايزن الفعلية (kaizenBoard.js / maintenanceSearch.js)

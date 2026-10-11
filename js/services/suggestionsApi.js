@@ -705,9 +705,8 @@ export async function fetchSuggestionLogsApi(suggestionId) {
 // تحسين (أداء): فلترة sinceISO بقت where("createdAt", ">=", sinceISO)
 // على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً.
 // ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
-// (name+createdAt) - راجع firestore.indexes.json المُرفق. لحد ما
-// الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان (بدل ما توقع
-// الصفحة) مع تحذير في console يوضح الحاجة للـ Index.
+// (name+createdAt) - راجع firestore.indexes.json. فشل الـ Index يرجع
+// خطأ صريحاً حتى لا يظهر التقرير كأنه لا يحتوي سجلات.
 export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
   try {
     const suggestionsRef = collection(db, "suggestions");
@@ -726,13 +725,6 @@ export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
 
     return { status: "success", data: items };
   } catch (error) {
-    if (error?.code === "failed-precondition") {
-      console.warn(
-        `[fetchSuggestionsForReportApi] محتاج Index في Firestore - ` +
-        `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
-      );
-      return { status: "success", data: [] };
-    }
     console.error("Error fetching suggestions for report:", error);
     return { status: "error", message: error.message };
   }

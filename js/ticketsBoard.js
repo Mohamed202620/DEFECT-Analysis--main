@@ -1,4 +1,5 @@
 import { exportToPdf, PAGE_BREAK_CLASS } from './services/exportUtility.js';
+import { getMonthlyTicketStatusCounts, localDateStamp } from './utils/reportData.js';
 import { buildPdfStatsCardsHtml } from './branding.js';
 // ============================================================
 // ticketsBoard.js
@@ -412,7 +413,7 @@ window.bulkExportSelectedTickets = async function () {
 
     const htmlContent = `<div id="mPdfRecordsContainer">${blocksHtml}</div>`;
     const title = isAr ? "📄 تصدير تذاكر محددة" : "📄 Selected Tickets Export";
-    const filename = `selected-tickets-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const filename = `selected-tickets-${localDateStamp()}.pdf`;
     const infoRows = [
       { label: isAr ? "عدد التذاكر" : "Ticket count", value: String(selectedTickets.length) }
     ];
@@ -1058,16 +1059,13 @@ window.generateMonthlyReport = async function () {
       return html.replace(/<div style="border:1px solid #cbd5e1;/, `<div class="${PAGE_BREAK_CLASS}" style="border:1px solid #cbd5e1;`);
     }).join("");
     
-    const closedCount = tickets.filter(t => t.status === "closed").length;
-    const resolvedCount = tickets.filter(t => t.status === "resolved").length;
-    const inProgressCount = tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length;
-    const pendingCount = tickets.length - closedCount - resolvedCount - inProgressCount;
+    const statusCounts = getMonthlyTicketStatusCounts(tickets);
 
     const cardsHtml = buildPdfStatsCardsHtml([
-      { label: isAr ? "إجمالي البلاغات" : "Total", value: tickets.length, color: "#2563eb", bg: "#eff6ff" },
-      { label: isAr ? "معلقة / قيد الانتظار" : "Pending", value: pendingCount, color: "#dc2626", bg: "#fef2f2" },
-      { label: isAr ? "جاري العمل" : "In Progress", value: inProgressCount, color: "#d97706", bg: "#fffbeb" },
-      { label: isAr ? "مغلقة / تم الحل" : "Closed", value: closedCount + resolvedCount, color: "#059669", bg: "#ecfdf5" }
+      { label: isAr ? "إجمالي البلاغات" : "Total", value: statusCounts.total, color: "#2563eb", bg: "#eff6ff" },
+      { label: isAr ? "معلقة / قيد الانتظار" : "Pending", value: statusCounts.pending, color: "#dc2626", bg: "#fef2f2" },
+      { label: isAr ? "جاري العمل" : "In Progress", value: statusCounts.inProgress, color: "#d97706", bg: "#fffbeb" },
+      { label: isAr ? "مغلقة / تم الحل" : "Closed", value: statusCounts.closed + statusCounts.resolved, color: "#059669", bg: "#ecfdf5" }
     ]);
 
     const htmlContent = `
@@ -1078,7 +1076,7 @@ window.generateMonthlyReport = async function () {
     `;
 
     const title = isAr ? "🗓️ التقرير الشهري لأعطال الصيانة" : "🗓️ Maintenance Monthly Report";
-    const filename = `${t().reportFileName}-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const filename = `${t().reportFileName}-${localDateStamp()}.pdf`;
 
     const infoRows = [
       { label: isAr ? "الفترة" : "Period", value: isAr ? "آخر 30 يوم" : "Last 30 days" }
