@@ -516,35 +516,50 @@ function ticketBelongsToMe(ticket, myUid, myName) {
 // بدون آرجيومنتس شغال (role/myUid/myName هيبقوا undefined) عشان أي
 // استخدام قديم للدالة ميتكسرش، لكنه هيرجع النتيجة الفارغة/المقيّدة
 // المناسبة لغير الأدمن/المدير بدل كل التذاكر.
-export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
+export async function fetchTicketsApi({ role, myUid, myName, maxCount, serverOnly = false } = {}) {
   try {
     await ensureAuthReady();
     const ticketsRef = collection(db, "tickets");
     const isFullAccess = hasFullDataAccess(role);
+    const assertFreshDashboardSnapshot = snapshot => {
+      if (serverOnly && snapshot.metadata?.fromCache) {
+        const error = new Error("Dashboard ticket data is only available from the local cache");
+        error.code = "unavailable";
+        throw error;
+      }
+      return snapshot;
+    };
     
     const clauses = [orderBy("createdAt", "desc")];
     if (maxCount) clauses.push(limit(maxCount));
 
-    if (isFullAccess || !myName) {
+    if (isFullAccess || (!myName && !serverOnly)) {
       const q = query(ticketsRef, ...clauses);
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = assertFreshDashboardSnapshot(await getDocs(q));
       const tickets = [];
       querySnapshot.forEach(docSnap => {
         tickets.push({ id: docSnap.id, ...docSnap.data() });
       });
       return { status: "success", data: tickets };
     } else {
-      const uidQueries = myUid
-        ? [
-            getDocs(query(ticketsRef, where("reportedByUid", "==", myUid), ...clauses)),
-            getDocs(query(ticketsRef, where("assignedToUid", "==", myUid), ...clauses))
-          ]
-        : [];
-      const snaps = await Promise.all([
-        getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...clauses)),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...clauses)),
-        ...uidQueries
-      ]);
+      const scopedQueries = [];
+      if (myName) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...clauses)),
+          getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...clauses))
+        );
+      }
+      if (myUid) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("reportedByUid", "==", myUid), ...clauses)),
+          getDocs(query(ticketsRef, where("assignedToUid", "==", myUid), ...clauses))
+        );
+      }
+      if (!scopedQueries.length) {
+        return { status: "error", code: "missing-user-identity", message: "Missing user identity for scoped ticket query" };
+      }
+
+      const snaps = (await Promise.all(scopedQueries)).map(assertFreshDashboardSnapshot);
 
       const merged = new Map();
       snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
@@ -557,9 +572,11 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
     }
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
-    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsApi");
-    if (fallback) return fallback;
-    return { status: "error", message: error.message };
+    if (!serverOnly) {
+      const fallback = emptyResultOnMissingIndex(error, "fetchTicketsApi");
+      if (fallback) return fallback;
+    }
+    return { status: "error", code: error?.code, message: error?.message };
   }
 }
 
@@ -576,12 +593,12 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount } = {}) {
 const DASHBOARD_RECENT_DAYS = 30;
 const DASHBOARD_MAX_DOCS = 5000;
 
-export async function fetchDashboardSnapshotApi({ role, myUid, myName } = {}) {
+export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnly = false } = {}) {
   try {
     await ensureAuthReady();
 
-    if (!hasFullDataAccess(role) && myName) {
-      const res = await fetchTicketsApi({ role, myUid, myName, maxCount: 2000 });
+    if (!hasFullDataAccess(role) && (serverOnly || myName)) {
+      const res = await fetchTicketsApi({ role, myUid, myName, maxCount: 2000, serverOnly });
       if (res.status !== "success") return res;
       const list = res.data;
       const startOfToday = new Date();
@@ -617,6 +634,12 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName } = {}) {
       getDocs(query(ticketsRef, where("createdAt", ">=", recentFrom.toISOString()), orderBy("createdAt", "desc"), limit(DASHBOARD_MAX_DOCS)))
     ]);
 
+    if (serverOnly && (notClosedSnap.metadata?.fromCache || recentSnap.metadata?.fromCache)) {
+      const error = new Error("Dashboard ticket data is only available from the local cache");
+      error.code = "unavailable";
+      throw error;
+    }
+
     const merged = new Map();
     notClosedSnap.forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
     recentSnap.forEach(d => { if (!merged.has(d.id)) merged.set(d.id, { id: d.id, ...d.data() }); });
@@ -643,9 +666,7 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName } = {}) {
     };
   } catch (error) {
     console.error("Error in fetchDashboardSnapshotApi:", error);
-    const fallback = emptyResultOnMissingIndex(error, "fetchDashboardSnapshotApi");
-    if (fallback) return fallback;
-    return { status: "error", message: error.message };
+    return { status: "error", code: error?.code, message: error?.message };
   }
 }
 

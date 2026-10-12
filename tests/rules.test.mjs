@@ -9,11 +9,16 @@ import {
   initializeTestEnvironment
 } from "@firebase/rules-unit-testing";
 import {
+  collection,
   doc,
+  getDocs,
   getDoc,
+  orderBy,
+  query,
   setDoc,
   serverTimestamp,
   updateDoc,
+  where,
   writeBatch
 } from "firebase/firestore";
 import { parseQrPayload } from "../js/utils/qrPayload.js";
@@ -29,6 +34,7 @@ let testEnvironment;
 const users = {
   admin: { role: "admin", status: "active", name: "Admin", machineDepartment: "backend" },
   manager: { role: "manager", status: "active", name: "Manager", machineDepartment: "backend" },
+  supervisor: { role: "supervisor", status: "active", name: "Supervisor", machineDepartment: "backend" },
   engineer: { role: "engineer", status: "active", name: "Engineer", machineDepartment: "frontend" },
   technician: { role: "technician", status: "active", name: "Technician", machineDepartment: "backend" },
   reporter: { role: "reporter", status: "active", name: "Reporter", machineDepartment: "backend" },
@@ -106,11 +112,50 @@ after(async () => {
 
 test("active roles can read operational records; pending and disabled accounts cannot", async () => {
   await seed("tickets/shared", ticket());
-  for (const uid of ["admin", "manager", "engineer", "technician", "reporter"]) {
+  for (const uid of ["admin", "manager", "supervisor", "engineer", "technician", "reporter"]) {
     await assertSucceeds(getDoc(doc(dbFor(uid), "tickets/shared")), uid);
   }
   await assertFails(getDoc(doc(dbFor("pending"), "tickets/shared")));
   await assertFails(getDoc(doc(dbFor("disabled"), "tickets/shared")));
+});
+
+test("technicians can read their dashboard ticket queries without broadening rules", async () => {
+  await seed("tickets/assigned-to-technician", ticket({
+    assignedToUid: "technician",
+    createdAt: "2026-10-12T07:00:00.000Z"
+  }));
+  await seed("tickets/reported-by-technician", ticket({
+    reportedByUid: "technician",
+    createdAt: "2026-10-12T06:00:00.000Z"
+  }));
+  await seed("tickets/other-ticket", ticket({
+    reportedByUid: "reporter",
+    createdAt: "2026-10-12T05:00:00.000Z"
+  }));
+
+  const technicianTickets = collection(dbFor("technician"), "tickets");
+  const assignedQuery = query(
+    technicianTickets,
+    where("assignedToUid", "==", "technician"),
+    orderBy("createdAt", "desc")
+  );
+  const reportedQuery = query(
+    technicianTickets,
+    where("reportedByUid", "==", "technician"),
+    orderBy("createdAt", "desc")
+  );
+  const allTickets = query(collection(dbFor("admin"), "tickets"), orderBy("createdAt", "desc"));
+  const supervisorTickets = query(collection(dbFor("supervisor"), "tickets"), orderBy("createdAt", "desc"));
+
+  assert.equal((await assertSucceeds(getDocs(assignedQuery))).size, 1);
+  assert.equal((await assertSucceeds(getDocs(reportedQuery))).size, 1);
+  assert.equal((await assertSucceeds(getDocs(allTickets))).size, 3);
+  assert.equal((await assertSucceeds(getDocs(supervisorTickets))).size, 3);
+  await assertFails(getDocs(query(
+    collection(dbFor("pending"), "tickets"),
+    where("assignedToUid", "==", "technician"),
+    orderBy("createdAt", "desc")
+  )));
 });
 
 test("self-service user updates cannot activate an account or escalate a role", async () => {
