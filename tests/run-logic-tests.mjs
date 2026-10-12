@@ -1,5 +1,6 @@
 // اختبارات منطقية (بدون شبكة/Firebase) للإصلاحات الأساسية. التشغيل: node tests/run-logic-tests.mjs
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 // stubs بسيطة لبيئة المتصفح (config.js بيقرأ window/localStorage وقت التحميل)
 const _store = new Map();
@@ -21,6 +22,7 @@ const t = async (name, fn) => {
 
 // ---------- escapeHtml ----------
 const { escapeHtml, escapeJsArg, safeUrl } = await import("../js/utils/escapeHtml.js");
+const { parseQrPayload } = await import("../js/utils/qrPayload.js");
 console.log("escapeHtml");
 await t("يهرّب وسوم HTML وعلامات التنصيص", () => {
   assert.equal(escapeHtml(`<img src=x onerror=alert(1)>`), "&lt;img src=x onerror=alert(1)&gt;");
@@ -34,6 +36,299 @@ await t("escapeJsArg لا يسمح بالخروج من سلسلة onclick", () =
 await t("safeUrl يرفض javascript:", () => {
   assert.equal(safeUrl("javascript:alert(1)"), "");
   assert.ok(safeUrl("https://i.ibb.co/a.png").startsWith("https://"));
+});
+await t("QR payload parsing preserves raw machine values and extracts structured machine IDs", () => {
+  assert.deepEqual(parseQrPayload("Bodymaker 01"), { value: "Bodymaker 01", line: "" });
+  assert.deepEqual(parseQrPayload("MID:machine-backend"), { value: "machine-backend", line: "" });
+  assert.deepEqual(parseQrPayload('{"m":"Bodymaker","u":"01","line":"1"}'), {
+    value: "Bodymaker 01",
+    line: "1"
+  });
+});
+const issueViewSource = await readFile(new URL("../js/views/issueView.js", import.meta.url), "utf8");
+await t("اسم المُبلّغ في تحذير البلاغ النشط يمر عبر escapeHtml", () => {
+  assert.ok(issueViewSource.includes("${escapeHtml(t.reportedBy || t.reporter?.name ||"));
+});
+
+const [indexSource, brandingSource, attachmentPickerSource] = await Promise.all([
+  readFile(new URL("../index.html", import.meta.url), "utf8"),
+  readFile(new URL("../js/branding.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/components/attachmentPicker.js", import.meta.url), "utf8")
+]);
+const [pmApiSource, managerDesktopSource] = await Promise.all([
+  readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
+]);
+await t("manager dashboard counts PM records without downloading the collection", () => {
+  const countApi = pmApiSource.match(/export async function fetchPmRecordCountApi\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
+  assert.match(countApi, /getCountFromServer/);
+  assert.doesNotMatch(countApi, /getDocs/);
+  assert.match(managerDesktopSource, /fetchPmRecordCountApi\(\)/);
+  assert.doesNotMatch(managerDesktopSource, /fetchPmRecordsApi\(\)/);
+  assert.match(managerDesktopSource, /pmRecordCount \?\? '--'/);
+  assert.match(managerDesktopSource, /let _managerDesktopLoadInFlight = null/);
+  assert.match(managerDesktopSource, /if \(!_managerDesktopLoadInFlight\)/);
+});
+await t("PWA viewport leaves browser zoom available", () => {
+  const viewport = indexSource.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || "";
+  assert.ok(viewport.includes("width=device-width"));
+  assert.ok(!/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/i.test(viewport));
+  assert.ok(!indexSource.includes("touches.length > 1"));
+  assert.ok(!indexSource.includes("gesturestart"));
+});
+await t("light theme applies a light base palette while dark remains dark", () => {
+  assert.match(indexSource, /:root\s*\{[\s\S]*?--app-main-bg:\s*#f1f5f9/i);
+  assert.match(indexSource, /\.dark,[\s\S]*?--app-main-bg:\s*#0f172a/i);
+  assert.match(indexSource, /--app-card-bg:\s*#ffffff/i);
+  assert.match(indexSource, /--app-text:\s*#0f172a/i);
+});
+await t("mobile header controls expose at least 44px touch targets", () => {
+  assert.ok((brandingSource.match(/min-w-\[44px\] min-h-\[44px\]/g) || []).length >= 4);
+});
+await t("attachment processing failures are announced visibly", async () => {
+  const { initAttachmentPicker } = await import("../js/components/attachmentPicker.js");
+  const groupId = "attachmentFailureTest";
+  const errorClasses = new Set(["hidden"]);
+  const errorNode = {
+    textContent: "",
+    classList: {
+      add: name => errorClasses.add(name),
+      remove: name => errorClasses.delete(name)
+    }
+  };
+  const emptyNode = { classList: { add() {}, remove() {} } };
+  const gridNode = { innerHTML: "", querySelectorAll: () => [] };
+  const cameraInput = { value: "", onchange: null };
+  const nodes = new Map([
+    [`${groupId}_camera_btn`, { onclick: null }],
+    [`${groupId}_gallery_btn`, { onclick: null }],
+    [`${groupId}_camera_input`, cameraInput],
+    [`${groupId}_gallery_input`, { onchange: null }],
+    [`${groupId}_preview_grid`, gridNode],
+    [`${groupId}_empty_text`, emptyNode],
+    [`${groupId}_error`, errorNode]
+  ]);
+  const originalGetElementById = document.getElementById;
+  const originalConsoleError = console.error;
+  let errorLogged = false;
+  document.getElementById = id => nodes.get(id) || null;
+  console.error = () => { errorLogged = true; };
+
+  try {
+    window.currentLang = "en";
+    initAttachmentPicker(groupId);
+    cameraInput.onchange({
+      target: {
+        files: [{ type: "text/plain", name: "invalid.txt", size: 1 }],
+        value: "selected"
+      }
+    });
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.match(errorNode.textContent, /Could not process "invalid\.txt"/);
+    assert.equal(errorClasses.has("hidden"), false);
+    assert.equal(cameraInput.value, "");
+    assert.equal(errorLogged, true);
+  } finally {
+    document.getElementById = originalGetElementById;
+    console.error = originalConsoleError;
+    delete window.currentLang;
+  }
+
+  assert.match(attachmentPickerSource, /role="alert" aria-live="polite"/);
+});
+
+const reportData = await import("../js/utils/reportData.js");
+await t("custom report range includes full final day and excludes adjacent records", () => {
+  const start = new Date("2026-04-01T00:00:00");
+  const end = new Date("2026-04-02T23:59:59.999");
+  const fixture = [
+    { id: "before", createdAt: new Date(start.getTime() - 1).toISOString() },
+    { id: "start", createdAt: start.toISOString() },
+    { id: "last-millisecond", createdAt: end.toISOString() },
+    { id: "after", createdAt: new Date(end.getTime() + 1).toISOString() },
+    { id: "missing-date" }
+  ];
+  const result = reportData.filterRecordsByDateRange(fixture, "custom", "2026-04-01", "2026-04-02");
+  assert.deepEqual(result.map(record => record.id), ["start", "last-millisecond"]);
+});
+await t("invalid and reversed custom report ranges fail explicitly", () => {
+  assert.throws(
+    () => reportData.filterRecordsByDateRange([], "custom", "2026-04-03", "2026-04-02"),
+    /must not be after/
+  );
+  assert.throws(
+    () => reportData.filterRecordsByDateRange([], "custom", "not-a-date", ""),
+    /Invalid report start date/
+  );
+});
+await t("monthly ticket status totals classify reopened consistently and sum to total", () => {
+  const fixture = [
+    { status: "pending" },
+    { status: "assigned" },
+    { status: "reopened" },
+    { status: "resolved" },
+    { status: "closed" },
+    { status: "legacy-new-state" }
+  ];
+  const counts = reportData.getMonthlyTicketStatusCounts(fixture);
+  assert.deepEqual(counts, { total: 6, closed: 1, resolved: 1, inProgress: 2, pending: 2 });
+  assert.equal(counts.pending + counts.inProgress + counts.resolved + counts.closed, counts.total);
+  assert.equal(reportData.formatReportTicketStatus("reopened", true), "In Progress");
+  assert.equal(reportData.formatReportTicketStatus("reopened", false), "قيد التنفيذ");
+});
+await t("report filename date uses the local calendar date", () => {
+  const localDate = new Date(2026, 0, 1, 0, 15);
+  assert.equal(reportData.localDateStamp(localDate), "2026-01-01");
+});
+
+const { buildChecklistTemplateDocument } = await import("../js/services/checklistTemplateSync.js");
+const { isOfflineActionOwnedBy } = await import("../js/services/offlineQueue.js");
+const checklistDraft = {
+  collection: "machineAmTemplates",
+  targetId: "Machine 01",
+  items: [{ id: "item-1" }],
+  loadedVersion: 1,
+  updatedAt: "2026-10-11T00:00:00.000Z",
+  updatedBy: "Manager"
+};
+await t("offline checklist sync creates the next version and preserves history", () => {
+  const firstSave = buildChecklistTemplateDocument(checklistDraft);
+  assert.equal(firstSave.templateVersion, 2);
+  assert.deepEqual(firstSave.history, [{
+    version: 1,
+    updatedAt: checklistDraft.updatedAt,
+    updatedBy: checklistDraft.updatedBy,
+    itemsCount: 1
+  }]);
+
+  const nextSave = buildChecklistTemplateDocument(
+    { ...checklistDraft, loadedVersion: 2 },
+    { templateVersion: 2, history: [{ version: 1 }] }
+  );
+  assert.equal(nextSave.templateVersion, 3);
+  assert.equal(nextSave.history.length, 2);
+});
+await t("offline checklist sync refuses invalid targets and stale versions", () => {
+  assert.throws(() => buildChecklistTemplateDocument({ ...checklistDraft, collection: "users" }), /Invalid checklist template action/);
+  assert.throws(
+    () => buildChecklistTemplateDocument(checklistDraft, { templateVersion: 2 }),
+    /Checklist version conflict/
+  );
+});
+const [ticketsApiSource, ticketDetailsSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/components/TicketDetailsModal.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/checklistApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/ChecklistBuilderView.js", import.meta.url), "utf8"),
+  readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8"),
+  readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
+]);
+const suggestionsApiSource = await readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8");
+await t("unknown ticket log statuses are escaped before timeline rendering", () => {
+  assert.match(ticketDetailsSource, /\$\{statusLabel\(log\.toStatus\) \|\| escapeHtml\(log\.toStatus \|\| ""\)\}/);
+});
+await t("report API index failures are not returned as empty successful reports", () => {
+  const ticketsReport = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("export async function fetchTicketsForReportApi"),
+    ticketsApiSource.indexOf("export async function fetchTicketsForSearchApi")
+  );
+  const suggestionsReport = suggestionsApiSource.slice(
+    suggestionsApiSource.indexOf("export async function fetchSuggestionsForReportApi"),
+    suggestionsApiSource.indexOf("export async function fetchSuggestionsForSearchApi")
+  );
+  assert.ok(ticketsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(suggestionsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(!ticketsReport.includes('return { status: "success", data: [] }'));
+  assert.ok(!suggestionsReport.includes('return { status: "success", data: [] }'));
+});
+await t("checklist offline queue is connected to the sync dispatcher", () => {
+  assert.ok(checklistViewSource.includes("loadedVersion: loadedTemplateVersion"));
+  assert.ok(ticketsApiSource.includes('type === "save_checklist_template"'));
+  assert.ok(ticketsApiSource.includes("buildChecklistTemplateDocument"));
+});
+await t("offline actions are replayed only for their original authenticated user", () => {
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, "user-a"), true);
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, "user-b"), false);
+  assert.equal(isOfflineActionOwnedBy({ action: { type: "close" } }, "user-b"), false);
+  assert.equal(isOfflineActionOwnedBy({ ownerUid: "user-a" }, ""), false);
+  assert.ok(ticketsApiSource.includes("Preserving offline action without matching owner identity"));
+});
+await t("checklist history reads are bounded and covered by a composite index", () => {
+  assert.ok(checklistApiSource.includes('orderBy("createdAt", "desc")'));
+  assert.ok(checklistApiSource.includes("limit(maxCount)"));
+  assert.ok(checklistApiSource.includes("limit(1)"));
+  assert.ok(checklistApiSource.includes("maxCount < 1 || maxCount > 100"));
+  assert.ok(checklistApiSource.includes("if (!url)"));
+  assert.ok(!checklistApiSource.includes("photo: url || null"));
+  const indexes = JSON.parse(checklistIndexesSource);
+  assert.ok(indexes.indexes.some(index =>
+    index.collectionGroup === "machineChecklists" &&
+    ["machine", "type", "createdAt"].every(field =>
+      index.fields.some(entry => entry.fieldPath === field)
+    )
+  ));
+});
+await t("deployment workflows require app and rules tests and immutable action pins", () => {
+  for (const workflow of [mainWorkflowSource, devWorkflowSource]) {
+    assert.ok(workflow.includes("run: npm test"));
+    assert.ok(!workflow.includes("continue-on-error"));
+    assert.ok(workflow.includes("run: npm run test:rules"));
+    assert.match(workflow, /uses:\s*[^@\n]+@[0-9a-f]{40}/i);
+    assert.doesNotMatch(workflow, /uses:\s*[^@\n]+@v\d+/i);
+    assert.match(workflow, /uses:\s*actions\/setup-java@[0-9a-f]{40}/i);
+    assert.match(workflow, /java-version:\s*21/);
+  }
+});
+const [machineErrorsSource, errorScannerSource, knowledgeBaseSource, firestoreRules, firestoreIndexes, suggestionsSource] = await Promise.all([
+  readFile(new URL("../js/services/machineErrorsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/errorScanner.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/knowledgeBase.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.rules", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8")
+]);
+await t("machine-error writes enforce pending review and stable code identity", () => {
+  const rulesStart = firestoreRules.indexOf("match /machineErrors/{errorId}");
+  const rulesEnd = firestoreRules.indexOf("match /machineErrorLogs/{logId}", rulesStart);
+  const rules = firestoreRules.slice(rulesStart, rulesEnd);
+  assert.ok(rules.includes('errorId == "error_" + request.resource.data.errorCode'));
+  assert.ok(rules.includes('request.resource.data.status == "pending_review"'));
+  assert.ok(rules.includes('request.resource.data.status == "verified"'));
+  assert.ok(machineErrorsSource.includes('doc(db, "machineErrors", machineErrorDocumentId(normalized))'));
+  assert.ok(machineErrorsSource.includes('status: "pending_review"'));
+  assert.ok(machineErrorsSource.includes('existing.status !== "success"'));
+  assert.ok(machineErrorsSource.includes("getMachineTypeReference(restPayload.machine)"));
+  assert.ok(pmApiSource.includes("getMachineTypeReference(payload.machine)"));
+  assert.ok(checklistApiSource.includes("getMachineTypeReference(payload?.machine)"));
+});
+await t("untrusted machine-error content is escaped before HTML rendering", () => {
+  assert.match(errorScannerSource, /\$\{escapeHtml\(data\.(errorCode|cause|solution|steps)/);
+  for (const field of ["errorCode", "cause", "solution", "steps"]) {
+    assert.ok(errorScannerSource.includes(`escapeHtml(data.${field}`), `${field} must be escaped`);
+  }
+});
+await t("machine-error history query has its index and reports retrieval errors", () => {
+  const indexes = JSON.parse(firestoreIndexes);
+  assert.ok(indexes.indexes.some(index =>
+    index.collectionGroup === "machineErrorLogs" &&
+    index.fields.some(field => field.fieldPath === "errorCode") &&
+    index.fields.some(field => field.fieldPath === "scannedAt")
+  ));
+  assert.ok(machineErrorsSource.includes('return { status: "error", message: error.message, data: [] }'));
+  assert.ok(errorScannerSource.includes("if (result.status === 'error')"));
+  assert.ok(errorScannerSource.includes("tr.historyLoadError"));
+  assert.ok(knowledgeBaseSource.includes("periodLoadError = result.status === 'error'"));
+  assert.ok(knowledgeBaseSource.includes("tr.periodLoadError"));
+});
+await t("ticket and Kaizen transitions commit status and history together", () => {
+  assert.ok(ticketsApiSource.includes("async function updateTicketWithLog"));
+  assert.ok(ticketsApiSource.includes("batch.update(doc(db, \"tickets\", ticketId), updateData)"));
+  assert.ok(ticketsApiSource.includes("batch.set(doc(collection(db, \"tickets\", ticketId, \"logs\"))"));
+  assert.ok(suggestionsSource.includes("async function updateSuggestionWithLog"));
+  assert.ok(suggestionsSource.includes('batch.update(doc(db, "suggestions", suggestionId), updateData)'));
+  assert.ok(suggestionsSource.includes('doc(collection(db, "suggestions", suggestionId, "logs"))'));
 });
 
 // ---------- phone ----------
@@ -50,6 +345,228 @@ await t("أرقام غير صالحة تُرفض", () => {
 await t("الدخول يجرّب الصيغ القديمة للحسابات القديمة", () => {
   const c = P.phoneAuthEmailCandidates("01001234567");
   assert.ok(c.includes("201001234567@maintenance-defect-system.local"));
+});
+const { extractErrorCode } = await import("../js/utils/machineErrorOcr.js");
+console.log("machine-screen OCR code extraction");
+await t("يستخرج أكواد الأعطال مع اختلاف المسافات والشرطات", () => {
+  assert.equal(extractErrorCode("ALARM HISTORY\nERR 204"), "ERR204");
+  assert.equal(extractErrorCode("FAULT: 108"), "FAULT108");
+  assert.equal(extractErrorCode("F - 05"), "F-05");
+  assert.equal(extractErrorCode("E 05"), "E05");
+});
+await t("يصحح التباس OCR بين الحروف والأرقام ويدعم الأرقام العربية", () => {
+  assert.equal(extractErrorCode("ERR 2O4"), "ERR204");
+  assert.equal(extractErrorCode("E-٠٥"), "E-05");
+});
+await t("لا يعتبر عنوان ALARM HISTORY كود عطل", () => {
+  assert.equal(extractErrorCode("ALARM HISTORY\nNo active alarms"), "");
+  assert.equal(extractErrorCode("ALARM HISTORY 21"), "");
+});
+const ocr = await import("../js/utils/machineErrorOcr.js");
+const {
+  parseAlarmLine, analyzeAlarmRows, analyzeAlarmReadSets, evaluateRow, mergeRowSets, buildKnownCodes,
+  clampCropRect, pickLineNearCenter, findCenterTextBand, normalizeForOcr, suggestKbMatches,
+  rotateGray, estimateSkewAngle, findTextRegion, cropGray, medianLineHeight, preprocessDocumentGray
+} = ocr;
+const { renderRowsListHtml, renderRowCardHtml, renderRowInfoHtml } = await import("../js/utils/errorRowsView.js");
+
+console.log("machine-fault OCR: literal codes, per-row KB matching, multi-fault screens");
+const OCR_KB = [
+  { errorCode: "059", errorMessage: "SHEET DELIVERY DID NOT GET SHEET", machine: "Palletizer", status: "verified" },
+  { errorCode: "060", errorMessage: "SHEET DELIVERY DROPPED SHEET", machine: "Palletizer" },
+  { errorCode: "113", errorMessage: "AIR TABLE NOT ENABLED", machine: "Palletizer" },
+  { errorCode: "E5", errorMessage: "MOTOR OVERLOAD", machine: "Palletizer" },
+  { errorCode: "ES", errorMessage: "EMERGENCY STOP PRESSED", machine: "Palletizer" },
+  { errorCode: "X77", errorMessage: "OTHER MACHINE FAULT", machine: "Labeler" }
+];
+const ocrEval = (code, extra = {}) => evaluateRow({ code, confidence: 90, message: "", ...extra }, OCR_KB, { machineType: "Palletizer" });
+const ocrLines = (arr, c = 85) => arr.map((text, i) => ({ text, confidence: c, bbox: { x0: 0, x1: 900, y0: i * 40, y1: i * 40 + 30 } }));
+
+await t("الكود يُحفظ حرفياً: O59 تبقى O59 مع بديل للعرض فقط، و059 بلا التباس", () => {
+  const r = parseAlarmLine("O59-SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(r.code, "O59"); assert.equal(r.altCode, "059"); assert.equal(r.suspect, true);
+  const clean = parseAlarmLine("30 AM 059-SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(clean.code, "059"); assert.equal(clean.suspect, false);
+  assert.equal(parseAlarmLine("I13-AIR TABLE NOT ENABLED").code, "I13");
+});
+await t("E5 وES يُقرآن كما هما، وES لا يُقرأ إلا لو موجود في الـ KB", () => {
+  assert.equal(parseAlarmLine("E5 MOTOR OVERLOAD").code, "E5");
+  assert.equal(parseAlarmLine("ES EMERGENCY STOP PRESSED", { knownCodes: buildKnownCodes(OCR_KB) }).code, "ES");
+  assert.equal(parseAlarmLine("ES EMERGENCY STOP PRESSED"), null);
+});
+await t("الضجيج وعمود الوقت لا يصيرون أعطالاً", () => {
+  assert.equal(parseAlarmLine("30 AM"), null);
+  assert.equal(parseAlarmLine("NE9"), null);
+  assert.equal(parseAlarmLine("NE9 AM ILL"), null);
+  assert.equal(parseAlarmLine("059 SHEET DELIVERY DID NOT GET SHEET").code, "059");   // الشرطة المفقودة
+});
+await t("المطابقة بالكود الحرفي + الماكينة: E5/ES لا يُخلطان، O59 لا يُحسب مطابقاً", () => {
+  assert.equal(ocrEval("059").status, "matched");
+  const e5 = ocrEval("E5");
+  assert.equal(e5.match.state, "exact");
+  assert.deepEqual(e5.match.lookalikes.map(e => e.errorCode), ["ES"]);
+  assert.equal(e5.status, "review");
+  assert.equal(ocrEval("ES").match.entries[0].errorCode, "ES");
+  const o59 = ocrEval("O59", { suspect: true, altCode: "059" });
+  assert.equal(o59.match.state, "possible");
+  assert.equal(o59.status, "review");
+  assert.equal(ocrEval("999").status, "unknown");
+  assert.equal(ocrEval("X77").match.state, "other-machine");
+  assert.equal(ocrEval("059", { confidence: 45 }).status, "review");
+  assert.equal(ocrEval("059", { conflict: "060" }).status, "review");
+  assert.equal(ocrEval("059", { manual: true, confidence: 0 }).status, "matched");
+});
+await t("عدة أعطال في شاشة واحدة: صفوف منفصلة بلا خلط كود/وصف، والمكرر يُدمج", () => {
+  const screen = ["ALARM HISTORY", "Message", "30 AM 059-SHEET DELIVERY DID NOT GET SHEET", "56 AM 060-SHEET DELIVERY DROPPED SHEET",
+    "37 AM 059-SHEET DELIVERY DID NOT GET SHEET", "00 AM 113-AIR TABLE NOT ENABLED", "43 AM 031-TIPPED CAN IN PATTERN RITE", "NE9", "iil"];
+  const { rows, ignored } = analyzeAlarmRows(ocrLines(screen), OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(rows.map(r => r.code), ["059", "060", "113", "031"]);
+  assert.equal(rows[0].message, "SHEET DELIVERY DID NOT GET SHEET");
+  assert.equal(rows[0].occurrences, 2);
+  assert.ok(rows.every(r => !/^\d/.test(r.message)));
+  assert.equal(rows[3].status, "unknown");
+  assert.ok(!ignored.includes("ALARM HISTORY"));
+  assert.equal(analyzeAlarmRows(ocrLines(["Main menu", "Speed 120 ppm", "شاشة التحكم"]), OCR_KB).rows.length, 0);
+});
+await t("مجموعة OCR قابلة للتكرار: الإنجليزية والعربية والأرقام الملتبسة والثقة والضجيج", () => {
+  const fixtures = [
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 85, code: "059", status: "matched" },
+    { text: "٠٥٩-تعذر تغذية الورق", confidence: 85, code: "059", status: "matched" },
+    { text: "O59-SHEET DELIVERY DID NOT GET SHEET", confidence: 85, code: "O59", status: "review" },
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 45, code: "059", status: "review" },
+    { text: "SPEED 120 PPM", confidence: 90, code: null, status: null }
+  ];
+  let extracted = 0;
+  let missed = 0;
+  let falseConfirmed = 0;
+  for (const fixture of fixtures) {
+    const { rows } = analyzeAlarmRows([{ text: fixture.text, confidence: fixture.confidence }], OCR_KB, { machineType: "Palletizer" });
+    const row = rows[0];
+    if (fixture.code && row?.code === fixture.code) extracted++;
+    if (fixture.code && row?.code !== fixture.code) missed++;
+    if (row && row.status === "matched" && fixture.status !== "matched") falseConfirmed++;
+    assert.equal(row?.code || null, fixture.code, fixture.text);
+    assert.equal(row?.status || null, fixture.status, fixture.text);
+  }
+  assert.equal(extracted, 4);
+  assert.equal(missed, 0);
+  assert.equal(falseConfirmed, 0);
+});
+await t("يتعرف على كود قاعدة المعرفة عندما يقرأ OCR الكود وحده", () => {
+  const { rows } = analyzeAlarmRows(ocrLines(["ALARM HISTORY", "059", "SHEET DELIVERY DID NOT GET SHEET"]), OCR_KB, { machineType: "Palletizer" });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].code, "059");
+  assert.equal(rows[0].status, "matched");
+  assert.equal(analyzeAlarmRows(ocrLines(["999"]), OCR_KB, { machineType: "Palletizer" }).rows.length, 0);
+});
+await t("قراءات OCR الاحتياطية تُحلل وتُدمج بدل عرضها كنص خام فقط", () => {
+  const fallback = analyzeAlarmReadSets([
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 72),
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 80),
+    ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET", "060-SHEET DELIVERY DROPPED SHEET"], 90)
+  ], OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(fallback.rows.map(row => row.code), ["059", "060"]);
+  assert.equal(fallback.rows[0].confidence, 90);
+  assert.equal(fallback.rows[0].occurrences, 1);
+});
+await t("دمج قراءتين: نفس الكود صف واحد، وكودان لنفس السطر => conflict لا يُعتمد", () => {
+  const a = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET"], 70), OCR_KB).rows;
+  const b = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 88), OCR_KB).rows;
+  const same = mergeRowSets(a, b);
+  assert.equal(same.length, 1); assert.equal(same[0].confidence, 88); assert.equal(same[0].message, "SHEET DELIVERY DID NOT GET SHEET");
+  const x = analyzeAlarmRows(ocrLines(["059-SHEET DELIVERY DID NOT GET SHEET"], 80), OCR_KB).rows;
+  const y = analyzeAlarmRows(ocrLines(["060-SHEET DELIVERY DROPPED SHEET"], 70), OCR_KB).rows;
+  const conflict = mergeRowSets(x, y);
+  assert.equal(conflict.length, 1); assert.equal(conflict[0].conflict, "060");
+  assert.equal(evaluateRow(conflict[0], OCR_KB, { machineType: "Palletizer" }).status, "review");
+});
+await t("واجهة الصفوف: HTML بلا حقن، الكود الملتبس لا يظهر مطابقاً، وتنبيه E5/ES ظاهر", () => {
+  const tr = new Proxy({}, { get: (_, key) => `[${String(key)}]` });
+  const evil = evaluateRow({ id: "r1", code: "E5", message: "<img src=x onerror=alert(1)>", confidence: 90, occurrences: 1 }, OCR_KB, { machineType: "Palletizer" });
+  const html = renderRowCardHtml(evil, tr);
+  assert.ok(!html.includes("<img src=x"));
+  assert.ok(html.includes("&lt;img"));
+  const info = renderRowInfoHtml(evil, { ...tr, lookalikeWarn: "تنبيه {codes}", matchExact: "x", pendingReviewStatus: "p", verifiedStatus: "v" });
+  assert.ok(info.includes("تنبيه ES"));
+  const o59 = evaluateRow({ id: "r2", code: "O59", altCode: "059", suspect: true, confidence: 90, message: "m" }, OCR_KB, { machineType: "Palletizer" });
+  const list = renderRowsListHtml([evil, o59], tr);
+  assert.ok(!list.includes("[rowMatched]"));
+  assert.ok(list.includes("errRowUseKb('r2','059')"));
+});
+await t("clampCropRect وpickLineNearCenter وfindCenterTextBand وnormalizeForOcr وsuggestKbMatches", () => {
+  const r = clampCropRect({ x: 0.95, y: 0.99, w: 0.3, h: 0.1 });
+  assert.ok(r.x + r.w <= 1.0000001 && r.y + r.h <= 1.0000001 && r.h >= 0.025);
+  const lines = [
+    { text: "060-SHEET DELIVERY DR", confidence: 80, bbox: { y0: 0, y1: 14 } },
+    { text: "059-SHEET DELIVERY DID NOT GET SHEET", confidence: 88, bbox: { y0: 60, y1: 100 } },
+    { text: "113-AIR TABLE NOT ENABLED", confidence: 80, bbox: { y0: 150, y1: 170 } }
+  ];
+  assert.match(pickLineNearCenter(lines, 160)[0].text, /^059/);
+  const ink = new Float32Array(100);
+  for (let y = 0; y < 4; y++) ink[y] = 0.3;
+  for (let y = 40; y < 62; y++) ink[y] = 0.3;
+  for (let y = 94; y < 100; y++) ink[y] = 0.3;
+  const band = findCenterTextBand(ink);
+  assert.ok(band.top >= 38 && band.top <= 41 && Number.isFinite(band.gapAbove));
+  const garbage = ["تي جاه يضق ري رن ge 3¥ er, am ب بجي 7", "M 79-8 DELIVERY UID", "GET SF ل اصع امه الهو"];
+  assert.equal(suggestKbMatches(garbage, OCR_KB, { machineType: "Palletizer" })[0].code, "059");
+  assert.equal(suggestKbMatches(["QWERTY ZXCVB"], OCR_KB, {}).length, 0);
+  const W = 200, H = 40, lum = new Uint8Array(W * H);
+  const isText = (x, y) => y >= 14 && y < 26 && x >= 20 && x < 180 && ((x >> 1) % 3 !== 0);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) lum[y * W + x] = Math.max(0, Math.min(255, 200 - Math.round(y * 1.5) + (isText(x, y) ? 55 : 0)));
+  const n = normalizeForOcr(lum, W, H, { rx: 30, ry: 12 });
+  assert.equal(n.textIsBright, true);
+});
+await t("تصحيح الميل: يُقدَّر ويُصحَّح لميل +4° و-6°، وصورة مستقيمة/فاضية => 0", () => {
+  const W = 500, H = 360, base = new Uint8Array(W * H).fill(255);
+  for (let k = 0; k < 7; k++) for (let y = 40 + k * 38; y < 54 + k * 38; y++) for (let x = 60; x < W - 60; x++) if (((x >> 2) + k) % 5 !== 0) base[y * W + x] = 20;
+  for (const a of [4, -6]) {
+    const est = estimateSkewAngle(rotateGray(base, W, H, a), W, H);
+    assert.ok(Math.abs(est + a) <= 0.75, `ميل ${a}: مقدّر ${est}`);
+  }
+  assert.equal(estimateSkewAngle(base, W, H), 0);
+  assert.equal(estimateSkewAngle(new Uint8Array(W * H).fill(255), W, H), 0);
+  const region = findTextRegion(base, W, H);
+  assert.ok(region.x0 >= 20 && region.x0 <= 60 && region.x1 <= W - 20);
+  assert.equal(cropGray(base, W, region).gray.length, (region.x1 - region.x0 + 1) * (region.y1 - region.y0 + 1));
+  assert.equal(medianLineHeight([{ bbox: { y0: 0, y1: 20 } }, { bbox: { y0: 0, y1: 30 } }, { bbox: { y0: 0, y1: 40 } }]), 30);
+});
+await t("كود صحيح بوصف لا يشبه المسجّل => review (لا matched)، وبوصف مقارب يبقى matched", () => {
+  const bad = ocrEval("059", { message: "XQZ WVT LLKP RRTT" });
+  assert.equal(bad.descMismatch, true);
+  assert.equal(bad.status, "review");
+  const partial = ocrEval("059", { message: "SHEET DELIVERY DID NOT GET SHEET" });
+  assert.equal(partial.status, "matched");
+  assert.equal(partial.descMismatch, false);
+  const edited = ocrEval("059", { message: "ما يهمش", manual: true });
+  assert.equal(edited.status, "matched");
+});
+await t("صف بثقة OCR أقل من 30% لا يظهر كعطل (ويدخل الأسطر غير المفهومة فقط)", () => {
+  const { rows, ignored } = analyzeAlarmRows([
+    { text: "ES SI EDIE EE A ES ORI OCG ERS", confidence: 15 },
+    { text: "113-AIR TABLE NOT ENABLED", confidence: 90 }
+  ], OCR_KB, { machineType: "Palletizer" });
+  assert.deepEqual(rows.map(r => r.code), ["113"]);
+  assert.equal(ignored.length, 1);
+});
+await t("preprocessDocumentGray: شاشة بقطبيتين (عنوان غامق على فاتح + جدول أبيض على أحمر) => الصورتان تحتويان الحبر الصحيح", () => {
+  const W = 320, H = 200, lum = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = y < 40 ? 225 : 66;                                   // شريط عنوان فاتح + جدول أحمر غامق
+    if (y >= 14 && y < 26 && x >= 40 && x < 280 && ((x >> 1) % 3 !== 0)) v = 30;   // نص العنوان غامق
+    for (let k = 0; k < 4; k++) {
+      const y0 = 60 + k * 32;
+      if (y >= y0 && y < y0 + 14 && x >= 40 && x < 280 && ((x >> 1) % 3 !== 0)) v = 255;   // نص الصفوف أبيض
+    }
+    lum[y * W + x] = v;
+  }
+  const { cropped, croppedDark } = preprocessDocumentGray(lum, W, H);
+  const rowInk = (g, w, h, y0, y1) => { let n = 0, d = 0; for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) { n++; if (g[y * w + x] < 128) d++; } return d / n; };
+  // قطبية "النص فاتح": صفوف الجدول لازم تظهر غامقة (حبر واضح)، وفي "النص غامق" العنوان هو الغامق
+  const tableInkBright = rowInk(cropped.gray, cropped.w, cropped.h, Math.round(cropped.h * 0.4), cropped.h);
+  const headerInkDark = rowInk(croppedDark.gray, croppedDark.w, croppedDark.h, 0, Math.round(croppedDark.h * 0.25));
+  assert.ok(tableInkBright > 0.05, "جدول: " + tableInkBright);
+  assert.ok(headerInkDark > 0.03, "عنوان: " + headerInkDark);
 });
 await t("المنطق في السيرفر مطابق للعميل", () => {
   const L = require("../functions/legacyAuth.js");
@@ -123,6 +640,14 @@ await t("المدير يستطيع تأكيد إصلاح ذاتي قام به غ
   asUser("manager", "M1", "Mona");
   const k = keys({ status: "resolved", isSelfResolved: true, resolvedByUid: "U9", reportedByUid: "U9", reportedBy: "Ali" });
   assert.ok(k.includes("confirm"), k.join(","));
+});
+await t("تطابق الاسم وحده لا يعرض إعادة إرسال مقترح قديم بلا submittedByUid", () => {
+  asUser("technician", "U2", "Ali");
+  const actions = PERM.getSuggestionActions({
+    status: "revision_requested",
+    name: "Ali"
+  }).map(action => action.key);
+  assert.ok(!actions.includes("resubmit"), actions.join(","));
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);

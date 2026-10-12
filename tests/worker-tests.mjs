@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import worker, { normalizePhone, phoneVariants, normalizeCode } from "../cloudflare-worker/worker.mjs";
 
-const PID = "demo-project";
+const PID = "maintenance-defect-system";
 const DOMAIN = "maintenance-defect-system.local";
 const b64u = (buf) => Buffer.from(buf).toString("base64url");
 const enc = (o) => b64u(JSON.stringify(o));
@@ -46,6 +46,13 @@ const matchFilter = (fields, f) => {
 
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
+  if (url.includes("identitytoolkit.googleapis.com") && url.includes("accounts:signUp")) {
+    const body = JSON.parse(opts.body);
+    calls.push({ t: "idt", action: "signUp", body });
+    const id = `legacy-${authEmails.size + 1}`;
+    authEmails.set(id, body.email);
+    return J({ localId: id });
+  }
   if (url.includes("service_accounts/v1/jwk")) return J({ keys: [jwk] });
   if (url === "https://oauth2.googleapis.com/token") {
     const a = new URLSearchParams(opts.body).get("assertion").split(".");
@@ -60,9 +67,17 @@ globalThis.fetch = async (url, opts = {}) => {
   assert.equal(opts.headers?.Authorization, "Bearer AT", "طلب بدون Bearer لحساب الخدمة: " + url);
 
   if (url.includes("identitytoolkit.googleapis.com")) {
-    const action = url.split("accounts:")[1]; const body = JSON.parse(opts.body);
+    const action = url.split("accounts:")[1].split("?")[0]; const body = JSON.parse(opts.body);
     calls.push({ t: "idt", action, body });
-    if (action === "lookup") { const id = body.localId[0]; return authEmails.has(id) ? J({ users: [{ localId: id, email: authEmails.get(id) }] }) : J({}); }
+    if (action === "lookup") {
+      const id = body.localId?.[0] || [...authEmails].find(([, email]) => email === body.email?.[0])?.[0];
+      return id && authEmails.has(id) ? J({ users: [{ localId: id, email: authEmails.get(id) }] }) : J({ users: [] });
+    }
+    if (action === "signUp") {
+      const id = `legacy-${authEmails.size + 1}`;
+      authEmails.set(id, body.email);
+      return J({ localId: id });
+    }
     return J({ localId: body.localId });
   }
   if (url.endsWith("documents:runQuery")) {
@@ -112,7 +127,20 @@ globalThis.fetch = async (url, opts = {}) => {
   throw new Error("fetch غير مُحاكى: " + url);
 };
 
-const env = { FIREBASE_PROJECT_ID: PID, IMGBB_API_KEY: "SECRETKEY", SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@x.iam", private_key: saPem }) };
+const env = {
+  FIREBASE_ENV: "production",
+  FIREBASE_PROJECT_ID: PID,
+  FIREBASE_HOSTING_SITE: PID,
+  FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY",
+  IMGBB_API_KEY: "SECRETKEY",
+  ALLOWED_ORIGINS: "https://maintenance-defect-system.web.app,https://maintenance-defect-system.firebaseapp.com,https://my-dev-2026.web.app",
+  SERVICE_ACCOUNT_JSON: JSON.stringify({
+    type: "service_account",
+    project_id: PID,
+    client_email: "sa@maintenance-defect-system.iam.gserviceaccount.com",
+    private_key: saPem
+  })
+};
 const ORIGIN = "https://maintenance-defect-system.web.app";
 
 async function call(fn, data, tokenOrUid, headers = {}) {
@@ -135,9 +163,69 @@ console.log("المصادقة");
 baseSetup();
 await t("health + CORS لنطاق مسموح فقط", async () => {
   const r = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: ORIGIN } }), env);
-  assert.equal(r.status, 200); assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), {
+    ok: true,
+    environment: "production",
+    projectId: PID,
+    hostingSite: PID
+  });
+  assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
   assert.equal(r2.headers.get("Access-Control-Allow-Origin"), null);
+});
+await t("Worker dev requires a separate project and Hosting origin", async () => {
+  const devEnv = {
+    ...env,
+    FIREBASE_ENV: "development",
+    FIREBASE_PROJECT_ID: "dev-sandbox-2026",
+    FIREBASE_HOSTING_SITE: "dev-sandbox-2026",
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app",
+    SERVICE_ACCOUNT_JSON: JSON.stringify({
+      type: "service_account",
+      project_id: "dev-sandbox-2026",
+      client_email: "dev-deployer@dev-sandbox-2026.iam.gserviceaccount.com",
+      private_key: saPem
+    })
+  };
+  const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
+  assert.equal(ready.status, 200);
+  assert.deepEqual(await ready.json(), {
+    ok: true,
+    environment: "development",
+    projectId: "dev-sandbox-2026",
+    hostingSite: "dev-sandbox-2026"
+  });
+
+  const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
+    ...devEnv,
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
+  });
+  assert.equal(productionOrigin.status, 500);
+});
+await t("incomplete or mixed Worker project configuration fails closed", async () => {
+  const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    ALLOWED_ORIGINS: ""
+  });
+  assert.equal(noOrigins.status, 500);
+
+  const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    SERVICE_ACCOUNT_JSON: JSON.stringify({
+      type: "service_account",
+      project_id: "another-project",
+      client_email: "sa@another-project.iam.gserviceaccount.com",
+      private_key: saPem
+    })
+  });
+  assert.equal(mixedProject.status, 500);
+
+  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    FIREBASE_ENV: "development"
+  });
+  assert.equal(devOnProduction.status, 500);
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
@@ -148,8 +236,8 @@ await t("توكن منتهي أو لمشروع آخر = 401", async () => {
   assert.equal((await call("deleteUserAccount", { userId: "x" }, await makeToken("admin1", { exp: Math.floor(Date.now() / 1000) - 100 }))).status, 401);
   assert.equal((await call("deleteUserAccount", { userId: "x" }, await makeToken("admin1", { aud: "other" }))).status, 401);
 });
-await t("دوال غير موجودة = 404 (منها مسار إعادة التعيين بواسطة الأدمن الذي أُلغي للخصوصية)", async () => {
-  assert.equal((await call("migrateLegacyAccount", {}, "admin1")).status, 404);
+await t("المسارات غير المدعومة = 404 (منها إعادة التعيين بواسطة الأدمن التي ألغيت للخصوصية)", async () => {
+  assert.equal((await call("unknownEndpoint", {}, "admin1")).status, 404);
   assert.equal((await call("adminResetUserPassword", { userId: "tech1", newPassword: "newpass123" }, "admin1")).status, 404);
   assert.ok(!calls.some((c) => c.t === "idt"));
 });
@@ -212,6 +300,68 @@ await t("تطبيع الكود والهاتف", () => {
   assert.equal(normalizeCode(" ab-١٢٣ 4 "), "AB1234");
   assert.equal(normalizePhone("٠١٠٠١٢٣٤٥٦٧").canonical, "01001234567");
   assert.ok(phoneVariants("01001234567").includes("201001234567"));
+});
+await t("ترحيل كلمة سر PBKDF2 القديمة ينشئ حساب Auth، ينقل الملف الشخصي ويحذف الأسرار القديمة", async () => {
+  baseSetup();
+  const phone = "01001234567";
+  const salt = "00112233445566778899aabbccddeeff";
+  const hash = (await import("node:crypto")).pbkdf2Sync("LegacyPass123", Buffer.from(salt, "hex"), 150000, 32, "sha256").toString("hex");
+  setUser("legacy-user", "technician", "active", {
+    phone,
+    passwordHash: hash,
+    salt,
+    department: "maintenance"
+  });
+
+  const wrong = await call("migrateLegacyAccount", { phone, password: "WrongPass123" }, "");
+  assert.equal(wrong.status, 403);
+  assert.match(wrong.body.error.message, /رقم الموبايل أو كلمة السر غير صحيحة/);
+  assert.equal([...authEmails.values()].includes(`${phone}@${DOMAIN}`), false);
+
+  const migrated = await call("migrateLegacyAccount", { phone, password: "LegacyPass123" }, "");
+  assert.equal(migrated.status, 200);
+  assert.equal(migrated.body.result.status, "success");
+  const uid = [...authEmails].find(([, email]) => email === `${phone}@${DOMAIN}`)?.[0];
+  assert.ok(uid);
+  assert.equal(store.get(`users/${uid}`).role.stringValue, "technician");
+  assert.equal(store.get(`users/${uid}`).department.stringValue, "maintenance");
+  assert.ok(!store.get(`users/${uid}`).passwordHash);
+  assert.equal(store.get("users/legacy-user").role.stringValue, "migrated");
+  assert.ok(!store.get("users/legacy-user").passwordHash);
+  assert.ok(!JSON.stringify(migrated.body).includes(hash));
+});
+await t("ترحيل كلمات السر النصية القديمة يستبدلها بحساب Auth ويحذف النص القديم", async () => {
+  baseSetup();
+  const phone = "01009998877";
+  setUser("legacy-plain", "operator", "active", {
+    phone,
+    password: "LegacyPlain123"
+  });
+
+  const migrated = await call("migrateLegacyAccount", { phone, password: "LegacyPlain123" }, "");
+  assert.equal(migrated.status, 200);
+  const uid = [...authEmails].find(([, email]) => email === `${phone}@${DOMAIN}`)?.[0];
+  assert.ok(uid);
+  assert.equal(store.get(`users/${uid}`).role.stringValue, "operator");
+  assert.ok(!store.get(`users/${uid}`).password);
+  assert.ok(!store.get("users/legacy-plain").password);
+});
+await t("رفض ترحيل حساب Auth موجود يحمي دور الحساب وسر إعادة تعيينه", async () => {
+  baseSetup();
+  const phone = "01008887766";
+  setUser("legacy-admin", "admin", "active", { phone, password: "LegacyAdmin123" });
+  setUser("registered-user", "reporter", "active", { phone });
+  setAuth("registered-user", phone);
+  assert.equal((await call("registerEmployeeCode", { code: "ATTACKER99" }, "registered-user")).status, 200);
+  calls.length = 0;
+
+  const result = await call("migrateLegacyAccount", { phone, password: "LegacyAdmin123" }, "");
+  assert.equal(result.status, 403);
+  assert.equal(store.get("users/registered-user").role.stringValue, "reporter");
+  assert.equal(store.get("users/legacy-admin").role.stringValue, "admin");
+  assert.equal(store.get("users/legacy-admin").password.stringValue, "LegacyAdmin123");
+  assert.ok(secretOf("registered-user"));
+  assert.ok(!calls.some((c) => c.t === "idt" && c.action === "update"));
 });
 await t("registerEmployeeCode يخزّن هاشاً (لا نص صريح) مرة واحدة فقط", async () => {
   baseSetup();

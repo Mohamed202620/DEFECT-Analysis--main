@@ -11,7 +11,7 @@ globalThis.document = { getElementById: () => null, addEventListener() {}, docum
 try { Object.defineProperty(globalThis, "navigator", { value: { onLine: true, userAgent: "node" }, configurable: true }); } catch (_) {}
 globalThis.addEventListener = () => {};
 
-const PID = "demo-project";
+const PID = "maintenance-defect-system";
 const { default: worker } = await import("../cloudflare-worker/worker.mjs");
 const realFetch = globalThis.fetch;
 
@@ -28,7 +28,20 @@ async function token(uid) {
   return `${h}.${p}.${b64u(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", gk.privateKey, new TextEncoder().encode(`${h}.${p}`)))}`;
 }
 
-const env = { FIREBASE_PROJECT_ID: PID, IMGBB_API_KEY: "SECRETKEY", SERVICE_ACCOUNT_JSON: JSON.stringify({ client_email: "sa@x", private_key: pem }) };
+const env = {
+  FIREBASE_ENV: "production",
+  FIREBASE_PROJECT_ID: PID,
+  FIREBASE_HOSTING_SITE: PID,
+  FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY",
+  IMGBB_API_KEY: "SECRETKEY",
+  ALLOWED_ORIGINS: "https://maintenance-defect-system.web.app,https://maintenance-defect-system.firebaseapp.com,https://my-dev-2026.web.app",
+  SERVICE_ACCOUNT_JSON: JSON.stringify({
+    type: "service_account",
+    project_id: PID,
+    client_email: "sa@maintenance-defect-system.iam.gserviceaccount.com",
+    private_key: pem
+  })
+};
 const seen = { imgbb: null, preflight: null, workerUrls: [] };
 const users = { tech1: { role: "technician", status: "active", name: "T" } };
 
@@ -94,8 +107,8 @@ await t("المدخلات غير الصالحة تُرجع null بدون طلب 
   assert.equal(await serverProxyStorageProvider.uploadImage("data:text/html;base64,PHNjcmlwdD4=", "x"), null);
   assert.equal(seen.workerUrls.length, before);
 });
-await t("callCloudFunction يتجه للـ Worker بنفس البروتوكول (دالة غير مدعومة = رسالة عربية واضحة)", async () => {
-  await assert.rejects(() => callCloudFunction("migrateLegacyAccount", {}), (e) => /غير متاحة/.test(e.message));
+await t("callCloudFunction يتجه للـ Worker وتظهر أخطاء مدخلات ترحيل الحساب بوضوح", async () => {
+  await assert.rejects(() => callCloudFunction("migrateLegacyAccount", {}), (e) => /بيانات غير صالحة/.test(e.message));
   assert.ok(seen.workerUrls.at(-1).endsWith("/migrateLegacyAccount"));
 });
 await t("مستخدم غير مفعّل لا يستطيع الرفع عبر العميل", async () => {

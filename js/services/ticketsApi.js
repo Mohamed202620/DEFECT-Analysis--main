@@ -23,7 +23,7 @@ import { normalizeLine } from "../utils/lineUtils.js";
 // التنفيذ/مغلق...) بتفضل من غير حد لأن حجمها الطبيعي محدود أصلاً
 // (تذاكر مفتوحة حالياً، مش الأرشيف كله)
 const TICKETS_BOARD_DEFAULT_LIMIT = 300;
-import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction } from "./offlineQueue.js";
+import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction, isOfflineActionOwnedBy } from "./offlineQueue.js";
 // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): استيراد مباشر من
 // usersApi.js (مش من services/api.js) عشان نتجنب Circular Import، بما
 // إن api.js نفسه بيعمل Re-export من ticketsApi.js
@@ -222,6 +222,7 @@ function isPermanentSyncError(message) {
   const PERMANENT_MARKERS = [
     "permission", "insufficient", "not-found", "not found", "no document",
     "already-exists", "invalid-argument", "invalid",
+    "checklist version conflict",
     "غير موجود", "مطلوب", "مطلوبة", "مطلوبين", "لازم", "متاح", "غير صالح"
   ];
   return PERMANENT_MARKERS.some(marker => msg.includes(marker));
@@ -360,6 +361,12 @@ async function _syncOfflineTicketActionsApiImpl() {
   let failed = 0;
   for (const item of queued) {
     try {
+      if (!isOfflineActionOwnedBy(item, authUser.uid)) {
+        console.warn("[Sync] Preserving offline action without matching owner identity:", item.localId);
+        failed++;
+        continue;
+      }
+
       const { type, ticketId, payload } = item.action || {};
       let result;
 
@@ -390,6 +397,21 @@ async function _syncOfflineTicketActionsApiImpl() {
       } else if (type === "new_defect") {
         const { saveDefectApi } = await import("./defectsApi.js");
         result = await saveDefectApi(payload, { skipOfflineQueue: true });
+      } else if (type === "save_checklist_template") {
+        try {
+          const { buildChecklistTemplateDocument } = await import("./checklistTemplateSync.js");
+          const { collection: targetCollection, targetId } = item.action;
+          const templateRef = doc(db, targetCollection, targetId);
+          const current = await getDoc(templateRef);
+          const template = buildChecklistTemplateDocument(
+            item.action,
+            current.exists() ? current.data() : null
+          );
+          await setDoc(templateRef, template);
+          result = { status: "success" };
+        } catch (error) {
+          result = { status: "error", message: error.message };
+        }
       } else if (type === "new_machine_error") {
         const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
         result = await saveMachineErrorApi(payload, { skipOfflineQueue: true });
@@ -421,9 +443,13 @@ async function _syncOfflineTicketActionsApiImpl() {
           // من الطابور مع console.warn بس (مثلاً permission-denied لأن التذكرة اتسحبت
           // من الفني أو حالتها اتغيرت) فتضيع ملاحظات الإصلاح من غير ما المستخدم يعرف.
           // دلوقتي بنحتفظ بنسخة توثيقية (بدون الصور) ونبلّغ المستخدم بعد المزامنة.
-          recordFailedOfflineAction(item, msg);
+          const recorded = recordFailedOfflineAction(item, msg);
           failed++;
-          await removeQueuedAction(item.localId);
+          if (recorded) {
+            await removeQueuedAction(item.localId);
+          } else {
+            console.error("[Sync] Could not archive failed offline action; preserving it in the queue:", item.localId);
+          }
         } else {
           console.warn(`[Sync] Transient/unknown error for offline action ${item.localId}, keeping in queue:`, msg);
         }
@@ -447,10 +473,23 @@ function recordFailedOfflineAction(item, reason) {
       ticketId,
       reason: String(reason || "").slice(0, 300),
       notes: payload?.mechanicNotes || payload?.assignedTo || "",
+      ...(type === "save_checklist_template" && {
+        checklist: {
+          collection: item.action?.collection,
+          targetId: item.action?.targetId,
+          items: item.action?.items,
+          updatedAt: item.action?.updatedAt,
+          updatedBy: item.action?.updatedBy
+        }
+      }),
       at: new Date().toISOString()
     });
     localStorage.setItem(FAILED_OFFLINE_ACTIONS_KEY, JSON.stringify(list.slice(-50)));
-  } catch (_) { /* توثيق فقط - مايوقفش المزامنة */ }
+    return true;
+  } catch (error) {
+    console.error("[OfflineSync] Could not save failed action details:", error);
+    return false;
+  }
 }
 
 // TICKETS
@@ -925,10 +964,8 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 // على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً - بيقلل
 // عدد المستندات المقروءة فعلياً من Firestore في كل تقرير شهري.
 // ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
-// (reportedBy+createdAt وassignedTo+createdAt) - راجع firestore.indexes.json
-// المُرفق. لحد ما الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان
-// (عبر emptyResultOnMissingIndex) بدل ما توقع الصفحة، وهتتسجل تحذير
-// في console يوضح الحاجة للـ Index.
+// (reportedBy+createdAt وassignedTo+createdAt) - راجع firestore.indexes.json.
+// فشل الـ Index يرجع خطأ صريحاً حتى لا يظهر التقرير كأنه لا يحتوي سجلات.
 export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }) {
   try {
     const ticketsRef = collection(db, "tickets");
@@ -955,8 +992,6 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
 
     return { status: "success", data: tickets };
   } catch (error) {
-    const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForReportApi");
-    if (fallback) return fallback;
     console.error("Error fetching tickets for report:", error);
     return { status: "error", message: error.message };
   }
@@ -1044,21 +1079,24 @@ function emptyResultOnMissingIndex(error, context) {
   return null; 
 }
 
-async function addTicketLog(ticketId, { action, fromStatus, toStatus, note = "" }) {
-  try {
-    await addDoc(collection(db, "tickets", ticketId, "logs"), {
-      action,
-      fromStatus,
-      toStatus,
-      note,
-      by: localStorage.getItem("name") || "",
-      byUid: localStorage.getItem("userId") || "",
-      byRole: getCurrentRole() || "",
-      at: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Error adding ticket log:", error);
-  }
+function ticketLogData({ action, fromStatus, toStatus, note = "" }) {
+  return {
+    action,
+    fromStatus,
+    toStatus,
+    note,
+    by: localStorage.getItem("name") || "",
+    byUid: localStorage.getItem("userId") || "",
+    byRole: getCurrentRole() || "",
+    at: new Date().toISOString()
+  };
+}
+
+async function updateTicketWithLog(ticketId, updateData, logData) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, "tickets", ticketId), updateData);
+  batch.set(doc(collection(db, "tickets", ticketId, "logs")), ticketLogData(logData));
+  await batch.commit();
 }
 
 export async function fetchTicketLogsApi(ticketId) {
@@ -1195,10 +1233,15 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
       if (existingUpdates.some(u => u && u.id === newUpdate.id)) { saved = true; break; }
 
       try {
-        await updateDoc(ticketRef, {
+        await updateTicketWithLog(ticketId, {
           shiftUpdates: [...existingUpdates, newUpdate],
           lastShiftUpdate: newUpdate,
           updatedAt: new Date().toISOString()
+        }, {
+          action: "shift_update",
+          fromStatus: currentTicket.status,
+          toStatus: currentTicket.status,
+          note: `[تحديث وردية ${newUpdate.shift || ''}]: ${newUpdate.note}`
         });
         saved = true;
       } catch (writeError) {
@@ -1210,13 +1253,6 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     if (!saved) {
       throw lastError || new Error("تعذّر حفظ ملاحظة الوردية بعد عدة محاولات");
     }
-
-    await addTicketLog(ticketId, {
-      action: "shift_update",
-      fromStatus: currentTicket.status,
-      toStatus: currentTicket.status,
-      note: `[تحديث وردية ${newUpdate.shift || ''}]: ${newUpdate.note}`
-    });
 
     // إشعار الفني المُسند والمديرين بتسليم الوردية (M9 - كانت مفيش أي إشعار)
     notifyShiftUpdate(ticketId, currentTicket, newUpdate).catch(() => {});
@@ -1307,7 +1343,29 @@ async function notifyManagersOfNewTicket(ticketId, ticketData) {
 
 // ملاحظة: بدون orderBy مع where عشان نتجنب الحاجة لـ Composite Index
 // في Firestore - الترتيب بيتم محلياً بنفس أسلوب subscribeToTicketsBoardApi
+// لقطة الإشعارات من الاشتراك اللحظي (subscribeToMyNotificationsApi) - بتتحدث مع كل
+// Snapshot. بنستخدمها بدل ما نعيد قراءة نفس الإشعارات من السيرفر: كل تنقل كان بيعمل
+// استعلام عدّ، وكل فتح للقائمة قراءة كاملة غير محدودة لنفس البيانات الموجودة عندنا فعلاً.
+// serverConfirmed=false يعني اللقطة جاية من الكاش المحلي (ممكن تكون أقدم) فمانعتمدش عليها
+// لو الاتصال شغال.
+let liveNotifications = null; // { uid, all, unread, serverConfirmed }
+
+export function clearLiveNotificationsCache() {
+  liveNotifications = null;
+}
+
+function getLiveNotifications(uid) {
+  if (!liveNotifications || liveNotifications.uid !== uid) return null;
+  const online = typeof navigator === "undefined" || navigator.onLine;
+  if (online && !liveNotifications.serverConfirmed) return null;
+  return liveNotifications;
+}
+
 export async function fetchMyNotificationsApi(uid) {
+  const live = getLiveNotifications(uid);
+  if (live) {
+    return { status: "success", data: live.all.slice(0, 30) };
+  }
   try {
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
     const querySnapshot = await getDocs(q);
@@ -1338,6 +1396,8 @@ export async function fetchMyNotificationsApi(uid) {
 // بالفعل)، وتُستخدم في مكان واحد بس (رقم الجرس)، من غير أي تغيير في
 // قائمة الإشعارات المعروضة نفسها أو سلوكها الحالي.
 export async function countUnreadNotificationsApi(uid) {
+  const live = getLiveNotifications(uid);
+  if (live) return { status: "success", count: live.unread };
   try {
     // Test 16/17: كانت بتقرأ كل إشعارات المستخدم (بلا limit، ومفيش حذف
     // للإشعارات القديمة) عشان تعدّ غير المقروء - وبتتنادى مع كل render()
@@ -1363,17 +1423,27 @@ export async function countUnreadNotificationsApi(uid) {
 export function subscribeToMyNotificationsApi(uid, callback) {
   try {
     const q = query(collection(db, "notifications"), where("forUid", "==", uid));
+    // includeMetadataChanges: لازم عشان نعرف لحظة تأكيد السيرفر للقطة (fromCache→false)
+    // حتى لو البيانات نفسها ماتغيّرتش عن الكاش المحلي
     return onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (querySnapshot) => {
         const notifications = [];
         querySnapshot.forEach(docSnap => {
           notifications.push({ id: docSnap.id, ...docSnap.data() });
         });
         notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        liveNotifications = {
+          uid,
+          all: notifications,
+          unread: notifications.filter(n => !n.read).length,
+          serverConfirmed: !querySnapshot.metadata.fromCache
+        };
         callback({ status: "success", data: notifications.slice(0, 30) });
       },
       (error) => {
+        liveNotifications = null;
         const fallback = emptyResultOnMissingIndex(error, "subscribeToMyNotificationsApi");
         if (fallback) {
           callback(fallback);
@@ -1441,16 +1511,12 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
     return { status: "error", message: "type و assignedTo مطلوبين" };
   }
   try {
-    await updateDoc(
-      doc(db, "tickets", ticketId),
-      stampUpdate({
+    await updateTicketWithLog(ticketId, stampUpdate({
         status: "assigned",
         type,
         assignedTo,
         ...(assignedToUid && { assignedToUid })
-      })
-    );
-    addTicketLog(ticketId, {
+      }), {
       action: "assign",
       fromStatus: "pending",
       toStatus: "assigned",
@@ -1527,16 +1593,11 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
       };
     }
 
-    await updateDoc(
-      ticketRef,
-      stampUpdate({
+    await updateTicketWithLog(ticketId, stampUpdate({
         status: "assigned",
         assignedTo,
         assignedToUid: assignedToUid || null
-      })
-    );
-
-    addTicketLog(ticketId, {
+      }), {
       action: "reassign",
       fromStatus,
       toStatus: "assigned",
@@ -1586,8 +1647,7 @@ export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}
   }
 
   try {
-    await updateDoc(doc(db, "tickets", ticketId), stampUpdate({ status: "in_progress" }));
-    addTicketLog(ticketId, {
+    await updateTicketWithLog(ticketId, stampUpdate({ status: "in_progress" }), {
       action: "start",
       fromStatus: "assigned",
       toStatus: "in_progress"
@@ -1695,9 +1755,7 @@ export async function resolveTicketApi(
     const isSelfResolved = !!before.reportedByUid && before.reportedByUid === resolverUid;
     const nowISO = new Date().toISOString();
 
-    await updateDoc(
-      ticketRef,
-      stampUpdate({
+    await updateTicketWithLog(ticketId, stampUpdate({
         status: "resolved",
         mechanicNotes: mechanicNotes.trim(),
         afterImages: afterImageUrls,
@@ -1706,9 +1764,7 @@ export async function resolveTicketApi(
         resolvedBy: localStorage.getItem("name") || "",
         resolvedByUid: resolverUid,
         isSelfResolved
-      })
-    );
-    addTicketLog(ticketId, {
+      }), {
       action: "resolve",
       fromStatus,
       toStatus: "resolved",
@@ -1770,8 +1826,7 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
     const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
 
-    await updateDoc(doc(db, "tickets", ticketId), stampUpdate({ status: "closed" }));
-    addTicketLog(ticketId, {
+    await updateTicketWithLog(ticketId, stampUpdate({ status: "closed" }), {
       action: "close",
       fromStatus: "resolved",
       toStatus: "closed"
@@ -1794,12 +1849,9 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
 // ============================================================
 // إضافة (تحسين Workflow - إجراءات جماعية Bulk Actions): تأكيد إغلاق
 // أكتر من تذكرة "بانتظار تأكيد" مرة واحدة، بدل الضغط على كل تذكرة
-// لوحدها. تحديث الحالة الفعلي لكل التذاكر بيتم في Batch واحد
-// (writeBatch) - طلب واحد لـ Firestore بدل N طلب منفصل، وبعدين تسجيل
-// الـ Log والإشعار لكل تذكرة بيحصل بالتوازي (منفصل عن الـ Batch لأن
-// addDoc بيحتاج معرف تلقائي جديد، والهدف من الـ Batch هو التحديث
-// الأساسي الذري بس). أي تذكرة مش بحالة "resolved" بيتم تجاهلها بأمان
-// (مفيش إغلاق جماعي لتذاكر لسه قيد التنفيذ مثلاً)
+// لوحدها. الحالة وسجلها يُكتبان معاً في دفعات writeBatch، وأي تذكرة
+// مش بحالة "resolved" بيتم تجاهلها بأمان (مفيش إغلاق جماعي لتذاكر
+// لسه قيد التنفيذ مثلاً).
 // ============================================================
 export async function bulkCloseTicketsApi(ticketIds) {
   if (!Array.isArray(ticketIds) || !ticketIds.length) {
@@ -1829,17 +1881,22 @@ export async function bulkCloseTicketsApi(ticketIds) {
       return { status: "error", message: "لا توجد تذاكر صالحة للإغلاق الجماعي (بانتظار تأكيد فقط)" };
     }
 
-    // 2. تحديث الحالة لكل التذاكر الصالحة في Batch واحد (ذرّي - إما
-    // كلها تنجح أو كلها تفشل مع بعض)
-    const batch = writeBatch(db);
-    validIds.forEach(id => {
-      batch.update(doc(db, "tickets", id), stampUpdate({ status: "closed" }));
-    });
-    await batch.commit();
+    // 2. تحديث الحالة وسجلها معاً، ضمن دفعات لا تتجاوز حد Firestore
+    // (كل تذكرة تستهلك عمليتي كتابة).
+    for (let i = 0; i < validIds.length; i += 250) {
+      const batch = writeBatch(db);
+      validIds.slice(i, i + 250).forEach(id => {
+        batch.update(doc(db, "tickets", id), stampUpdate({ status: "closed" }));
+        batch.set(
+          doc(collection(db, "tickets", id, "logs")),
+          ticketLogData({ action: "close", fromStatus: "resolved", toStatus: "closed" })
+        );
+      });
+      await batch.commit();
+    }
 
-    // 3. تسجيل Log + إشعار لكل تذكرة بالتوازي (بعد نجاح التحديث الأساسي)
+    // 3. إرسال الإشعارات بعد نجاح حفظ الحالة والسجل
     await Promise.all(validIds.map(async id => {
-      addTicketLog(id, { action: "close", fromStatus: "resolved", toStatus: "closed" });
       const assignedToUid = assigneeByTicket[id];
       if (assignedToUid) {
         createNotification(assignedToUid, {
@@ -1869,8 +1926,7 @@ export async function rejectTicketApi(ticketId, reason) {
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
     const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
 
-    await updateDoc(doc(db, "tickets", ticketId), stampUpdate({ status: "in_progress" }));
-    addTicketLog(ticketId, {
+    await updateTicketWithLog(ticketId, stampUpdate({ status: "in_progress" }), {
       action: "reject",
       fromStatus: "resolved",
       toStatus: "in_progress",
@@ -1912,12 +1968,7 @@ export async function reopenTicketApi(ticketId, reason) {
     // "reopened" ده أصلاً معرّفة بالكامل في الترجمات والفلاتر
     // (ticketStatusConstants.js, ticketsApi.js, permissions.js) لكن
     // محدش كان بيحطها فعلياً - كانت بترجع pending دايماً
-    await updateDoc(
-      ticketRef,
-      stampUpdate({ status: "reopened", operatorFeedback: cleanReason })
-    );
-
-    addTicketLog(ticketId, {
+    await updateTicketWithLog(ticketId, stampUpdate({ status: "reopened", operatorFeedback: cleanReason }), {
       action: "reopen",
       // إصلاح: كانت مسجلة "closed" وهو غلط - الرفض بيحصل من حالة
       // "resolved" فعلياً (مفيش زرار رفض إلا على تذكرة resolved)
@@ -1975,9 +2026,9 @@ export async function releaseTicketsOfUserApi(userId, userName = "") {
     const adminName = localStorage.getItem("name") || "Admin";
     const reason = `الفني (${userName || "غير معروف"}) لم يعد متاحاً - أُعيد البلاغ لقائمة الانتظار لإعادة الإسناد`;
 
-    for (let i = 0; i < targets.length; i += 400) {
+    for (let i = 0; i < targets.length; i += 250) {
       const batch = writeBatch(db);
-      targets.slice(i, i + 400).forEach(t => {
+      targets.slice(i, i + 250).forEach(t => {
         batch.update(
           doc(db, "tickets", t.id),
           stampUpdate({
@@ -1989,13 +2040,13 @@ export async function releaseTicketsOfUserApi(userId, userName = "") {
             declinedAt: new Date().toISOString()
           })
         );
+        batch.set(
+          doc(collection(db, "tickets", t.id, "logs")),
+          ticketLogData({ action: "release", fromStatus: t.fromStatus, toStatus: "pending", note: reason })
+        );
       });
       await batch.commit();
     }
-
-    targets.forEach(t => {
-      addTicketLog(t.id, { action: "release", fromStatus: t.fromStatus, toStatus: "pending", note: reason });
-    });
 
     try {
       const managersRes = await fetchManagersAndAdminsApi();
@@ -2085,19 +2136,14 @@ export async function declineTicketApi(ticketId, reason) {
       return { status: "error", message: "الاعتذار متاح فقط للتذاكر المُسندة أو قيد التنفيذ" };
     }
 
-    await updateDoc(
-      doc(db, "tickets", ticketId),
-      stampUpdate({
+    await updateTicketWithLog(ticketId, stampUpdate({
         status: "pending",
         assignedTo: null,
         assignedToUid: null,
         declineReason: cleanReason,
         declinedBy: myName,
         declinedAt: new Date().toISOString()
-      })
-    );
-
-    addTicketLog(ticketId, {
+      }), {
       action: "decline",
       fromStatus: declineFromStatus,
       toStatus: "pending",

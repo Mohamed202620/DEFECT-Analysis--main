@@ -3,6 +3,7 @@ import { buildPdfBrandHeaderHtml, buildPdfTitleBlockHtml, buildPdfSignatureBlock
 import { HEADER_COLORS, COMPANY_NAME_AR, COMPANY_NAME_EN } from '../companyHeaderConfig.js';
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 import { escapeHtml } from "../utils/escapeHtml.js";
+import { localDateStamp } from "../utils/reportData.js";
 
 // إصلاح (بند مؤكد بالاختبار العملي - Test 10): كانت ExcelJS بتتحمّل
 // حصرياً عبر <script> ثابت في index.html من مصدر CDN واحد بس
@@ -615,7 +616,7 @@ export async function exportToExcel(title, headers, rows, filename, options = {}
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   
-  let finalFilename = filename || `mscanco-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  let finalFilename = filename || `mscanco-report-${localDateStamp()}.xlsx`;
   if (finalFilename.endsWith(".csv")) {
     finalFilename = finalFilename.replace(".csv", ".xlsx");
   } else if (!finalFilename.endsWith(".xlsx")) {

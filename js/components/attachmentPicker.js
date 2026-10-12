@@ -108,6 +108,7 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
       <p id="${escapeHtml(groupId)}_empty_text" class="text-xs text-gray-400 text-center py-2">
         ${escapeHtml(emptyText)}
       </p>
+      <p id="${escapeHtml(groupId)}_error" class="hidden text-xs text-red-400 text-center py-2" role="alert" aria-live="polite"></p>
     </div>
   `;
 }
@@ -183,6 +184,12 @@ export function initAttachmentPicker(groupId, options = {}) {
   const handleFiles = async (fileList) => {
     if (!fileList || fileList.length === 0) return;
 
+    const errorEl = document.getElementById(`${groupId}_error`);
+    if (errorEl) {
+      errorEl.textContent = "";
+      errorEl.classList.add("hidden");
+    }
+
     const currentFiles = attachmentStore.get(groupId) || [];
     const filesArray = Array.from(fileList);
 
@@ -202,6 +209,12 @@ export function initAttachmentPicker(groupId, options = {}) {
         currentFiles.push(compressed);
       } catch (err) {
         console.error('Error compressing image:', err);
+        if (errorEl) {
+          errorEl.textContent = window.currentLang === "en"
+            ? `Could not process "${file.name}". Try another image.`
+            : `تعذّرت معالجة الصورة "${file.name}". جرّب صورة أخرى.`;
+          errorEl.classList.remove("hidden");
+        }
       }
     }
 

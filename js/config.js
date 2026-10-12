@@ -15,6 +15,11 @@ import {
   onAuthStateChanged
 } from "./firebase.js";
 import { phoneToCanonicalAuthEmail, phoneToLegacyAuthEmail } from "./utils/phoneUtils.js";
+import {
+  DEFAULT_FIREBASE_FUNCTIONS_REGION,
+  PRODUCTION_BACKEND_WORKER_URL,
+  PRODUCTION_FIREBASE_CONFIG
+} from "./firebaseDefaults.js";
 
 
 // ============================================================
@@ -53,36 +58,28 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 // إعدادات Firebase
 // ============================================================
 
-export const FIREBASE_API_KEY = "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA";
+const appConfig = window.APP_CONFIG || {};
+const firebaseConfig = {
+  apiKey: appConfig.FIREBASE_API_KEY || PRODUCTION_FIREBASE_CONFIG.apiKey,
+  authDomain: appConfig.FIREBASE_AUTH_DOMAIN || PRODUCTION_FIREBASE_CONFIG.authDomain,
+  projectId: appConfig.FIREBASE_PROJECT_ID || PRODUCTION_FIREBASE_CONFIG.projectId,
+  storageBucket: appConfig.FIREBASE_STORAGE_BUCKET || PRODUCTION_FIREBASE_CONFIG.storageBucket,
+  messagingSenderId: appConfig.FIREBASE_MESSAGING_SENDER_ID || PRODUCTION_FIREBASE_CONFIG.messagingSenderId,
+  appId: appConfig.FIREBASE_APP_ID || PRODUCTION_FIREBASE_CONFIG.appId
+};
 
-export const FIREBASE_PROJECT_ID =
-  window.APP_CONFIG?.FIREBASE_PROJECT_ID || "maintenance-defect-system";
+export const FIREBASE_API_KEY = firebaseConfig.apiKey;
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 
 // عنوان الـ Worker (Cloudflare) البديل المجاني لـ Cloud Functions (خطة Spark).
 // عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
 // الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
 // لـ Cloud Functions الأصلية (خطة Blaze).
 export const BACKEND_WORKER_URL =
-  window.APP_CONFIG?.BACKEND_WORKER_URL || "https://odd-sun-fab8.mom379339.workers.dev";
+  appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
 
 export const FIREBASE_FUNCTIONS_REGION =
-  window.APP_CONFIG?.FIREBASE_FUNCTIONS_REGION || "us-central1";
-
-const firebaseConfig = {
-
-  apiKey: window.APP_CONFIG?.FIREBASE_API_KEY || "AIzaSyBocUzghhDY2eY9Dg8B-UwlV-ye844_DtA",
-
-  authDomain: window.APP_CONFIG?.FIREBASE_AUTH_DOMAIN || "maintenance-defect-system.firebaseapp.com",
-
-  projectId: FIREBASE_PROJECT_ID,
-
-  storageBucket: window.APP_CONFIG?.FIREBASE_STORAGE_BUCKET || "maintenance-defect-system.firebasestorage.app",
-
-  messagingSenderId: window.APP_CONFIG?.FIREBASE_MESSAGING_SENDER_ID || "1065779979535",
-
-  appId: window.APP_CONFIG?.FIREBASE_APP_ID || "1:1065779979535:web:6d53e69c4cfde57b414a7a"
-
-};
+  appConfig.FIREBASE_FUNCTIONS_REGION || DEFAULT_FIREBASE_FUNCTIONS_REGION;
 
 // ============================================================
 // ثوابت التطبيق
@@ -523,7 +520,7 @@ export const translations = {
       searchDesc: "فلترة البلاغات وسجلات الصيانة الوقائية معاً",
       searchOpen: "فتح ↩",
       scannerTitle: "فاحص أعطال الماكينات",
-      scannerDesc: "تصوير شاشة العطل والبحث عنه تلقائياً",
+      scannerDesc: "حلّل شاشة الأعطال واعرض الحلول واحداً تلو الآخر",
       scannerBtn: "فحص",
       qrTitle: "مسح QR الماكينات",
       qrDesc: "وصول سريع لبيانات المعدة بالكاميرا",
@@ -565,6 +562,7 @@ export const translations = {
       periodAll: "كل قاعدة المعرفة",
       loadingKb: "جاري تحميل قاعدة المعرفة...",
       calculating: "جاري الحساب...",
+      periodLoadError: "تعذر تحميل سجلات الفترة. حاول مرة أخرى.",
       loggedError: "عطل مسجل",
       totalOccurrences: "إجمالي الظهور",
       distinctCodes: "أكواد أعطال مختلفة",
@@ -628,7 +626,7 @@ export const translations = {
     // مفاتيح خاصة بصفحة "Machine Error Scanner" (ErrorScannerView.js)
     errorScanner: {
       title: "Machine Error Scanner",
-      subtitle: "صوّر الخطأ الظاهر على شاشة الماكينة، وسيتم قراءته والبحث عنه تلقائياً في قاعدة المعرفة.",
+      subtitle: "حلّل شاشة سجل الأعطال، وراجع تفاصيل كل عطل وانتقل بين الحلول دون أن تفقد موضعك.",
       machineType: "نوع الماكينة",
       selectMachine: "اختر نوع الماكينة",
       captureBtn: "تصوير الشاشة",
@@ -649,7 +647,57 @@ export const translations = {
       readingOcr: "🔍 جاري قراءة النص من الصورة (OCR)...",
       codeExtracted: "✅ تم استخراج كود مقترح: {code} (يمكنك تعديله قبل البحث)",
       codeNotFound: "⚠️ لم يتم التعرف تلقائياً على كود واضح، يرجى إدخاله يدوياً بعد مراجعة النص المستخرج.",
-      ocrError: "❌ لم استطع قراءة الكود. حاول تصوير اوضح",
+      ocrRawTextTitle: "النص الخام من الصورة (للمراجعة فقط)",
+      cropHint: "اضغط \"تحليل كل الأعطال\"، أو اضغط على سطر واحد (أو اسحب المستطيل) ليغطي السطر كاملاً ثم \"قراءة السطر المحدد\".",
+      cropReady: "صورة جاهزة: حلّل كل الأعطال، أو حدد سطراً واحداً بالمستطيل الأخضر",
+      scanRegionBtn: "قراءة السطر المحدد",
+      scanFullBtn: "تحليل كل الأعطال",
+      improvingImage: "جاري تحسين الصورة (إضاءة وميل وقص)...",
+      rowsTitle: "الأعطال المستخرجة ({n})",
+      rowsHint: "راجع الأكواد والأوصاف، ثم اضغط «عرض الحل» لكل عطل. استخدم السابق والتالي للتنقل دون فقد موضعك. لا يُضاف عطل جديد إلى القاعدة إلا عند اختيارك ذلك.",
+      rowsFound: "تم استخراج {n} عطل - راجع كل عطل واعتمد الصحيح",
+      rowsNone: "⚠️ لم يُستخرج أي عطل واضح من الصورة. حدد السطر بالمستطيل واقرأه، أو أضف العطل يدوياً. (النص الخام أدناه للمراجعة)",
+      rowMatched: "✅ مطابق في القاعدة",
+      rowReview: "⚠️ يحتاج مراجعة",
+      rowUnknown: "➕ غير موجود في القاعدة",
+      rowEnterCode: "✍️ أدخل الكود",
+      rowCodePh: "كود العطل (كما يظهر على الشاشة)",
+      rowMsgPh: "وصف العطل",
+      rowConf: "ثقة القراءة {n}%",
+      rowSeen: "ظهر {n} مرات",
+      rowApprove: "🔎 بحث عن الحل",
+      rowApproveShow: "✔ عرض الحل",
+      rowApproved: "✔ تمت المراجعة",
+      rowApproveAll: "✔ تعليم كل المطابق كمراجع",
+      rowAddManual: "➕ إضافة عطل يدوياً",
+      rowUnreadable: "تعذّرت قراءة هذا السطر - أدخل الكود والوصف يدوياً، أو اختر من الاقتراحات.",
+      rowRereadOk: "تمت قراءة السطر - راجع النتيجة قبل الاعتماد",
+      rowRereadFail: "تعذّرت إعادة قراءة السطر - القيم الحالية لم تتغير",
+      rowNoBox: "هذا السطر بلا موضع محفوظ: حدده بالمستطيل ثم اضغط \"قراءة السطر المحدد\"",
+      selectedReadNone: "⚠️ لم يُقرأ كود واضح في المنطقة المحددة. أضفت صفاً لإدخاله يدوياً.",
+      matchExact: "مسجل في القاعدة (الماكينة: {machine} · الحالة: {status})",
+      matchOther: "الكود مسجل لماكينة أخرى ({machine}) وليس للماكينة المختارة - لا يُعد مطابقة",
+      matchPossible: "لا يوجد مطابق حرفي. أكواد مشابهة في القاعدة (اختر فقط إن كانت هي الصحيحة):",
+      matchNone: "الكود غير مسجل في القاعدة",
+      lookalikeWarn: "تنبيه: يوجد كود مشابه في القاعدة: {codes} - تأكد من الحرف/الرقم في الصورة",
+      suspectWarn: "حرف/رقم غير مؤكد: قُرئ «{code}» وقد يكون «{alt}»",
+      conflictWarn: "قراءتان مختلفتان لهذا السطر: «{code}» / «{other}» - راجع الصورة",
+      lowConfWarn: "ثقة القراءة منخفضة - راجع الكود قبل الاعتماد",
+      suggestionLabel: "أقرب أعطال في القاعدة للنص المقروء (اقتراح فقط):",
+      ignoredTitle: "أسطر لم تُفهم ({n})",
+      rowApproveAs: "✔ اعتماد كـ «{code}»",
+      descMismatchWarn: "الوصف المقروء لا يشبه الوصف المسجّل لهذا الكود - تأكد من الكود قبل الاعتماد",
+      recordedDesc: "الوصف المسجل في القاعدة: {desc}",
+      useRecordedDesc: "استخدم الوصف المسجل",
+      foundOtherMachine: "هذا الكود مسجل لماكينة \"{machine}\" وليس للماكينة المختارة \"{selected}\" - تأكد قبل تطبيق الحل",
+      resultDialogTitle: "تفاصيل العطل",
+      closeDetails: "إغلاق التفاصيل والعودة إلى قائمة الأعطال",
+      previousFault: "السابق ←",
+      nextFault: "→ التالي",
+      resultProgress: "العطل {current} من {total} · الكود {code}",
+      ocrNoImage: "التقط أو اختر صورة أولاً",
+      ocrFallback: "تعذرت القراءة الأولى، أجرب طريقة بديلة...",
+      ocrError: "تعذرت قراءة الصورة. جرّب «قراءة السطر المحدد» أو أعد تحميل الصفحة.",
       tesseractLoadError: "تعذر تحميل مكتبة قراءة النص (OCR)",
       enterCodeFirst: "⚠️ يرجى إدخال أو استخراج كود العطل أولاً أو استخدام البحث اليدوي.",
       searchingKb: "🔍 جاري البحث في قاعدة المعرفة...",
@@ -668,6 +716,7 @@ export const translations = {
       scanAnotherBtn: "🔄 فحص عطل آخر",
       loadingHistory: "جاري تحميل السجل...",
       noHistory: "لا يوجد سجل ظهور سابق لهذا العطل بعد.",
+      historyLoadError: "تعذر تحميل سجل العطل. حاول مرة أخرى.",
       historyTitle: "📋 سجل الأعطال السابق",
       notFoundTitle: "❌ لم يتم العثور على هذا العطل في قاعدة المعرفة",
       notFoundDesc: "يمكنك إضافته الآن، وسيتم حفظه كـ \"قيد المراجعة\" حتى تتم مراجعته.",
@@ -1188,7 +1237,7 @@ export const translations = {
       searchDesc: "Filter tickets and PM records together",
       searchOpen: "Open ↩",
       scannerTitle: "Machine Error Scanner",
-      scannerDesc: "Photograph the error screen and search automatically",
+      scannerDesc: "Analyze a fault screen and review solutions one by one",
       scannerBtn: "Scan",
       qrTitle: "Scan Machine QR",
       qrDesc: "Quick equipment access via camera",
@@ -1227,6 +1276,7 @@ export const translations = {
       periodAll: "Entire Knowledge Base",
       loadingKb: "Loading knowledge base...",
       calculating: "Calculating...",
+      periodLoadError: "Could not load occurrence records for this period. Please try again.",
       loggedError: "logged error(s)",
       totalOccurrences: "Total Occurrences",
       distinctCodes: "Distinct Error Codes",
@@ -1287,7 +1337,7 @@ export const translations = {
 
     errorScanner: {
       title: "Machine Error Scanner",
-      subtitle: "Photograph the error shown on the machine screen - it will be read and searched for automatically in the knowledge base.",
+      subtitle: "Analyze a machine alarm screen, review each detected fault, and move through its solution without losing your place.",
       machineType: "Machine Type",
       selectMachine: "Select machine type",
       captureBtn: "Capture Screen",
@@ -1307,7 +1357,57 @@ export const translations = {
       readingOcr: "🔍 Reading text from image (OCR)...",
       codeExtracted: "✅ Suggested code extracted: {code} (you can edit it before searching)",
       codeNotFound: "⚠️ Could not automatically recognize a clear code, please enter it manually after reviewing the extracted text.",
-      ocrError: "❌ Could not read the code. Try a clearer photo.",
+      ocrRawTextTitle: "Raw OCR text (review only)",
+      cropHint: "Press \"Analyze all faults\", or tap one line (or drag the box) to cover the whole line, then \"Read selected line\".",
+      cropReady: "Image ready: analyze all faults, or frame one line with the green box",
+      scanRegionBtn: "Read selected line",
+      scanFullBtn: "Analyze all faults",
+      improvingImage: "Improving the image (lighting, tilt, crop)...",
+      rowsTitle: "Extracted faults ({n})",
+      rowsHint: "Review the codes and descriptions, then show each solution. Use Previous and Next without losing your place. A fault is only added to the knowledge base when you choose to add it.",
+      rowsFound: "{n} fault(s) extracted - review each one and approve the correct ones",
+      rowsNone: "⚠️ No clear fault could be extracted from the image. Frame a line and read it, or add the fault manually. (Raw text below for review)",
+      rowMatched: "✅ Matched in knowledge base",
+      rowReview: "⚠️ Needs review",
+      rowUnknown: "➕ Not in knowledge base",
+      rowEnterCode: "✍️ Enter the code",
+      rowCodePh: "Fault code (as shown on screen)",
+      rowMsgPh: "Fault description",
+      rowConf: "Read confidence {n}%",
+      rowSeen: "Seen {n} times",
+      rowApprove: "🔎 Find solution",
+      rowApproveShow: "✔ Show solution",
+      rowApproved: "✔ Reviewed",
+      rowApproveAll: "✔ Mark matched as reviewed",
+      rowAddManual: "➕ Add fault manually",
+      rowUnreadable: "This line could not be read - enter the code and description manually, or pick a suggestion.",
+      rowRereadOk: "Line read - review the result before approving",
+      rowRereadFail: "Could not re-read the line - current values unchanged",
+      rowNoBox: "This line has no saved position: frame it with the box, then press \"Read selected line\"",
+      selectedReadNone: "⚠️ No clear code was read in the selected area. A row was added for manual entry.",
+      matchExact: "Registered in knowledge base (machine: {machine} · status: {status})",
+      matchOther: "Code is registered for another machine ({machine}), not the selected one - not treated as a match",
+      matchPossible: "No literal match. Similar codes in the knowledge base (pick only if it is the right one):",
+      matchNone: "Code is not in the knowledge base",
+      lookalikeWarn: "Note: a look-alike code exists in the knowledge base: {codes} - double-check the character in the image",
+      suspectWarn: "Uncertain character: read «{code}», could be «{alt}»",
+      conflictWarn: "Two different readings for this line: «{code}» / «{other}» - check the image",
+      lowConfWarn: "Low read confidence - check the code before approving",
+      suggestionLabel: "Closest knowledge-base faults to the text read (suggestion only):",
+      ignoredTitle: "Lines not understood ({n})",
+      rowApproveAs: "✔ Approve as «{code}»",
+      descMismatchWarn: "The description read does not resemble the recorded description for this code - verify the code before approving",
+      recordedDesc: "Recorded description: {desc}",
+      useRecordedDesc: "Use recorded description",
+      foundOtherMachine: "This code is registered for machine \"{machine}\", not the selected machine \"{selected}\" - verify before applying the fix",
+      resultDialogTitle: "Fault details",
+      closeDetails: "Close details and return to the fault list",
+      previousFault: "← Previous",
+      nextFault: "Next →",
+      resultProgress: "Fault {current} of {total} · Code {code}",
+      ocrNoImage: "Capture or choose an image first",
+      ocrFallback: "The first OCR pass failed; trying another method...",
+      ocrError: "Could not process the image. Try reading the selected line or reload the page.",
       tesseractLoadError: "Could not load the OCR text-reading library",
       enterCodeFirst: "⚠️ Please enter or extract an error code first, or use manual search.",
       searchingKb: "🔍 Searching the knowledge base...",
@@ -1326,6 +1426,7 @@ export const translations = {
       scanAnotherBtn: "🔄 Scan Another Error",
       loadingHistory: "Loading history...",
       noHistory: "No prior occurrence history for this error yet.",
+      historyLoadError: "Could not load error history. Please try again.",
       historyTitle: "📋 Prior Error History",
       notFoundTitle: "❌ This error was not found in the knowledge base",
       notFoundDesc: "You can add it now, and it will be saved as \"Pending Review\" until it's reviewed.",

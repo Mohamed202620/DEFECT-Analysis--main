@@ -28,6 +28,7 @@ function t() {
 
 let allErrors = [];          // كل عناصر قاعدة المعرفة (machineErrors)
 let periodLogs = [];         // سجلات الظهور ضمن الفترة الحالية (machineErrorLogs)
+let periodLoadError = false;
 let currentPeriod = 'day';   // day | week | month | all
 let isLoaded = false;
 
@@ -129,6 +130,7 @@ window.switchKbPeriod = async function (period) {
 
   if (period === 'all') {
     periodLogs = [];
+    periodLoadError = false;
     renderKbSummary();
     renderKbList();
     return;
@@ -142,6 +144,7 @@ window.switchKbPeriod = async function (period) {
   const sinceIso = computeSinceIso(period);
   const result = await fetchMachineErrorLogsSinceApi(sinceIso);
 
+  periodLoadError = result.status === 'error';
   periodLogs = (result.status === 'success' && Array.isArray(result.data)) ? result.data : [];
 
   renderKbSummary();
@@ -182,6 +185,11 @@ function renderKbSummary() {
         <div class="text-lg font-bold">${allErrors.length} <span class="text-[10px] font-normal">${tr.loggedError}</span></div>
       </div>
     `;
+    return;
+  }
+
+  if (periodLoadError) {
+    box.innerHTML = `<div class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl p-3 text-xs">${tr.periodLoadError}</div>`;
     return;
   }
 

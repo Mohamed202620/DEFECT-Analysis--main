@@ -5,12 +5,17 @@
 // ============================================================
 
 import { db } from "../providers/backend/index.js";
-import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
+import {
+  getDepartmentForMachineValue,
+  getCurrentUserMachineContext,
+  getMachineTypeReference
+} from "../machines.js";
 
 import {
   collection,
   addDoc,
   getDocs,
+  getCountFromServer,
   orderBy,
   query,
   where
@@ -44,11 +49,16 @@ export async function savePmApi(payload) {
       getDepartmentForMachineValue(payload?.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(payload.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
     const docRef = await addDoc(
       collection(db, "pmRecords"),
       {
         ...payload,
+        ...machineReference,
         department,
         createdAt: new Date().toISOString()
       }
@@ -105,6 +115,18 @@ export async function fetchPmRecordsApi() {
 
 }
 
+export async function fetchPmRecordCountApi() {
+  try {
+    const countSnapshot = await getCountFromServer(
+      query(collection(db, "pmRecords"))
+    );
+    return { status: "success", count: countSnapshot.data().count };
+  } catch (error) {
+    console.error("Error counting PM records:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
 
 // ============================================================
 // جلب سجلات الصيانة الوقائية لصفحة "البحث والفلترة المتقدمة"
@@ -139,5 +161,3 @@ export async function fetchPmRecordsForSearchApi({ isFullAccess, myName }) {
   }
 
 }
-
-

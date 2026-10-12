@@ -13,7 +13,7 @@ import { initKbView } from './knowledgeBase.js';
 import { initStatsView } from './statistics.js';
 import { initMaintenanceSearchView, renderMaintenanceSearchIfLoaded } from './maintenanceSearch.js';
 import { auth, onAuthStateChanged } from './providers/backend/index.js';
-import { ensureUserAndMachinesLoaded } from './machines.js';
+import { ensureUserAndMachinesLoaded, refreshMachineTypesIfStale } from './machines.js';
 import { applyManagerDesktopMode, isManagerDesktopEligible } from './managerDesktopCore.js'; // MGR-DESKTOP
 
 // إعادة تحميل بيانات لوحة المتابعة وتزامن الماكينات تلقائياً بمجرد تأكيد الجلسة من Firebase Auth
@@ -776,4 +776,124 @@ window.addEventListener("resize", () => {
     _lastMgrDesktop = currentMgrDesktop; // MGR-DESKTOP
     render();
   }
+});
+
+// ============================================================
+// تحديث تلقائي للبيانات عند عودة الاتصال / الرجوع للتطبيق / تغيّر الصلاحيات
+//
+// المشكلة (مؤكدة بتتبع الكود): الاشتراكات اللحظية (التذاكر/الكايزن/الإشعارات) بتعيد
+// الاتصال لوحدها، لكن باقي الشاشات (الرئيسية، الإحصائيات، البحث المتقدم، كاش الماكينات،
+// الملف الشخصي/الصلاحيات) بتجيب بياناتها مرة واحدة عند فتح الصفحة. فلو الجلب فشل أثناء
+// انقطاع الإنترنت (الرئيسية بتخرج بصمت)، أو التطبيق فضل في الخلفية ساعات (PWA)، كانت
+// الأرقام بتفضل قديمة/فاضية لحد ما المستخدم يعمل Refresh. عودة الاتصال بس كانت بتزامن
+// طابور الأوفلاين ولا تعيد جلب أي بيانات. الدوال هنا للقراءة فقط (مفيش كتابة ولا تغيير
+// منطق)، وبتتخطى لو المستخدم بيكتب في حقل عشان مانضيّعش مدخلاته.
+// ============================================================
+
+function isUserTypingNow() {
+  const node = document.activeElement;
+  return !!node && (
+    node.tagName === "INPUT" ||
+    node.tagName === "TEXTAREA" ||
+    node.tagName === "SELECT" ||
+    node.isContentEditable
+  );
+}
+
+let _profileChangedDuringRefresh = false;
+
+// الدور/الصلاحيات/القسم اتغيّروا على السيرفر (راجع fetchCurrentUserProfileApi): نعيد
+// رسم الصفحة الحالية مرة واحدة عشان الواجهة تطابق الصلاحيات الفعلية بدل ما تفضل بصلاحيات
+// الجلسة القديمة. لو المستخدم بيكتب، التغيير بيتطبّق عند أول تنقل (القيم اتحدّثت فعلاً).
+window.addEventListener("app:profilechanged", () => {
+  _profileChangedDuringRefresh = true;
+  if (!isSessionActive() || currentPage === "login" || currentPage === "register") return;
+  if (isUserTypingNow()) return;
+  render();
+});
+
+let _refreshingPageData = false;
+
+async function refreshActivePageData(reason) {
+  if (_refreshingPageData) return;
+  if (!auth || !auth.currentUser || !isSessionActive()) return;
+  if (currentPage === "login" || currentPage === "register") return;
+
+  _refreshingPageData = true;
+  _profileChangedDuringRefresh = false;
+
+  try {
+    // 1) الملف الشخصي (مصدر الدور/الصلاحيات) - لو اتغيّر بيتعمل render() من الحدث فوق
+    try {
+      const usersApi = await import("./services/usersApi.js");
+      await usersApi.fetchCurrentUserProfileApi(true);
+    } catch (_) { /* أوفلاين/خطأ مؤقت: المحاولة الجاية */ }
+
+    // 2) كاش الماكينات (في الخلفية) - عند عودة الاتصال نجدده فوراً لأن آخر جلب ممكن يكون فشل
+    refreshMachineTypesIfStale(reason === "online" ? 0 : 10 * 60 * 1000).catch(() => {});
+
+    // render() اتنفّذ بسبب تغيّر الصلاحيات وهو بيشغّل محمّل الصفحة بنفسه
+    if (_profileChangedDuringRefresh) return;
+
+    // 3) بيانات الصفحة الحالية (قراءة فقط، من غير إعادة بناء الصفحة)
+    if (isUserTypingNow()) {
+      window.refreshNotificationsBadge && window.refreshNotificationsBadge();
+      return;
+    }
+
+    switch (currentPage) {
+      case "home":
+        if (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible()) {
+          import("./views/managerDesktop/ManagerDesktopHome.js")
+            .then(m => m.initManagerDesktopHomeData())
+            .catch(console.warn);
+        } else if (typeof loadDashboardStats === "function") {
+          loadDashboardStats();
+        }
+        break;
+      case "stats":
+        if (typeof initStatsView === "function") initStatsView();
+        break;
+      case "maintenanceSearch":
+        if (typeof window.revalidateMaintenanceSearch === "function") window.revalidateMaintenanceSearch();
+        break;
+      case "system":
+        if (typeof window.loadSystemHubBadges === "function") window.loadSystemHubBadges();
+        break;
+      case "kb":
+        // الأثقل (كل أخطاء الماكينات): بس عند عودة الاتصال، مش مع كل رجوع للتطبيق
+        if (reason === "online" && typeof initKbView === "function") initKbView();
+        break;
+      default:
+        break;
+    }
+
+    window.refreshNotificationsBadge && window.refreshNotificationsBadge();
+  } finally {
+    _refreshingPageData = false;
+  }
+}
+
+window.refreshActivePageData = refreshActivePageData;
+
+// عودة الاتصال: ثانية تسمح للـ SDK يعيد فتح قنواته قبل أول طلب
+window.addEventListener("online", () => {
+  setTimeout(() => { refreshActivePageData("online"); }, 1000);
+});
+
+// الرجوع للتطبيق بعد غياب (PWA في الخلفية / تبويب مخفي) - بحد أدنى 60 ثانية غياب
+// و30 ثانية بين كل تحديثين عشان مايبقاش فيه طلبات زيادة مع التبديل السريع بين التطبيقات
+let _hiddenAt = 0;
+let _lastResumeRefreshAt = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    _hiddenAt = Date.now();
+    return;
+  }
+  const hiddenFor = _hiddenAt ? Date.now() - _hiddenAt : 0;
+  _hiddenAt = 0;
+  if (hiddenFor < 60000) return;
+  if (Date.now() - _lastResumeRefreshAt < 30000) return;
+  _lastResumeRefreshAt = Date.now();
+  refreshActivePageData("resume");
 });

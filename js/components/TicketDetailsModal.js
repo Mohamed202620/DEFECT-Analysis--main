@@ -146,7 +146,7 @@ function timelineItemHtml(log) {
       </div>
       <div class="pb-4 flex-1">
         <div class="text-[11px] font-bold text-gray-200">
-          ${statusLabel(log.toStatus) || log.toStatus || ""}
+          ${statusLabel(log.toStatus) || escapeHtml(log.toStatus || "")}
         </div>
         <div class="text-[10px] text-gray-500 mt-0.5">
           ${escapeHtml(log.by || "")} ${log.byRole ? `(${escapeHtml(log.byRole)})` : ""} · ${formatDate(log.at)}

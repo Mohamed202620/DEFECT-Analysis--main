@@ -33,6 +33,7 @@ import {
 import { hasFullDataAccess, isAdminRole, getCurrentRole, hasPermission } from '../permissions.js'; // QR-IMPROVE
 import { loadScriptWithFallback } from '../utils/loadExternalScript.js';
 import { escapeJsArg } from "../utils/escapeHtml.js";
+import { parseQrPayload } from "../utils/qrPayload.js";
 
 let videoStream = null;
 let scanRafId = null;
@@ -216,89 +217,6 @@ export const QrScannerView = () => {
   </div>
   `;
 };
-
-// ============================================================
-// تحليل نص QR واستخراج "قيمة الماكينة" منه
-// ============================================================
-function decodeBase64QrPayload(text) {
-  if (!text || /\s/.test(text)) return null;
-  if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(text)) return null;
-
-  try {
-    let b64 = text.replace(/-/g, '+').replace(/_/g, '/');
-    while (b64.length % 4) b64 += '=';
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes).trim();
-    if (/^(\{|mid:|https?:\/\/)/i.test(decoded)) return decoded;
-  } catch (_) {
-    // ليس Base64 صالحاً - النص الأصلي يُستخدم كما هو
-  }
-  return null;
-}
-
-function parseQrPayload(rawText) {
-  let text = String(rawText || '').trim();
-  if (!text) return { value: '', line: '' };
-
-  // 0) فك التشفير (Base64) - بشروط صارمة.
-  // إصلاح (بند مؤكد - قراءة QR): الفك القديم كان بيجرّب atob() على أي
-  // نص، و atob بيتجاهل المسافات وبيقبل أي نص حروفه/أرقامه فقط، فأي QR
-  // لنص خام زي "Bodymaker 01" أو "Cupper" أو "Spray 03" (وده بالظبط
-  // اللي بيولّده زر توليد QR في ملف الماكينة للماكينات بدون خط) كان
-  // بيتفك لبيانات عشوائية وبيتستبدل بيها النص الأصلي فتظهر "الماكينة
-  // غير موجودة" لمعظم الماكينات الصحيحة. دلوقتي الفك بيتقبل فقط لو:
-  // النص بدون مسافات، وأحرفه Base64 فعلاً، والناتج UTF-8 سليم، وشكله
-  // شكل حمولة QR معروفة (JSON / MID: / رابط) - غير كده النص الأصلي
-  // بيفضل كما هو.
-  const decodedBase64 = decodeBase64QrPayload(text);
-  if (decodedBase64) {
-    text = decodedBase64;
-  }
-
-  // 1) JSON {"m":"Bodymaker 01","line":"1"}
-  if (text.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed && typeof parsed === 'object') {
-        const type = String(parsed.m ?? parsed.machine ?? parsed.machineValue ?? parsed.v ?? parsed.id ?? '').trim();
-        const unit = String(parsed.u ?? parsed.unit ?? '').trim();
-        return {
-          value: unit ? `${type} ${unit}`.trim() : type,
-          line: normalizeLine(parsed.line ?? parsed.l ?? parsed.productionLine ?? '')
-        };
-      }
-    } catch (_) {}
-  }
-
-  // 2) رابط بباراميتر (?m= أو ?machine=)
-  if (/^https?:\/\//i.test(text)) {
-    try {
-      const url = new URL(text);
-      const value = url.searchParams.get('m') || url.searchParams.get('machine') || '';
-      if (value) {
-        return {
-          value: String(value).trim(),
-          line: normalizeLine(url.searchParams.get('line') || url.searchParams.get('l') || '')
-        };
-      }
-    } catch (_) {}
-  }
-
-  // 3) نص خام (مع دعم بادئة "MID:" ودعم فاصل الخط "|")
-  let body = text;
-  if (body.toUpperCase().startsWith('MID:')) {
-    body = body.slice(4).trim();
-  }
-
-  const parts = body.split('|');
-  if (parts.length > 1) {
-    return { value: parts[0].trim(), line: normalizeLine(parts.slice(1).join('|')) };
-  }
-
-  return { value: body, line: '' };
-}
 
 function escapeHtml(value) {
   return String(value == null ? '' : value)

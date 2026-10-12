@@ -8,13 +8,19 @@
     "build": "node scripts/build.mjs",
     "lint": "node --check server.js && node scripts/build.mjs",
     "deploy": "firebase deploy --only hosting",
-    "deploy:dev": "firebase deploy --only hosting",
+    "deploy:dev": "node scripts/deployDev.mjs",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:functions": "firebase deploy --only functions",
     "deploy:all": "firebase deploy",
-    "test": "node tests/run-logic-tests.mjs && node tests/worker-tests.mjs && node tests/integration-upload.mjs && node tests/client-reset.mjs && node --expose-internals scripts/check-imports.mjs"
+    "test:rules": "firebase emulators:exec --project demo-defect-rules --only firestore \"node --test tests/rules.test.mjs\"",
+    "test": "node tests/run-logic-tests.mjs && node tests/worker-tests.mjs && node tests/integration-upload.mjs && node tests/client-reset.mjs && node tests/dev-firebase-isolation.mjs && node --expose-internals scripts/check-imports.mjs"
   },
   "dependencies": {
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.0.0",
+    "firebase-tools": "^15.33.0"
   }
 }

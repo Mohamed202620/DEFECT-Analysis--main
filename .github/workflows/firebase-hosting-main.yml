@@ -8,13 +8,24 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        # actions/checkout v4 (pinned tag commit)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Java for Firebase Emulator
+        # actions/setup-java v4.7.1 (pinned tag commit)
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: 21
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        # actions/setup-node v4 (pinned tag commit)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
 
@@ -26,23 +37,26 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
-      # اختبارات منطقية (بدون شبكة). continue-on-error: لا توقف النشر حتى تتأكد أنها مستقرة على Node 20
-      - name: Run logic tests
-        continue-on-error: true
-        run: |
-          node tests/run-logic-tests.mjs
-          node tests/worker-tests.mjs
-          node tests/integration-upload.mjs
-          node tests/client-reset.mjs
+      - name: Run tests and import checks
+        run: npm test
+
+      - name: Run Firestore Emulator rules tests
+        run: npm run test:rules
 
       - name: Build project (syntax + assets + SW build id)
         run: npm run build
 
+      - name: Validate production deploy credential project
+        run: node scripts/validate-production-deploy.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+        # FirebaseExtended/action-hosting-deploy v0 tag (pinned commit)
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ env.FIREBASE_SERVICE_ACCOUNT_NORMALIZED }}
           projectId: maintenance-defect-system
           channelId: live
           target: main
+          disableComment: true

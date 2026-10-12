@@ -4,8 +4,8 @@
 // بشبكة 12 عموداً متكاملة للشاشات الكبيرة (>= 1280px)
 // ============================================================
 
-import { fetchTicketsApi, fetchTicketCountsApi, fetchDashboardSnapshotApi } from '../../services/api.js';
-import { fetchPmRecordsApi } from '../../services/pmApi.js';
+import { fetchDashboardSnapshotApi } from '../../services/api.js';
+import { fetchPmRecordCountApi } from '../../services/pmApi.js';
 import { fetchUsers } from '../../services/usersApi.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
@@ -367,7 +367,18 @@ export function renderManagerDesktopHomeHtml() {
 }
 
 // دالة تحميل وحساب البيانات وتحديث واجهة المدير
-export async function initManagerDesktopHomeData() {
+let _managerDesktopLoadInFlight = null;
+
+export function initManagerDesktopHomeData() {
+  if (!_managerDesktopLoadInFlight) {
+    _managerDesktopLoadInFlight = _initManagerDesktopHomeData().finally(() => {
+      _managerDesktopLoadInFlight = null;
+    });
+  }
+  return _managerDesktopLoadInFlight;
+}
+
+async function _initManagerDesktopHomeData() {
   const currentLang = window.currentLang || "ar";
   const isEn = currentLang === "en";
 
@@ -380,21 +391,30 @@ export async function initManagerDesktopHomeData() {
     const myName = localStorage.getItem("name") || "";
 
     // جلب التذاكر وسجلات الـ PM والمستخدمين بالتوازي
-    const [ticketsRes, countsRes, pmRes, usersRes] = await Promise.all([
+    const [ticketsRes, pmCountRes, usersRes] = await Promise.all([
       fetchDashboardSnapshotApi({ role, myUid, myName }),
-      Promise.resolve(null),
-      fetchPmRecordsApi().catch(() => ({ status: 'error', data: [] })),
+      fetchPmRecordCountApi(),
       fetchUsers().catch(() => [])
     ]);
 
     const snapshot = (ticketsRes && ticketsRes.status === 'success') ? ticketsRes.data : null;
     const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
     const totalCount = snapshot ? snapshot.total : tickets.length;
-    const pmRecords = (pmRes && pmRes.status === 'success' && Array.isArray(pmRes.data)) ? pmRes.data : [];
-    const users = Array.isArray(usersRes) ? usersRes : [];
+    const pmRecordCount = pmCountRes?.status === 'success' && Number.isFinite(pmCountRes.count)
+      ? pmCountRes.count
+      : null;
+    if (pmRecordCount === null) {
+      console.warn("[ManagerDesktop] PM record count is unavailable:", pmCountRes?.message || "Unknown error");
+    }
+    // إصلاح: fetchUsers() بترجع { status, data } مش مصفوفة مباشرة، فكان الشرط
+    // القديم (Array.isArray(usersRes)) دايماً false وقائمة المستخدمين فاضية: لا
+    // طلبات انضمام في "يحتاج قراراً" ولا عداد معلّقين ولا فنيين في حمل العمل
+    const users = Array.isArray(usersRes)
+      ? usersRes
+      : (usersRes && usersRes.status === 'success' && Array.isArray(usersRes.data) ? usersRes.data : []);
 
     // تخزين مؤقت للتقارير
-    cachedDashboardData = { tickets, totalCount, pmRecords, users };
+    cachedDashboardData = { tickets, totalCount, users };
 
     // 1. حساب الـ KPIs
     let openCount = 0;
@@ -463,7 +483,7 @@ export async function initManagerDesktopHomeData() {
     setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
     setTxt("mgrKpiMtbf", `${mtbfHours} h`);
     setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
-    setTxt("mgrKpiPmCounts", `${pmRecords.length} ${isEn ? 'completed PM tasks' : 'مهمة صيانة منفذة'}`);
+    setTxt("mgrKpiPmCounts", `${pmRecordCount ?? '--'} ${isEn ? 'completed PM tasks' : 'مهمة صيانة منفذة'}`);
     setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
 
     // إشارة الـ Overdue

@@ -14,6 +14,8 @@
 // (offlineBanner.js -> syncOfflineTicketActionsApi في ticketsApi.js)
 // ============================================================
 
+import { auth } from "../providers/backend/index.js";
+
 const DB_NAME = "maintenance_offline_db";
 const DB_VERSION = 2;
 const STORE_NAME = "pending_tickets";
@@ -122,12 +124,14 @@ export async function removeQueuedTicket(localId) {
 export async function queueOfflineAction(action) {
 
   const db = await openOfflineDB();
+  const ownerUid = auth.currentUser?.uid || null;
   const localId = "action_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ACTIONS_STORE_NAME, "readwrite");
     tx.objectStore(ACTIONS_STORE_NAME).put({
       localId,
+      ownerUid,
       action,
       queuedAt: new Date().toISOString()
     });
@@ -156,6 +160,10 @@ export async function getQueuedActions() {
     req.onerror = () => reject(req.error);
   });
 
+}
+
+export function isOfflineActionOwnedBy(item, uid) {
+  return !!uid && !!item?.ownerUid && item.ownerUid === uid;
 }
 
 /**

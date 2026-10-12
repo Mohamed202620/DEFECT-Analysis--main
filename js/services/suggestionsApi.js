@@ -41,7 +41,7 @@ import {
   getDocs,
   getDoc,
   doc,
-  updateDoc,
+  writeBatch,
   query,
   where,
   orderBy,
@@ -248,21 +248,27 @@ function stampSuggestionUpdate(extra = {}) {
 
 // سجل تغييرات مقترح الكايزن (Append-only) - نفس فكرة addTicketLog
 // بالضبط، لكن تحت suggestions/{id}/logs بدل tickets/{id}/logs
-async function addSuggestionLog(suggestionId, { action, fromStatus, toStatus, note = "" }) {
-  try {
-    await addDoc(collection(db, "suggestions", suggestionId, "logs"), {
-      action,
-      fromStatus,
-      toStatus,
-      note,
-      by: localStorage.getItem("name") || "",
-      byUid: localStorage.getItem("userId") || "",
-      byRole: getCurrentRole() || "",
-      at: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error("Error adding suggestion log:", error);
-  }
+function suggestionLogData({ action, fromStatus, toStatus, note = "" }) {
+  return {
+    action,
+    fromStatus,
+    toStatus,
+    note,
+    by: localStorage.getItem("name") || "",
+    byUid: localStorage.getItem("userId") || "",
+    byRole: getCurrentRole() || "",
+    at: new Date().toISOString()
+  };
+}
+
+async function updateSuggestionWithLog(suggestionId, updateData, logData) {
+  const batch = writeBatch(db);
+  batch.update(doc(db, "suggestions", suggestionId), updateData);
+  batch.set(
+    doc(collection(db, "suggestions", suggestionId, "logs")),
+    suggestionLogData(logData)
+  );
+  await batch.commit();
 }
 
 // إنشاء إشعار داخل نظام الإشعارات الحالي (مجموعة "notifications" -
@@ -357,11 +363,11 @@ export async function reviewSuggestionApi(suggestionId) {
     return { status: "error", message: "بدء المراجعة متاح فقط للأدمن" };
   }
   try {
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
-      stampSuggestionUpdate({ status: "under_review" })
+    await updateSuggestionWithLog(
+      suggestionId,
+      stampSuggestionUpdate({ status: "under_review" }),
+      { action: "review", fromStatus: "new", toStatus: "under_review" }
     );
-    addSuggestionLog(suggestionId, { action: "review", fromStatus: "new", toStatus: "under_review" });
 
     const suggestion = await getSuggestionSnapshot(suggestionId);
     if (suggestion?.submittedByUid) {
@@ -402,13 +408,11 @@ export async function rejectSuggestionApi(suggestionId, reason) {
 
     const fromStatus = suggestion.status || "new";
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
-      stampSuggestionUpdate({ status: "rejected", rejectionReason: reason.trim() })
+    await updateSuggestionWithLog(
+      suggestionId,
+      stampSuggestionUpdate({ status: "rejected", rejectionReason: reason.trim() }),
+      { action: "reject", fromStatus, toStatus: "rejected", note: reason.trim() }
     );
-    addSuggestionLog(suggestionId, {
-      action: "reject", fromStatus, toStatus: "rejected", note: reason.trim()
-    });
 
     if (suggestion.submittedByUid) {
       createSuggestionNotification(suggestion.submittedByUid, {
@@ -442,13 +446,11 @@ export async function requestSuggestionRevisionApi(suggestionId, notes) {
       return { status: "error", message: "طلب التعديل متاح فقط للمقترحات قيد المراجعة" };
     }
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
-      stampSuggestionUpdate({ status: "revision_requested", revisionNotes: notes.trim() })
+    await updateSuggestionWithLog(
+      suggestionId,
+      stampSuggestionUpdate({ status: "revision_requested", revisionNotes: notes.trim() }),
+      { action: "request_revision", fromStatus: "under_review", toStatus: "revision_requested", note: notes.trim() }
     );
-    addSuggestionLog(suggestionId, {
-      action: "request_revision", fromStatus: "under_review", toStatus: "revision_requested", note: notes.trim()
-    });
 
     if (suggestion.submittedByUid) {
       createSuggestionNotification(suggestion.submittedByUid, {
@@ -479,13 +481,11 @@ export async function returnSuggestionToReviewApi(suggestionId) {
       return { status: "error", message: "الإجراء متاح فقط للمقترحات في حالة طلب تعديل" };
     }
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
-      stampSuggestionUpdate({ status: "under_review" })
+    await updateSuggestionWithLog(
+      suggestionId,
+      stampSuggestionUpdate({ status: "under_review" }),
+      { action: "return_to_review", fromStatus: "revision_requested", toStatus: "under_review" }
     );
-    addSuggestionLog(suggestionId, {
-      action: "return_to_review", fromStatus: "revision_requested", toStatus: "under_review"
-    });
 
     if (suggestion.submittedByUid) {
       createSuggestionNotification(suggestion.submittedByUid, {
@@ -510,19 +510,13 @@ export async function returnSuggestionToReviewApi(suggestionId) {
  */
 export async function resubmitSuggestionApi(suggestionId, { title, line, machine, category, problem, solution, impact, images } = {}) {
   const myUid = localStorage.getItem("userId") || "";
-  const myName = localStorage.getItem("name") || "";
   try {
     const suggestion = await getSuggestionSnapshot(suggestionId);
     if (!suggestion || suggestion.status !== "revision_requested") {
       return { status: "error", message: "إعادة الإرسال متاحة فقط للمقترحات في حالة يحتاج تعديل" };
     }
 
-    // نفس احتياطي الملكية المُضاف في getSuggestionActions (permissions.js):
-    // submittedByUid هو المرجع الأساسي، وبيتم الرجوع للاسم فقط لو
-    // الحقل ده فاضي/غير موجود على السجل (مقترحات قديمة سابقة لإضافته)
-    const isOwner =
-      (!!suggestion.submittedByUid && suggestion.submittedByUid === myUid) ||
-      (!suggestion.submittedByUid && !!myName && suggestion.name === myName);
+    const isOwner = !!suggestion.submittedByUid && suggestion.submittedByUid === myUid;
 
     if (!isOwner) {
       return { status: "error", message: "إعادة الإرسال متاحة فقط لصاحب المقترح نفسه" };
@@ -537,8 +531,8 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
       finalImageUrls = await uploadBase64Images(images, "suggestion_resubmit_" + Date.now());
     }
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
+    await updateSuggestionWithLog(
+      suggestionId,
       stampSuggestionUpdate({
         status: "under_review",
         title: title.trim(),
@@ -550,17 +544,12 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
         ...(impact && impact.trim() && { impact: impact.trim() }),
         ...(finalImageUrls.length > 0 && { imageUrls: finalImageUrls }),
 
-        // تصحيح ذاتي لسجل قديم مفيهوش submittedByUid: بنثبّته دلوقتي
-        // على معرّف المستخدم الحالي (صاحب المقترح الفعلي حسب الاسم)
-        // عشان الإشعارات وأزرار التحكم القادمة (طلب تعديل تاني، رفض،
-        // تنفيذ...) تشتغل صح من هنا وطالع، من غير ما تتكرر المشكلة
-        ...(!suggestion.submittedByUid && myUid && { submittedByUid: myUid })
-      })
+      }),
+      {
+        action: "resubmit", fromStatus: "revision_requested", toStatus: "under_review",
+        note: "تم التعديل وإعادة الإرسال للمراجعة من صاحب المقترح"
+      }
     );
-    addSuggestionLog(suggestionId, {
-      action: "resubmit", fromStatus: "revision_requested", toStatus: "under_review",
-      note: "تم التعديل وإعادة الإرسال للمراجعة من صاحب المقترح"
-    });
 
     notifyAdminsOfSuggestionResubmission(suggestionId, { title: title.trim() });
 
@@ -588,16 +577,16 @@ export async function assignAndApproveSuggestionApi(suggestionId, { assignedTo, 
       return { status: "error", message: "الموافقة والإسناد متاحان فقط للمقترحات قيد المراجعة" };
     }
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
-      stampSuggestionUpdate({ status: "in_progress", assignedTo, assignedToUid })
+    await updateSuggestionWithLog(
+      suggestionId,
+      stampSuggestionUpdate({ status: "in_progress", assignedTo, assignedToUid }),
+      {
+        action: "approve_assign",
+        fromStatus: "under_review",
+        toStatus: "in_progress",
+        note: `تم الإسناد إلى ${assignedTo}`
+      }
     );
-    addSuggestionLog(suggestionId, {
-      action: "approve_assign",
-      fromStatus: "under_review",
-      toStatus: "in_progress",
-      note: `تم الإسناد إلى ${assignedTo}`
-    });
 
     if (suggestion.submittedByUid) {
       createSuggestionNotification(suggestion.submittedByUid, {
@@ -655,17 +644,15 @@ export async function implementSuggestionApi(suggestionId, notes = "", afterImag
       ? await uploadBase64Images(images, `${suggestionId}_impl`)
       : [];
 
-    await updateDoc(
-      doc(db, "suggestions", suggestionId),
+    await updateSuggestionWithLog(
+      suggestionId,
       stampSuggestionUpdate({
         status: "implemented",
         ...(notes && notes.trim() && { implementationNotes: notes.trim() }),
         ...(implementationImages.length && { implementationImages })
-      })
+      }),
+      { action: "implement", fromStatus: "in_progress", toStatus: "implemented", note: notes?.trim() || "" }
     );
-    addSuggestionLog(suggestionId, {
-      action: "implement", fromStatus: "in_progress", toStatus: "implemented", note: notes?.trim() || ""
-    });
 
     if (suggestion.submittedByUid) {
       createSuggestionNotification(suggestion.submittedByUid, {
@@ -707,9 +694,8 @@ export async function fetchSuggestionLogsApi(suggestionId) {
 // تحسين (أداء): فلترة sinceISO بقت where("createdAt", ">=", sinceISO)
 // على مستوى الاستعلام نفسه بدل الجلب الكامل ثم الفلترة محلياً.
 // ⚠️ ده محتاج Composite Index جديد في Firestore لحالة الوصول المحدود
-// (name+createdAt) - راجع firestore.indexes.json المُرفق. لحد ما
-// الـ Index يتنشر، أي محاولة هترجع نتيجة فاضية بأمان (بدل ما توقع
-// الصفحة) مع تحذير في console يوضح الحاجة للـ Index.
+// (name+createdAt) - راجع firestore.indexes.json. فشل الـ Index يرجع
+// خطأ صريحاً حتى لا يظهر التقرير كأنه لا يحتوي سجلات.
 export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
   try {
     const suggestionsRef = collection(db, "suggestions");
@@ -728,13 +714,6 @@ export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
 
     return { status: "success", data: items };
   } catch (error) {
-    if (error?.code === "failed-precondition") {
-      console.warn(
-        `[fetchSuggestionsForReportApi] محتاج Index في Firestore - ` +
-        `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
-      );
-      return { status: "success", data: [] };
-    }
     console.error("Error fetching suggestions for report:", error);
     return { status: "error", message: error.message };
   }
@@ -780,5 +759,3 @@ export async function fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName
     return { status: "error", message: error.message };
   }
 }
-
-

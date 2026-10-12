@@ -7,12 +7,18 @@
 
 import { db } from "../providers/backend/index.js";
 import { uploadBase64Image } from "./imageUpload.js";
-import { getDepartmentForMachineValue, getCurrentUserMachineContext } from "../machines.js";
+import {
+  getDepartmentForMachineValue,
+  getCurrentUserMachineContext,
+  getMachineTypeReference
+} from "../machines.js";
 
 import {
   collection,
   addDoc,
+  setDoc,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
   query,
@@ -37,6 +43,10 @@ function normalizeErrorCode(code) {
     .trim()
     .toUpperCase()
     .replace(/\s+/g, " ");
+}
+
+function machineErrorDocumentId(code) {
+  return `error_${code}`;
 }
 
 
@@ -113,16 +123,36 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
     if (!normalized) {
       return { status: "error", message: "يرجى إدخال كود العطل" };
     }
+    if (normalized.includes("/") || normalized.length > 256) {
+      return { status: "error", message: "كود العطل غير صالح" };
+    }
 
     // منع تكرار نفس الكود
     const existing = await findMachineErrorByCode(normalized);
 
-    if (existing.status === "success" && existing.found) {
+    if (existing.status !== "success") {
+      return {
+        status: "error",
+        message: existing.message || "تعذر التحقق من تكرار كود العطل"
+      };
+    }
+    if (existing.found) {
       return {
         status: "error",
         duplicate: true,
         message: "هذا الكود مسجل بالفعل في قاعدة المعرفة",
         data: existing.data
+      };
+    }
+
+    const errorRef = doc(db, "machineErrors", machineErrorDocumentId(normalized));
+    const deterministicExisting = await getDoc(errorRef);
+    if (deterministicExisting.exists()) {
+      return {
+        status: "error",
+        duplicate: true,
+        message: "هذا الكود مسجل بالفعل في قاعدة المعرفة",
+        data: { id: deterministicExisting.id, ...deterministicExisting.data() }
       };
     }
 
@@ -146,22 +176,24 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
       getDepartmentForMachineValue(restPayload.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(restPayload.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
-    const docRef = await addDoc(
-      collection(db, "machineErrors"),
-      {
-        ...restPayload,
-        errorCode: normalized,
-        department,
-        ...(imageUrl && { imageUrl }),
-        status: payload?.status || "pending_review",
-        createdAt: new Date().toISOString()
-      }
-    );
+    await setDoc(errorRef, {
+      ...restPayload,
+      ...machineReference,
+      errorCode: normalized,
+      department,
+      ...(imageUrl && { imageUrl }),
+      status: "pending_review",
+      createdAt: new Date().toISOString()
+    });
 
     return {
       status: "success",
-      id: docRef.id,
+      id: errorRef.id,
       message: "تم إضافة العطل بنجاح وهو الآن قيد المراجعة"
     };
 
@@ -249,11 +281,16 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
       getDepartmentForMachineValue(restPayload.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
       "backend";
+    const machineReference = getMachineTypeReference(restPayload.machine);
+    if (!machineReference) {
+      return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+    }
 
     const docRef = await addDoc(
       collection(db, "machineErrorLogs"),
       {
         ...restPayload,
+        ...machineReference,
         errorCode: normalized,
         department,
         ...(imageUrl && { imageUrl }),
@@ -306,12 +343,9 @@ export async function fetchMachineErrorHistoryApi(code) {
 
   } catch (error) {
 
-    // ملاحظة: قد يتطلب هذا الاستعلام فهرس Firestore مركب
-    // (errorCode + scannedAt) - في حال عدم وجوده نُعيد قائمة فارغة
-    // بدلاً من كسر الواجهة
     console.error("Error fetching machine error history:", error);
 
-    return { status: "success", data: [] };
+    return { status: "error", message: error.message, data: [] };
 
   }
 
@@ -382,8 +416,7 @@ export async function fetchMachineErrorLogsSinceApi(sinceIso) {
 
     console.error("Error fetching machine error logs since date:", error);
 
-    // فشل ناعم بدلاً من كسر الواجهة
-    return { status: "success", data: [] };
+    return { status: "error", message: error.message, data: [] };
 
   }
 

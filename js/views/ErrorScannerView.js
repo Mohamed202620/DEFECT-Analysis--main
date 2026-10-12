@@ -66,7 +66,7 @@ export const ErrorScannerView = () => {
       </label>
       <select id="machineTypeSelect"
         aria-label="${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}"
-        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value;"
+        onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value; if (window.errRowsReevaluate) window.errRowsReevaluate();"
         class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
         ${machineOptionsHtml}
       </select>
@@ -89,11 +89,48 @@ export const ErrorScannerView = () => {
       </button>
     </div>
 
-    <img id="errScanPreview" class="hidden rounded-xl border border-gray-700 w-full max-h-56 object-contain bg-[#0F172A] p-1 shadow-sm"/>
+    <!-- معاينة الصورة + مستطيل تحديد سطر العطل (سجل الأعطال فيه أكثر من سطر، والمستخدم يحدد المطلوب) -->
+    <div id="errScanCropWrap" class="hidden space-y-2">
+      <div class="text-[11px] text-gray-400 text-center">
+        ${t.cropHint || (currentLang === 'en'
+          ? 'Press Analyze all faults, or tap one line (or drag the box) and press Read selected line.'
+          : 'اضغط "تحليل كل الأعطال"، أو اضغط على سطر واحد (أو اسحب المستطيل) ثم "قراءة السطر المحدد".')}
+      </div>
+      <div id="errScanCropStage" class="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl border border-gray-700 bg-[#0F172A] select-none" style="touch-action:pan-y">
+        <img id="errScanPreview" alt="" draggable="false" class="block max-w-full max-h-72 w-auto h-auto"/>
+        <div id="errScanCropBox" class="absolute border-2 border-emerald-400 rounded-sm cursor-move"
+          style="touch-action:none;left:5%;top:38%;width:90%;height:8%;box-shadow:0 0 0 9999px rgba(0,0,0,.55)">
+          <span data-h="nw" style="position:absolute;left:0;top:0;width:22px;height:22px;transform:translate(-35%,-95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="ne" style="position:absolute;right:0;top:0;width:22px;height:22px;transform:translate(35%,-95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="sw" style="position:absolute;left:0;bottom:0;width:22px;height:22px;transform:translate(-35%,95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+          <span data-h="se" style="position:absolute;right:0;bottom:0;width:22px;height:22px;transform:translate(35%,95%);touch-action:none" class="rounded-full bg-emerald-400 border-2 border-white shadow"></span>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button type="button" id="errScanReadFullBtn" onclick="window.scanFullImage()"
+          class="bg-emerald-600/20 border border-emerald-500/50 hover:bg-emerald-600/30 rounded-xl p-3 text-emerald-300 font-black transition active:scale-95 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🔍</span> ${t.scanFullBtn || (currentLang === 'en' ? 'Analyze all faults' : 'تحليل كل الأعطال')}
+        </button>
+        <button type="button" id="errScanReadRegionBtn" onclick="window.scanSelectedRegion()"
+          class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50">
+          <span>🎯</span> ${t.scanRegionBtn || (currentLang === 'en' ? 'Read selected line' : 'قراءة السطر المحدد')}
+        </button>
+      </div>
+    </div>
 
     <div id="errScanStatus" class="text-[11px] text-blue-400 text-center min-h-[16px] font-medium">
       ${t.readyStatus || ''}
     </div>
+
+    <!-- الأعطال المستخرجة من الصورة (غير نهائية حتى يعتمدها المستخدم) - منفصلة عن الحقول أدناه -->
+    <div id="errScanRows" class="space-y-2"></div>
+
+    <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
+    <details id="errScanRawDetails" class="text-[11px] text-gray-400">
+      <summary class="cursor-pointer select-none font-bold">${t.ocrRawTextTitle || (currentLang === 'en' ? 'Raw OCR text (review only)' : 'النص الخام من الصورة (للمراجعة فقط)')}</summary>
+      <textarea id="errScanRaw" rows="4" readonly dir="ltr"
+        class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-gray-300 outline-none text-[11px] resize-none"></textarea>
+    </details>
 
     <!-- كود العطل -->
     <div>
