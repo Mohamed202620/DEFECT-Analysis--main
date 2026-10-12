@@ -572,10 +572,6 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount, serverOnl
     }
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
-    if (!serverOnly) {
-      const fallback = emptyResultOnMissingIndex(error, "fetchTicketsApi");
-      if (fallback) return fallback;
-    }
     return { status: "error", code: error?.code, message: error?.message };
   }
 }
@@ -593,11 +589,11 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount, serverOnl
 const DASHBOARD_RECENT_DAYS = 30;
 const DASHBOARD_MAX_DOCS = 5000;
 
-export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnly = false } = {}) {
+export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnly = false, includeAllTickets = false } = {}) {
   try {
     await ensureAuthReady();
 
-    if (!hasFullDataAccess(role) && (serverOnly || myName)) {
+    if (!hasFullDataAccess(role) && !includeAllTickets && (serverOnly || myName)) {
       const res = await fetchTicketsApi({ role, myUid, myName, maxCount: 2000, serverOnly });
       if (res.status !== "success") return res;
       const list = res.data;
