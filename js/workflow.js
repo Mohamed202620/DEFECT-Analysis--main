@@ -266,17 +266,20 @@ function setDashboardSyncState(state) {
 async function _loadDashboardStatsImpl() {
   setDashboardSyncState("loading");
 
-  // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
-  // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر
-  // حسب الصلاحيات (Admin/Manager = الكل، وباقي الأدوار = بلاغاتي +
-  // المُسندة إليّ فقط) بدل ما تجيب كل التذاكر لأي مستخدم
+  // ملخص جميع البلاغات مشترك في الرئيسية للفني والمشغّل؛ بقية الشاشات
+  // تظل ملتزمة بنطاق بيانات المستخدم وصلاحياته.
   const role = getCurrentRole();
   const myUid = localStorage.getItem("userId") || "";
   const myName = localStorage.getItem("name") || "";
 
   // أرقام دقيقة (بند H4): عدّادات من السيرفر + مجموعة البلاغات غير المغلقة
   // الكاملة، بدل عينة أحدث 500 بلاغ اللي كانت بتخفي أقدم المتأخرات
-  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName });
+  const snapRes = await fetchDashboardSnapshotApi({
+    role,
+    myUid,
+    myName,
+    includeAllTickets: role === "technician" || role === "operator"
+  });
 
   if (!snapRes || snapRes.status !== 'success') {
     console.warn("[loadDashboardStats] Failed to fetch tickets:", snapRes?.message || "Unknown error");

@@ -243,6 +243,37 @@ await t("report API index failures are not returned as empty successful reports"
   assert.ok(!ticketsReport.includes('return { status: "success", data: [] }'));
   assert.ok(!suggestionsReport.includes('return { status: "success", data: [] }'));
 });
+await t("scoped dashboard UID queries have composite indexes and surface missing-index errors", () => {
+  const indexes = JSON.parse(checklistIndexesSource);
+  for (const identityField of ["reportedByUid", "assignedToUid"]) {
+    assert.ok(indexes.indexes.some(index =>
+      index.collectionGroup === "tickets" &&
+      index.queryScope === "COLLECTION" &&
+      index.fields.some(field => field.fieldPath === identityField && field.order === "ASCENDING") &&
+      index.fields.some(field => field.fieldPath === "createdAt" && field.order === "DESCENDING")
+    ), `${identityField} dashboard query needs a descending createdAt index`);
+  }
+  const ticketsFetch = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("export async function fetchTicketsApi"),
+    ticketsApiSource.indexOf("export async function fetchDashboardSnapshotApi")
+  );
+  assert.match(ticketsFetch, /const clauses = \[orderBy\("createdAt", "desc"\)\]/);
+  assert.match(ticketsFetch, /where\("reportedByUid", "==", myUid\), \.\.\.clauses/);
+  assert.match(ticketsFetch, /where\("assignedToUid", "==", myUid\), \.\.\.clauses/);
+  assert.match(ticketsFetch, /return \{ status: "error", code: error\?\.code, message: error\?\.message \}/);
+  assert.doesNotMatch(ticketsFetch, /emptyResultOnMissingIndex/);
+});
+await t("technician and operator dashboard summaries opt into all-ticket metrics", () => {
+  const dashboardSnapshot = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("export async function fetchDashboardSnapshotApi"),
+    ticketsApiSource.indexOf("export async function fetchTicketCountsApi")
+  );
+  assert.match(dashboardSnapshot, /!hasFullDataAccess\(role\) && !includeAllTickets/);
+  assert.match(dashboardSnapshot, /getCountFromServer\(ticketsRef\)/);
+  return readFile(new URL("../js/workflow.js", import.meta.url), "utf8").then(workflowSource => {
+    assert.ok(workflowSource.includes('includeAllTickets: role === "technician" || role === "operator"'));
+  });
+});
 await t("checklist offline queue is connected to the sync dispatcher", () => {
   assert.ok(checklistViewSource.includes("loadedVersion: loadedTemplateVersion"));
   assert.ok(ticketsApiSource.includes('type === "save_checklist_template"'));

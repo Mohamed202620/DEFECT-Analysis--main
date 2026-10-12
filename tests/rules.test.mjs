@@ -37,6 +37,7 @@ const users = {
   supervisor: { role: "supervisor", status: "active", name: "Supervisor", machineDepartment: "backend" },
   engineer: { role: "engineer", status: "active", name: "Engineer", machineDepartment: "frontend" },
   technician: { role: "technician", status: "active", name: "Technician", machineDepartment: "backend" },
+  operator: { role: "operator", status: "active", name: "Operator", machineDepartment: "backend" },
   reporter: { role: "reporter", status: "active", name: "Reporter", machineDepartment: "backend" },
   pending: { role: "pending", status: "pending", name: "Pending", machineDepartment: "backend" },
   disabled: { role: "admin", status: "disabled", name: "Disabled", machineDepartment: "backend" }
@@ -119,7 +120,7 @@ test("active roles can read operational records; pending and disabled accounts c
   await assertFails(getDoc(doc(dbFor("disabled"), "tickets/shared")));
 });
 
-test("technicians can read their dashboard ticket queries without broadening rules", async () => {
+test("technicians can read scoped tickets and active staff can query dashboard totals", async () => {
   await seed("tickets/assigned-to-technician", ticket({
     assignedToUid: "technician",
     createdAt: "2026-10-12T07:00:00.000Z"
@@ -144,12 +145,14 @@ test("technicians can read their dashboard ticket queries without broadening rul
     where("reportedByUid", "==", "technician"),
     orderBy("createdAt", "desc")
   );
-  const allTickets = query(collection(dbFor("admin"), "tickets"), orderBy("createdAt", "desc"));
+  const allTickets = uid => query(collection(dbFor(uid), "tickets"), orderBy("createdAt", "desc"));
   const supervisorTickets = query(collection(dbFor("supervisor"), "tickets"), orderBy("createdAt", "desc"));
 
   assert.equal((await assertSucceeds(getDocs(assignedQuery))).size, 1);
   assert.equal((await assertSucceeds(getDocs(reportedQuery))).size, 1);
-  assert.equal((await assertSucceeds(getDocs(allTickets))).size, 3);
+  for (const uid of ["admin", "technician", "operator"]) {
+    assert.equal((await assertSucceeds(getDocs(allTickets(uid)))).size, 3);
+  }
   assert.equal((await assertSucceeds(getDocs(supervisorTickets))).size, 3);
   await assertFails(getDocs(query(
     collection(dbFor("pending"), "tickets"),
