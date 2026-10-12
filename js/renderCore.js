@@ -528,6 +528,12 @@ if (currentPage === "tickets") {
 
 }  
 
+if (currentPage === "pmOrders") {
+  setTimeout(() => {
+    if (typeof window.loadPmOrdersBoard === "function") window.loadPmOrdersBoard();
+  }, 100);
+}
+
 
 // ========================================================  
 // KAIZEN BOARD AUTO LOAD

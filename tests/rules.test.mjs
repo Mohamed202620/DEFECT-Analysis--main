@@ -210,6 +210,64 @@ test("a manager assigns a ticket and appends a matching, actor-bound history ent
   await assertSucceeds(batch.commit());
 });
 
+test("a manager classifies a ticket as unassigned PM and authorized reviewers can plan it", async () => {
+  await seed("tickets/pm-source", ticket({ issueId: "IS-PM-1" }));
+  const managerDb = dbFor("manager");
+  await assertSucceeds(updateDoc(doc(managerDb, "tickets/pm-source"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    assignedTo: null,
+    assignedToUid: null,
+    reviewedBy: users.manager.name,
+    reviewedByUid: "manager",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.manager.name
+  }));
+  await assertSucceeds(updateDoc(doc(managerDb, "tickets/pm-source"), {
+    pmStatus: "planned",
+    plannedDate: null,
+    line: "Line 1",
+    machine: "Backend Press 01",
+    updatedAt: "2026-10-12T10:05:00.000Z",
+    updatedBy: users.manager.name
+  }));
+
+  await assertFails(updateDoc(doc(dbFor("technician"), "tickets/pm-source"), {
+    pmStatus: "completed",
+    updatedAt: "2026-10-12T10:10:00.000Z",
+    updatedBy: users.technician.name
+  }));
+});
+
+test("an engineer can classify PM, but cannot classify corrective work without assignment", async () => {
+  await seed("tickets/engineer-pm", ticket());
+  await assertSucceeds(updateDoc(doc(dbFor("engineer"), "tickets/engineer-pm"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    assignedTo: null,
+    assignedToUid: null,
+    reviewedBy: users.engineer.name,
+    reviewedByUid: "engineer",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.engineer.name
+  }));
+
+  await seed("tickets/cm-without-assignee", ticket());
+  await assertFails(updateDoc(doc(dbFor("engineer"), "tickets/cm-without-assignee"), {
+    status: "assigned",
+    maintenanceType: "CM",
+    reviewedBy: users.engineer.name,
+    reviewedByUid: "engineer",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    assignedTo: null,
+    assignedToUid: null,
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.engineer.name
+  }));
+});
+
 test("an attacker cannot append a ticket log or forge an actor for another user's ticket", async () => {
   await seed("tickets/victim-ticket", ticket());
   const attackerDb = dbFor("technician");

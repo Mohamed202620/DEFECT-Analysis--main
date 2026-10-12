@@ -89,6 +89,10 @@ service cloud.firestore {
       return isActive() && (myRole() == "manager" || myRole() == "supervisor");
     }
 
+    function isMaintenanceReviewer() {
+      return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
+    }
+
     // وصول كامل (admin / manager+supervisor / engineer) - كانت بعض
     // القواعد بتكتب ["admin","manager","engineer"] وبتسيب supervisor
     // بره بينما الواجهة (hasFullDataAccess) بتعامله كمدير
@@ -406,11 +410,38 @@ service cloud.firestore {
                         || request.resource.data.get("assignedToUid", null) == null);
 
       // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
-      allow update: if isActive() && (isAdmin() || isManagerRole())
+      allow update: if isMaintenanceReviewer()
                     && resource.data.status == "pending"
                     && request.resource.data.status == "assigned"
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "type", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                         ["status", "type", "maintenanceType", "reviewedBy", "reviewedByUid", "reviewedAt",
+                          "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                    && ticketAssigneeActive()
+                    && ticketReporterUnchanged();
+
+      // تصنيف البلاغ إلى PM لا ينشئ مستنداً جديداً ولا يتطلب إسناداً.
+      allow update: if isMaintenanceReviewer()
+                    && resource.data.status == "pending"
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.maintenanceType == "PM"
+                    && request.resource.data.get("assignedToUid", null) == null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["maintenanceType", "pmStatus", "assignedTo", "assignedToUid",
+                          "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy"])
+                    && request.resource.data.reviewedByUid == request.auth.uid
+                    && ticketReporterUnchanged();
+
+      // تخطيط أمر PM على مستند البلاغ المرتبط، مع إمكانية إبقاء الموعد
+      // والفني فارغين. لا يغيّر ذلك حالة البلاغ التصحيحية.
+      allow update: if isMaintenanceReviewer()
+                    && resource.data.maintenanceType == "PM"
+                    && request.resource.data.maintenanceType == "PM"
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["line", "machine", "location", "priority", "plannedDate", "pmStatus",
+                          "assignedTo", "assignedToUid", "maintenanceNotes", "delayReason",
+                          "downtimeRequired", "updatedAt", "updatedBy"])
+                    && request.resource.data.pmStatus in ["unplanned", "planned", "in_progress", "completed", "deferred"]
                     && ticketAssigneeActive()
                     && ticketReporterUnchanged();
 

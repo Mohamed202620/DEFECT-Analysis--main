@@ -22,6 +22,7 @@ import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
 import { HomeView } from './views/homeView.js';
 import { PMView } from './views/pmView.js';
+import { PmOrdersView } from './views/PmOrdersView.js';
 import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
@@ -114,6 +115,15 @@ case 'pm':
   return hasPermission("pm")  
     ? PMView()  
     : unauthorizedPage("pm");  
+
+case 'pmOrders':
+
+  return hasPermission("pm")
+    ? PageView(
+        (window.currentLang || "ar") === "en" ? "PM Work Orders" : "أوامر الصيانة الوقائية",
+        PmOrdersView()
+      )
+    : unauthorizedPage("pm");
 
 
 case 'tickets':  

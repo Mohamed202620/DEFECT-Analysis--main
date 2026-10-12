@@ -203,8 +203,11 @@ export function getTicketActions(ticket) {
 
     case "pending":
       // تصنيف وإسناد البلاغ للمدير أو الأدمن
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "assign", label: ta().assign });
+      if (isManagerRole(role) || isAdmin || role === "engineer") {
+        actions.push({
+          key: "review",
+          label: (window.currentLang || "ar") === "en" ? "Classify CM / PM" : "تصنيف البلاغ CM / PM"
+        });
       }
       // إمكانية إصلاح العطل ذاتياً بواسطة صاحب البلاغ
       if (isReporter) {

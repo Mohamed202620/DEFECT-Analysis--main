@@ -1523,14 +1523,23 @@ export async function markAllNotificationsAsRead(uid) {
   }
 }
 
-export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUid }) {
-  if (!type || !assignedTo) {
-    return { status: "error", message: "type و assignedTo مطلوبين" };
+export async function assignTicketApi(ticketId, {
+  type,
+  assignedTo,
+  assignedToUid,
+  maintenanceType,
+  reviewedBy,
+  reviewedByUid,
+  reviewedAt
+}) {
+  if (!assignedTo) {
+    return { status: "error", message: "assignedTo مطلوب" };
   }
   try {
     await updateTicketWithLog(ticketId, stampUpdate({
         status: "assigned",
-        type,
+        ...(type && { type }),
+        ...(maintenanceType && { maintenanceType, reviewedBy, reviewedByUid, reviewedAt }),
         assignedTo,
         ...(assignedToUid && { assignedToUid })
       }), {
@@ -1549,6 +1558,105 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
     return { status: "success" };
   } catch (error) {
     console.error("Error assigning ticket:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = "", assignedToUid = "" }) {
+  if (!["CM", "PM"].includes(maintenanceType)) {
+    return { status: "error", message: "نوع الصيانة غير صالح" };
+  }
+
+  if (maintenanceType === "CM") {
+    if (!assignedTo || !assignedToUid) {
+      return { status: "error", message: "يجب إسناد بلاغ CM إلى فني" };
+    }
+    return assignTicketApi(ticketId, {
+      assignedTo,
+      assignedToUid,
+      maintenanceType,
+      reviewedBy: localStorage.getItem("name") || "",
+      reviewedByUid: localStorage.getItem("userId") || "",
+      reviewedAt: new Date().toISOString()
+    });
+  }
+
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const snapshot = await getDoc(ticketRef);
+    if (!snapshot.exists()) {
+      return { status: "error", message: "البلاغ غير موجود" };
+    }
+
+    const existing = snapshot.data();
+    if (existing.maintenanceType === "PM") {
+      return { status: "success", duplicate: true };
+    }
+    if (existing.maintenanceType === "CM" || existing.status !== "pending") {
+      return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ" };
+    }
+
+    await updateDoc(ticketRef, stampUpdate({
+      maintenanceType: "PM",
+      pmStatus: existing.pmStatus || "unplanned",
+      assignedTo: null,
+      assignedToUid: null,
+      reviewedBy: localStorage.getItem("name") || "",
+      reviewedByUid: localStorage.getItem("userId") || "",
+      reviewedAt: new Date().toISOString()
+    }));
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error classifying ticket as PM:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+export async function fetchPmOrdersApi() {
+  try {
+    const snapshot = await getDocs(query(
+      collection(db, "tickets"),
+      where("maintenanceType", "==", "PM")
+    ));
+    const orders = [];
+    snapshot.forEach(ticketSnap => orders.push({ id: ticketSnap.id, ...ticketSnap.data() }));
+    orders.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    return { status: "success", data: orders };
+  } catch (error) {
+    console.error("Error fetching PM work orders:", error);
+    return { status: "error", message: error.message };
+  }
+}
+
+export async function updatePmOrderApi(ticketId, changes) {
+  const allowedStatuses = ["unplanned", "planned", "in_progress", "completed", "deferred"];
+  if (!allowedStatuses.includes(changes?.pmStatus)) {
+    return { status: "error", message: "حالة أمر PM غير صالحة" };
+  }
+
+  try {
+    const assignedTo = String(changes.assignedTo || "").trim();
+    const assignedToUid = String(changes.assignedToUid || "").trim();
+    if (!!assignedTo !== !!assignedToUid) {
+      return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
+    }
+
+    await updateDoc(doc(db, "tickets", ticketId), stampUpdate({
+      line: String(changes.line || "").trim(),
+      machine: String(changes.machine || "").trim(),
+      location: String(changes.location || "").trim(),
+      priority: String(changes.priority || "").trim(),
+      plannedDate: String(changes.plannedDate || "").trim() || null,
+      pmStatus: changes.pmStatus,
+      assignedTo: assignedTo || null,
+      assignedToUid: assignedToUid || null,
+      maintenanceNotes: String(changes.maintenanceNotes || "").trim(),
+      delayReason: String(changes.delayReason || "").trim(),
+      downtimeRequired: changes.downtimeRequired === true
+    }));
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error updating PM work order:", error);
     return { status: "error", message: error.message };
   }
 }

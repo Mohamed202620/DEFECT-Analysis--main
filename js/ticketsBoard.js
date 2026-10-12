@@ -14,7 +14,6 @@ import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 import {
   subscribeToTicketsBoardApi,
   fetchTechniciansApi,
-  assignTicketApi,
   reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
@@ -22,11 +21,11 @@ import {
   bulkCloseTicketsApi,
   reopenTicketApi,
   declineTicketApi,
+  reviewTicketApi,
   fetchMyNotificationsApi,
   countUnreadNotificationsApi,
   markNotificationReadApi,
-  fetchTicketsForReportApi,
-  fetchTicketByIdApi
+  fetchTicketsForReportApi
 } from './services/api.js';
 import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): STATUS_CLASSES بقت مستوردة من ملف ثوابت
@@ -615,48 +614,33 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (action === "assign") {
+  if (action === "review") {
 
     const techResult = await fetchTechniciansApi();
     const technicians = techResult.status === "success" ? techResult.data : [];
-
-    if (!technicians.length) {
-      alert(tr.noTechnicians);
-      return;
-    }
-
-    // إصلاح (Workflow - تصنيف البلاغ): المُبلّغ ممكن يسجّل "ملاحظة" (Observation)،
-    // لكن نافذة الإسناد كانت بتعرض Breakdown/PM/Other بس والأول مختار افتراضياً،
-    // فأي ملاحظة كانت بتتحول لعطل مفاجئ بمجرد الضغط على "إسناد". دلوقتي بنقرأ نوع
-    // التذكرة الحالي ونعرضه مختار، مع إضافة خيار Observation.
-    let currentTicketType = "";
-    try {
-      const cur = await fetchTicketByIdApi(ticketId);
-      currentTicketType = cur?.data?.type || "";
-    } catch (_) { /* لو فشل الجلب نكمل بالافتراضي */ }
     const isEnUi = (window.currentLang || "ar") === "en";
 
     const values = await openActionModal({
-      title: tr.assignTitle,
-      submitLabel: tr.assignSubmit,
+      title: isEnUi ? "Review and classify ticket" : "مراجعة وتصنيف البلاغ",
+      submitLabel: isEnUi ? "Save classification" : "حفظ التصنيف",
       fields: [
         {
-          id: "type",
-          label: tr.typeLabel,
+          id: "maintenanceType",
+          label: isEnUi ? "Maintenance route" : "مسار الصيانة",
           type: "select",
-          defaultValue: currentTicketType,
           options: [
-            { value: "Breakdown", label: tr.typeBreakdown },
-            { value: "PM", label: tr.typePM },
-            { value: "Observation", label: tr.typeObservation || (isEnUi ? "Observation" : "ملاحظة (Observation)") },
-            { value: "Other", label: tr.typeOther }
+            { value: "CM", label: isEnUi ? "CM — Corrective Maintenance" : "CM — صيانة تصحيحية" },
+            { value: "PM", label: isEnUi ? "PM — Preventive Maintenance" : "PM — صيانة وقائية" }
           ]
         },
         {
           id: "assignedTo",
-          label: tr.assignToLabel,
+          label: isEnUi ? "Technician (optional for PM)" : "الفني (اختياري في PM)",
           type: "select",
-          options: technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
+          options: [
+            { value: "", label: isEnUi ? "Unassigned" : "غير مسند" },
+            ...technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
+          ]
         }
       ]
     });
@@ -664,11 +648,15 @@ window.handleTicketAction = async function (ticketId, action) {
     if (!values) return;
 
     const pickedTech = technicians.find(tech => tech.id === values.assignedTo);
-    if (!pickedTech || !pickedTech.name) return;
-    const assignedToUid = pickedTech.id;
-    const assignedTo = pickedTech.name;
-
-    result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
+    if (values.maintenanceType === "CM" && !pickedTech) {
+      alert(isEnUi ? "A technician is required for CM assignment." : "إسناد بلاغ CM يتطلب اختيار فني.");
+      return;
+    }
+    result = await reviewTicketApi(ticketId, {
+      maintenanceType: values.maintenanceType,
+      assignedTo: pickedTech?.name || "",
+      assignedToUid: pickedTech?.id || ""
+    });
 
   } else if (action === "reassign") {
 

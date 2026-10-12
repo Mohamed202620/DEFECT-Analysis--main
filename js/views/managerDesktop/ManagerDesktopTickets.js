@@ -482,7 +482,7 @@ function renderSidePreview(ticket) {
             type="button"
             onclick="window.mgrPromptAssignTicket('${escapeJsArg(ticket.id)}')"
             class="text-[11px] font-bold text-blue-500 hover:underline">
-            ${ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن')}
+            ${String(ticket.status || '').trim().toLowerCase() === 'pending' ? (isEn ? 'Review / classify' : 'مراجعة وتصنيف') : (ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن'))}
           </button>` : ''}
         </div>
       </div>
@@ -684,6 +684,15 @@ window.mgrPromptAssignTicket = async function(ticketId) {
     alert(isEn
       ? '⚠️ Assignment is only available for pending / assigned / in-progress / reopened tickets'
       : '⚠️ الإسناد متاح فقط للتذاكر (جديد / تم الإسناد / قيد التنفيذ / معاد فتحها)');
+    return;
+  }
+
+  if (isNewAssign) {
+    if (typeof window.handleTicketAction === "function") {
+      await window.handleTicketAction(ticketId, "review");
+    } else {
+      alert(isEn ? "Ticket review is not available right now. Reload and try again." : "تعذر فتح مراجعة البلاغ الآن. حدّث الصفحة وحاول مرة أخرى.");
+    }
     return;
   }
 
