@@ -36,7 +36,7 @@ test("dev deploy targets the dev site in the existing project with its authorize
 
   for (const workflow of [devWorkflow, mainWorkflow]) {
     assert.match(workflow, /FIREBASE_SERVICE_ACCOUNT:\s*\$\{\{\s*secrets\.FIREBASE_SERVICE_ACCOUNT\s*\}\}/);
-    assert.match(workflow, /firebaseServiceAccount:\s*\$\{\{\s*secrets\.FIREBASE_SERVICE_ACCOUNT\s*\}\}/);
+    assert.match(workflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
     assert.doesNotMatch(workflow, /^\s{4}environment:/m);
   }
 });
@@ -62,8 +62,10 @@ test("shared deploy credential must belong to the existing Firebase project", ()
   assert.doesNotThrow(() => validate(` \n ${credential()} \n `));
   assert.doesNotThrow(() => validate(`'${credential()}'`));
   assert.doesNotThrow(() => validate(`"${credential()}"`));
-  assert.doesNotThrow(() => validate(Buffer.from(credential()).toString("base64")));
-  assert.doesNotThrow(() => validate(credential(undefined, "line one\\nline two")));
+  const base64Credential = validate(Buffer.from(credential()).toString("base64"));
+  assert.equal(JSON.parse(base64Credential).project_id, PRODUCTION_FIREBASE_CONFIG.projectId);
+  const escapedNewlineCredential = validate(credential(undefined, "line one\\nline two"));
+  assert.equal(JSON.parse(escapedNewlineCredential).private_key, "line one\nline two");
   assert.throws(
     () => validateProductionDeploymentConfig({}),
     /FIREBASE_SERVICE_ACCOUNT is empty/

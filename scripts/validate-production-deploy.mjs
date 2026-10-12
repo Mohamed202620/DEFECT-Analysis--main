@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { PRODUCTION_FIREBASE_CONFIG } from "../js/firebaseDefaults.js";
 
@@ -76,11 +77,24 @@ export function validateProductionDeploymentConfig(env = process.env) {
   ) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT must belong to the production project.");
   }
+
+  return JSON.stringify(serviceAccount);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    validateProductionDeploymentConfig();
+    const normalizedServiceAccount = validateProductionDeploymentConfig();
+    if (process.env.GITHUB_ENV) {
+      const escapedForWorkflowCommand = normalizedServiceAccount
+        .replace(/%/g, "%25")
+        .replace(/\r/g, "%0D")
+        .replace(/\n/g, "%0A");
+      process.stdout.write(`::add-mask::${escapedForWorkflowCommand}\n`);
+      appendFileSync(
+        process.env.GITHUB_ENV,
+        `FIREBASE_SERVICE_ACCOUNT_NORMALIZED=${normalizedServiceAccount}\n`
+      );
+    }
     console.log("Validated production project and deployer project binding.");
   } catch (error) {
     console.error(`Production deployment blocked: ${error.message}`);
