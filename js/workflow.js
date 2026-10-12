@@ -244,7 +244,27 @@ export function loadDashboardStats() {
   return _dashboardStatsInFlight;
 }
 
+function setDashboardSyncState(state) {
+  const currentLang = window.currentLang || "ar";
+  const homeTranslations = (translations[currentLang] || translations.ar).home;
+  const status = document.getElementById("dashboardSyncStatus");
+  const dot = document.getElementById("dashboardSyncDot");
+  const labels = {
+    loading: homeTranslations.dashboardLoading,
+    success: homeTranslations.dashboardUpdated,
+    error: homeTranslations.dashboardLoadError,
+    permissionDenied: homeTranslations.dashboardPermissionError
+  };
+
+  if (status) status.textContent = labels[state];
+  if (dot) {
+    dot.classList.remove("bg-emerald-400", "bg-amber-400", "bg-red-400", "animate-pulse");
+    dot.classList.add(state === "success" ? "bg-emerald-400" : state === "loading" ? "bg-amber-400" : "bg-red-400");
+  }
+}
+
 async function _loadDashboardStatsImpl() {
+  setDashboardSyncState("loading");
 
   // إصلاح M1: جلب دور المستخدم وبياناته الحالية، وتمريرها لـ
   // fetchTicketsApi عشان كارتات لوحة المتابعة في الرئيسية تتفلتر
@@ -256,10 +276,18 @@ async function _loadDashboardStatsImpl() {
 
   // أرقام دقيقة (بند H4): عدّادات من السيرفر + مجموعة البلاغات غير المغلقة
   // الكاملة، بدل عينة أحدث 500 بلاغ اللي كانت بتخفي أقدم المتأخرات
-  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName });
+  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName, serverOnly: true });
 
   if (!snapRes || snapRes.status !== 'success') {
     console.warn("[loadDashboardStats] Failed to fetch tickets:", snapRes?.message || "Unknown error");
+    window.dashboardData = null;
+    setDashboardSyncState(snapRes?.code === "permission-denied" ? "permissionDenied" : "error");
+    ["statOpenCount", "statClosedCount", "statTodayCount", "statTotalCount", "statOverdueCount", "statMttrValue", "statTopMachineName", "statTopTechName"]
+      .forEach(id => {
+        const node = document.getElementById(id);
+        if (node) node.textContent = "—";
+      });
+    document.getElementById("criticalBadge")?.classList.add("hidden");
     return;
   }
 
@@ -296,6 +324,7 @@ async function _loadDashboardStatsImpl() {
   };
 
   window.dashboardData = stats;
+  setDashboardSyncState("success");
 
   // تصعيد البلاغات المتأخرة للمديرين (H6) - مرة واحدة لكل بلاغ/مدير
   if (overdue > 0 && (role === 'admin' || role === 'manager' || role === 'supervisor')) {

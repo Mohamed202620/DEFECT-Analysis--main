@@ -16,7 +16,7 @@ export const HomeView = () => {
   const currentLang = window.currentLang || "ar";
   const t = (translations[currentLang] || translations.en).home;
 
-  const stats = window.dashboardData || { open: 0, closed: 0, today: 0, total: 0 };
+  const stats = window.dashboardData || { open: "—", closed: "—", today: "—", overdue: "—", total: "—" };
 
   // إعداد رقم الواتساب الخاص بك والرسالة الجاهزة (مترجمة حسب اللغة الحالية)
   const waNumber = "201067988554";
@@ -41,8 +41,8 @@ export const HomeView = () => {
             <span>${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</span>
           </h3>
           <span class="text-[10px] sm:text-xs text-blue-400 font-medium inline-flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>${currentLang === 'ar' ? 'مزامنة حية' : 'Live Sync'}</span>
+            <span id="dashboardSyncDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span id="dashboardSyncStatus">${t.dashboardLoading}</span>
           </span>
         </div>
 
@@ -116,7 +116,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-rose-400/80 group-hover:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOverdue || (currentLang === 'ar' ? 'متأخرة' : 'Overdue')}</span>
-              <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-400 leading-none">${stats.overdue || 0}</span>
+              <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-400 leading-none">${stats.overdue}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
