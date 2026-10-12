@@ -276,7 +276,7 @@ async function _loadDashboardStatsImpl() {
 
   // أرقام دقيقة (بند H4): عدّادات من السيرفر + مجموعة البلاغات غير المغلقة
   // الكاملة، بدل عينة أحدث 500 بلاغ اللي كانت بتخفي أقدم المتأخرات
-  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName, serverOnly: true });
+  const snapRes = await fetchDashboardSnapshotApi({ role, myUid, myName });
 
   if (!snapRes || snapRes.status !== 'success') {
     console.warn("[loadDashboardStats] Failed to fetch tickets:", snapRes?.message || "Unknown error");
