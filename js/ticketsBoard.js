@@ -134,6 +134,7 @@ function ticketCardHtml(ticket) {
           <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
             ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.reportedBy)}</b></span>` : ""}
             ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.assignedTo)}</b></span>` : ""}
+            ${ticket.maintenanceType === "PM" ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM</span>` : ""}
             ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${escapeHtml(ticket.type)}</span>` : ""}
             ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
               ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
@@ -614,6 +615,13 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
+  // بلاغ مصنّف PM: أمر الصيانة الوقائية هو نفس مستند البلاغ ويُخطَّط من
+  // صفحة أوامر PM (لا إسناد إجباري ولا إعادة تصنيف من لوحة البلاغات)
+  if (action === "open_pm_orders") {
+    if (typeof window.navigateTo === "function") window.navigateTo("pmOrders");
+    return;
+  }
+
   if (action === "review") {
 
     const techResult = await fetchTechniciansApi();
@@ -635,7 +643,7 @@ window.handleTicketAction = async function (ticketId, action) {
         },
         {
           id: "assignedTo",
-          label: isEnUi ? "Technician (optional for PM)" : "الفني (اختياري في PM)",
+          label: isEnUi ? "Technician (required for CM only — PM is planned from PM orders)" : "الفني (مطلوب لـ CM فقط — أوامر PM تُسنَد من صفحة أوامر PM)",
           type: "select",
           options: [
             { value: "", label: isEnUi ? "Unassigned" : "غير مسند" },

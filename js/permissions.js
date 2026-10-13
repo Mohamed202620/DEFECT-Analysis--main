@@ -202,12 +202,21 @@ export function getTicketActions(ticket) {
   switch (status) {
 
     case "pending":
-      // تصنيف وإسناد البلاغ للمدير أو الأدمن
+      // تصنيف وإسناد البلاغ للمدير أو الأدمن. البلاغ المصنّف PM انتقل فعلاً
+      // لقائمة أوامر الصيانة الوقائية: لا يُعاد تصنيفه من هنا (كان الزر
+      // يظهر مجدداً ويسمح بتحويله CM بالخطأ) - يظهر بدله اختصار لأمر PM.
       if (isManagerRole(role) || isAdmin || role === "engineer") {
-        actions.push({
-          key: "review",
-          label: (window.currentLang || "ar") === "en" ? "Classify CM / PM" : "تصنيف البلاغ CM / PM"
-        });
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({
+            key: "review",
+            label: (window.currentLang || "ar") === "en" ? "Classify CM / PM" : "تصنيف البلاغ CM / PM"
+          });
+        }
       }
       // إمكانية إصلاح العطل ذاتياً بواسطة صاحب البلاغ
       if (isReporter) {
