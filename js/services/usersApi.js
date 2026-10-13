@@ -44,16 +44,16 @@ import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissio
 // الموافقة تعرض الدور الناتج. دلوقتي الأدمن بيختار الدور صراحةً عند
 // القبول (updateUserStatusApi تحت بتطلبه)، والوظيفة بتُستخدم فقط
 // كاقتراح مبدئي في الواجهة للأدوار غير الحساسة (suggestRoleFromJob).
-export const APPROVAL_ROLES = ["technician", "operator", "engineer", "supervisor", "manager", "admin"];
+export const APPROVAL_ROLES = ["technician", "operator", "engineer", "maintainer", "supervisor", "manager", "admin"];
 
 // الأدوار اللي لازم يتحدد لها قسم ماكينات (backend/frontend) عند القبول:
 // قواعد machineErrors/pmRecords/machineChecklists وقوائم الماكينات بتعتمد
 // عليه، ومن غيره المستخدم مايقدرش يبلّغ أو يمسح QR (بند C3).
-export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "supervisor"];
+export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "maintainer", "supervisor"];
 
 const JOB_SUGGESTED_ROLE = {
   technician: "technician",
-  maintainer: "technician",
+  maintainer: "maintainer",
   operator: "operator"
 };
 
@@ -602,7 +602,7 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
     const q =
       query(
         collection(db, "users"),
-        where("role", "in", ["technician", "engineer"])
+        where("role", "in", ["technician", "engineer", "maintainer"])
       );
 
     const querySnapshot =

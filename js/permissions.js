@@ -65,6 +65,15 @@ export function isManagerRole(role) {
 
 window.isManagerRole = isManagerRole;
 
+// دور "Maintainer" - فني صيانة متقدم (مش مدير، مش أدمن)
+// بيقدر يشوف كل البيانات في قسمه زي المهندس، بس من غير صلاحيات إدارية
+export function isMaintainerRole(role) {
+  const r = String(role || "").trim().toLowerCase();
+  return r === "maintainer";
+}
+
+window.isMaintainerRole = isMaintainerRole;
+
 // ============================================================
 // قراءة/تحديث الحالة
 // ============================================================
@@ -150,7 +159,8 @@ export function hasFullDataAccess(role = getCurrentRole()) {
   return (
     isAdminRole(r) ||
     isManagerRole(r) ||
-    r === "engineer"
+    r === "engineer" ||
+    r === "maintainer"
   );
 }
 
@@ -194,7 +204,7 @@ export function getTicketActions(ticket) {
       // تصنيف وإسناد البلاغ للمدير أو الأدمن. البلاغ المصنّف PM انتقل فعلاً
       // لقائمة أوامر الصيانة الوقائية: لا يُعاد تصنيفه من هنا (كان الزر
       // يظهر مجدداً ويسمح بتحويله CM بالخطأ) - يظهر بدله اختصار لأمر PM.
-      if (isManagerRole(role) || isAdmin || role === "engineer") {
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
         if (ticket.maintenanceType === "PM") {
           actions.push({
             key: "open_pm_orders",
@@ -223,7 +233,7 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      if (isManagerRole(role) || isAdmin || role === "engineer") {
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
         if (ticket.maintenanceType === "PM") {
           actions.push({
             key: "open_pm_orders",
@@ -249,7 +259,7 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      if (isManagerRole(role) || isAdmin || role === "engineer") {
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
         if (ticket.maintenanceType === "PM") {
           actions.push({
             key: "open_pm_orders",

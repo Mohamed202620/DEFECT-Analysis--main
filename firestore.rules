@@ -89,8 +89,14 @@ service cloud.firestore {
       return isActive() && (myRole() == "manager" || myRole() == "supervisor");
     }
 
+    // دور "Maintainer" - فني صيانة متقدم (مش مدير، مش أدمن)
+    // بيقدر يشوف كل البيانات في قسمه زي المهندس، بس من غير صلاحيات إدارية
+    function isMaintainerRole() {
+      return isActive() && myRole() == "maintainer";
+    }
+
     function isMaintenanceReviewer() {
-      return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
+      return isAdmin() || isManagerRole() || (isActive() && (myRole() == "engineer" || myRole() == "maintainer"));
     }
 
     // وصول كامل (admin / manager+supervisor / engineer) - كانت بعض
@@ -131,7 +137,7 @@ service cloud.firestore {
     }
 
     function isFullAccessRole() {
-      return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
+      return isAdmin() || isManagerRole() || isMaintainerRole() || (isActive() && myRole() == "engineer");
     }
 
     function requestReferencesMachineInDepartment() {
@@ -360,7 +366,7 @@ service cloud.firestore {
       // بيشترط isActive(). الترحيل من النظام القديم بقى عبر Cloud Function.
       allow list: if isActive()
                   && (isAdmin() || isManagerRole()
-                      || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]);
+                      || resource.data.role in ["technician", "engineer", "maintainer", "admin", "manager", "supervisor"]);
 
       // تعديل: صاحب الحساب يعدّل بياناته الشخصية بس - ممنوع يغيّر
       // role/status/permissions/machineDepartment. تغيير الدور/الحالة/

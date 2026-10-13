@@ -858,7 +858,7 @@ function renderTechnicianWorkload(tickets, users, isEn) {
   // جمع الفنيين والمهندسين من قائمة المستخدمين
   users.forEach(u => {
     const r = String(u.role || '').toLowerCase();
-    if (r === 'technician' || r === 'engineer' || r === 'فني' || r === 'مهندس') {
+    if (r === 'technician' || r === 'engineer' || r === 'maintainer' || r === 'فني' || r === 'مهندس') {
       const name = String(u.name || '').trim();
       if (name) {
         workload[name] = { active: 0, resolved: 0, total: 0 };

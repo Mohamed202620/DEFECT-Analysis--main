@@ -354,7 +354,7 @@ let selectedTicketIds = new Set();
 window.selectedTicketIds = selectedTicketIds; // MGR-DESKTOP
 
 function isBulkActionsRole(role) {
-  return role === "admin" || role === "manager" || role === "supervisor" || role === "engineer";
+  return role === "admin" || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer";
 }
 
 function renderBulkSelectToggle() {

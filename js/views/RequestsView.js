@@ -42,7 +42,7 @@ let usersCache = [];
 // قائمة الصلاحيات الموحدة في التطبيق
 // ======================================
 
-const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "technician", "operator"];
+const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "maintainer", "technician", "operator"];
 
 const PERMISSIONS = [
 
@@ -501,6 +501,14 @@ function renderUsers(users) {
                             ${user.role === "engineer" ? "selected" : ""}>
 
                             Engineer
+
+                        </option>
+
+                        <option
+                            value="maintainer"
+                            ${user.role === "maintainer" ? "selected" : ""}>
+
+                            Maintainer
 
                         </option>
 

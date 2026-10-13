@@ -936,7 +936,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
 
-    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
+    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
       const clauses = statusClauses();
       const q = clauses.length === 0
         ? query(ticketsRef, orderBy("createdAt", "desc"), limit(TICKETS_BOARD_DEFAULT_LIMIT))
