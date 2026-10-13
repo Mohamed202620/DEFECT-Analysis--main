@@ -463,6 +463,22 @@ service cloud.firestore {
                     && ticketAssigneeActive()
                     && ticketReporterUnchanged();
 
+      // STEP PM-Tasks: تحديث مهام أمر PM (pmTasks) - الفني المُسند إليه أو أدمن/مدير
+      // يُسمح بتحديث: pmTasks، pmStatus، completedAt، completedBy، completedByUid،
+      // completedTasksCount، totalTasksCount، pendingTasksCount، hasRemainingTasks، remainingTasks
+      // الحالة المطلوبة: PM order يكون in_progress أو assigned
+      allow update: if resource.data.get("maintenanceType", null) == "PM"
+                    && resource.data.status in ["assigned", "in_progress"]
+                    && request.resource.data.status == resource.data.status
+                    && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         "pmTasks", "pmStatus", "completedAt", "completedBy", "completedByUid",
+                         "completedTasksCount", "totalTasksCount", "pendingTasksCount",
+                         "hasRemainingTasks", "remainingTasks", "updatedAt", "updatedBy",
+                         "followupTicketId"
+                       ])
+                    && ticketReporterUnchanged();
+
       // STEP 2b - (assigned | in_progress | reopened) -> pending: اعتذار الفني المُسند إليه وإعادة العطل لقائمة الانتظار
       // (reopened أُضيفت: الواجهة - getTicketActions في permissions.js -
       // بتعرض زر "اعتذار" للفني على تذكرة reopened لكن القاعدة كانت بترفضه)

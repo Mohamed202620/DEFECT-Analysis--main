@@ -1,7 +1,7 @@
 import { openActionModal } from "../components/ActionModal.js";
 import { fetchTechniciansApi } from "../services/usersApi.js";
 import { exportToExcel, exportToPdf } from "../services/exportUtility.js";
-import { fetchPmOrdersApi, updatePmOrderApi } from "../services/api.js";
+import { fetchPmOrdersApi, updatePmOrderApi, initializePmTasksApi, updatePmTaskApi, completePmOrderApi, createFollowupFromRemainingTasksApi, reschedulePmTasksApi } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 import { hasFullDataAccess, hasPermission } from "../permissions.js";
 
@@ -120,7 +120,7 @@ function renderPmOrders() {
           : `<span class="text-gray-400 text-[11px]">${label("غير مطلوب", "Not required")}</span>`}
       </td>
       <td class="p-3 min-w-40 whitespace-normal text-gray-400 text-[11px]">${escapeHtml(order.maintenanceNotes || order.delayReason || "—")}</td>
-      <td class="p-3">${canPlanPmOrders() ? `<button type="button" onclick="window.editPmOrder('${escapeJsArg(order.id)}')" class="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition">${label("تخطيط / تعديل", "Plan / edit")}</button>` : "—"}</td>
+      <td class="p-3">${getTaskActionButtons(order)}</td>
     </tr>
   `}).join("");
 
@@ -436,6 +436,262 @@ window.editPmOrder = async function(ticketId) {
     return;
   }
   await window.loadPmOrdersBoard();
+};
+
+// ============================================================
+// PM Task Execution Functions
+// ============================================================
+
+window.initializePmTasks = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية تهيئة مهام PM.", "You are not allowed to initialize PM tasks."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) {
+    alert(label("تعذر العثور على أمر PM.", "PM order not found."));
+    return;
+  }
+  
+  const confirmed = confirm(label("سيتم تهيئة مهام PM الافتراضية (فحص الهيدروليك، تنظيف الفلاتر، التشحيم). متابعة؟", "Initialize default PM tasks (hydraulic check, filter cleaning, lubrication). Continue?"));
+  if (!confirmed) return;
+  
+  const result = await initializePmTasksApi(ticketId);
+  if (result.status === "success") {
+    alert(label("تم تهيئة المهام بنجاح.", "Tasks initialized successfully."));
+    await window.loadPmOrdersBoard();
+  } else {
+    alert(`${label("فشل التهيئة:", "Initialization failed:")} ${result.message || ""}`);
+  }
+};
+
+window.executePmTasks = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية تنفيذ مهام PM.", "You are not allowed to execute PM tasks."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) {
+    alert(label("تعذر العثور على أمر PM.", "PM order not found."));
+    return;
+  }
+  
+  const pmTasks = order.pmTasks || [];
+  if (!pmTasks.length) {
+    alert(label("لا توجد مهام محددة. اضغط 'تهيئة المهام' أولاً.", "No tasks defined. Click 'Init Tasks' first."));
+    return;
+  }
+  
+  // Build task list HTML
+  const taskRows = pmTasks.map((task, index) => {
+    const status = task.status || "pending";
+    const isDone = status === "done";
+    const isNotDone = status === "not_done";
+    const isPending = status === "pending";
+    
+    return `
+      <div class="bg-[#1E293B] border border-gray-700 rounded-lg p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-gray-100">${index + 1}. ${escapeHtml(task.description)}</span>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+            isDone ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+            isNotDone ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+            'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+          }">${isDone ? label("✅ تم", "Done") : isNotDone ? label("❌ لم يتم", "Not Done") : label("⏳ بانتظار", "Pending")}</span>
+        </div>
+        ${isNotDone && task.reason ? `<div class="text-[11px] text-rose-300 bg-rose-500/10 p-2 rounded">${label("السبب:", "Reason:")} ${escapeHtml(task.reason)}</div>` : ""}
+        <div class="flex gap-2">
+          ${isPending || isNotDone ? `
+            <button type="button" onclick="window.updatePmTask('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}', 'done')" class="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 transition">${label("✅ تم التنفيذ", "Done")}</button>
+            <button type="button" onclick="window.showNotDoneReason('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}')" class="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 transition">${label("❌ لم يتم", "Not Done")}</button>
+          ` : `
+            <button type="button" onclick="window.updatePmTask('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}', 'pending')" class="flex-1 rounded-lg bg-gray-600 px-3 py-2 text-xs font-bold text-white hover:bg-gray-500 transition">${label("↩️ إعادة للانتظار", "Reset to Pending")}</button>
+            <button type="button" onclick="window.showNotDoneReason('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}')" class="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 transition">${label("❌ لم يتم", "Not Done")}</button>
+          `}
+        </div>
+      </div>
+    `;
+  }).join("");
+  
+  const modalHtml = `
+    <div class="max-h-[70vh] overflow-y-auto">
+      <div class="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div class="font-bold text-blue-300">${label("أمر PM:", "PM Order:")} ${escapeHtml(order.issueId || order.id)}</div>
+        <div class="text-xs text-gray-300">${escapeHtml(order.machine)} · ${escapeHtml(order.line)}</div>
+      </div>
+      <div class="space-y-3">${taskRows}</div>
+      <div class="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-400">
+        ${label("اضغط على مهمة لتحديث حالتها. سبب عدم التنفيذ مطلوب عند اختيار 'لم يتم'.", "Click a task to update status. Reason required for 'Not Done'.")}
+      </div>
+    </div>
+  `;
+  
+  await openActionModal({
+    title: label("تنفيذ مهام PM", "Execute PM Tasks"),
+    submitLabel: label("إغلاق", "Close"),
+    fields: [],
+    customHtml: modalHtml
+  });
+  
+  // Reload to reflect any changes
+  await window.loadPmOrdersBoard();
+};
+
+window.showNotDoneReason = function(ticketId, taskId) {
+  const reason = prompt(label("أدخل سبب عدم التنفيذ (مطلوب):", "Enter reason for not done (required):"));
+  if (reason === null) return; // User cancelled
+  if (!reason.trim()) {
+    alert(label("السبب مطلوب.", "Reason is required."));
+    return;
+  }
+  window.updatePmTask(ticketId, taskId, 'not_done', reason.trim());
+};
+
+window.updatePmTask = async function(ticketId, taskId, status, reason = null) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية تحديث مهام PM.", "You are not allowed to update PM tasks."));
+    return;
+  }
+  
+  const result = await updatePmTaskApi(ticketId, taskId, { status, reason });
+  if (result.status === "success") {
+    // Small toast-like feedback
+    const msg = status === "done" ? label("تم تسجيل التنفيذ ✅", "Execution recorded ✅") : label("تم تسجيل عدم التنفيذ ❌", "Not done recorded ❌");
+    console.log(msg);
+  } else {
+    alert(`${label("فشل التحديث:", "Update failed:")} ${result.message || ""}`);
+  }
+};
+
+window.completePmOrder = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية إنهاء أوامر PM.", "You are not allowed to complete PM orders."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) {
+    alert(label("تعذر العثور على أمر PM.", "PM order not found."));
+    return;
+  }
+  
+  const pmTasks = order.pmTasks || [];
+  const doneCount = pmTasks.filter(t => t.status === "done").length;
+  const notDoneCount = pmTasks.filter(t => t.status === "not_done").length;
+  const pendingCount = pmTasks.filter(t => t.status === "pending").length;
+  
+  const msg = label(
+    `أمر PM: ${order.issueId || order.id}\n` +
+    `✅ منفذة: ${doneCount} | ❌ لم تنفذ: ${notDoneCount} | ⏳ معلقة: ${pendingCount}\n\n` +
+    `المهام المعلقة ستُسجل كـ "لم يتم تنفيذها" مع سبب تلقائي.\n` +
+    `إذا بقيت مهام غير منفذة، سيكون الأمر "مكتمل جزئياً".\n\n` +
+    `تأكيد الإنهاء؟`,
+    `PM Order: ${order.issueId || order.id}\n` +
+    `✅ Done: ${doneCount} | ❌ Not Done: ${notDoneCount} | ⏳ Pending: ${pendingCount}\n\n` +
+    `Pending tasks will be marked as "Not Done" with auto reason.\n` +
+    `If tasks remain not done, order becomes "Partially Completed".\n\n` +
+    `Confirm completion?`
+  );
+  
+  if (!confirm(msg)) return;
+  
+  const result = await completePmOrderApi(ticketId);
+  if (result.status === "success") {
+    const { isPartial, doneCount: d, notDoneCount: n } = result.data;
+    alert(label(
+      `تم إنهاء الأمر ${isPartial ? "جزئياً" : "كاملاً"}.\n` +
+      `✅ منفذة: ${d} | ❌ غير منفذة: ${n}\n` +
+      `${isPartial ? "يمكنك متابعة المهام المتبقية من زر 'متابعة المتبقي'." : "جميع المهام تمت بنجاح."}`,
+      `Order completed ${isPartial ? "partially" : "fully"}.\n` +
+      `✅ Done: ${d} | ❌ Not Done: ${n}\n` +
+      `${isPartial ? "Follow up remaining tasks via 'Follow-up Remaining' button." : "All tasks completed successfully."}`
+    ));
+    await window.loadPmOrdersBoard();
+  } else {
+    alert(`${label("فشل الإنهاء:", "Completion failed:")} ${result.message || ""}`);
+  }
+};
+
+window.createFollowupFromRemaining = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية إنشاء أوامر متابعة.", "You are not allowed to create follow-up orders."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) {
+    alert(label("تعذر العثور على أمر PM.", "PM order not found."));
+    return;
+  }
+  
+  const remainingTasks = order.remainingTasks || [];
+  if (!remainingTasks.length) {
+    alert(label("لا توجد مهام متبقية للمتابعة.", "No remaining tasks to follow up."));
+    return;
+  }
+  
+  const title = prompt(label("عنوان أمر المتابعة:", "Follow-up order title:"), `متابعة PM - ${order.issueId || order.id}`);
+  if (!title) return;
+  
+  const description = prompt(label("وصف أمر المتابعة:", "Follow-up order description:"), `مهام متبقية من PM ${ticketId}: ${remainingTasks.map(t => t.description).join(", ")}`);
+  if (!description) return;
+  
+  const result = await createFollowupFromRemainingTasksApi(ticketId, { title, description });
+  if (result.status === "success") {
+    alert(label(`تم إنشاء أمر متابعة جديد: ${result.data.followupTicketId}`, `Follow-up order created: ${result.data.followupTicketId}`));
+    await window.loadPmOrdersBoard();
+  } else {
+    alert(`${label("فشل إنشاء المتابعة:", "Follow-up creation failed:")} ${result.message || ""}`);
+  }
+};
+
+window.reschedulePmOrder = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية إعادة جدولة أوامر PM.", "You are not allowed to reschedule PM orders."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) {
+    alert(label("تعذر العثور على أمر PM.", "PM order not found."));
+    return;
+  }
+  
+  const techResult = await fetchTechniciansApi();
+  if (techResult.status !== "success") {
+    alert(techResult.message || label("تعذر تحميل قائمة الفنيين.", "Could not load technicians."));
+    return;
+  }
+  const technicians = techResult.data || [];
+  const technicianOptions = [
+    { value: "", label: unassignedLabel() },
+    ...technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
+  ];
+  
+  const values = await openActionModal({
+    title: `${label("إعادة جدولة أمر PM", "Reschedule PM Order")} · ${order.issueId || order.id}`,
+    submitLabel: label("حفظ", "Save"),
+    fields: [
+      { id: "plannedDate", label: label("موعد التنفيذ الجديد", "New Planned Date"), type: "date", defaultValue: "" },
+      { id: "assignedTo", label: label("الفني (اختياري)", "Technician (optional)"), type: "select", defaultValue: order.assignedToUid ? `${order.assignedToUid}::${order.assignedTo}` : "", options: technicianOptions },
+      { id: "maintenanceNotes", label: label("ملاحظات إعادة الجدولة", "Rescheduling Notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" }
+    ]
+  });
+  
+  if (!values) return;
+  
+  const [assignedToUid, ...assignedNameParts] = String(values.assignedTo || "").split("::");
+  const assignedTo = assignedNameParts.join("::");
+  
+  const result = await reschedulePmTasksApi(ticketId, {
+    plannedDate: values.plannedDate,
+    assignedTo: assignedTo || "",
+    assignedToUid: assignedToUid || ""
+  });
+  
+  if (result.status === "success") {
+    alert(label("تمت إعادة الجدولة بنجاح.", "Rescheduled successfully."));
+    await window.loadPmOrdersBoard();
+  } else {
+    alert(`${label("فشل إعادة الجدولة:", "Rescheduling failed:")} ${result.message || ""}`);
+  }
 };
 
 window.exportPmOrders = async function(format) {
