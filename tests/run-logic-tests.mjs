@@ -723,6 +723,22 @@ await t("تصدير PM: يستخدم exportToExcel/exportToPdf مع RTL وتوا
   assert.ok(pmViewSrc.includes('dir="${isEn() ? "ltr" : "rtl"}"'));
   assert.ok(!pmViewSrc.includes('order.createdAt || "",'), "تاريخ ISO خام في التصدير");
 });
+await t("المدير والمهندس يريان خيار تصنيف PM على البلاغات المسندة والقائمة", () => {
+  asUser("manager", "M1", "Mona");
+  const mgrAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(mgrAssigned.includes("classify_pm"), "المدير لا يرى classify_pm على بلاغ assigned: " + mgrAssigned.join(","));
+  asUser("engineer", "E1", "Eng");
+  const engAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(engAssigned.includes("classify_pm"), "المهندس لا يرى classify_pm على بلاغ assigned: " + engAssigned.join(","));
+  asUser("technician", "T1", "Tech");
+  const techAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(!techAssigned.includes("classify_pm"), "الفني يرى classify_pm بشكل غير مصرح: " + techAssigned.join(","));
+});
+await t("واجهة PM تدعم تحديد الأوامر المتعددة وفلتر توقف الخط الميداني", () => {
+  assert.ok(pmViewSrc.includes("selectedOrderIds"), "غياب selectedOrderIds في PmOrdersView");
+  assert.ok(pmViewSrc.includes("pmQuickDowntimeBtn"), "غياب زر توقف الخط السريع");
+  assert.ok(pmViewSrc.includes("openPmOrdersWithFilter"), "غياب openPmOrdersWithFilter");
+});
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
 process.exit(failed ? 1 : 0);

@@ -245,17 +245,31 @@ window.selectIssuePriority = function(priorityVal) {
 window.selectIssueType = function(typeVal) {
   const breakdownRadio = document.getElementById('radioBreakdown');
   const obsRadio = document.getElementById('radioObs');
+  const pmRadio = document.getElementById('radioPM');
   const btnBreakdown = document.getElementById('btnTypeBreakdown');
   const btnObs = document.getElementById('btnTypeObs');
+  const btnPM = document.getElementById('btnTypePM');
+
+  const activeRed = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-300 shadow-sm";
+  const activeBlue = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-blue-500/20 border-blue-500 text-blue-300 shadow-sm";
+  const activeTeal = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-teal-500/20 border-teal-500 text-teal-300 shadow-sm";
+  const inactive = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
 
   if (typeVal === 'Breakdown') {
     if (breakdownRadio) breakdownRadio.checked = true;
-    if (btnBreakdown) btnBreakdown.className = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-300 shadow-sm";
-    if (btnObs) btnObs.className = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
+    if (btnBreakdown) btnBreakdown.className = activeRed;
+    if (btnObs) btnObs.className = inactive;
+    if (btnPM) btnPM.className = inactive;
+  } else if (typeVal === 'PM') {
+    if (pmRadio) pmRadio.checked = true;
+    if (btnPM) btnPM.className = activeTeal;
+    if (btnBreakdown) btnBreakdown.className = inactive;
+    if (btnObs) btnObs.className = inactive;
   } else {
     if (obsRadio) obsRadio.checked = true;
-    if (btnObs) btnObs.className = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-blue-500/20 border-blue-500 text-blue-300 shadow-sm";
-    if (btnBreakdown) btnBreakdown.className = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
+    if (btnObs) btnObs.className = activeBlue;
+    if (btnBreakdown) btnBreakdown.className = inactive;
+    if (btnPM) btnPM.className = inactive;
   }
 };
 
@@ -373,6 +387,7 @@ export const IssueView = () => {
           <div class="hidden">
             <input type="radio" id="radioBreakdown" name="issueType" value="Breakdown" checked>
             <input type="radio" id="radioObs" name="issueType" value="Observation">
+            <input type="radio" id="radioPM" name="issueType" value="PM">
           </div>
           <div class="flex gap-1.5">
             <button type="button" id="btnTypeBreakdown" onclick="window.selectIssueType('Breakdown')"
@@ -382,6 +397,10 @@ export const IssueView = () => {
             <button type="button" id="btnTypeObs" onclick="window.selectIssueType('Observation')"
               class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
               <span>👁️ ${isAr ? "ملاحظة" : "Observation"}</span>
+            </button>
+            <button type="button" id="btnTypePM" onclick="window.selectIssueType('PM')"
+              class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+              <span>🗓️ ${isAr ? "صيانة وقائية PM" : "PM"}</span>
             </button>
           </div>
         </div>

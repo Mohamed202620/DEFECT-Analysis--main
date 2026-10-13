@@ -622,7 +622,23 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (action === "review") {
+  if (action === "classify_pm") {
+    const isEnUi = (window.currentLang || "ar") === "en";
+    const confirmed = confirm(
+      isEnUi
+        ? "Are you sure you want to reclassify this ticket to Preventive Maintenance (PM)? It will appear in PM Work Orders."
+        : "هل تريد تحويل هذا البلاغ إلى مسار الصيانة الوقائية (PM)؟ سينتقل البلاغ إلى قائمة أوامر PM."
+    );
+    if (!confirmed) return;
+
+    const declineRes = await declineTicketApi(ticketId, "تحويل إلى مسار الصيانة الوقائية PM");
+    if (declineRes && declineRes.status !== "success" && declineRes.status !== "queued") {
+      alert((isEnUi ? "Could not prepare ticket for PM route: " : "تعذر تجهيز البلاغ لمسار PM: ") + (declineRes?.message || ""));
+      return;
+    }
+
+    result = await reviewTicketApi(ticketId, { maintenanceType: "PM" });
+  } else if (action === "review") {
 
     const techResult = await fetchTechniciansApi();
     const technicians = techResult.status === "success" ? techResult.data : [];

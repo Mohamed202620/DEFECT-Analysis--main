@@ -1602,8 +1602,8 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
     if (existing.maintenanceType === "PM") {
       return { status: "success", duplicate: true };
     }
-    if (existing.maintenanceType === "CM" || existing.status !== "pending") {
-      return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ" };
+    if (existing.status !== "pending") {
+      return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ إلا في حالة قيد الانتظار" };
     }
 
     await updateDoc(ticketRef, stampUpdate({

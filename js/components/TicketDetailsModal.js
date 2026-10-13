@@ -277,6 +277,7 @@ export async function openTicketDetailsModal(ticketId) {
           ${infoRowHtml(L("الخط", "Line"), escapeHtml(ticket.line || "-"))}
           ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${escapeHtml(priority.label)}</span>`) : ""}
           ${typeLabel ? infoRowHtml(L("نوع البلاغ", "Ticket Type"), escapeHtml(typeLabel)) : ""}
+          ${ticket.maintenanceType ? infoRowHtml(L("مسار الصيانة", "Maintenance Route"), ticket.maintenanceType === "PM" ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM — ${L("صيانة وقائية", "Preventive")}</span>` : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">🔧 CM — ${L("صيانة تصحيحية", "Corrective")}</span>`) : ""}
           ${categoryLabel ? infoRowHtml(L("نوع العطل", "Fault Category"), escapeHtml(categoryLabel)) : ""}
           ${infoRowHtml(L("مكان العطل", "Fault Location"), ticket.location ? escapeHtml(ticket.location) : "")}
           ${infoRowHtml(L("المُبلّغ", "Reported By"), ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}

@@ -164,6 +164,13 @@ window.confirmIssue = async function() {
     },
 
     status: isSelfResolved ? "resolved" : "pending",
+    ...(type === "PM" && {
+      maintenanceType: "PM",
+      pmStatus: "unplanned",
+      reviewedBy: localStorage.getItem("name") || "",
+      reviewedByUid: localStorage.getItem("userId") || "",
+      reviewedAt: new Date().toISOString()
+    }),
     ...(isSelfResolved && {
       isSelfResolved: true,
       mechanicNotes: "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): " + (selfResolvedNotes || "تم الفحص والتصليح الميداني مباشرة"),

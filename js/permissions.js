@@ -234,11 +234,19 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      // إصلاح (Workflow - إعادة إسناد): المعالج handleTicketAction("reassign") موجود
-      // في ticketsBoard.js والترجمة ta().reassign موجودة، لكن الزر ماكانش بيتولّد
-      // أبداً من هنا، فمفيش طريقة في الموبايل لنقل تذكرة من فني غايب لفني تاني
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      if (isManagerRole(role) || isAdmin || role === "engineer") {
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          actions.push({
+            key: "classify_pm",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"
+          });
+        }
       }
       break;
 
@@ -252,8 +260,19 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      if (isManagerRole(role) || isAdmin || role === "engineer") {
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          actions.push({
+            key: "classify_pm",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"
+          });
+        }
       }
       break;
 

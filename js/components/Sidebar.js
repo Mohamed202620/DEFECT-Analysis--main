@@ -90,6 +90,12 @@ export const Sidebar = (activeTab) => {
           action: "window.navigateTo('tickets')"
         },
         {
+          id: 'pm',
+          iconSvg: ICONS.pm,
+          label: isAr ? 'أوامر الصيانة الوقائية PM' : 'PM Work Orders',
+          action: "window.navigateTo('pmOrders')"
+        },
+        {
           id: 'requests',
           iconSvg: ICONS.requests,
           label: isAr ? 'المستخدمون والطلبات' : 'Users & Requests',

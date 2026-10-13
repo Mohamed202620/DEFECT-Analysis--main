@@ -61,6 +61,14 @@ export function renderManagerDesktopHomeHtml() {
 
         <button
           type="button"
+          onclick="window.navigateTo('pmOrders')"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+          <span>🗓️</span>
+          <span>${isEn ? 'PM Work Orders' : 'أوامر PM وتوقف الخط'}</span>
+        </button>
+
+        <button
+          type="button"
           onclick="window.exportManagerExecutiveSummary()"
           class="px-3.5 py-2 text-xs font-bold rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md hover:shadow-lg transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
           <span>📑</span>
@@ -145,7 +153,7 @@ export function renderManagerDesktopHomeHtml() {
       </div>
 
       <!-- كارت: نسبة إنجاز الصيانة الوقائية PM -->
-      <div onclick="window.navigateTo('pm')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
+      <div onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'PM Compliance' : 'إنجاز الصيانة الوقائية PM'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">📋</span>
