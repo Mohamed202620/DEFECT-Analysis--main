@@ -191,6 +191,10 @@ return `
                 👨‍💻 Engineer
             </option>
 
+            <option value="maintainer">
+                🔧 Maintainer
+            </option>
+
             <option value="technician">
                 🛠 Technician
             </option>
