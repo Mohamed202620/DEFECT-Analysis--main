@@ -1571,6 +1571,16 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
     if (!assignedTo || !assignedToUid) {
       return { status: "error", message: "يجب إسناد بلاغ CM إلى فني" };
     }
+    // لا يُحوَّل بلاغ صُنّف PM بالفعل إلى CM من هنا (نفس حارس مسار PM
+    // أدناه) - تفادياً لاختفاء أمر PM من قائمته بعد تخطيطه
+    try {
+      const current = await getDoc(doc(db, "tickets", ticketId));
+      if (current.exists() && current.data().maintenanceType === "PM") {
+        return { status: "error", message: "هذا البلاغ مصنّف PM بالفعل ولا يمكن إعادة تصنيفه" };
+      }
+    } catch (guardError) {
+      console.warn("Could not verify existing maintenance type before CM assignment:", guardError);
+    }
     return assignTicketApi(ticketId, {
       assignedTo,
       assignedToUid,
@@ -1614,12 +1624,32 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
 
 export async function fetchPmOrdersApi() {
   try {
-    const snapshot = await getDocs(query(
-      collection(db, "tickets"),
-      where("maintenanceType", "==", "PM")
-    ));
-    const orders = [];
-    snapshot.forEach(ticketSnap => orders.push({ id: ticketSnap.id, ...ticketSnap.data() }));
+    await ensureAuthReady();
+    const ticketsRef = collection(db, "tickets");
+    const role = getCurrentRole();
+    const myUid = localStorage.getItem("userId") || "";
+    const myName = localStorage.getItem("name") || "";
+    const merged = new Map();
+
+    if (hasFullDataAccess(role)) {
+      const snapshot = await getDocs(query(ticketsRef, where("maintenanceType", "==", "PM")));
+      snapshot.forEach(ticketSnap => merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() }));
+    } else {
+      // الأدوار غير كاملة الصلاحية ترى أوامر PM التي أبلغت عنها أو أُسندت
+      // إليها فقط (نفس نطاق fetchTicketsApi لبقية البلاغات)
+      if (!myUid) {
+        return { status: "error", message: "Missing user identity for scoped PM query" };
+      }
+      const scoped = await Promise.all([
+        getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedByUid", "==", myUid))),
+        getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedToUid", "==", myUid)))
+      ]);
+      scoped.forEach(snapshot => snapshot.forEach(ticketSnap => {
+        merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() });
+      }));
+    }
+
+    const orders = Array.from(merged.values());
     orders.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     return { status: "success", data: orders };
   } catch (error) {
@@ -1634,6 +1664,14 @@ export async function updatePmOrderApi(ticketId, changes) {
     return { status: "error", message: "حالة أمر PM غير صالحة" };
   }
 
+  if (!hasFullDataAccess(getCurrentRole())) {
+    return { status: "error", message: "ليست لديك صلاحية تخطيط أوامر الصيانة الوقائية" };
+  }
+  const plannedDateRaw = String(changes.plannedDate || "").trim();
+  if (plannedDateRaw && Number.isNaN(new Date(plannedDateRaw).getTime())) {
+    return { status: "error", message: "موعد التنفيذ غير صالح" };
+  }
+
   try {
     const assignedTo = String(changes.assignedTo || "").trim();
     const assignedToUid = String(changes.assignedToUid || "").trim();
@@ -1646,7 +1684,7 @@ export async function updatePmOrderApi(ticketId, changes) {
       machine: String(changes.machine || "").trim(),
       location: String(changes.location || "").trim(),
       priority: String(changes.priority || "").trim(),
-      plannedDate: String(changes.plannedDate || "").trim() || null,
+      plannedDate: plannedDateRaw || null,
       pmStatus: changes.pmStatus,
       assignedTo: assignedTo || null,
       assignedToUid: assignedToUid || null,
