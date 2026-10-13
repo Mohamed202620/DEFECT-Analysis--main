@@ -681,5 +681,48 @@ await t("تطابق الاسم وحده لا يعرض إعادة إرسال مق
   assert.ok(!actions.includes("resubmit"), actions.join(","));
 });
 
+console.log("PM work orders");
+const PM_STATUS = await import("../js/ticketStatusConstants.js");
+const [pmViewSrc, pmTicketsApiSource] = await Promise.all([
+  readFile(new URL("../js/views/PmOrdersView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8")
+]);
+await t("بلاغ PM المعلّق لا يُحتسب متأخراً بينما CM المعلّق القديم يُحتسب", () => {
+  const old = new Date(Date.now() - 100 * 3600 * 1000).toISOString();
+  assert.equal(PM_STATUS.isOverdueTicket({ status: "pending", maintenanceType: "PM", priority: "High", createdAt: old }), false);
+  assert.equal(PM_STATUS.isOverdueTicket({ status: "pending", maintenanceType: "CM", priority: "High", createdAt: old }), true);
+});
+await t("المدير يرى اختصار 'فتح أمر PM' بدل 'تصنيف' على بلاغ PM، ويظل 'تصنيف' للبلاغ غير المصنّف", () => {
+  asUser("manager", "M1", "Mona");
+  const pm = keys({ status: "pending", maintenanceType: "PM", reportedByUid: "U9" });
+  assert.ok(pm.includes("open_pm_orders") && !pm.includes("review"), pm.join(","));
+  const fresh = keys({ status: "pending", reportedByUid: "U9" });
+  assert.ok(fresh.includes("review") && !fresh.includes("open_pm_orders"), fresh.join(","));
+});
+await t("دورة CM: بلاغ assigned يعرض الإسناد/البدء للفني المُسند كما كان", () => {
+  asUser("technician", "T1", "Tech");
+  const k = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", assignedTo: "Tech", reportedByUid: "U9" });
+  assert.ok(k.includes("start") && k.includes("resolve"), k.join(","));
+});
+await t("تصنيف PM: لا إسناد إجباري، لا تغيير للحالة، ولا مستند جديد (updateDoc على نفس البلاغ)", () => {
+  const pmBranch = pmTicketsApiSource.slice(pmTicketsApiSource.indexOf("existing.maintenanceType === \"PM\""), pmTicketsApiSource.indexOf("export async function fetchPmOrdersApi"));
+  const payload = pmBranch.slice(pmBranch.indexOf("updateDoc(ticketRef"), pmBranch.indexOf("return { status: \"success\" };", pmBranch.indexOf("updateDoc(ticketRef")));
+  assert.ok(payload.includes("maintenanceType: \"PM\"") && !/\bstatus:/.test(payload) && !pmBranch.includes("addDoc("), "فرع PM يغيّر الحالة أو ينشئ مستنداً");
+  assert.ok(pmBranch.includes("duplicate: true"), "لا حارس تكرار");
+});
+await t("أوامر PM: الجلب بنطاق صلاحيات والتعديل مقصور على المخوّلين", () => {
+  assert.ok(pmTicketsApiSource.includes('where("reportedByUid", "==", myUid))') && pmTicketsApiSource.includes("hasFullDataAccess(role)"));
+  assert.ok(pmTicketsApiSource.includes("ليست لديك صلاحية تخطيط أوامر الصيانة الوقائية"));
+  assert.ok(pmViewSrc.includes("canPlanPmOrders()"));
+});
+await t("فلتر التاريخ يرجع لتاريخ الإنشاء للأوامر غير المجدولة", () => {
+  assert.ok(pmViewSrc.includes("localDateValue(order.plannedDate) || localDateValue(order.createdAt)"));
+});
+await t("تصدير PM: يستخدم exportToExcel/exportToPdf مع RTL وتواريخ منسّقة", () => {
+  assert.ok(pmViewSrc.includes("exportToExcel(title, headers, rows") && pmViewSrc.includes("exportToPdf(title"));
+  assert.ok(pmViewSrc.includes('dir="${isEn() ? "ltr" : "rtl"}"'));
+  assert.ok(!pmViewSrc.includes('order.createdAt || "",'), "تاريخ ISO خام في التصدير");
+});
+
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
 process.exit(failed ? 1 : 0);
