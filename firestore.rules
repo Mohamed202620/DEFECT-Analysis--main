@@ -877,7 +877,7 @@ service cloud.firestore {
                     && request.resource.data.createdBy is map
                     && request.resource.data.createdBy.keys().hasOnly(["name", "phone", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update: if isActive() && (isAdmin() || isManagerRole())
                     && resource.data.status == "pending_review"
@@ -908,7 +908,7 @@ service cloud.firestore {
                     && request.resource.data.scannedBy is map
                     && request.resource.data.scannedBy.keys().hasOnly(["name", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       // سجل تكرار تلقائي فقط (Append-Only) - بلا تعديل أو حذف، بنفس
       // مبدأ /tickets/{ticketId}/logs فوق
@@ -920,7 +920,7 @@ service cloud.firestore {
       allow create: if isActive()
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }
@@ -941,7 +941,7 @@ service cloud.firestore {
                     && request.resource.data.type in ["am", "5s"]
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }

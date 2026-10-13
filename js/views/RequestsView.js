@@ -360,10 +360,7 @@ function renderUsers(users) {
             const suggestedRole =
                 KNOWN_ROLES.includes(user.role) ? "" : suggestRoleFromJob(user.job);
 
-
-            const hasAll =
-                perms.includes("all") || protectedAdmin;
-
+            const hasAll = protectedAdmin;
 
             const checked =
                 permission =>
@@ -623,41 +620,6 @@ function renderUsers(users) {
                 </div>
 
 
-                <!-- كل الصلاحيات -->
-
-                <div>
-
-                    <label
-                        class="
-                        flex
-                        items-center
-                        gap-2
-                        bg-blue-500/10
-                        border
-                        border-blue-500/20
-                        rounded-lg
-                        p-2
-                        ">
-
-                        <input
-                            type="checkbox"
-                            class="perm-${escapeHtml(user.id)}"
-                            value="all"
-                            ${hasAll ? "checked" : ""}
-                            ${protectedAdmin ? "disabled" : ""}>
-
-                        <span
-                            class="text-xs font-bold text-blue-400">
-
-                            ⭐ كل الصلاحيات
-
-                        </span>
-
-                    </label>
-
-                </div>
-
-
                 ${
                     protectedAdmin
 
@@ -908,9 +870,6 @@ async function(id) {
         });
 
     if (isAdminRole(role)) {
-        if (!permissions.includes("all")) {
-            permissions.unshift("all");
-        }
         ALL_PERMISSIONS.forEach(p => {
             if (!permissions.includes(p)) permissions.push(p);
         });

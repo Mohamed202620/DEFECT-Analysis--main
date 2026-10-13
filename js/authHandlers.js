@@ -207,7 +207,7 @@ if (userDept) {
 const userRole = (user.role || "").trim().toLowerCase();
 let userPerms = user.permissions || "";
 if (isAdminRole(userRole)) {
-  userPerms = userPerms ? `all,${userPerms}` : ALL_PERMISSIONS.join(",");
+  userPerms = ALL_PERMISSIONS.join(",");
 }
 
 localStorage.setItem("role", userRole);

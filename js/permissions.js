@@ -134,16 +134,6 @@ export function hasPermission(permission) {
     .map(p => p.trim().toLowerCase())
     .filter(Boolean);
 
-  // all أو admin = جميع الصلاحيات
-  if (
-    storedPerms.includes("all") ||
-    storedPerms.includes("admin") ||
-    currentPermissions.includes("all") ||
-    currentPermissions.includes("admin")
-  ) {
-    return true;
-  }
-
   return storedPerms.includes(perm) || currentPermissions.includes(perm);
 }
 
@@ -158,7 +148,6 @@ window.can = hasPermission;
 export function hasFullDataAccess(role = getCurrentRole()) {
   const r = String(role || getCurrentRole()).trim().toLowerCase();
   return (
-    hasPermission("all") ||
     isAdminRole(r) ||
     isManagerRole(r) ||
     r === "engineer"

@@ -128,9 +128,16 @@ if (
 }
 
 activePage = currentPage;
-applyManagerDesktopMode(); // MGR-DESKTOP
+  applyManagerDesktopMode(); // MGR-DESKTOP
 
-app.style.opacity = "0.4";
+  // مزامنة الصلاحيات من Firestore للصفحات الإدارية الحساسة
+  // هذا يضمن أن أي تغيير في الدور/الصلاحيات من أدمن آخر ينعكس فوراً
+  const adminPages = ["users", "requests", "machines", "settings", "system", "dailyTipsSettings"];
+  if (adminPages.includes(currentPage)) {
+    import("./services/usersApi.js").then(m => m.fetchCurrentUserProfileApi(true)).catch(() => {});
+  }
+
+  app.style.opacity = "0.4";
 
 setTimeout(() => {
 

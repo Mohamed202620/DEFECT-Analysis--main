@@ -151,10 +151,7 @@ export const ALL_PERMISSIONS = [
   "users",
   "requests",
   "machines",
-  "settings",
-
-  // كل الصلاحيات
-  "all"
+  "settings"
 ];
 
 

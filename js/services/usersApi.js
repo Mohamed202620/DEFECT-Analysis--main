@@ -119,7 +119,7 @@ export async function countPendingUsersApi() {
 //   ٣) invalidateUsersCache() بتتنادى بعد أي عملية تعديل فعلية
 //      (قبول/رفض/تغيير دور/حذف) عشان أول تحديث للشاشة بعد أي
 //      إجراء يعرض البيانات الفعلية فوراً بدل الكاش القديم.
-const USERS_CACHE_TTL_MS = 60 * 1000; // دقيقة واحدة
+const USERS_CACHE_TTL_MS = 15 * 1000; // 15 ثانية - مزامنة أسرع للصلاحيات
 const USERS_SAFETY_LIMIT = 1000; // سقف أمان مؤقت - راجع الملاحظة فوق
 let usersCache = null; // { data, fetchedAt }
 
@@ -506,14 +506,14 @@ export async function registerUserApi(userData) {
 // دقايق قليلة. التخزين هنا لمدة الجلسة بس (متغير Module-level، بيتصفر
 // تلقائياً بإعادة تحميل الصفحة) - مفيش أي بيانات حساسة بتتخزن غير
 // اللي أصلاً بترجع من نفس الدالة
-const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+const TECHNICIANS_CACHE_TTL_MS = 30 * 1000; // 30 ثانية
 let techniciansCache = null; // { data, fetchedAt }
 
 // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): نفس فكرة الكاش
 // فوق بالظبط لكن لقائمة المدراء/الأدمن - تُستخدم في saveIssueApi
 // (ticketsApi.js) عشان نبعت إشعار لكل مدير/أدمن نشط فور تسجيل بلاغ
 // عطل جديد، بدل ما يفضل معتمد على فتحهم اليدوي للوحة البلاغات
-const MANAGERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+const MANAGERS_CACHE_TTL_MS = 30 * 1000; // 30 ثانية
 let managersAndAdminsCache = null; // { data, fetchedAt }
 
 /**
@@ -1052,7 +1052,7 @@ export async function updateUserStatusApi(
 
       updateData.permissions =
         role === "admin"
-          ? "all"
+          ? ALL_PERMISSIONS.join(",")
           : (requestedPerms || DEFAULT_USER_PERMISSIONS);
 
       updateData.approvedAt =

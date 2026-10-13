@@ -387,7 +387,9 @@ case 'machines':
 
 case 'system':  
 
-  return SystemView();  
+  return (hasPermission("users") || hasPermission("requests") || hasPermission("machines") || hasPermission("settings"))
+    ? SystemView()
+    : unauthorizedPage("system");  
 
 
 case 'dailyTipsSettings':
