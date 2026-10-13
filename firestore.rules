@@ -1011,12 +1011,22 @@ service cloud.firestore {
 
     // ==========================================================
     // counters - عدادات الترقيم الموحد لكل نوع سجل
-    // يتم إدارتها عبر Cloud Function (getNextSequenceNumber) باستخدام Admin SDK
-    // العملاء يقرؤون فقط للعرض، والكتابة مقصورة على السيرفر
+    // يتم إدارتها عبر Firestore Transaction من العميل مباشرة (خطة Spark المجانية)
+    // السماح بالقراءة للجميع، والكتابة فقط للزيادة الذرّية بـ 1 مع الحفاظ على البادئة
     // ==========================================================
     match /counters/{counterId} {
       allow read: if isActive();
-      allow create, update, delete: if false;
+      // إنشاء عداد جديد: يجب أن يبدأ من 1 ويكون له بادئة صحيحة
+      allow create: if isActive()
+        && request.resource.data.current == 1
+        && request.resource.data.prefix in ["BR", "KZ", "PM", "DF", "ME", "CL", "PR"]
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      // تحديث عداد موجود: زيادة current بـ 1 فقط، وعدم تغيير البادئة
+      allow update: if isActive()
+        && request.resource.data.current == resource.data.current + 1
+        && request.resource.data.prefix == resource.data.prefix
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      allow delete: if false;
     }
 
     // ==========================================================

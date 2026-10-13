@@ -73,22 +73,17 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
     const { image, images, ...restPayload } = payload;
 
-    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    // الحصول على الرقم الموحد الجديد باستخدام Firestore Transaction (ذرّي وآمن)
+    // يعمل على خطة Firebase Spark المجانية - لا يحتاج Cloud Functions
     let unifiedNumber = null;
     try {
-      const { callCloudFunction } = await import("../providers/backend/index.js");
-      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "tickets" });
-      if (sequenceResult.status === "success") {
-        unifiedNumber = sequenceResult.displayNumber; // مثال: BR-00001
-      } else {
-        console.warn("[saveIssueApi] Cloud Function returned error:", sequenceResult.message);
-      }
-    } catch (cfError) {
-      console.warn("[saveIssueApi] Cloud Function unavailable, using local fallback:", cfError.message);
+      const { getNextSequenceNumber } = await import("./sequenceApi.js");
+      unifiedNumber = await getNextSequenceNumber("tickets"); // مثال: BR-00001
+    } catch (seqError) {
+      console.warn("[saveIssueApi] Sequence generation failed, using local fallback:", seqError.message);
     }
     
-    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
     if (!unifiedNumber) {
       const timestamp = Date.now().toString(36).toUpperCase();
       const random = Math.random().toString(36).substring(2, 5).toUpperCase();
@@ -1654,21 +1649,16 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
     }
 
     // توليد الرقم الموحد الجديد للأوامر PM عند التصنيف لأول مرة
-    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    // باستخدام Firestore Transaction (ذرّي وآمن - خطة Spark المجانية)
     let unifiedNumber = null;
     try {
-      const { callCloudFunction } = await import("../providers/backend/index.js");
-      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "pmOrders" });
-      if (sequenceResult.status === "success") {
-        unifiedNumber = sequenceResult.displayNumber; // مثال: PM-00001
-      } else {
-        console.warn("[reviewTicketApi] Cloud Function returned error:", sequenceResult.message);
-      }
-    } catch (cfError) {
-      console.warn("[reviewTicketApi] Cloud Function unavailable, using local fallback:", cfError.message);
+      const { getNextSequenceNumber } = await import("./sequenceApi.js");
+      unifiedNumber = await getNextSequenceNumber("pmOrders"); // مثال: PM-00001
+    } catch (seqError) {
+      console.warn("[reviewTicketApi] Sequence generation failed, using local fallback:", seqError.message);
     }
     
-    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
     if (!unifiedNumber) {
       const timestamp = Date.now().toString(36).toUpperCase();
       const random = Math.random().toString(36).substring(2, 5).toUpperCase();

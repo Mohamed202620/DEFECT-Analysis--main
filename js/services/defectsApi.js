@@ -43,22 +43,17 @@ export async function saveDefectApi(
 
   try {
 
-    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    // الحصول على الرقم الموحد الجديد باستخدام Firestore Transaction (ذرّي وآمن)
+    // يعمل على خطة Firebase Spark المجانية - لا يحتاج Cloud Functions
     let unifiedNumber = null;
     try {
-      const { callCloudFunction } = await import("../providers/backend/index.js");
-      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "defects" });
-      if (sequenceResult.status === "success") {
-        unifiedNumber = sequenceResult.displayNumber; // مثال: DF-00001
-      } else {
-        console.warn("[saveDefectApi] Cloud Function returned error:", sequenceResult.message);
-      }
-    } catch (cfError) {
-      console.warn("[saveDefectApi] Cloud Function unavailable, using local fallback:", cfError.message);
+      const { getNextSequenceNumber } = await import("./sequenceApi.js");
+      unifiedNumber = await getNextSequenceNumber("defects"); // مثال: DF-00001
+    } catch (seqError) {
+      console.warn("[saveDefectApi] Sequence generation failed, using local fallback:", seqError.message);
     }
     
-    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
     if (!unifiedNumber) {
       const timestamp = Date.now().toString(36).toUpperCase();
       const random = Math.random().toString(36).substring(2, 5).toUpperCase();
