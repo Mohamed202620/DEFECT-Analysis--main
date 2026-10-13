@@ -3,6 +3,7 @@ import { fetchTechniciansApi } from "../services/usersApi.js";
 import { exportToExcel, exportToPdf } from "../services/exportUtility.js";
 import { fetchPmOrdersApi, updatePmOrderApi } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
+import { hasFullDataAccess } from "../permissions.js";
 
 let pmOrders = [];
 let visibleOrders = [];
@@ -14,6 +15,27 @@ const valueOrDash = value => String(value || "").trim() || label("غير محد�
 const unassignedLabel = () => label("غير مسند", "Unassigned");
 const unscheduledLabel = () => label("غير مجدول", "Unscheduled");
 const dateValue = value => String(value || "").slice(0, 10);
+// تاريخ محلي (YYYY-MM-DD) من أي قيمة تاريخ - يتفادى انزياح اليوم الناتج عن
+// اقتطاع ISO بتوقيت UTC لتاريخ الإنشاء
+const localDateValue = value => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const pad = n => String(n).padStart(2, "0");
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+};
+// تاريخ الفلترة: موعد التنفيذ إن وُجد، وإلا تاريخ الإنشاء - حتى لا تختفي
+// الأوامر غير المجدولة (وهي الأغلبية عند التصنيف) بمجرد اختيار فترة
+const orderFilterDate = order => localDateValue(order.plannedDate) || localDateValue(order.createdAt);
+const formatDisplayDate = value => {
+  const key = localDateValue(value);
+  if (!key) return "";
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(isEn() ? "en-US" : "ar-EG");
+};
+const canPlanPmOrders = () => hasFullDataAccess();
 const pmStatusLabel = status => ({
   unplanned: label("غير مجدول", "Unscheduled"),
   planned: label("مخطط", "Planned"),
@@ -29,7 +51,7 @@ function filteredPmOrders() {
       order.issueId, order.id, order.line, order.machine, order.location, order.description,
       order.reportedBy, order.assignedTo, order.maintenanceNotes
     ].some(value => String(value || "").toLocaleLowerCase().includes(search));
-    const planDate = dateValue(order.plannedDate);
+    const planDate = orderFilterDate(order);
     return matchSearch
       && (!filters.line || order.line === filters.line)
       && (!filters.machine || order.machine === filters.machine)
@@ -68,12 +90,12 @@ function renderPmOrders() {
       <td class="p-3 min-w-48 whitespace-normal">${escapeHtml(valueOrDash(order.description))}</td>
       <td class="p-3">${escapeHtml(valueOrDash(order.priority))}</td>
       <td class="p-3">${escapeHtml(pmStatusLabel(order.pmStatus || "unplanned"))}</td>
-      <td class="p-3">${escapeHtml(order.createdAt ? new Date(order.createdAt).toLocaleDateString(isEn() ? "en-US" : "ar-EG") : valueOrDash(""))}</td>
-      <td class="p-3">${escapeHtml(order.plannedDate ? new Date(order.plannedDate).toLocaleDateString(isEn() ? "en-US" : "ar-EG") : unscheduledLabel())}</td>
+      <td class="p-3">${escapeHtml(formatDisplayDate(order.createdAt) || valueOrDash(""))}</td>
+      <td class="p-3">${escapeHtml(formatDisplayDate(order.plannedDate) || unscheduledLabel())}</td>
       <td class="p-3">${escapeHtml(order.assignedTo || unassignedLabel())}</td>
       <td class="p-3">${order.downtimeRequired === true ? label("مطلوب", "Required") : label("غير مطلوب / غير محدد", "Not required / unset")}</td>
       <td class="p-3 min-w-40 whitespace-normal">${escapeHtml(order.maintenanceNotes || order.delayReason || "—")}</td>
-      <td class="p-3"><button type="button" onclick="window.editPmOrder('${escapeJsArg(order.id)}')" class="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500">${label("تخطيط / تعديل", "Plan / edit")}</button></td>
+      <td class="p-3">${canPlanPmOrders() ? `<button type="button" onclick="window.editPmOrder('${escapeJsArg(order.id)}')" class="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500">${label("تخطيط / تعديل", "Plan / edit")}</button>` : "—"}</td>
     </tr>
   `).join("");
 
@@ -94,8 +116,8 @@ function renderPmOrders() {
           ${filterSelect("pmFilterLine", filters.line, lines, label("كل الخطوط", "All lines"))}
           ${filterSelect("pmFilterMachine", filters.machine, machines, label("كل المعدات", "All machines"))}
           <select id="pmFilterPriority" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white"><option value="">${label("كل الأولويات", "All priorities")}</option>${priorities.map(value => `<option value="${escapeHtml(value)}" ${filters.priority === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
-          <input id="pmFilterFrom" type="date" value="${escapeHtml(filters.from)}" aria-label="${label("من موعد التنفيذ", "Planned from")}" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
-          <input id="pmFilterTo" type="date" value="${escapeHtml(filters.to)}" aria-label="${label("إلى موعد التنفيذ", "Planned to")}" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
+          <input id="pmFilterFrom" type="date" value="${escapeHtml(filters.from)}" aria-label="${label("من تاريخ (التنفيذ أو الإنشاء)", "From date (planned or created)")}" title="${label("من تاريخ (التنفيذ أو الإنشاء)", "From date (planned or created)")}" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
+          <input id="pmFilterTo" type="date" value="${escapeHtml(filters.to)}" aria-label="${label("إلى تاريخ (التنفيذ أو الإنشاء)", "To date (planned or created)")}" title="${label("إلى تاريخ (التنفيذ أو الإنشاء)", "To date (planned or created)")}" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
           <select id="pmFilterStatus" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
             <option value="">${label("كل الحالات", "All statuses")}</option>
             ${["unplanned", "planned", "in_progress", "completed", "deferred"].map(status => `<option value="${status}" ${filters.status === status ? "selected" : ""}>${pmStatusLabel(status)}</option>`).join("")}
@@ -179,7 +201,14 @@ window.loadPmOrdersBoard = async function() {
   renderPmOrders();
 };
 
+let pmOrderSaving = false;
+
 window.editPmOrder = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية تخطيط أوامر الصيانة الوقائية.", "You are not allowed to plan PM orders."));
+    return;
+  }
+  if (pmOrderSaving) return;
   const order = pmOrders.find(item => item.id === ticketId);
   if (!order) {
     alert(label("تعذر العثور على أمر PM في البيانات المحملة.", "PM order not found in the loaded data."));
@@ -215,13 +244,20 @@ window.editPmOrder = async function(ticketId) {
     ]
   });
   if (!values) return;
-  const [assignedToUid, assignedTo] = String(values.assignedTo || "").split("::");
-  const result = await updatePmOrderApi(ticketId, {
-    ...values,
-    assignedTo: assignedTo || "",
-    assignedToUid: assignedToUid || "",
-    downtimeRequired: values.downtimeRequired === "true"
-  });
+  const [assignedToUid, ...assignedNameParts] = String(values.assignedTo || "").split("::");
+  const assignedTo = assignedNameParts.join("::");
+  pmOrderSaving = true;
+  let result;
+  try {
+    result = await updatePmOrderApi(ticketId, {
+      ...values,
+      assignedTo: assignedTo || "",
+      assignedToUid: assignedToUid || "",
+      downtimeRequired: values.downtimeRequired === "true"
+    });
+  } finally {
+    pmOrderSaving = false;
+  }
   if (result.status !== "success") {
     alert(`${label("فشل حفظ التخطيط:", "Failed to save plan:")} ${result.message || ""}`);
     return;
@@ -236,20 +272,20 @@ window.exportPmOrders = async function(format) {
     return;
   }
   const headers = [
-    label("رقم أمر الصيانة", "Work order ID"), label("رقم البلاغ", "Ticket ID"),
-    label("النوع", "Type"), label("خط الإنتاج", "Production line"),
-    label("المعدة", "Equipment"), label("الموقع", "Location"),
-    label("وصف المهمة", "Task description"), label("الأولوية", "Priority"),
-    label("الحالة", "Status"), label("تاريخ الإنشاء", "Created at"),
-    label("موعد التنفيذ المخطط", "Planned date"), label("الفني / الفريق", "Assigned technician / team"),
+    label("رقم أمر الصيانة", "Work order ID"), label("النوع", "Type"),
+    label("خط الإنتاج", "Production line"), label("المعدة", "Equipment"),
+    label("الموقع", "Location"), label("وصف المهمة", "Task description"),
+    label("الأولوية", "Priority"), label("الحالة", "Status"),
+    label("تاريخ الإنشاء", "Created at"), label("موعد التنفيذ المخطط", "Planned date"),
+    label("الفني / الفريق", "Assigned technician / team"),
     label("توقف الخط مطلوب", "Downtime required"), label("ملاحظات التخطيط", "Planning notes"),
     label("سبب التأجيل", "Delay reason")
   ];
   const rows = data.map(order => [
-    order.issueId || order.id, order.issueId || order.id, "PM", order.line || "",
+    order.issueId || order.id, "PM", order.line || "",
     order.machine || "", order.location || "", order.description || "",
     order.priority || "", pmStatusLabel(order.pmStatus || "unplanned"),
-    order.createdAt || "", order.plannedDate || unscheduledLabel(),
+    formatDisplayDate(order.createdAt), formatDisplayDate(order.plannedDate) || unscheduledLabel(),
     order.assignedTo || unassignedLabel(),
     order.downtimeRequired === true ? label("نعم", "Yes") : label("لا / غير محدد", "No / unset"),
     order.maintenanceNotes || "", order.delayReason || ""
@@ -260,7 +296,8 @@ window.exportPmOrders = async function(format) {
     `${label("الفترة", "Planned period")}: ${filters.from || "—"} → ${filters.to || "—"}`,
     `${label("الأولوية", "Priority")}: ${filters.priority || label("الكل", "All")}`,
     `${label("الحالة", "Status")}: ${filters.status ? pmStatusLabel(filters.status) : label("الكل", "All")}`,
-    `${label("الإسناد", "Assignment")}: ${filters.assignment || label("الكل", "All")}`
+    `${label("الإسناد", "Assignment")}: ${filters.assignment === "assigned" ? label("مسند", "Assigned") : filters.assignment === "unassigned" ? unassignedLabel() : label("الكل", "All")}`,
+    `${label("توقف الخط", "Downtime")}: ${filters.downtime === "true" ? label("يتطلب توقفاً", "Required") : filters.downtime === "false" ? label("لا يتطلب", "Not required") : label("الكل", "All")}`
   ].join(" | ");
   const title = label("تقرير أوامر الصيانة الوقائية", "Preventive Maintenance Work Orders Report");
   const filename = `pm-work-orders-${new Date().toISOString().slice(0, 10)}`;
