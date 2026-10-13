@@ -162,12 +162,27 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
     const { image, ...restPayload } = payload;
 
     // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    const { callCloudFunction } = await import("../providers/backend/index.js");
-    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "machineErrors" });
-    if (sequenceResult.status !== "success") {
-      return { status: "error", message: "تعذر توليد الرقم الموحد للعطل: " + (sequenceResult.message || "") };
+    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    let unifiedNumber = null;
+    try {
+      const { callCloudFunction } = await import("../providers/backend/index.js");
+      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "machineErrors" });
+      if (sequenceResult.status === "success") {
+        unifiedNumber = sequenceResult.displayNumber; // مثال: ME-00001
+      } else {
+        console.warn("[saveMachineErrorApi] Cloud Function returned error:", sequenceResult.message);
+      }
+    } catch (cfError) {
+      console.warn("[saveMachineErrorApi] Cloud Function unavailable, using local fallback:", cfError.message);
     }
-    const unifiedNumber = sequenceResult.displayNumber; // مثال: ME-00001
+    
+    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    if (!unifiedNumber) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+      unifiedNumber = `ME-${timestamp}${random}`;
+      console.info("[saveMachineErrorApi] Using local fallback unifiedNumber:", unifiedNumber);
+    }
 
     const imageUrl = await uploadBase64Image(
       image,

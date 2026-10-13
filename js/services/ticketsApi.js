@@ -74,12 +74,27 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     const { image, images, ...restPayload } = payload;
 
     // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    const { callCloudFunction } = await import("../providers/backend/index.js");
-    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "tickets" });
-    if (sequenceResult.status !== "success") {
-      return { status: "error", message: "تعذر توليد الرقم الموحد للبلاغ: " + (sequenceResult.message || "") };
+    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    let unifiedNumber = null;
+    try {
+      const { callCloudFunction } = await import("../providers/backend/index.js");
+      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "tickets" });
+      if (sequenceResult.status === "success") {
+        unifiedNumber = sequenceResult.displayNumber; // مثال: BR-00001
+      } else {
+        console.warn("[saveIssueApi] Cloud Function returned error:", sequenceResult.message);
+      }
+    } catch (cfError) {
+      console.warn("[saveIssueApi] Cloud Function unavailable, using local fallback:", cfError.message);
     }
-    const unifiedNumber = sequenceResult.displayNumber; // مثال: BR-00001
+    
+    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    if (!unifiedNumber) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+      unifiedNumber = `BR-${timestamp}${random}`;
+      console.info("[saveIssueApi] Using local fallback unifiedNumber:", unifiedNumber);
+    }
 
     const issueId = payload.issueId || ("IS-" + Date.now());
     // إصلاح (منع تكرار السجلات - مزامنة Offline): لو addDoc نجح فعلاً على
@@ -1639,12 +1654,27 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
     }
 
     // توليد الرقم الموحد الجديد للأوامر PM عند التصنيف لأول مرة
-    const { callCloudFunction } = await import("../providers/backend/index.js");
-    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "pmOrders" });
-    if (sequenceResult.status !== "success") {
-      return { status: "error", message: "تعذر توليد الرقم الموحد لأمر PM: " + (sequenceResult.message || "") };
+    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    let unifiedNumber = null;
+    try {
+      const { callCloudFunction } = await import("../providers/backend/index.js");
+      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "pmOrders" });
+      if (sequenceResult.status === "success") {
+        unifiedNumber = sequenceResult.displayNumber; // مثال: PM-00001
+      } else {
+        console.warn("[reviewTicketApi] Cloud Function returned error:", sequenceResult.message);
+      }
+    } catch (cfError) {
+      console.warn("[reviewTicketApi] Cloud Function unavailable, using local fallback:", cfError.message);
     }
-    const unifiedNumber = sequenceResult.displayNumber; // مثال: PM-00001
+    
+    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    if (!unifiedNumber) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+      unifiedNumber = `PM-${timestamp}${random}`;
+      console.info("[reviewTicketApi] Using local fallback unifiedNumber:", unifiedNumber);
+    }
 
     await updateDoc(ticketRef, stampUpdate({
       maintenanceType: "PM",

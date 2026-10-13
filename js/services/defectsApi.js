@@ -44,12 +44,27 @@ export async function saveDefectApi(
   try {
 
     // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    const { callCloudFunction } = await import("../providers/backend/index.js");
-    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "defects" });
-    if (sequenceResult.status !== "success") {
-      return { status: "error", message: "تعذر توليد الرقم الموحد للعيب: " + (sequenceResult.message || "") };
+    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    let unifiedNumber = null;
+    try {
+      const { callCloudFunction } = await import("../providers/backend/index.js");
+      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "defects" });
+      if (sequenceResult.status === "success") {
+        unifiedNumber = sequenceResult.displayNumber; // مثال: DF-00001
+      } else {
+        console.warn("[saveDefectApi] Cloud Function returned error:", sequenceResult.message);
+      }
+    } catch (cfError) {
+      console.warn("[saveDefectApi] Cloud Function unavailable, using local fallback:", cfError.message);
     }
-    const unifiedNumber = sequenceResult.displayNumber; // مثال: DF-00001
+    
+    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    if (!unifiedNumber) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+      unifiedNumber = `DF-${timestamp}${random}`;
+      console.info("[saveDefectApi] Using local fallback unifiedNumber:", unifiedNumber);
+    }
 
     // فصل حقول الصور Base64 عن باقي البيانات
     const {

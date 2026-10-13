@@ -546,6 +546,37 @@
     import { auth, ensureAuthReady } from './js/config.js';
     import { ensureUserAndMachinesLoaded } from './js/machines.js';
 
+    // Global error handler to prevent black screen
+    window.addEventListener('error', (event) => {
+      console.error('Global error:', event.error);
+      showErrorFallback(event.error?.message || 'Unknown error');
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled rejection:', event.reason);
+      showErrorFallback(event.reason?.message || 'Unhandled promise rejection');
+    });
+
+    function showErrorFallback(message) {
+      const appDiv = document.getElementById("app");
+      if (appDiv && !appDiv.querySelector('.error-fallback')) {
+        appDiv.innerHTML = `
+        <div class="error-fallback min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+            <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
+                <h3 class="text-base font-bold text-red-400 mb-2">
+                    ⚠️ تعذر تحميل التطبيق
+                </h3>
+                <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
+                    ${String(message).replace(/[&<>"']/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c]))}
+                </p>
+                <button onclick="location.reload()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white mt-3">
+                    إعادة تحميل الصفحة
+                </button>
+            </div>
+        </div>
+        `;
+      }
+    }
+
     async function initApp() {
       // بناء الهيدر فور تحميل الصفحة
       try {

@@ -35,12 +35,27 @@ export const CHECKLIST_TYPE_5S = "5s";
 async function saveChecklistRecord(type, payload) {
   try {
     // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
-    const { callCloudFunction } = await import("../providers/backend/index.js");
-    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "checklists" });
-    if (sequenceResult.status !== "success") {
-      return { status: "error", message: "تعذر توليد الرقم الموحد لسجل الفحص: " + (sequenceResult.message || "") };
+    // مع fallback محلي لو الدالة غير منشورة أو فشل الاتصال
+    let unifiedNumber = null;
+    try {
+      const { callCloudFunction } = await import("../providers/backend/index.js");
+      const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "checklists" });
+      if (sequenceResult.status === "success") {
+        unifiedNumber = sequenceResult.displayNumber; // مثال: CL-00001
+      } else {
+        console.warn("[saveChecklistRecord] Cloud Function returned error:", sequenceResult.message);
+      }
+    } catch (cfError) {
+      console.warn("[saveChecklistRecord] Cloud Function unavailable, using local fallback:", cfError.message);
     }
-    const unifiedNumber = sequenceResult.displayNumber; // مثال: CL-00001
+    
+    // Fallback: توليد رقم محلي بالاعتماد على timestamp + random (مؤقت لحين توفر الدالة)
+    if (!unifiedNumber) {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
+      unifiedNumber = `CL-${timestamp}${random}`;
+      console.info("[saveChecklistRecord] Using local fallback unifiedNumber:", unifiedNumber);
+    }
 
     const department =
       getDepartmentForMachineValue(payload?.machine) ||
