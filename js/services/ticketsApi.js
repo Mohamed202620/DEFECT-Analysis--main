@@ -1656,6 +1656,7 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
       reviewedByUid: localStorage.getItem("userId") || "",
       reviewedAt: new Date().toISOString()
     }));
+    // return { status: "success" }; // pattern for test
     return { status: "success", unifiedNumber };
   } catch (error) {
     console.error("Error classifying ticket as PM:", error);
