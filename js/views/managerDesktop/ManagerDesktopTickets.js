@@ -688,6 +688,12 @@ window.mgrPromptAssignTicket = async function(ticketId) {
   }
 
   if (isNewAssign) {
+    if (ticket.maintenanceType === "PM") {
+      alert(isEn
+        ? "This ticket is already classified as PM. Plan or assign it from PM Work Orders."
+        : "هذا البلاغ مصنّف صيانة وقائية (PM) بالفعل. خطّطه أو أسنده من أوامر الصيانة الوقائية.");
+      return;
+    }
     if (typeof window.handleTicketAction === "function") {
       await window.handleTicketAction(ticketId, "review");
     } else {
