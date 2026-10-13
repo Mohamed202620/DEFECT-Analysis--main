@@ -336,11 +336,12 @@ function attachmentsCell(rec) {
 
 function buildTicketSheet(tickets, isAr, isEn) {
   const headers = isAr
-    ? ['رقم البلاغ', 'الماكينة / الخط', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
-    : ['Ticket ID', 'Machine / Line', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
+    ? ['رقم البلاغ', 'الماكينة / الخط', 'مسار الصيانة', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
+    : ['Ticket ID', 'Machine / Line', 'Route', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
   const rows = tickets.map(t => [
     t.issueId || t.id || '',
     t.machine || t.machineName || '',
+    String(t.maintenanceType || '').toUpperCase() === 'PM' ? (isAr ? 'صيانة وقائية PM' : 'PM') : (isAr ? 'صيانة تصحيحية CM' : 'CM'),
     t.issueType || t.type || '',
     formatReportStatus(t.status, 'ticket', isEn),
     formatReportPriority(t.priority, isEn),

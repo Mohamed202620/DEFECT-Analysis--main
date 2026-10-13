@@ -198,7 +198,15 @@ function filterAndSortTickets(allTickets) {
       const matchTech = String(t.assignedTo || '').toLowerCase().includes(q);
       const matchReporter = String(t.reportedBy || '').toLowerCase().includes(q);
       const matchId = String(t.id || '').toLowerCase().includes(q);
-      return matchMachine || matchLine || matchDesc || matchTech || matchReporter || matchId;
+      const matchIssueId = String(t.issueId || '').toLowerCase().includes(q);
+      const matchType = String(t.type || '').toLowerCase().includes(q);
+      const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
+      const matchRoute = (isPm ? 'pm صيانة وقائية' : 'cm صيانة تصحيحية').includes(q);
+      const statusStr = String(t.status || '').toLowerCase();
+      const statusLabel = String(STATUS_LABELS[statusStr] || '').toLowerCase();
+      const matchStatus = statusStr.includes(q) || statusLabel.includes(q);
+      const matchNotes = String(t.mechanicNotes || t.notes || '').toLowerCase().includes(q);
+      return matchMachine || matchLine || matchDesc || matchTech || matchReporter || matchId || matchIssueId || matchType || matchRoute || matchStatus || matchNotes;
     });
   }
 

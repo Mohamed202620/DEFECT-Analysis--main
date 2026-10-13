@@ -740,5 +740,44 @@ await t("واجهة PM تدعم تحديد الأوامر المتعددة وف�
   assert.ok(pmViewSrc.includes("openPmOrdersWithFilter"), "غياب openPmOrdersWithFilter");
 });
 
+console.log("Search & Filter Workflow Integration");
+const [mSearchSrc, mSearchViewSrc, reportsViewSrc, ticketsBoardSrc, mgrDesktopTicketsSrc] = await Promise.all([
+  readFile(new URL("../js/maintenanceSearch.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/MaintenanceSearchView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/reportsView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/ticketsBoard.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopTickets.js", import.meta.url), "utf8")
+]);
+
+await t("البحث المتقدم: يشمل رقم البلاغ ومسار الصيانة PM/CM والحالة والأولوية والملاحظات", () => {
+  assert.ok(mSearchSrc.includes("r.issueId"), "رقم البلاغ غير مدرج في بحث MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("r.maintenanceType"), "مسار الصيانة غير مدرج في بحث MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("routeFilter"), "فلتر مسار الصيانة غير مطبق في MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("isOverdueTicket"), "فلتر البلاغات المتأخرة غير مطبق في MaintenanceSearch");
+  assert.ok(mSearchViewSrc.includes("mRouteFilter"), "غياب قائمة مسار الصيانة في MaintenanceSearchView");
+});
+
+await t("شيت تقرير البلاغات Excel: يحتوي عمود مسار الصيانة (PM/CM) لتسهيل الفرز الميداني", () => {
+  assert.ok(reportsViewSrc.includes("مسار الصيانة"), "غياب عمود مسار الصيانة في تقارير Excel بالعربية");
+  assert.ok(reportsViewSrc.includes("Route"), "غياب عمود مسار الصيانة في تقارير Excel بالإنجليزية");
+  assert.ok(reportsViewSrc.includes("صيانة وقائية PM"), "غياب تمييز PM في شيت البلاغات");
+});
+
+await t("لوحة متابعة البلاغات: تدعم البحث المباشر وإلغاء التصفية ولافتة فلتر كروت الرئيسية", () => {
+  assert.ok(ticketsBoardSrc.includes("handleTicketsBoardSearch"), "غياب handleTicketsBoardSearch في ticketsBoard");
+  assert.ok(ticketsBoardSrc.includes("clearTicketsBoardSearch"), "غياب clearTicketsBoardSearch في ticketsBoard");
+  assert.ok(ticketsBoardSrc.includes("activeBannerHtml"), "غياب لافتة التصفية النشطة في ticketsBoard");
+});
+
+await t("لوحة الديسكتوب للمدير: البحث النصي يشمل رقم البلاغ ومسار PM/CM والحالة والملاحظات", () => {
+  assert.ok(mgrDesktopTicketsSrc.includes("matchIssueId"), "غياب بحث issueId في ManagerDesktopTickets");
+  assert.ok(mgrDesktopTicketsSrc.includes("matchRoute"), "غياب بحث مسار الصيانة في ManagerDesktopTickets");
+  assert.ok(mgrDesktopTicketsSrc.includes("matchNotes"), "غياب بحث الملاحظات في ManagerDesktopTickets");
+});
+
+await t("استعلامات البحث والتقارير: تبحث بالـ UID والاسم معاً لتطابق النتائج مع قاعدة البيانات", () => {
+  assert.ok(pmTicketsApiSource.includes("where(\"reportedByUid\", \"==\", myUid)") && pmTicketsApiSource.includes("where(\"reportedBy\", \"==\", myName)"), "غياب استعلام الاسم والـ UID معاً في تذاكر البحث/التقارير");
+});
+
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
 process.exit(failed ? 1 : 0);

@@ -358,7 +358,7 @@ window.loadMachineProfileData = async function () {
 
   // Update Status Badge
   if (statusBadge) {
-    if (activeTickets.some(t => t.type === 'Breakdown')) {
+    if (activeTickets.some(t => String(t.type || '').toLowerCase() === 'breakdown' || String(t.type || '').includes('عطل'))) {
       statusBadge.className = 'inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30';
       statusBadge.innerHTML = `🔴 ${tr.statusDown}`;
     } else if (activeTickets.length > 0) {

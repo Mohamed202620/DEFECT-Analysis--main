@@ -53,9 +53,11 @@ const pmStatusLabel = status => ({
 function filteredPmOrders() {
   const search = filters.search.trim().toLocaleLowerCase();
   return pmOrders.filter(order => {
+    const statusLabelStr = pmStatusLabel(order.pmStatus || "unplanned");
     const matchSearch = !search || [
       order.issueId, order.id, order.line, order.machine, order.location, order.description,
-      order.reportedBy, order.assignedTo, order.maintenanceNotes
+      order.reportedBy, order.assignedTo, order.maintenanceNotes, order.delayReason,
+      order.category, order.priority, order.pmStatus, statusLabelStr
     ].some(value => String(value || "").toLocaleLowerCase().includes(search));
     const planDate = orderFilterDate(order);
     return matchSearch

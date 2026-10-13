@@ -69,9 +69,9 @@ export const MaintenanceSearchView = () => {
     </div>
 
     <!-- فلتر التاريخ -->
-    <div class="grid grid-cols-2 gap-2">
+    <div class="space-y-2">
       <select id="mDateFilter" onchange="window.handleMaintenanceSearchDateFilterChange()"
-        class="col-span-2 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="all">${t.dateAll || (currentLang === 'en' ? 'All Dates' : 'جميع التواريخ')}</option>
         <option value="today">${t.dateToday || (currentLang === 'en' ? 'Today' : 'اليوم')}</option>
         <option value="last7">${t.dateLast7 || (currentLang === 'en' ? 'Last 7 Days' : 'آخر 7 أيام')}</option>
@@ -80,14 +80,36 @@ export const MaintenanceSearchView = () => {
         <option value="custom">${t.dateCustom || (currentLang === 'en' ? 'Custom Date Range...' : 'تحديد فترة مخصصة...')}</option>
       </select>
 
-      <input id="mDateFrom" type="date" onchange="window.applyMaintenanceSearchFilters()"
-        class="hidden w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner">
-      <input id="mDateTo" type="date" onchange="window.applyMaintenanceSearchFilters()"
-        class="hidden w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner">
+      <div id="mCustomDatesRow" class="hidden grid grid-cols-2 gap-2">
+        <div class="rounded-xl border border-gray-700 bg-[#0F172A] p-2 flex flex-col justify-between">
+          <label for="mDateFrom" class="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 text-blue-300">
+            <span>📅</span>
+            <span>${currentLang === 'en' ? 'From Date' : 'من تاريخ'}</span>
+          </label>
+          <input id="mDateFrom" type="date" onchange="window.applyMaintenanceSearchFilters()"
+            class="w-full p-1.5 rounded-lg bg-slate-900 border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition">
+        </div>
+        <div class="rounded-xl border border-gray-700 bg-[#0F172A] p-2 flex flex-col justify-between">
+          <label for="mDateTo" class="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 text-blue-300">
+            <span>📅</span>
+            <span>${currentLang === 'en' ? 'To Date' : 'إلى تاريخ'}</span>
+          </label>
+          <input id="mDateTo" type="date" onchange="window.applyMaintenanceSearchFilters()"
+            class="w-full p-1.5 rounded-lg bg-slate-900 border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition">
+        </div>
+      </div>
     </div>
 
     <!-- فلاتر إضافية -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+
+      <!-- مسار الصيانة (CM / PM) -->
+      <select id="mRouteFilter" onchange="window.applyMaintenanceSearchFilters()"
+        class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        <option value="all">${currentLang === 'en' ? 'All Routes' : 'كل مسارات الصيانة'}</option>
+        <option value="cm">${currentLang === 'en' ? 'CM — Corrective' : '🔧 صيانة تصحيحية CM'}</option>
+        <option value="pm">${currentLang === 'en' ? 'PM — Preventive' : '🗓️ صيانة وقائية PM'}</option>
+      </select>
 
       <select id="mStatusFilter" onchange="window.applyMaintenanceSearchFilters()"
         class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
@@ -97,6 +119,7 @@ export const MaintenanceSearchView = () => {
         <option value="in_progress">${t.statusInProgress || (currentLang === 'en' ? 'In Progress' : 'قيد العمل')}</option>
         <option value="resolved">${t.statusResolved || (currentLang === 'en' ? 'Resolved' : 'تم الإصلاح')}</option>
         <option value="closed">${t.statusClosed || (currentLang === 'en' ? 'Closed' : 'مغلق')}</option>
+        <option value="overdue">${currentLang === 'en' ? '⏰ Overdue' : '⏰ متأخر'}</option>
       </select>
 
       <select id="mPriorityFilter" onchange="window.applyMaintenanceSearchFilters()"
@@ -108,7 +131,7 @@ export const MaintenanceSearchView = () => {
       </select>
 
       <select id="mMachineFilter" onchange="window.applyMaintenanceSearchFilters()"
-        class="col-span-2 md:col-span-1 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="all">${t.machineAll || (currentLang === 'en' ? 'All Machines' : 'جميع الماكينات')}</option>
         <!-- إصلاح (بند 1 - توحيد شامل): كانت هذه القائمة نسخة مكررة
              يدوياً من machines.js وممكن تختلف عنها بمرور الوقت.
@@ -126,7 +149,7 @@ export const MaintenanceSearchView = () => {
       </select>
 
       <select id="mSortFilter" onchange="window.applyMaintenanceSearchFilters()"
-        class="col-span-2 md:col-span-1 w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+        class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
         <option value="newest">${t.sortNewest || (currentLang === 'en' ? 'Newest First' : 'الأحدث أولاً')}</option>
         <option value="oldest">${t.sortOldest || (currentLang === 'en' ? 'Oldest First' : 'الأقدم أولاً')}</option>
       </select>

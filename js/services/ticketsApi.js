@@ -994,14 +994,25 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
       const snap = await getDocs(query(ticketsRef, ...dateClause));
       snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
     } else {
-      const [reportedSnap, assignedSnap] = await Promise.all([
-        getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""), ...dateClause)),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName || ""), ...dateClause))
-      ]);
-
+      const queries = [];
+      if (myName) {
+        queries.push(
+          getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...dateClause)),
+          getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...dateClause))
+        );
+      }
+      if (myUid) {
+        queries.push(
+          getDocs(query(ticketsRef, where("reportedByUid", "==", myUid), ...dateClause)),
+          getDocs(query(ticketsRef, where("assignedToUid", "==", myUid), ...dateClause))
+        );
+      }
+      if (!queries.length) {
+        return { status: "success", data: tickets };
+      }
+      const snaps = await Promise.all(queries);
       const merged = new Map();
-      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
       tickets = Array.from(merged.values());
     }
 
@@ -1034,17 +1045,28 @@ export async function fetchTicketsForSearchApi({ isFullAccess, myUid, myName }) 
       return { status: "success", data: tickets };
     }
 
-    // وصول محدود (فني/مهندس عادي): بلاغاته هو بس (بلّغ بيها أو
-    // مُسندة إليه) - استعلامين بالاسم (نفس أسلوب subscribeToTicketsBoardApi
-    // وfetchTicketsForReportApi) بدل استعلام واحد على كل التذاكر
-    const [reportedSnap, assignedSnap] = await Promise.all([
-      getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
-      getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
-    ]);
+    // وصول محدود (فني/مشغل/مهندس عادي): بلاغاته هو بس (بلّغ بيها أو
+    // مُسندة إليه) - استعلامات بالاسم والـ UID لضمان عدم سقوط أي تذكرة
+    const queries = [];
+    if (myName) {
+      queries.push(
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
+      );
+    }
+    if (myUid) {
+      queries.push(
+        getDocs(query(ticketsRef, where("reportedByUid", "==", myUid))),
+        getDocs(query(ticketsRef, where("assignedToUid", "==", myUid)))
+      );
+    }
+    if (!queries.length) {
+      return { status: "success", data: [] };
+    }
 
+    const snaps = await Promise.all(queries);
     const merged = new Map();
-    reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-    assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+    snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
 
     return { status: "success", data: Array.from(merged.values()) };
   } catch (error) {
@@ -1636,14 +1658,24 @@ export async function fetchPmOrdersApi() {
       snapshot.forEach(ticketSnap => merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() }));
     } else {
       // الأدوار غير كاملة الصلاحية ترى أوامر PM التي أبلغت عنها أو أُسندت
-      // إليها فقط (نفس نطاق fetchTicketsApi لبقية البلاغات)
-      if (!myUid) {
+      // إليها فقط (بالـ UID والاسم مثل بقية استعلامات البلاغات)
+      const scopedQueries = [];
+      if (myUid) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedByUid", "==", myUid))),
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedToUid", "==", myUid)))
+        );
+      }
+      if (myName) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedBy", "==", myName))),
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedTo", "==", myName)))
+        );
+      }
+      if (!scopedQueries.length) {
         return { status: "error", message: "Missing user identity for scoped PM query" };
       }
-      const scoped = await Promise.all([
-        getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedByUid", "==", myUid))),
-        getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedToUid", "==", myUid)))
-      ]);
+      const scoped = await Promise.all(scopedQueries);
       scoped.forEach(snapshot => snapshot.forEach(ticketSnap => {
         merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() });
       }));
