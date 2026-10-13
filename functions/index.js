@@ -617,3 +617,128 @@ exports.uploadImageViaImgbb = onCall(
 
   }
 );
+
+// ============================================================
+// Unified Numbering System - عدادات الترقيم الموحد
+// ============================================================
+// يستخدم Firestore Transaction للزيادة الذرّية (Atomic Increment)
+// لمنع التعارض عند الإنشاء المتزامن من عدة مستخدمين.
+// يستدعي من الواجهة عبر callCloudFunction("getNextSequenceNumber", { type: "tickets" })
+// يرجع: { status: "success", number: 123, displayNumber: "BR-00123" }
+
+const SEQUENCE_PREFIXES = {
+  tickets: "BR",       // بلاغات الأعطال (Breakdown Reports)
+  suggestions: "KZ",   // مقترحات الكايزن (Kaizen)
+  pmOrders: "PM",      // أوامر الصيانة الوقائية (PM Work Orders)
+  defects: "DF",       // عيوب الإنتاج (Defects)
+  machineErrors: "ME", // أعطال الماكينات (Machine Errors)
+  checklists: "CL",    // سجلات الفحص (Checklists - Daily AM / 5S)
+  pmRecords: "PR"      // سجلات الصيانة الوقائية (PM Records)
+};
+
+exports.getNextSequenceNumber = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+  }
+
+  const { type } = request.data || {};
+  const prefix = SEQUENCE_PREFIXES[type];
+
+  if (!prefix) {
+    throw new HttpsError("invalid-argument", `نوع الترقيم غير مدعوم: ${type}`);
+  }
+
+  try {
+    const counterRef = db.collection("counters").doc(type);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const counterDoc = await transaction.get(counterRef);
+
+      let current = 0;
+      if (counterDoc.exists) {
+        current = counterDoc.data().current || 0;
+      }
+
+      const next = current + 1;
+
+      transaction.set(counterRef, {
+        current: next,
+        prefix,
+        updatedAt: new Date().toISOString(),
+        updatedBy: request.auth.uid
+      }, { merge: true });
+
+      return next;
+    });
+
+    const displayNumber = `${prefix}-${String(result).padStart(5, "0")}`;
+
+    return { status: "success", number: result, displayNumber };
+
+  } catch (error) {
+    console.error("Error getting next sequence number:", error);
+    throw new HttpsError("internal", "تعذر توليد الرقم التسلسلي: " + error.message);
+  }
+});
+
+// دالة مساعدة لإعادة تعيين العداد (للأدمن فقط - تستخدم في الاختبارات أو الصيانة)
+exports.resetSequenceCounter = onCall({ region: "us-central1" }, async (request) => {
+  const callerUid = request.auth?.uid;
+
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+  }
+
+  // التحقق من صلاحية الأدمن
+  const callerSnap = await db.collection("users").doc(callerUid).get();
+  const callerData = callerSnap.exists ? callerSnap.data() : null;
+
+  if (!callerData || callerData.role !== "admin" || callerData.status !== "active") {
+    throw new HttpsError("permission-denied", "هذه العملية مقصورة على Admin نشط فقط.");
+  }
+
+  const { type } = request.data || {};
+  const prefix = SEQUENCE_PREFIXES[type];
+
+  if (!prefix) {
+    throw new HttpsError("invalid-argument", `نوع الترقيم غير مدعوم: ${type}`);
+  }
+
+  try {
+    await db.collection("counters").doc(type).set({
+      current: 0,
+      prefix,
+      resetAt: new Date().toISOString(),
+      resetBy: callerUid
+    });
+
+    return { status: "success", message: `تم إعادة تعيين عداد ${type} (${prefix})` };
+  } catch (error) {
+    console.error("Error resetting sequence counter:", error);
+    throw new HttpsError("internal", "تعذر إعادة تعيين العداد: " + error.message);
+  }
+});
+
+// دالة لجلب القيمة الحالية للعداد (للقراءة فقط)
+exports.getSequenceCounter = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth?.uid) {
+    throw new HttpsError("unauthenticated", "يجب تسجيل الدخول أولاً.");
+  }
+
+  const { type } = request.data || {};
+  const prefix = SEQUENCE_PREFIXES[type];
+
+  if (!prefix) {
+    throw new HttpsError("invalid-argument", `نوع الترقيم غير مدعوم: ${type}`);
+  }
+
+  try {
+    const counterDoc = await db.collection("counters").doc(type).get();
+    const current = counterDoc.exists ? (counterDoc.data().current || 0) : 0;
+
+    return { status: "success", type, prefix, current, nextDisplayNumber: `${prefix}-${String(current + 1).padStart(5, "0")}` };
+  } catch (error) {
+    console.error("Error getting sequence counter:", error);
+    throw new HttpsError("internal", "تعذر قراءة العداد: " + error.message);
+  }
+});

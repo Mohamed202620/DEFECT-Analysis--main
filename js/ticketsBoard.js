@@ -120,6 +120,7 @@ function ticketCardHtml(ticket) {
             <div class="flex items-center gap-2">
               ${bulkCheckboxHtml}
               <span class="font-black text-sm text-slate-100">${escapeHtml(machineName)}</span>
+              ${ticket.unifiedNumber ? `<span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(ticket.unifiedNumber)}</span>` : ""}
               ${ticket.issueId ? `<span class="text-[10px] font-mono font-bold text-blue-400">#${escapeHtml(ticket.issueId)}</span>` : ""}
               ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(ticket.line)}</span>` : ""}
             </div>

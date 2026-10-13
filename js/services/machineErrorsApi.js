@@ -161,6 +161,14 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
     // machineErrors وظهور "Error loading documents" في الكونسول)
     const { image, ...restPayload } = payload;
 
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "machineErrors" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد للعطل: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: ME-00001
+
     const imageUrl = await uploadBase64Image(
       image,
       `machineError_${normalized}`
@@ -185,6 +193,7 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
       ...restPayload,
       ...machineReference,
       errorCode: normalized,
+      unifiedNumber, // الرقم الموحد الجديد: ME-00001
       department,
       ...(imageUrl && { imageUrl }),
       status: "pending_review",
@@ -194,6 +203,7 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
     return {
       status: "success",
       id: errorRef.id,
+      unifiedNumber,
       message: "تم إضافة العطل بنجاح وهو الآن قيد المراجعة"
     };
 

@@ -75,6 +75,14 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
 
   try {
 
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "suggestions" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد للمقترح: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: KZ-00001
+
     // دعم صورة واحدة (الاسم القديم "image" - للتوافق) أو أكثر من
     // صورة دفعة واحدة عبر "images" (الاسم الجديد)، ورفعها كلها على
     // ImgBB وتخزين الروابط فقط (imageUrls) بدل الـ Base64 الكامل
@@ -87,6 +95,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
       {
         ...restPayload,
         ...(imageUrls.length && { imageUrls }),
+        unifiedNumber, // الرقم الموحد الجديد: KZ-00001
 
         // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
         // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"
@@ -113,6 +122,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     return {
       status: "success",
       id: docRef.id,
+      unifiedNumber,
       message: "تم إرسال مقترح الكايزن بنجاح"
     };
 

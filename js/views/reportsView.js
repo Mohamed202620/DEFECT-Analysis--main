@@ -336,9 +336,10 @@ function attachmentsCell(rec) {
 
 function buildTicketSheet(tickets, isAr, isEn) {
   const headers = isAr
-    ? ['رقم البلاغ', 'الماكينة / الخط', 'مسار الصيانة', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
-    : ['Ticket ID', 'Machine / Line', 'Route', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
+    ? ['الرقم الموحد', 'رقم البلاغ', 'الماكينة / الخط', 'مسار الصيانة', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
+    : ['Unified #', 'Ticket ID', 'Machine / Line', 'Route', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
   const rows = tickets.map(t => [
+    t.unifiedNumber || '',
     t.issueId || t.id || '',
     t.machine || t.machineName || '',
     String(t.maintenanceType || '').toUpperCase() === 'PM' ? (isAr ? 'صيانة وقائية PM' : 'PM') : (isAr ? 'صيانة تصحيحية CM' : 'CM'),
@@ -362,9 +363,10 @@ function buildTicketSheet(tickets, isAr, isEn) {
 
 function buildPmSheet(pmRecords, isAr, isEn) {
   const headers = isAr
-    ? ['رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
-    : ['PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
+    ? ['الرقم الموحد', 'رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
+    : ['Unified #', 'PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
   const rows = pmRecords.map(pm => [
+    pm.unifiedNumber || '',
     pm.id || '',
     pm.machine || '',
     pm.checkType || pm.type || (isAr ? 'وقائية' : 'Preventive'),
@@ -387,9 +389,10 @@ function buildPmSheet(pmRecords, isAr, isEn) {
 
 function buildKaizenSheet(suggestions, isAr, isEn) {
   const headers = isAr
-    ? ['رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
-    : ['ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
+    ? ['الرقم الموحد', 'رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
+    : ['Unified #', 'ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
   const rows = suggestions.map(s => [
+    s.unifiedNumber || '',
     s.id || '',
     s.title || '',
     s.machine || s.department || '',

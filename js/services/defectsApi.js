@@ -43,6 +43,14 @@ export async function saveDefectApi(
 
   try {
 
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "defects" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد للعيب: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: DF-00001
+
     // فصل حقول الصور Base64 عن باقي البيانات
     const {
       image1,
@@ -71,6 +79,7 @@ export async function saveDefectApi(
           ...restPayload,
 
           defectId,
+          unifiedNumber, // الرقم الموحد الجديد: DF-00001
 
           ...(image1Url && { image1Url }),
           ...(image2Url && { image2Url }),
@@ -89,7 +98,8 @@ export async function saveDefectApi(
         "success",
 
       id:
-        docRef.id
+        docRef.id,
+      unifiedNumber
 
     };
 

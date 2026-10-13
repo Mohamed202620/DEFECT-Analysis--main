@@ -101,6 +101,7 @@ function renderPmOrders() {
         <input type="checkbox" data-order-id="${escapeHtml(order.id)}" class="pmRowCheckbox rounded border-gray-600 bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4" ${isChecked ? "checked" : ""}>
       </td>
       <td class="p-3 font-mono text-xs text-blue-300 font-bold">${escapeHtml(order.id)}</td>
+      <td class="p-3 font-mono text-xs text-amber-300 font-bold">${escapeHtml(order.unifiedNumber || "—")}</td>
       <td class="p-3 font-mono text-xs text-gray-300 font-bold">${escapeHtml(order.issueId || order.id)}</td>
       <td class="p-3 font-bold text-gray-100">${escapeHtml(valueOrDash(order.line))}</td>
       <td class="p-3 font-bold text-gray-100">${escapeHtml(valueOrDash(order.machine))}</td>
@@ -254,7 +255,8 @@ function renderPmOrders() {
                   <input type="checkbox" id="pmSelectAll" title="${label("تحديد الكل", "Select all")}" ${isAllVisibleSelected ? "checked" : ""} class="rounded border-gray-600 bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4">
                 </th>
                 ${[
-                  label("رقم الأمر", "Work order"), label("رقم البلاغ", "Ticket"),
+                  label("رقم الأمر", "Work order"), label("الرقم الموحد", "Unified #"),
+                  label("رقم البلاغ", "Ticket"),
                   label("الخط", "Line"), label("المعدة", "Equipment"),
                   label("وصف المهمة", "Task description"), label("الأولوية", "Priority"),
                   label("الحالة", "Status"), label("تاريخ الإنشاء", "Created"),
@@ -713,6 +715,7 @@ window.exportPmOrders = async function(format) {
 
   const headers = [
     label("رقم أمر الصيانة", "Work order ID"),
+    label("الرقم الموحد", "Unified #"),
     label("رقم البلاغ", "Ticket"),
     label("النوع", "Type"),
     label("خط الإنتاج", "Production line"),
@@ -731,6 +734,7 @@ window.exportPmOrders = async function(format) {
 
   const rows = data.map(order => [
     order.id,
+    order.unifiedNumber || "",
     order.issueId || order.id,
     "PM",
     order.line || "",

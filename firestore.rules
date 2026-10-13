@@ -1010,6 +1010,16 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // counters - عدادات الترقيم الموحد لكل نوع سجل
+    // يتم إدارتها عبر Cloud Function (getNextSequenceNumber) باستخدام Admin SDK
+    // العملاء يقرؤون فقط للعرض، والكتابة مقصورة على السيرفر
+    // ==========================================================
+    match /counters/{counterId} {
+      allow read: if isActive();
+      allow create, update, delete: if false;
+    }
+
+    // ==========================================================
     // Security (Test 15) - تم حذف القاعدة العامة الأخيرة:
     //     match /{document=**} { allow read, write: if isActive(); }
     // Firestore بيجمع كل match/allow المطابقة لنفس المسار بمنطق OR،

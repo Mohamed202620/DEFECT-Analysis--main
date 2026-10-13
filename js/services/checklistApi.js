@@ -34,6 +34,14 @@ export const CHECKLIST_TYPE_5S = "5s";
  */
 async function saveChecklistRecord(type, payload) {
   try {
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "checklists" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد لسجل الفحص: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: CL-00001
+
     const department =
       getDepartmentForMachineValue(payload?.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
@@ -69,10 +77,11 @@ async function saveChecklistRecord(type, payload) {
       items: itemsWithUploadedPhotos,
       type,
       department,
+      unifiedNumber, // الرقم الموحد الجديد: CL-00001
       createdAt: new Date().toISOString()
     });
 
-    return { status: "success", id: docRef.id };
+    return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {
     console.error(`Error saving ${type} checklist record:`, error);
     return { status: "error", message: error.message };

@@ -577,7 +577,7 @@ function renderResults() {
       const priorityLabel = PRIORITY_LABELS[r.priority] || '';
       const routeStr = String(r.maintenanceType || '').toUpperCase() === 'PM' ? 'صيانة وقائية pm' : 'صيانة تصحيحية cm';
       const haystack = [
-        r.id, r.issueId, r.customId, r.ticketId,
+        r.id, r.issueId, r.customId, r.ticketId, r.unifiedNumber,
         r.machine, r.machineName, r.line, r.description, r.notes, r.locationInMachine,
         r.reportedBy, r.assignedTo, r.reporter?.name, r.category, r.mechanicNotes,
         r.title, r.problem, r.solution, r.name, r.impact, r.type, r.issueType,
@@ -897,6 +897,7 @@ function ticketResultCard(t) {
   const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
   const isOverdue = isOverdueTicket(t);
   const ticketIdDisplay = escapeHtml(t.issueId || t.id || '-');
+  const unifiedNumberDisplay = t.unifiedNumber ? escapeHtml(t.unifiedNumber) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs hover:border-slate-700 transition-colors">
@@ -916,6 +917,7 @@ function ticketResultCard(t) {
         </div>
       </div>
 
+      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
       <div class="text-[10px] font-mono text-blue-400 font-semibold">
         #${ticketIdDisplay}
       </div>
@@ -945,6 +947,7 @@ function ticketResultCard(t) {
 function pmResultCard(p) {
   const checklist = p.checklist || {};
   const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
+  const unifiedNumberDisplay = p.unifiedNumber ? escapeHtml(p.unifiedNumber) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -957,6 +960,8 @@ function pmResultCard(p) {
           ✅ ${doneCount}/3 بنود
         </span>
       </div>
+
+      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
       ${p.notes ? `<p class="text-[11px] text-gray-400">${escapeHtml(p.notes)}</p>` : ''}
 
@@ -976,6 +981,7 @@ function pmResultCard(p) {
 function suggestionResultCard(s) {
   const status = String(s.status || 'new').trim().toLowerCase();
   const titleText = escapeHtml(s.title || s.machine || '-');
+  const unifiedNumberDisplay = s.unifiedNumber ? escapeHtml(s.unifiedNumber) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -988,6 +994,8 @@ function suggestionResultCard(s) {
           ${SUGGESTION_STATUS_LABELS[status] || escapeHtml(status) || '-'}
         </span>
       </div>
+
+      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
       ${s.problem ? `<p class="text-[11px] text-gray-400">${escapeHtml(s.problem)}</p>` : ''}
 

@@ -42,6 +42,14 @@ export async function savePmApi(payload) {
 
   try {
 
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "pmRecords" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد لسجل الصيانة: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: PR-00001
+
     // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نفس منطق
     // machineErrorsApi.js بالظبط - نحفظ قسم الماكينة الفعلي مع كل
     // سجل صيانة وقائية جديد
@@ -60,6 +68,7 @@ export async function savePmApi(payload) {
         ...payload,
         ...machineReference,
         department,
+        unifiedNumber, // الرقم الموحد الجديد: PR-00001
         createdAt: new Date().toISOString()
       }
     );
@@ -67,6 +76,7 @@ export async function savePmApi(payload) {
     return {
       status: "success",
       id: docRef.id,
+      unifiedNumber,
       message: "تم حفظ نموذج الصيانة الوقائية بنجاح"
     };
 

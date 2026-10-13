@@ -72,6 +72,15 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     // قديمة مُخزَّنة محلياً في طابور offlineQueue من قبل هذا التحديث)
     // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
     const { image, images, ...restPayload } = payload;
+
+    // الحصول على الرقم الموحد الجديد من Cloud Function (ذرّي وآمن من التعارض)
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "tickets" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد للبلاغ: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: BR-00001
+
     const issueId = payload.issueId || ("IS-" + Date.now());
     // إصلاح (منع تكرار السجلات - مزامنة Offline): لو addDoc نجح فعلاً على
     // السيرفر لكن الرد ضاع (انقطاع شبكة لحظة الرد) العنصر بيفضل في
@@ -131,6 +140,7 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     const ticketData = {
       ...restPayload,
       issueId,
+      unifiedNumber, // الرقم الموحد الجديد: BR-00001
       ...(imageUrls.length && { imageUrls }),
       status: payload?.status || "pending",
       createdAt: payload?.createdAt || new Date().toISOString(),
@@ -191,7 +201,7 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       console.error("Error notifying managers of new ticket:", error);
     });
 
-    return { status: "success", id: docRef.id };
+    return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {
     console.error("Error saving issue/ticket:", error);
     return { status: "error", message: error.message };
@@ -1628,16 +1638,25 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
       return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ إلا في حالة قيد الانتظار" };
     }
 
+    // توليد الرقم الموحد الجديد للأوامر PM عند التصنيف لأول مرة
+    const { callCloudFunction } = await import("../providers/backend/index.js");
+    const sequenceResult = await callCloudFunction("getNextSequenceNumber", { type: "pmOrders" });
+    if (sequenceResult.status !== "success") {
+      return { status: "error", message: "تعذر توليد الرقم الموحد لأمر PM: " + (sequenceResult.message || "") };
+    }
+    const unifiedNumber = sequenceResult.displayNumber; // مثال: PM-00001
+
     await updateDoc(ticketRef, stampUpdate({
       maintenanceType: "PM",
       pmStatus: existing.pmStatus || "unplanned",
+      unifiedNumber, // الرقم الموحد الجديد: PM-00001
       assignedTo: null,
       assignedToUid: null,
       reviewedBy: localStorage.getItem("name") || "",
       reviewedByUid: localStorage.getItem("userId") || "",
       reviewedAt: new Date().toISOString()
     }));
-    return { status: "success" };
+    return { status: "success", unifiedNumber };
   } catch (error) {
     console.error("Error classifying ticket as PM:", error);
     return { status: "error", message: error.message };
