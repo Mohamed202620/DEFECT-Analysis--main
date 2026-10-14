@@ -177,7 +177,7 @@ export const db = (() => {
       })
     });
   } catch (error) {
-    console.warn("[Firestore] تعذّر تفعيل Offline Persistence، هيشتغل التطبيق عادي بس بدون تخزين محلي:", error.message);
+    console.warn("[Firestore] تعذّر تفعيل Offline Persistence، هيشتغل التطبيق عادي بس بدون تخزين محلي:", error?.message ?? error);
     return getFirestore(app);
   }
 })();
