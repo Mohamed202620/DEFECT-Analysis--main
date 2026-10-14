@@ -4,8 +4,7 @@
 // بشبكة 12 عموداً متكاملة للشاشات الكبيرة (>= 1280px)
 // ============================================================
 
-import { fetchDashboardSnapshotApi } from '../../services/api.js';
-import { fetchPmRecordCountApi } from '../../services/pmApi.js';
+import { fetchDashboardSnapshotApi, fetchPmOrdersApi } from '../../services/api.js';
 import { fetchUsers } from '../../services/usersApi.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
@@ -166,7 +165,7 @@ export function renderManagerDesktopHomeHtml() {
         </div>
         <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
           <span>✅</span>
-          <span id="mgrKpiPmCounts">${isEn ? 'Records this month' : 'سجلات هذا الشهر'}</span>
+          <span id="mgrKpiPmCounts">${isEn ? 'PM orders this month' : 'أوامر PM هذا الشهر'}</span>
         </div>
       </div>
 
@@ -401,18 +400,30 @@ async function _initManagerDesktopHomeData() {
     // جلب التذاكر وسجلات الـ PM والمستخدمين بالتوازي
     const [ticketsRes, pmCountRes, usersRes] = await Promise.all([
       fetchDashboardSnapshotApi({ role, myUid, myName }),
-      fetchPmRecordCountApi(),
+      fetchPmOrdersApi(),
       fetchUsers().catch(() => [])
     ]);
 
     const snapshot = (ticketsRes && ticketsRes.status === 'success') ? ticketsRes.data : null;
     const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
     const totalCount = snapshot ? snapshot.total : tickets.length;
-    const pmRecordCount = pmCountRes?.status === 'success' && Number.isFinite(pmCountRes.count)
-      ? pmCountRes.count
-      : null;
-    if (pmRecordCount === null) {
-      console.warn("[ManagerDesktop] PM record count is unavailable:", pmCountRes?.message || "Unknown error");
+    // كارت PM: أوامر PM المخططة هذا الشهر (نفس بيانات صفحة أوامر PM)
+    let pmMonthTotal = null;
+    let pmMonthDone = 0;
+    if (pmCountRes?.status === 'success' && Array.isArray(pmCountRes.data)) {
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      pmMonthTotal = 0;
+      pmCountRes.data.forEach(order => {
+        const raw = String(order.plannedDate || '').trim();
+        if (!raw) return;
+        const d = /^\d{4}-\d{2}/.test(raw) ? raw.slice(0, 7) : '';
+        if (d !== monthKey) return;
+        pmMonthTotal++;
+        if (order.pmStatus === 'completed') pmMonthDone++;
+      });
+    } else {
+      console.warn("[ManagerDesktop] PM orders are unavailable:", pmCountRes?.message || "Unknown error");
     }
     // إصلاح: fetchUsers() بترجع { status, data } مش مصفوفة مباشرة، فكان الشرط
     // القديم (Array.isArray(usersRes)) دايماً false وقائمة المستخدمين فاضية: لا
@@ -478,7 +489,7 @@ async function _initManagerDesktopHomeData() {
     // إصلاح: النسبة كانت صيغة مخترعة (الافتراض إن فيه 1 أو 3 مهام متأخرة بحسب openCount)
     // وبترجّع 85% ثابتة عند غياب البيانات. مفيش جدول PM مخطط في النظام يتحسب منه
     // التزام حقيقي، فبنعرض '--' ونكتفي بالعدد الفعلي من السجلات (mgrKpiPmCounts)
-    const pmComplianceRate = null;
+    const pmComplianceRate = pmMonthTotal ? Math.round((pmMonthDone / pmMonthTotal) * 100) : null;
 
     // تحديث قيم الـ KPIs في الـ DOM
     const setTxt = (id, val) => {
@@ -491,7 +502,7 @@ async function _initManagerDesktopHomeData() {
     setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
     setTxt("mgrKpiMtbf", `${mtbfHours} h`);
     setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
-    setTxt("mgrKpiPmCounts", `${pmRecordCount ?? '--'} ${isEn ? 'completed PM tasks' : 'مهمة صيانة منفذة'}`);
+    setTxt("mgrKpiPmCounts", pmMonthTotal === null ? '--' : `${pmMonthDone}/${pmMonthTotal} ${isEn ? 'PM orders this month' : 'أمر PM هذا الشهر'}`);
     setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
 
     // إشارة الـ Overdue
