@@ -66,20 +66,6 @@ export const MaintenanceView = () => {
     </button>
     ` : ''}
 
-    ${hasPermission("pm") ? `
-    <button
-      type="button"
-      id="maintenanceCardPmOrders"
-      onclick="window.navigateTo('pmOrders')"
-      aria-label="${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}"
-      class="relative text-start border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden">
-      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
-      <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">🗓️</div>
-      <span class="font-bold text-xs text-gray-100">${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
-    </button>
-    ` : ''}
-
     ${hasPermission("suggestions") ? `
     <!-- نظام كايزن -->
     <button 
@@ -109,6 +95,20 @@ export const MaintenanceView = () => {
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
       <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
+    </button>
+    ` : ''}
+
+    ${hasPermission("pm") ? `
+    <button
+      type="button"
+      id="maintenanceCardPmOrders"
+      onclick="window.navigateTo('pmOrders')"
+      aria-label="${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}"
+      class="relative text-start border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">🗓️</div>
+      <span class="font-bold text-xs text-gray-100">${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}</span>
+      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
     </button>
     ` : ''}
 

@@ -566,7 +566,7 @@
                     ⚠️ تعذر تحميل التطبيق
                 </h3>
                 <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
-                    ${String(message).replace(/[&<>"']/g, c => ({ '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c]))}
+                    ${String(message).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}
                 </p>
                 <button onclick="location.reload()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white mt-3">
                     إعادة تحميل الصفحة

@@ -194,7 +194,7 @@ export const HomeView = () => {
           <!-- زر الإبلاغ عن عطل - تصميم مميز بأسلوب الطوارئ والبروز البصري الفوري -->
           <button
             onclick="window.navigateTo('issue')"
-            class="${hasPermission('suggestions') ? 'col-span-1' : 'col-span-1 sm:col-span-2'} relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
+            class="col-span-1 sm:col-span-2 relative group border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-md shadow-red-950/50 hover:shadow-red-600/30 overflow-hidden cursor-pointer">
             <div class="absolute -right-4 -bottom-4 w-12 h-12 bg-red-500/20 rounded-full blur-lg pointer-events-none"></div>
             <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
 
@@ -206,7 +206,7 @@ export const HomeView = () => {
             <div class="flex-1 min-w-0">
               <div class="font-black text-xs sm:text-sm text-red-100 flex items-center gap-1">
                 <span class="truncate">${t.reportIssue}</span>
-                ${hasPermission('suggestions') ? '' : '<span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>'}
+                <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
               </div>
               <div class="text-[9.5px] sm:text-[10px] md:text-xs text-red-300/80 font-medium truncate">${t.reportIssueDesc}</div>
             </div>
@@ -224,8 +224,22 @@ export const HomeView = () => {
               </svg>
             </span>
             <div class="flex-1 min-w-0">
-              <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenSubmit}</div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc}</div>
+              <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenSubmit || 'إرسال مقترح'}</div>
+              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc || 'مقترح كايزن جديد'}</div>
+            </div>
+            <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
+          </button>
+
+          <!-- متابعة الكايزن -->
+          <button
+            onclick="window.navigateTo('kaizenBoard')"
+            class="col-span-1 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
+            <span class="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform text-xl">
+              🏆
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenTrack || 'متابعة الكايزن'}</div>
+              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenTrackDesc || 'مراجعة واعتماد المقترحات'}</div>
             </div>
             <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
           </button>
