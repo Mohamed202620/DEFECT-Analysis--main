@@ -61,6 +61,7 @@ export {
   fetchTicketLogsApi,
   fetchTicketByIdApi,
   fetchPmOrdersApi,
+  subscribeToPmOrdersApi,
   updatePmOrderApi,
   initializePmTasksApi,
   updatePmTaskApi,

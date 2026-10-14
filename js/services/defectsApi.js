@@ -43,23 +43,6 @@ export async function saveDefectApi(
 
   try {
 
-    // الحصول على الرقم الموحد الجديد باستخدام Firestore Transaction (ذرّي وآمن)
-    // يعمل على خطة Firebase Spark المجانية - لا يحتاج Cloud Functions
-    let unifiedNumber = null;
-    try {
-      const { getNextSequenceNumber } = await import("./sequenceApi.js");
-      unifiedNumber = await getNextSequenceNumber("defects"); // مثال: DF-00001
-    } catch (seqError) {
-      console.warn("[saveDefectApi] Sequence generation failed, using local fallback:", seqError.message);
-    }
-    
-    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
-    if (!unifiedNumber) {
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-      unifiedNumber = `DF-${timestamp}${random}`;
-      console.info("[saveDefectApi] Using local fallback unifiedNumber:", unifiedNumber);
-    }
 
     // فصل حقول الصور Base64 عن باقي البيانات
     const {
@@ -81,6 +64,8 @@ export async function saveDefectApi(
         uploadBase64Image(image3, `${defectId}_3`)
       ]);
 
+    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
+    const unifiedNumber = await allocateUnifiedNumber("defects");
     const docRef =
       await addDoc(
         collection(db, "defects"),

@@ -73,23 +73,6 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
     const { image, images, ...restPayload } = payload;
 
-    // الحصول على الرقم الموحد الجديد باستخدام Firestore Transaction (ذرّي وآمن)
-    // يعمل على خطة Firebase Spark المجانية - لا يحتاج Cloud Functions
-    let unifiedNumber = null;
-    try {
-      const { getNextSequenceNumber } = await import("./sequenceApi.js");
-      unifiedNumber = await getNextSequenceNumber("tickets"); // مثال: BR-00001
-    } catch (seqError) {
-      console.warn("[saveIssueApi] Sequence generation failed, using local fallback:", seqError.message);
-    }
-    
-    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
-    if (!unifiedNumber) {
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-      unifiedNumber = `BR-${timestamp}${random}`;
-      console.info("[saveIssueApi] Using local fallback unifiedNumber:", unifiedNumber);
-    }
 
     const issueId = payload.issueId || ("IS-" + Date.now());
     // إصلاح (منع تكرار السجلات - مزامنة Offline): لو addDoc نجح فعلاً على
@@ -150,7 +133,6 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     const ticketData = {
       ...restPayload,
       issueId,
-      unifiedNumber, // الرقم الموحد الجديد: BR-00001
       ...(imageUrls.length && { imageUrls }),
       status: payload?.status || "pending",
       createdAt: payload?.createdAt || new Date().toISOString(),
@@ -183,6 +165,9 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
         }
       } catch (_) { /* القراءة مساعدة فقط (قد تفشل أوفلاين) */ }
 
+      const { allocateUnifiedNumber } = await import("./sequenceApi.js");
+      ticketData.unifiedNumber = await allocateUnifiedNumber("tickets"); // مثال: BR-00001
+
       try {
         await setDoc(docRef, ticketData);
       } catch (writeError) {
@@ -197,6 +182,8 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
         throw writeError;
       }
     } else {
+      const { allocateUnifiedNumber } = await import("./sequenceApi.js");
+      ticketData.unifiedNumber = await allocateUnifiedNumber("tickets"); // مثال: BR-00001
       docRef = await addDoc(collection(db, "tickets"), ticketData);
     }
 
@@ -211,7 +198,7 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       console.error("Error notifying managers of new ticket:", error);
     });
 
-    return { status: "success", id: docRef.id, unifiedNumber };
+    return { status: "success", id: docRef.id, unifiedNumber: ticketData.unifiedNumber };
   } catch (error) {
     console.error("Error saving issue/ticket:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
@@ -1648,27 +1635,14 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
       return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ إلا في حالة قيد الانتظار" };
     }
 
-    // توليد الرقم الموحد الجديد للأوامر PM عند التصنيف لأول مرة
-    // باستخدام Firestore Transaction (ذرّي وآمن - خطة Spark المجانية)
-    let unifiedNumber = null;
-    try {
-      const { getNextSequenceNumber } = await import("./sequenceApi.js");
-      unifiedNumber = await getNextSequenceNumber("pmOrders"); // مثال: PM-00001
-    } catch (seqError) {
-      console.warn("[reviewTicketApi] Sequence generation failed, using local fallback:", seqError.message);
-    }
-    
-    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
-    if (!unifiedNumber) {
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-      unifiedNumber = `PM-${timestamp}${random}`;
-      console.info("[reviewTicketApi] Using local fallback unifiedNumber:", unifiedNumber);
-    }
+    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
+    const unifiedNumber = await allocateUnifiedNumber("pmOrders"); // مثال: PM-00001
 
     await updateDoc(ticketRef, stampUpdate({
       maintenanceType: "PM",
       pmStatus: existing.pmStatus || "unplanned",
+      ...(existing.unifiedNumber && !String(existing.unifiedNumber).startsWith("PM-")
+        ? { originalUnifiedNumber: existing.unifiedNumber } : {}),
       unifiedNumber, // الرقم الموحد الجديد: PM-00001
       assignedTo: null,
       assignedToUid: null,
@@ -1728,6 +1702,80 @@ export async function fetchPmOrdersApi() {
     console.error("Error fetching PM work orders:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
+}
+
+/**
+ * اشتراك لحظي (onSnapshot) لأوامر PM - نفس نطاق الصلاحيات في fetchPmOrdersApi
+ * بحيث تتحدث الصفحة تلقائياً دون الحاجة لإعادة تحميل.
+ * @returns {Function} دالة إلغاء الاشتراك
+ */
+export function subscribeToPmOrdersApi(callback) {
+  let unsubs = [];
+  let closed = false;
+  (async () => {
+    try {
+      await ensureAuthReady();
+      if (closed) return;
+      const ticketsRef = collection(db, "tickets");
+      const role = getCurrentRole();
+      const myUid = localStorage.getItem("userId") || "";
+      const myName = localStorage.getItem("name") || "";
+      const pm = where("maintenanceType", "==", "PM");
+      const queries = [];
+      if (hasFullDataAccess(role)) {
+        queries.push(query(ticketsRef, pm));
+      } else {
+        if (myUid) {
+          queries.push(
+            query(ticketsRef, pm, where("reportedByUid", "==", myUid)),
+            query(ticketsRef, pm, where("assignedToUid", "==", myUid))
+          );
+        }
+        if (myName) {
+          queries.push(
+            query(ticketsRef, pm, where("reportedBy", "==", myName)),
+            query(ticketsRef, pm, where("assignedTo", "==", myName))
+          );
+        }
+      }
+      if (!queries.length) {
+        callback({ status: "error", message: "Missing user identity for scoped PM query" });
+        return;
+      }
+      const buckets = queries.map(() => null);
+      const emit = () => {
+        if (closed || buckets.some(b => b === null)) return;
+        const merged = new Map();
+        buckets.forEach(list => list.forEach(t => merged.set(t.id, t)));
+        const orders = Array.from(merged.values());
+        orders.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        callback({ status: "success", data: orders });
+      };
+      queries.forEach((q, idx) => {
+        unsubs.push(onSnapshot(
+          q,
+          (snapshot) => {
+            const list = [];
+            snapshot.forEach(d => list.push({ id: d.id, ...d.data() }));
+            buckets[idx] = list;
+            emit();
+          },
+          (error) => {
+            console.error("Error in subscribeToPmOrdersApi:", error);
+            if (!closed) callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
+          }
+        ));
+      });
+    } catch (error) {
+      console.error("Error subscribing to PM work orders:", error);
+      if (!closed) callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
+    }
+  })();
+  return () => {
+    closed = true;
+    unsubs.forEach(u => { try { u(); } catch (_) {} });
+    unsubs = [];
+  };
 }
 
 export async function updatePmOrderApi(ticketId, changes) {

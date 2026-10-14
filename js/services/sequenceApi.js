@@ -63,6 +63,21 @@ export async function getNextSequenceNumber(type) {
 }
 
 /**
+ * تخصيص رقم موحد للإنشاء الفعلي: يُستدعى فقط بعد اكتمال كل التحققات ورفع
+ * الصور وقبل الكتابة مباشرة (لتفادي حرق أرقام عند فشل ما قبل الحفظ).
+ * عند الفشل يُرمى خطأ بدل رقم عشوائي، فلا تُنشأ سجلات بأرقام خارج التسلسل.
+ * (رسالة الخطأ لا تحتوي مؤشرات "دائمة" فيبقى الإجراء في طابور الأوفلاين)
+ */
+export async function allocateUnifiedNumber(type) {
+  try {
+    return await getNextSequenceNumber(type);
+  } catch (error) {
+    console.warn(`[sequenceApi] allocation failed for ${type}:`, error?.message);
+    throw new Error("تعذر توليد الرقم التسلسلي، حاول مرة أخرى");
+  }
+}
+
+/**
  * دالة مساعدة لجلب القيمة الحالية للعداد (للقراءة فقط - للتصحيح/الإدارة)
  * @param {string} type
  * @returns {Promise<{current: number, prefix: string, nextDisplayNumber: string}>}

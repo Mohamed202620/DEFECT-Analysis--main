@@ -75,23 +75,6 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
 
   try {
 
-    // الحصول على الرقم الموحد الجديد باستخدام Firestore Transaction (ذرّي وآمن)
-    // يعمل على خطة Firebase Spark المجانية - لا يحتاج Cloud Functions
-    let unifiedNumber = null;
-    try {
-      const { getNextSequenceNumber } = await import("./sequenceApi.js");
-      unifiedNumber = await getNextSequenceNumber("suggestions"); // مثال: KZ-00001
-    } catch (seqError) {
-      console.warn("[saveSuggestionApi] Sequence generation failed, using local fallback:", seqError.message);
-    }
-    
-    // Fallback اختياري: توليد رقم محلي بالاعتماد على timestamp + random (احتياطي أخير)
-    if (!unifiedNumber) {
-      const timestamp = Date.now().toString(36).toUpperCase();
-      const random = Math.random().toString(36).substring(2, 5).toUpperCase();
-      unifiedNumber = `KZ-${timestamp}${random}`;
-      console.info("[saveSuggestionApi] Using local fallback unifiedNumber:", unifiedNumber);
-    }
 
     // دعم صورة واحدة (الاسم القديم "image" - للتوافق) أو أكثر من
     // صورة دفعة واحدة عبر "images" (الاسم الجديد)، ورفعها كلها على
@@ -100,6 +83,8 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, "suggestion_" + Date.now());
 
+    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
+    const unifiedNumber = await allocateUnifiedNumber("suggestions");
     const docRef = await addDoc(
       collection(db, "suggestions"),
       {
