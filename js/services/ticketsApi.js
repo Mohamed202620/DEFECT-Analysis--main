@@ -1828,6 +1828,25 @@ export async function updatePmOrderApi(ticketId, changes) {
   }
 }
 
+/**
+ * تحديد/إلغاء "توقف الخط مطلوب" لأمر PM أو أكثر (تحديث حقل واحد فقط)
+ */
+export async function setPmDowntimeApi(ticketIds, value) {
+  if (!hasFullDataAccess(getCurrentRole())) {
+    return { status: "error", message: "ليست لديك صلاحية تعديل توقف الخط" };
+  }
+  const ids = [...new Set((ticketIds || []).filter(Boolean))];
+  if (!ids.length) return { status: "error", message: "لم يتم تحديد أوامر" };
+  const results = await Promise.allSettled(
+    ids.map(id => updateDoc(doc(db, "tickets", id), stampUpdate({ downtimeRequired: value === true })))
+  );
+  const failed = results.filter(r => r.status === "rejected").length;
+  if (failed === ids.length) {
+    return { status: "error", message: results[0].reason?.message || "حدث خطأ غير متوقع" };
+  }
+  return { status: "success", data: { updated: ids.length - failed, failed } };
+}
+
 // ============================================================
 // PM Task Execution - إدارة مهام أمر PM
 // ============================================================

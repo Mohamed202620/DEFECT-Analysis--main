@@ -63,6 +63,7 @@ export {
   fetchPmOrdersApi,
   subscribeToPmOrdersApi,
   updatePmOrderApi,
+  setPmDowntimeApi,
   initializePmTasksApi,
   updatePmTaskApi,
   completePmOrderApi,
