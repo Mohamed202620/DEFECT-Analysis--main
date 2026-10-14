@@ -445,7 +445,11 @@ service cloud.firestore {
                     && request.resource.data.get("assignedToUid", null) == null
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
                          ["maintenanceType", "pmStatus", "assignedTo", "assignedToUid",
-                          "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy"])
+                          "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy",
+                          "unifiedNumber", "originalUnifiedNumber"])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["unifiedNumber"])
+                        || (request.resource.data.unifiedNumber is string
+                            && request.resource.data.unifiedNumber.matches("^PM-[A-Z0-9]+$")))
                     && request.resource.data.reviewedByUid == request.auth.uid
                     && ticketReporterUnchanged();
 
@@ -875,8 +879,9 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                          "errorCode", "errorMessage", "machine", "line", "cause", "solution",
                          "steps", "createdBy", "department", "machineTypeId", "machineUnit",
-                         "imageUrl", "status", "createdAt"
+                         "imageUrl", "status", "createdAt", "unifiedNumber"
                        ])
+                    && request.resource.data.get("unifiedNumber", "ME-0") is string
                     && request.resource.data.errorCode is string
                     && request.resource.data.errorCode.size() > 0
                     && request.resource.data.errorCode.size() <= 256
