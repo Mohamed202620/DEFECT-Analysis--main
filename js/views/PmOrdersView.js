@@ -1,7 +1,7 @@
 import { openActionModal } from "../components/ActionModal.js";
 import { fetchTechniciansApi } from "../services/usersApi.js";
 import { exportToExcel, exportToPdf } from "../services/exportUtility.js";
-import { fetchPmOrdersApi, updatePmOrderApi, initializePmTasksApi, updatePmTaskApi, completePmOrderApi, createFollowupFromRemainingTasksApi, reschedulePmTasksApi } from "../services/api.js";
+import { fetchPmOrdersApi, subscribeToPmOrdersApi, updatePmOrderApi, initializePmTasksApi, updatePmTaskApi, completePmOrderApi, createFollowupFromRemainingTasksApi, reschedulePmTasksApi } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 import { hasFullDataAccess, hasPermission } from "../permissions.js";
 
@@ -274,7 +274,7 @@ function renderPmOrders() {
   `;
 
   // ربط الأحداث
-  container.querySelector("#pmOrdersRefresh")?.addEventListener("click", () => window.loadPmOrdersBoard());
+  container.querySelector("#pmOrdersRefresh")?.addEventListener("click", () => window.loadPmOrdersBoard(true));
   container.querySelector("#pmQuickDowntimeBtn")?.addEventListener("click", () => {
     filters.downtime = filters.downtime === "true" ? "" : "true";
     renderPmOrders();
@@ -363,17 +363,38 @@ window.openPmOrdersWithFilter = function(presetFilters = {}) {
   }
 };
 
-window.loadPmOrdersBoard = async function() {
+let unsubscribePmOrders = null;
+
+window.cleanupPmOrdersBoard = function() {
+  if (typeof unsubscribePmOrders === "function") unsubscribePmOrders();
+  unsubscribePmOrders = null;
+};
+
+// اشتراك لحظي: البيانات تتحدث تلقائياً بدون Refresh؛ الاستدعاءات اللاحقة
+// (بعد الحفظ/الزر) تعيد العرض فقط ما دام الاشتراك قائماً.
+window.loadPmOrdersBoard = async function(force = false) {
   const container = document.getElementById("pmOrdersContainer");
   if (!container) return;
-  container.innerHTML = `<div class="py-6 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>`;
-  const result = await fetchPmOrdersApi();
-  if (result.status !== "success") {
-    container.innerHTML = `<div role="alert" class="py-6 text-center text-sm text-red-300">${label("تعذر تحميل أوامر الصيانة الوقائية.", "Could not load PM orders.")} ${escapeHtml(result.message || "")}</div>`;
+  if (typeof unsubscribePmOrders === "function" && !force) {
+    renderPmOrders();
     return;
   }
-  pmOrders = result.data;
-  renderPmOrders();
+  window.cleanupPmOrdersBoard();
+  container.innerHTML = `<div class="py-6 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>`;
+  let first = true;
+  unsubscribePmOrders = subscribeToPmOrdersApi((result) => {
+    const target = document.getElementById("pmOrdersContainer");
+    if (!target) { window.cleanupPmOrdersBoard(); return; }
+    if (result.status !== "success") {
+      if (first) {
+        target.innerHTML = `<div role="alert" class="py-6 text-center text-sm text-red-300">${label("تعذر تحميل أوامر الصيانة الوقائية.", "Could not load PM orders.")} ${escapeHtml(result.message || "")}</div>`;
+      }
+      return;
+    }
+    first = false;
+    pmOrders = result.data;
+    renderPmOrders();
+  });
 };
 
 let pmOrderSaving = false;
