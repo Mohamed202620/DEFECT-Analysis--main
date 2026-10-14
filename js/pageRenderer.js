@@ -21,7 +21,6 @@ function t() {
 import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
 import { HomeView } from './views/homeView.js';
-import { PMView } from './views/pmView.js';
 import { PmOrdersView } from './views/PmOrdersView.js';
 import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
@@ -109,12 +108,6 @@ case 'suggestions':
     ? SuggestionView()  
     : unauthorizedPage("suggestions");  
 
-
-case 'pm':  
-
-  return hasPermission("pm")  
-    ? PMView()  
-    : unauthorizedPage("pm");  
 
 case 'pmOrders':
 
