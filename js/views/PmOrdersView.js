@@ -47,15 +47,93 @@ const pmStatusLabel = status => ({
   planned: label("مخطط", "Planned"),
   in_progress: label("قيد التنفيذ", "In progress"),
   completed: label("مكتمل", "Completed"),
+  completed_partial: label("مكتمل جزئياً", "Partially completed"),
   deferred: label("مؤجل", "Deferred")
 }[status] || valueOrDash(status));
+
+const PM_STATUS_CLASS = {
+  completed: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+  completed_partial: "bg-orange-500/20 text-orange-300 border border-orange-500/30",
+  planned: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
+  in_progress: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30",
+  deferred: "bg-gray-500/20 text-gray-300 border border-gray-500/30",
+  unplanned: "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+};
+const pmStatusBadge = status => {
+  const key = status || "unplanned";
+  return `<span class="whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-bold ${PM_STATUS_CLASS[key] || PM_STATUS_CLASS.unplanned}">${escapeHtml(pmStatusLabel(key))}</span>`;
+};
+
+const PM_TASK_STAGES = ["assigned", "in_progress"];
+const PM_CLOSED = ["completed", "completed_partial"];
+const taskStageReady = order => PM_TASK_STAGES.includes(order.status);
+const canWorkOnOrder = order => canPlanPmOrders() || (!!order.assignedToUid && order.assignedToUid === (localStorage.getItem("userId") || ""));
+const isPmEditable = order => canWorkOnOrder(order) && taskStageReady(order) && !PM_CLOSED.includes(order.pmStatus || "unplanned");
+const taskStats = order => {
+  const tasks = Array.isArray(order.pmTasks) ? order.pmTasks : [];
+  return {
+    total: tasks.length,
+    done: tasks.filter(t => t.status === "done").length,
+    notDone: tasks.filter(t => t.status === "not_done").length
+  };
+};
+const localDateKey = () => localDateValue(new Date().toISOString()) || new Date().toISOString().slice(0, 10);
+
+function pmBtn(cls, fn, ticketId, text) {
+  return `<button type="button" onclick="window.${fn}('${escapeJsArg(ticketId)}')" class="whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition ${cls}">${text}</button>`;
+}
+
+function getTaskActionButtons(order) {
+  const id = order.id;
+  const status = order.pmStatus || "unplanned";
+  const isClosed = PM_CLOSED.includes(status);
+  const { total } = taskStats(order);
+  const btns = [];
+  if (canPlanPmOrders() && status !== "completed_partial") {
+    btns.push(pmBtn("bg-blue-600 hover:bg-blue-500", "editPmOrder", id, label("تخطيط", "Plan")));
+  }
+  if (canWorkOnOrder(order)) {
+    if (total > 0) {
+      const editable = isPmEditable(order);
+      btns.push(pmBtn(editable ? "bg-emerald-600 hover:bg-emerald-500" : "bg-gray-600 hover:bg-gray-500", "executePmTasks", id, editable ? label("تنفيذ المهام", "Execute tasks") : label("عرض المهام", "View tasks")));
+      if (editable) btns.push(pmBtn("bg-indigo-600 hover:bg-indigo-500", "completePmOrder", id, label("إنهاء", "Complete")));
+    } else if (!isClosed) {
+      if (taskStageReady(order)) {
+        btns.push(pmBtn("bg-teal-600 hover:bg-teal-500", "initializePmTasks", id, label("تهيئة المهام", "Init tasks")));
+      } else {
+        btns.push(`<span class="text-[10px] text-gray-500">${label("بانتظار الإسناد وبدء التنفيذ", "Awaiting assignment")}</span>`);
+      }
+    }
+  }
+  if (canPlanPmOrders() && (status === "completed_partial" || status === "deferred")) {
+    btns.push(pmBtn("bg-amber-600 hover:bg-amber-500", "reschedulePmOrder", id, label("إعادة جدولة", "Reschedule")));
+  }
+  if (status === "completed_partial") {
+    if (order.followupTicketId) {
+      btns.push(`<span class="rounded px-2 py-1 text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${label("تمت المتابعة", "Follow-up created")}</span>`);
+    } else if (canPlanPmOrders() && (order.remainingTasks || []).length) {
+      btns.push(pmBtn("bg-rose-600 hover:bg-rose-500", "createFollowupFromRemaining", id, label("متابعة المتبقي", "Follow-up remaining")));
+    }
+  }
+  return btns.length ? `<div class="flex flex-wrap gap-1.5">${btns.join("")}</div>` : "—";
+}
+
+function taskProgressCell(order) {
+  const { total, done, notDone } = taskStats(order);
+  if (!total) return `<span class="text-gray-500">—</span>`;
+  const pct = Math.round((done / total) * 100);
+  return `<div class="min-w-24">
+    <div class="mb-1 text-[11px] font-bold text-gray-200">${done}/${total}${notDone ? ` <span class="text-rose-300">· ❌ ${notDone}</span>` : ""}</div>
+    <div class="h-1.5 w-full overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div>
+  </div>`;
+}
 
 function filteredPmOrders() {
   const search = filters.search.trim().toLocaleLowerCase();
   return pmOrders.filter(order => {
     const statusLabelStr = pmStatusLabel(order.pmStatus || "unplanned");
     const matchSearch = !search || [
-      order.issueId, order.id, order.line, order.machine, order.location, order.description,
+      order.issueId, order.id, order.unifiedNumber, order.line, order.machine, order.location, order.description,
       order.reportedBy, order.assignedTo, order.maintenanceNotes, order.delayReason,
       order.category, order.priority, order.pmStatus, statusLabelStr
     ].some(value => String(value || "").toLocaleLowerCase().includes(search));
@@ -108,9 +186,7 @@ function renderPmOrders() {
       <td class="p-3 min-w-48 whitespace-normal text-gray-200">${escapeHtml(valueOrDash(order.description))}</td>
       <td class="p-3">${escapeHtml(valueOrDash(order.priority))}</td>
       <td class="p-3">
-        <span class="px-2 py-0.5 rounded text-[10px] font-bold ${order.pmStatus === 'completed' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : (order.pmStatus === 'planned' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30')}">
-          ${escapeHtml(pmStatusLabel(order.pmStatus || "unplanned"))}
-        </span>
+        ${pmStatusBadge(order.pmStatus)}
       </td>
       <td class="p-3 text-gray-300">${escapeHtml(formatDisplayDate(order.createdAt) || valueOrDash(""))}</td>
       <td class="p-3 text-gray-200">${escapeHtml(formatDisplayDate(order.plannedDate) || unscheduledLabel())}</td>
@@ -121,6 +197,7 @@ function renderPmOrders() {
           : `<span class="text-gray-400 text-[11px]">${label("غير مطلوب", "Not required")}</span>`}
       </td>
       <td class="p-3 min-w-40 whitespace-normal text-gray-400 text-[11px]">${escapeHtml(order.maintenanceNotes || order.delayReason || "—")}</td>
+      <td class="p-3">${taskProgressCell(order)}</td>
       <td class="p-3">${getTaskActionButtons(order)}</td>
     </tr>
   `}).join("");
@@ -196,7 +273,7 @@ function renderPmOrders() {
           </div>
           <select id="pmFilterStatus" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
             <option value="">${label("كل الحالات", "All statuses")}</option>
-            ${["unplanned", "planned", "in_progress", "completed", "deferred"].map(status => `<option value="${status}" ${filters.status === status ? "selected" : ""}>${pmStatusLabel(status)}</option>`).join("")}
+            ${["unplanned", "planned", "in_progress", "completed", "completed_partial", "deferred"].map(status => `<option value="${status}" ${filters.status === status ? "selected" : ""}>${pmStatusLabel(status)}</option>`).join("")}
           </select>
           <select id="pmFilterAssignment" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
             <option value="">${label("مسند وغير مسند", "Assigned and unassigned")}</option>
@@ -248,7 +325,7 @@ function renderPmOrders() {
       <!-- جدول أوامر PM مع أعمدة التحديد والبيانات الكاملة -->
       ${visibleOrders.length ? `
         <div class="overflow-x-auto rounded-xl border border-gray-800 bg-[#1E293B]">
-          <table class="min-w-[1250px] w-full text-start text-xs text-gray-200">
+          <table class="min-w-[1400px] w-full text-start text-xs text-gray-200">
             <thead class="sticky top-0 bg-gray-800 text-gray-300 select-none">
               <tr>
                 <th class="p-3 w-10 text-center">
@@ -262,7 +339,7 @@ function renderPmOrders() {
                   label("الحالة", "Status"), label("تاريخ الإنشاء", "Created"),
                   label("موعد التنفيذ", "Planned date"), label("الفني / الفريق", "Assigned to"),
                   label("توقف الخط", "Downtime"), label("ملاحظات التخطيط / التأجيل", "Planning / delay notes"),
-                  label("الإجراء", "Action")
+                  label("المهام", "Tasks"), label("الإجراء", "Action")
                 ].map(header => `<th class="whitespace-nowrap p-3">${header}</th>`).join("")}
               </tr>
             </thead>
@@ -366,6 +443,7 @@ window.openPmOrdersWithFilter = function(presetFilters = {}) {
 let unsubscribePmOrders = null;
 
 window.cleanupPmOrdersBoard = function() {
+  closePmTasksModal();
   if (typeof unsubscribePmOrders === "function") unsubscribePmOrders();
   unsubscribePmOrders = null;
 };
@@ -393,7 +471,10 @@ window.loadPmOrdersBoard = async function(force = false) {
     }
     first = false;
     pmOrders = result.data;
+    const knownIds = new Set(pmOrders.map(order => order.id));
+    selectedOrderIds.forEach(id => { if (!knownIds.has(id)) selectedOrderIds.delete(id); });
     renderPmOrders();
+    if (pmTasksModalState) renderPmTasksModal();
   });
 };
 
@@ -462,176 +543,224 @@ window.editPmOrder = async function(ticketId) {
 };
 
 // ============================================================
-// PM Task Execution Functions
+// PM Task Execution
 // ============================================================
 
-window.initializePmTasks = async function(ticketId) {
-  if (!canPlanPmOrders()) {
-    alert(label("ليست لديك صلاحية تهيئة مهام PM.", "You are not allowed to initialize PM tasks."));
+let pmTasksModalState = null; // { ticketId, reasonFor, reasonText, error, busy }
+
+function onPmModalKey(event) {
+  if (event.key === "Escape") closePmTasksModal();
+}
+
+function closePmTasksModal() {
+  document.getElementById("pmTasksOverlay")?.remove();
+  document.removeEventListener("keydown", onPmModalKey);
+  pmTasksModalState = null;
+}
+
+function renderPmTasksModal() {
+  const state = pmTasksModalState;
+  const overlay = document.getElementById("pmTasksOverlay");
+  if (!state || !overlay) return;
+  const order = pmOrders.find(item => item.id === state.ticketId);
+  if (!order) { closePmTasksModal(); return; }
+
+  const liveReason = overlay.querySelector("#pmReasonInput");
+  if (liveReason) state.reasonText = liveReason.value;
+
+  const tasks = Array.isArray(order.pmTasks) ? order.pmTasks : [];
+  const { total, done } = taskStats(order);
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const editable = isPmEditable(order);
+  const dis = state.busy ? "disabled" : "";
+  const btn = (act, taskId, cls, text) => `<button type="button" ${dis} data-pm-act="${act}" data-task="${escapeHtml(taskId)}" class="flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white transition disabled:opacity-50 ${cls}">${text}</button>`;
+
+  const taskCards = tasks.map((task, index) => {
+    const st = task.status || "pending";
+    const badgeCls = st === "done" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+      : st === "not_done" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+      : "bg-amber-500/20 text-amber-300 border border-amber-500/30";
+    const badgeText = st === "done" ? label("✅ تم", "✅ Done") : st === "not_done" ? label("❌ لم يتم", "❌ Not done") : label("⏳ بانتظار", "⏳ Pending");
+    const who = st !== "pending" && task.completedBy ? `<div class="text-[10px] text-gray-500">${escapeHtml(task.completedBy)}${task.completedAt ? " · " + escapeHtml(formatDisplayDate(task.completedAt)) : ""}</div>` : "";
+    let actions = "";
+    if (editable) {
+      if (state.reasonFor === task.id) {
+        actions = `
+          <textarea id="pmReasonInput" rows="2" placeholder="${label("سبب عدم التنفيذ (مطلوب)", "Reason (required)")}" class="w-full rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">${escapeHtml(state.reasonText)}</textarea>
+          <div class="flex gap-2">${btn("save", task.id, "bg-rose-600 hover:bg-rose-500", label("حفظ السبب", "Save reason"))}${btn("cancel", task.id, "bg-gray-600 hover:bg-gray-500", label("إلغاء", "Cancel"))}</div>`;
+      } else {
+        actions = `<div class="flex gap-2">
+          ${st !== "done" ? btn("done", task.id, "bg-emerald-600 hover:bg-emerald-500", label("✅ تم التنفيذ", "✅ Done")) : ""}
+          ${st !== "not_done" ? btn("notdone", task.id, "bg-rose-600 hover:bg-rose-500", label("❌ لم يتم", "❌ Not done")) : ""}
+          ${st !== "pending" ? btn("pending", task.id, "bg-gray-600 hover:bg-gray-500", label("↩️ إعادة للانتظار", "↩️ Reset")) : ""}
+        </div>`;
+      }
+    }
+    return `
+      <div class="space-y-2 rounded-lg border border-gray-700 bg-[#0F172A] p-3">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-sm font-bold text-gray-100">${index + 1}. ${escapeHtml(task.description || "")}</span>
+          <span class="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold ${badgeCls}">${badgeText}</span>
+        </div>
+        ${st === "not_done" && task.reason ? `<div class="rounded bg-rose-500/10 p-2 text-[11px] text-rose-300">${label("السبب:", "Reason:")} ${escapeHtml(task.reason)}</div>` : ""}
+        ${who}
+        ${actions}
+      </div>`;
+  }).join("");
+
+  overlay.innerHTML = `
+    <div dir="${isEn() ? "ltr" : "rtl"}" class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-700 bg-[#1E293B] p-4 shadow-2xl">
+      <div class="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <h3 class="text-sm font-bold text-blue-400">${editable ? label("تنفيذ مهام PM", "Execute PM tasks") : label("مهام PM (عرض فقط)", "PM tasks (view only)")}</h3>
+          <div class="mt-1 text-xs text-gray-300">${escapeHtml(order.issueId || order.id)} · ${escapeHtml(valueOrDash(order.machine))} · ${escapeHtml(valueOrDash(order.line))}</div>
+        </div>
+        ${pmStatusBadge(order.pmStatus)}
+      </div>
+      <div class="mb-3">
+        <div class="mb-1 flex justify-between text-[11px] text-gray-400"><span>${label("التقدم", "Progress")}</span><span>${done}/${total} (${pct}%)</span></div>
+        <div class="h-2 w-full overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div>
+      </div>
+      ${state.error ? `<div role="alert" class="mb-3 rounded bg-red-500/10 p-2 text-[11px] text-red-300">${escapeHtml(state.error)}</div>` : ""}
+      <div class="space-y-3">${taskCards || `<div class="p-4 text-center text-xs text-gray-400">${label("لا توجد مهام.", "No tasks.")}</div>`}</div>
+      <div class="mt-4 flex gap-2 border-t border-gray-700 pt-3">
+        <button type="button" data-pm-act="close" class="flex-1 rounded-lg bg-gray-700 py-2.5 text-xs font-bold text-white hover:bg-gray-600">${label("إغلاق", "Close")}</button>
+        ${editable ? `<button type="button" ${dis} data-pm-act="complete" class="flex-1 rounded-lg bg-indigo-600 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50">${label("إنهاء الأمر", "Complete order")}</button>` : ""}
+      </div>
+    </div>`;
+}
+
+async function handlePmTaskAct(act, taskId) {
+  const state = pmTasksModalState;
+  if (!state || state.busy) return;
+  if (act === "close") { closePmTasksModal(); return; }
+  if (act === "complete") {
+    state.busy = true;
+    const ok = await window.completePmOrder(state.ticketId);
+    if (pmTasksModalState !== state) return;
+    state.busy = false;
+    if (ok) closePmTasksModal(); else renderPmTasksModal();
     return;
   }
+  if (act === "notdone") { state.reasonFor = taskId; state.reasonText = ""; state.error = ""; renderPmTasksModal(); return; }
+  if (act === "cancel") { state.reasonFor = null; state.error = ""; renderPmTasksModal(); return; }
+
+  let status = act === "done" ? "done" : act === "pending" ? "pending" : "not_done";
+  let reason = null;
+  if (act === "save") {
+    reason = String(document.getElementById("pmReasonInput")?.value || "").trim();
+    if (!reason) { state.error = label("السبب مطلوب.", "Reason is required."); renderPmTasksModal(); return; }
+  }
+  state.busy = true;
+  state.error = "";
+  renderPmTasksModal();
+  const result = await updatePmTaskApi(state.ticketId, taskId, { status, reason });
+  if (pmTasksModalState !== state) return;
+  state.busy = false;
+  if (result.status === "success") {
+    state.reasonFor = null;
+    const order = pmOrders.find(item => item.id === state.ticketId);
+    if (order) {
+      order.pmTasks = (order.pmTasks || []).map(task => task.id === taskId ? { ...task, ...result.data } : task);
+      if (status !== "pending" && ["unplanned", "planned", undefined, ""].includes(order.pmStatus)) order.pmStatus = "in_progress";
+    }
+    renderPmOrders();
+  } else {
+    state.error = `${label("فشل التحديث:", "Update failed:")} ${result.message || ""}`;
+  }
+  renderPmTasksModal();
+}
+
+window.initializePmTasks = async function(ticketId) {
   const order = pmOrders.find(item => item.id === ticketId);
   if (!order) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
     return;
   }
-  
-  const confirmed = confirm(label("سيتم تهيئة مهام PM الافتراضية (فحص الهيدروليك، تنظيف الفلاتر، التشحيم). متابعة؟", "Initialize default PM tasks (hydraulic check, filter cleaning, lubrication). Continue?"));
-  if (!confirmed) return;
-  
+  if (!canWorkOnOrder(order)) {
+    alert(label("ليست لديك صلاحية تهيئة مهام PM.", "You are not allowed to initialize PM tasks."));
+    return;
+  }
+  if (!taskStageReady(order)) {
+    alert(label("يجب إسناد الأمر لفني وبدء التنفيذ أولاً.", "Assign the order to a technician and start work first."));
+    return;
+  }
+  if (!confirm(label("سيتم تهيئة مهام PM الافتراضية (فحص الهيدروليك، تنظيف الفلاتر، التشحيم). متابعة؟", "Initialize default PM tasks (hydraulic check, filter cleaning, lubrication). Continue?"))) return;
+
   const result = await initializePmTasksApi(ticketId);
   if (result.status === "success") {
-    alert(label("تم تهيئة المهام بنجاح.", "Tasks initialized successfully."));
     await window.loadPmOrdersBoard();
   } else {
     alert(`${label("فشل التهيئة:", "Initialization failed:")} ${result.message || ""}`);
   }
 };
 
-window.executePmTasks = async function(ticketId) {
-  if (!canPlanPmOrders()) {
-    alert(label("ليست لديك صلاحية تنفيذ مهام PM.", "You are not allowed to execute PM tasks."));
-    return;
-  }
+window.executePmTasks = function(ticketId) {
   const order = pmOrders.find(item => item.id === ticketId);
   if (!order) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
     return;
   }
-  
-  const pmTasks = order.pmTasks || [];
-  if (!pmTasks.length) {
-    alert(label("لا توجد مهام محددة. اضغط 'تهيئة المهام' أولاً.", "No tasks defined. Click 'Init Tasks' first."));
+  if (!canWorkOnOrder(order)) {
+    alert(label("ليست لديك صلاحية الوصول لمهام PM.", "You are not allowed to access PM tasks."));
     return;
   }
-  
-  // Build task list HTML
-  const taskRows = pmTasks.map((task, index) => {
-    const status = task.status || "pending";
-    const isDone = status === "done";
-    const isNotDone = status === "not_done";
-    const isPending = status === "pending";
-    
-    return `
-      <div class="bg-[#1E293B] border border-gray-700 rounded-lg p-3 space-y-2">
-        <div class="flex items-center justify-between">
-          <span class="font-bold text-gray-100">${index + 1}. ${escapeHtml(task.description)}</span>
-          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
-            isDone ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-            isNotDone ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-            'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-          }">${isDone ? label("✅ تم", "Done") : isNotDone ? label("❌ لم يتم", "Not Done") : label("⏳ بانتظار", "Pending")}</span>
-        </div>
-        ${isNotDone && task.reason ? `<div class="text-[11px] text-rose-300 bg-rose-500/10 p-2 rounded">${label("السبب:", "Reason:")} ${escapeHtml(task.reason)}</div>` : ""}
-        <div class="flex gap-2">
-          ${isPending || isNotDone ? `
-            <button type="button" onclick="window.updatePmTask('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}', 'done')" class="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500 transition">${label("✅ تم التنفيذ", "Done")}</button>
-            <button type="button" onclick="window.showNotDoneReason('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}')" class="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 transition">${label("❌ لم يتم", "Not Done")}</button>
-          ` : `
-            <button type="button" onclick="window.updatePmTask('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}', 'pending')" class="flex-1 rounded-lg bg-gray-600 px-3 py-2 text-xs font-bold text-white hover:bg-gray-500 transition">${label("↩️ إعادة للانتظار", "Reset to Pending")}</button>
-            <button type="button" onclick="window.showNotDoneReason('${escapeJsArg(ticketId)}', '${escapeJsArg(task.id)}')" class="flex-1 rounded-lg bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-500 transition">${label("❌ لم يتم", "Not Done")}</button>
-          `}
-        </div>
-      </div>
-    `;
-  }).join("");
-  
-  const modalHtml = `
-    <div class="max-h-[70vh] overflow-y-auto">
-      <div class="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-        <div class="font-bold text-blue-300">${label("أمر PM:", "PM Order:")} ${escapeHtml(order.issueId || order.id)}</div>
-        <div class="text-xs text-gray-300">${escapeHtml(order.machine)} · ${escapeHtml(order.line)}</div>
-      </div>
-      <div class="space-y-3">${taskRows}</div>
-      <div class="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-400">
-        ${label("اضغط على مهمة لتحديث حالتها. سبب عدم التنفيذ مطلوب عند اختيار 'لم يتم'.", "Click a task to update status. Reason required for 'Not Done'.")}
-      </div>
-    </div>
-  `;
-  
-  await openActionModal({
-    title: label("تنفيذ مهام PM", "Execute PM Tasks"),
-    submitLabel: label("إغلاق", "Close"),
-    fields: [],
-    customHtml: modalHtml
+  if (!(order.pmTasks || []).length) {
+    alert(label("لا توجد مهام محددة. اضغط 'تهيئة المهام' أولاً.", "No tasks defined. Click 'Init tasks' first."));
+    return;
+  }
+  closePmTasksModal();
+  pmTasksModalState = { ticketId, reasonFor: null, reasonText: "", error: "", busy: false };
+  const overlay = document.createElement("div");
+  overlay.id = "pmTasksOverlay";
+  overlay.className = "fixed inset-0 z-[100] flex items-end justify-center bg-black/60 p-4 sm:items-center";
+  overlay.addEventListener("click", event => {
+    if (event.target === overlay) { closePmTasksModal(); return; }
+    const button = event.target.closest("[data-pm-act]");
+    if (button) handlePmTaskAct(button.dataset.pmAct, button.dataset.task || "");
   });
-  
-  // Reload to reflect any changes
-  await window.loadPmOrdersBoard();
-};
-
-window.showNotDoneReason = function(ticketId, taskId) {
-  const reason = prompt(label("أدخل سبب عدم التنفيذ (مطلوب):", "Enter reason for not done (required):"));
-  if (reason === null) return; // User cancelled
-  if (!reason.trim()) {
-    alert(label("السبب مطلوب.", "Reason is required."));
-    return;
-  }
-  window.updatePmTask(ticketId, taskId, 'not_done', reason.trim());
-};
-
-window.updatePmTask = async function(ticketId, taskId, status, reason = null) {
-  if (!canPlanPmOrders()) {
-    alert(label("ليست لديك صلاحية تحديث مهام PM.", "You are not allowed to update PM tasks."));
-    return;
-  }
-  
-  const result = await updatePmTaskApi(ticketId, taskId, { status, reason });
-  if (result.status === "success") {
-    // Small toast-like feedback
-    const msg = status === "done" ? label("تم تسجيل التنفيذ ✅", "Execution recorded ✅") : label("تم تسجيل عدم التنفيذ ❌", "Not done recorded ❌");
-    console.log(msg);
-  } else {
-    alert(`${label("فشل التحديث:", "Update failed:")} ${result.message || ""}`);
-  }
+  document.body.appendChild(overlay);
+  document.addEventListener("keydown", onPmModalKey);
+  renderPmTasksModal();
 };
 
 window.completePmOrder = async function(ticketId) {
-  if (!canPlanPmOrders()) {
-    alert(label("ليست لديك صلاحية إنهاء أوامر PM.", "You are not allowed to complete PM orders."));
-    return;
-  }
   const order = pmOrders.find(item => item.id === ticketId);
   if (!order) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
-    return;
+    return false;
   }
-  
-  const pmTasks = order.pmTasks || [];
-  const doneCount = pmTasks.filter(t => t.status === "done").length;
-  const notDoneCount = pmTasks.filter(t => t.status === "not_done").length;
-  const pendingCount = pmTasks.filter(t => t.status === "pending").length;
-  
+  if (!canWorkOnOrder(order)) {
+    alert(label("ليست لديك صلاحية إنهاء أوامر PM.", "You are not allowed to complete PM orders."));
+    return false;
+  }
+  if (!isPmEditable(order)) {
+    alert(label("لا يمكن إنهاء هذا الأمر في حالته الحالية.", "This order cannot be completed in its current state."));
+    return false;
+  }
+  const tasks = order.pmTasks || [];
+  const done = tasks.filter(t => t.status === "done").length;
+  const notDone = tasks.filter(t => t.status === "not_done").length;
+  const pending = tasks.length - done - notDone;
+  const name = order.issueId || order.id;
   const msg = label(
-    `أمر PM: ${order.issueId || order.id}\n` +
-    `✅ منفذة: ${doneCount} | ❌ لم تنفذ: ${notDoneCount} | ⏳ معلقة: ${pendingCount}\n\n` +
-    `المهام المعلقة ستُسجل كـ "لم يتم تنفيذها" مع سبب تلقائي.\n` +
-    `إذا بقيت مهام غير منفذة، سيكون الأمر "مكتمل جزئياً".\n\n` +
-    `تأكيد الإنهاء؟`,
-    `PM Order: ${order.issueId || order.id}\n` +
-    `✅ Done: ${doneCount} | ❌ Not Done: ${notDoneCount} | ⏳ Pending: ${pendingCount}\n\n` +
-    `Pending tasks will be marked as "Not Done" with auto reason.\n` +
-    `If tasks remain not done, order becomes "Partially Completed".\n\n` +
-    `Confirm completion?`
+    `أمر PM: ${name}\n✅ منفذة: ${done} | ❌ لم تنفذ: ${notDone} | ⏳ معلقة: ${pending}\n\nالمهام المعلقة ستُسجل كـ "لم يتم تنفيذها" مع سبب تلقائي.\nإذا بقيت مهام غير منفذة، سيكون الأمر "مكتمل جزئياً".\n\nتأكيد الإنهاء؟`,
+    `PM Order: ${name}\n✅ Done: ${done} | ❌ Not done: ${notDone} | ⏳ Pending: ${pending}\n\nPending tasks will be marked as "Not done" with an auto reason.\nIf tasks remain not done, the order becomes "Partially completed".\n\nConfirm completion?`
   );
-  
-  if (!confirm(msg)) return;
-  
+  if (!confirm(msg)) return false;
+
   const result = await completePmOrderApi(ticketId);
-  if (result.status === "success") {
-    const { isPartial, doneCount: d, notDoneCount: n } = result.data;
-    alert(label(
-      `تم إنهاء الأمر ${isPartial ? "جزئياً" : "كاملاً"}.\n` +
-      `✅ منفذة: ${d} | ❌ غير منفذة: ${n}\n` +
-      `${isPartial ? "يمكنك متابعة المهام المتبقية من زر 'متابعة المتبقي'." : "جميع المهام تمت بنجاح."}`,
-      `Order completed ${isPartial ? "partially" : "fully"}.\n` +
-      `✅ Done: ${d} | ❌ Not Done: ${n}\n` +
-      `${isPartial ? "Follow up remaining tasks via 'Follow-up Remaining' button." : "All tasks completed successfully."}`
-    ));
-    await window.loadPmOrdersBoard();
-  } else {
+  if (result.status !== "success") {
     alert(`${label("فشل الإنهاء:", "Completion failed:")} ${result.message || ""}`);
+    return false;
   }
+  const { isPartial, doneCount, notDoneCount } = result.data;
+  alert(label(
+    `تم إنهاء الأمر ${isPartial ? "جزئياً" : "كاملاً"}.\n✅ منفذة: ${doneCount} | ❌ غير منفذة: ${notDoneCount}\n${isPartial ? "يمكنك متابعة المهام المتبقية من زر 'متابعة المتبقي' أو إعادة الجدولة." : "جميع المهام تمت بنجاح."}`,
+    `Order completed ${isPartial ? "partially" : "fully"}.\n✅ Done: ${doneCount} | ❌ Not done: ${notDoneCount}\n${isPartial ? "Use 'Follow-up remaining' or 'Reschedule' for the remaining tasks." : "All tasks completed successfully."}`
+  ));
+  await window.loadPmOrdersBoard();
+  return true;
 };
 
 window.createFollowupFromRemaining = async function(ticketId) {
@@ -644,22 +773,24 @@ window.createFollowupFromRemaining = async function(ticketId) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
     return;
   }
-  
+  if (order.followupTicketId) {
+    alert(label("تم إنشاء أمر متابعة لهذا الأمر مسبقاً.", "A follow-up order already exists."));
+    return;
+  }
   const remainingTasks = order.remainingTasks || [];
   if (!remainingTasks.length) {
     alert(label("لا توجد مهام متبقية للمتابعة.", "No remaining tasks to follow up."));
     return;
   }
-  
-  const title = prompt(label("عنوان أمر المتابعة:", "Follow-up order title:"), `متابعة PM - ${order.issueId || order.id}`);
-  if (!title) return;
-  
-  const description = prompt(label("وصف أمر المتابعة:", "Follow-up order description:"), `مهام متبقية من PM ${ticketId}: ${remainingTasks.map(t => t.description).join(", ")}`);
-  if (!description) return;
-  
-  const result = await createFollowupFromRemainingTasksApi(ticketId, { title, description });
+  const name = order.issueId || order.id;
+  const title = prompt(label("عنوان أمر المتابعة:", "Follow-up order title:"), `${label("متابعة PM", "PM follow-up")} - ${name}`);
+  if (!title || !title.trim()) return;
+  const description = prompt(label("وصف أمر المتابعة:", "Follow-up order description:"), `${label("مهام متبقية من PM", "Remaining tasks from PM")} ${name}: ${remainingTasks.map(t => t.description).join(", ")}`);
+  if (!description || !description.trim()) return;
+
+  const result = await createFollowupFromRemainingTasksApi(ticketId, { title: title.trim(), description: description.trim() });
   if (result.status === "success") {
-    alert(label(`تم إنشاء أمر متابعة جديد: ${result.data.followupTicketId}`, `Follow-up order created: ${result.data.followupTicketId}`));
+    alert(label(`تم إنشاء أمر متابعة جديد: ${result.data.unifiedNumber || result.data.followupTicketId}`, `Follow-up order created: ${result.data.unifiedNumber || result.data.followupTicketId}`));
     await window.loadPmOrdersBoard();
   } else {
     alert(`${label("فشل إنشاء المتابعة:", "Follow-up creation failed:")} ${result.message || ""}`);
@@ -676,7 +807,6 @@ window.reschedulePmOrder = async function(ticketId) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
     return;
   }
-  
   const techResult = await fetchTechniciansApi();
   if (techResult.status !== "success") {
     alert(techResult.message || label("تعذر تحميل قائمة الفنيين.", "Could not load technicians."));
@@ -687,28 +817,33 @@ window.reschedulePmOrder = async function(ticketId) {
     { value: "", label: unassignedLabel() },
     ...technicians.map(tech => ({ value: `${tech.id}::${tech.name}`, label: `${tech.name} (${tech.role})` }))
   ];
-  
+  if (order.assignedToUid && !technicians.some(tech => tech.id === order.assignedToUid)) {
+    technicianOptions.push({ value: `${order.assignedToUid}::${order.assignedTo}`, label: order.assignedTo });
+  }
+
   const values = await openActionModal({
-    title: `${label("إعادة جدولة أمر PM", "Reschedule PM Order")} · ${order.issueId || order.id}`,
+    title: `${label("إعادة جدولة أمر PM", "Reschedule PM order")} · ${order.issueId || order.id}`,
     submitLabel: label("حفظ", "Save"),
     fields: [
-      { id: "plannedDate", label: label("موعد التنفيذ الجديد", "New Planned Date"), type: "date", defaultValue: "" },
+      { id: "plannedDate", label: label("موعد التنفيذ الجديد (مطلوب)", "New planned date (required)"), type: "date", defaultValue: "" },
       { id: "assignedTo", label: label("الفني (اختياري)", "Technician (optional)"), type: "select", defaultValue: order.assignedToUid ? `${order.assignedToUid}::${order.assignedTo}` : "", options: technicianOptions },
-      { id: "maintenanceNotes", label: label("ملاحظات إعادة الجدولة", "Rescheduling Notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" }
+      { id: "maintenanceNotes", label: label("ملاحظات إعادة الجدولة", "Rescheduling notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" }
     ]
   });
-  
   if (!values) return;
-  
+  if (!String(values.plannedDate || "").trim()) {
+    alert(label("حدد موعد التنفيذ الجديد.", "Please choose the new planned date."));
+    return;
+  }
+
   const [assignedToUid, ...assignedNameParts] = String(values.assignedTo || "").split("::");
-  const assignedTo = assignedNameParts.join("::");
-  
   const result = await reschedulePmTasksApi(ticketId, {
     plannedDate: values.plannedDate,
-    assignedTo: assignedTo || "",
-    assignedToUid: assignedToUid || ""
+    assignedTo: assignedNameParts.join("::") || "",
+    assignedToUid: assignedToUid || "",
+    maintenanceNotes: values.maintenanceNotes
   });
-  
+
   if (result.status === "success") {
     alert(label("تمت إعادة الجدولة بنجاح.", "Rescheduled successfully."));
     await window.loadPmOrdersBoard();
@@ -724,10 +859,10 @@ window.exportPmOrders = async function(format) {
   }
 
   // إذا تم تحديد أوامر بالـ checkboxes، يتم تصدير المحدد فقط؛ وإلا تصدير نتائج الفلتر
-  const hasSelected = selectedOrderIds.size > 0;
-  const data = hasSelected
-    ? pmOrders.filter(order => selectedOrderIds.has(order.id))
-    : filteredPmOrders();
+  const filtered = filteredPmOrders();
+  const selectedData = filtered.filter(order => selectedOrderIds.has(order.id));
+  const hasSelected = selectedData.length > 0;
+  const data = hasSelected ? selectedData : filtered;
 
   if (!data.length) {
     alert(label("لا توجد بيانات مطابقة للتصدير.", "No matching data to export."));
@@ -745,6 +880,7 @@ window.exportPmOrders = async function(format) {
     label("وصف المهمة", "Task description"),
     label("الأولوية", "Priority"),
     label("الحالة", "Status"),
+    label("المهام المنفذة", "Tasks done"),
     label("تاريخ الإنشاء", "Created at"),
     label("موعد التنفيذ المخطط", "Planned date"),
     label("الفني / الفريق", "Assigned technician / team"),
@@ -764,6 +900,7 @@ window.exportPmOrders = async function(format) {
     order.description || "",
     order.priority || "",
     pmStatusLabel(order.pmStatus || "unplanned"),
+    (() => { const st = taskStats(order); return st.total ? `${st.done}/${st.total}` : ""; })(),
     formatDisplayDate(order.createdAt),
     formatDisplayDate(order.plannedDate) || unscheduledLabel(),
     order.assignedTo || unassignedLabel(),
@@ -788,7 +925,7 @@ window.exportPmOrders = async function(format) {
     ? label("تقرير وخطة مهام الصيانة الوقائية (PM) عند توقف الخط", "Line Downtime PM Work Orders Report")
     : label("تقرير أوامر الصيانة الوقائية", "Preventive Maintenance Work Orders Report");
 
-  const filename = `pm-work-orders-${new Date().toISOString().slice(0, 10)}`;
+  const filename = `pm-work-orders-${localDateKey()}`;
 
   if (format === "excel") {
     await exportToExcel(title, headers, rows, filename, { sheetName: label("أوامر PM", "PM Orders") });
