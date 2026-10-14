@@ -65,6 +65,8 @@ export {
   updatePmOrderApi,
   setPmDowntimeApi,
   initializePmTasksApi,
+  addPmTaskApi,
+  deletePmTaskApi,
   updatePmTaskApi,
   completePmOrderApi,
   createFollowupFromRemainingTasksApi,
@@ -95,7 +97,22 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
+export {
+  savePmApi,
+  fetchPmRecordsApi,
+  fetchPmRecordsForSearchApi,
+  PM_FREQUENCIES,
+  getFrequencyLabel,
+  calculateNextDueDate,
+  calculateDueStatus,
+  buildPlanDocId,
+  fetchPmPlansApi,
+  subscribeToPmPlansApi,
+  savePmPlanApi,
+  deletePmPlanApi,
+  savePmExecutionApi,
+  fetchPmExecutionsApi
+} from "./pmApi.js";
 
 export {
   saveSuggestionApi,

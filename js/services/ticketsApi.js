@@ -1881,15 +1881,14 @@ export async function initializePmTasksApi(ticketId, tasks = null) {
     const stageError = pmTaskStageError(currentData);
     if (stageError) return { status: "error", message: stageError };
 
-    // مهام افتراضية من نموذج PM (checklist)
+    // مهام افتراضية: المهمة الأصلية رقم (1) فقط بدون إضافة المهام (2 و3 و4) تلقائياً
+    const origDesc = (currentData.description || "").trim() || "صيانة وقائية دورية";
     const defaultTasks = tasks || [
-      { id: "hydraulic", description: "فحص ضغط الهيدروليك" },
-      { id: "filters", description: "تنظيف الفلاتر ونظام التبريد" },
-      { id: "lubrication", description: "التشحيم والتزييت الدوري" }
+      { id: "task_1", description: origDesc }
     ];
 
     const pmTasks = defaultTasks.map((task, index) => ({
-      id: task.id || `task_${index}`,
+      id: task.id || `task_${index + 1}`,
       description: task.description,
       status: "pending", // pending, done, not_done
       reason: null,
@@ -1907,6 +1906,66 @@ export async function initializePmTasksApi(ticketId, tasks = null) {
 
   } catch (error) {
     console.error("Error initializing PM tasks:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * إضافة مهمة PM جديدة يدوياً
+ */
+export async function addPmTaskApi(ticketId, description) {
+  const clean = String(description || "").trim();
+  if (!clean) return { status: "error", message: "وصف المهمة مطلوب" };
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) return { status: "error", message: "أمر PM غير موجود" };
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - لا يمكن إضافة مهام" };
+    }
+    const currentTasks = Array.isArray(currentData.pmTasks) ? [...currentData.pmTasks] : [];
+    const newTask = {
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      description: clean,
+      status: "pending",
+      reason: null,
+      completedAt: null,
+      completedBy: null,
+      completedByUid: null
+    };
+    const pmTasks = [...currentTasks, newTask];
+    await updateDoc(ticketRef, stampUpdate({ pmTasks }));
+    return { status: "success", data: newTask };
+  } catch (error) {
+    console.error("Error adding PM task:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * حذف مهمة PM محددة
+ */
+export async function deletePmTaskApi(ticketId, taskId) {
+  if (!taskId) return { status: "error", message: "معرف المهمة مطلوب" };
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) return { status: "error", message: "أمر PM غير موجود" };
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - لا يمكن حذف مهام" };
+    }
+    const currentTasks = Array.isArray(currentData.pmTasks) ? currentData.pmTasks : [];
+    const pmTasks = currentTasks.filter(t => t.id !== taskId);
+    await updateDoc(ticketRef, stampUpdate({ pmTasks }));
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error deleting PM task:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }

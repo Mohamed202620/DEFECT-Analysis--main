@@ -1015,6 +1015,25 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // pmPlans - خطط الصيانة الوقائية الدورية لكل ماكينة
+    // ==========================================================
+    match /pmPlans/{planId} {
+      allow read: if isActive();
+      allow create, update: if isActive()
+                            && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      allow delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // pmExecutions - سجلات التنفيذ الفعلي لخطط PM الدورية
+    // ==========================================================
+    match /pmExecutions/{executionId} {
+      allow read: if isActive();
+      allow create: if isActive();
+      allow update, delete: if isAdmin() || isManagerRole();
+    }
+
+    // ==========================================================
     // counters - عدادات الترقيم الموحد لكل نوع سجل
     // يتم إدارتها عبر Firestore Transaction من العميل مباشرة (خطة Spark المجانية)
     // السماح بالقراءة للجميع، والكتابة فقط للزيادة الذرّية بـ 1 مع الحفاظ على البادئة
