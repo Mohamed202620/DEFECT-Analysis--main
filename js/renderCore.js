@@ -97,6 +97,16 @@ if (
 
 }
 
+if (
+  activePage === "pmOrders" &&
+  currentPage !== "pmOrders" &&
+  typeof window.cleanupPmOrdersBoard === "function"
+) {
+
+  window.cleanupPmOrdersBoard();
+
+}
+
 // ========================================================
 // KAIZEN BOARD CLEANUP
 // (لو كنا في صفحة 'kaizenBoard' وهنغادرها لصفحة تانية، اقفل الـ
