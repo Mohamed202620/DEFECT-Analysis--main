@@ -493,6 +493,15 @@ window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
 // بناء وعرض النتائج المفلترة
 // ============================================================
 
+function isTicketPm(r) {
+  if (!r || r._kind !== 'ticket') return false;
+  const mt = String(r.maintenanceType || '').toUpperCase();
+  const typ = String(r.type || '').toUpperCase();
+  const ityp = String(r.issueType || '').toUpperCase();
+  const cat = String(r.category || '').toUpperCase();
+  return mt === 'PM' || typ === 'PM' || ityp === 'PM' || cat === 'PM' || cat.includes('وقائية') || mt.includes('PM');
+}
+
 let lastFilteredList = [];
 
 function renderResults() {
@@ -527,15 +536,19 @@ function renderResults() {
   let list = [...allRecords];
 
   if (currentType !== 'all') {
-    list = list.filter(r => r._kind === currentType);
+    if (currentType === 'pm') {
+      list = list.filter(r => r._kind === 'pm' || isTicketPm(r));
+    } else {
+      list = list.filter(r => r._kind === currentType);
+    }
   }
 
   // فلتر مسار الصيانة (CM / PM)
   if (routeFilter !== 'all') {
     if (routeFilter === 'pm') {
-      list = list.filter(r => r._kind === 'pm' || (r._kind === 'ticket' && String(r.maintenanceType || '').toUpperCase() === 'PM'));
+      list = list.filter(r => r._kind === 'pm' || isTicketPm(r));
     } else if (routeFilter === 'cm') {
-      list = list.filter(r => r._kind === 'ticket' && String(r.maintenanceType || '').toUpperCase() !== 'PM');
+      list = list.filter(r => r._kind === 'ticket' && !isTicketPm(r));
     }
   }
 
@@ -669,7 +682,7 @@ window.exportMaintenanceSearchResults = async function () {
   const rows = lastFilteredList.map(record => {
     const kind = record._kind;
     let kindStr = kind;
-    const isTicketPm = String(record.maintenanceType || '').toUpperCase() === 'PM';
+    const isTicketPm = isTicketPm(record);
     if (isAr) {
       kindStr = kind === 'ticket' ? (isTicketPm ? 'صيانة وقائية (PM)' : 'عطل (CM)') : (kind === 'suggestion' ? 'مقترح' : 'صيانة وقائية');
     } else {

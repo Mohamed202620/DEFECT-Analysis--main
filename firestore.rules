@@ -1018,7 +1018,7 @@ service cloud.firestore {
     // pmPlans - خطط الصيانة الوقائية الدورية لكل ماكينة
     // ==========================================================
     match /pmPlans/{planId} {
-      allow read: if isActive();
+      allow read: if isSignedIn();
       allow create, update: if isActive()
                             && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
       allow delete: if isAdmin();
@@ -1028,8 +1028,7 @@ service cloud.firestore {
     // pmExecutions - سجلات التنفيذ الفعلي لخطط PM الدورية
     // ==========================================================
     match /pmExecutions/{executionId} {
-      allow read: if isActive();
-      allow create: if isActive();
+      allow read, create: if isSignedIn();
       allow update, delete: if isAdmin() || isManagerRole();
     }
 

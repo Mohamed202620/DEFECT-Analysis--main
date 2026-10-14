@@ -327,24 +327,24 @@ function renderPlanCard(plan) {
     : "";
 
   return `
-    <div class="rounded-xl border border-gray-800 bg-[#1E293B] hover:border-gray-700 transition p-4 space-y-3 flex flex-col justify-between shadow-md">
+    <div class="rounded-2xl border border-gray-800/80 bg-gradient-to-br from-[#1E293B] via-[#1E293B] to-[#0F172A] hover:border-blue-500/45 transition-all duration-200 p-4 space-y-3.5 flex flex-col justify-between shadow-xl">
       <div>
-        <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-2.5">
+        <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-3">
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-base font-black text-white">${e(plan.machine)}</span>
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
+              <span class="text-base font-black text-white tracking-tight">${e(plan.machine)}</span>
+              <span class="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
             </div>
-            <div class="text-[11px] text-gray-400 mt-0.5">
+            <div class="text-[11px] text-gray-400 mt-1 font-medium">
               ${plan.department === "frontend" ? "Front-End" : "Back-End"} · ⏱️ ${plan.estimatedDurationMinutes || 30} ${label("دقيقة", "min")}
             </div>
           </div>
-          <span class="rounded px-2 py-0.5 text-[10px] font-bold ${dueInfo.badgeClass} whitespace-nowrap">
+          <span class="rounded-full px-2.5 py-1 text-[10px] font-bold ${dueInfo.badgeClass} whitespace-nowrap shadow-sm">
             ${dueInfo.label}
           </span>
         </div>
 
-        <div class="mt-2.5 space-y-1.5 text-xs">
+        <div class="mt-3 space-y-2 text-xs">
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("الدورية:", "Frequency:")}</span>
             <span class="font-bold text-amber-300">🔄 ${e(freqLabel)}</span>
@@ -352,42 +352,42 @@ function renderPlanCard(plan) {
 
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("آخر تنفيذ:", "Last Run:")}</span>
-            <span class="text-gray-200 text-[11px] flex items-center gap-1">
+            <span class="text-gray-200 text-[11px] flex items-center gap-1.5 font-mono">
               ${lastExecText} ${lastResultBadge}
             </span>
           </div>
 
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("الموعد القادم:", "Next Due:")}</span>
-            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-400 font-black' : 'text-emerald-300'}">
+            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-400 font-black' : 'text-emerald-300'} font-mono">
               📅 ${formatDisplayDate(plan.nextDueDate) || unscheduledLabel()}
             </span>
           </div>
         </div>
 
         <!-- قائمة المهام مختصرة -->
-        <div class="mt-3 bg-[#0F172A] rounded-lg p-2.5 border border-gray-800/80">
-          <div class="flex items-center justify-between text-[11px] font-bold text-gray-300 mb-1.5">
+        <div class="mt-3.5 bg-[#0F172A] rounded-xl p-3 border border-gray-800/80 shadow-inner">
+          <div class="flex items-center justify-between text-[11px] font-bold text-gray-300 mb-2">
             <span>📋 ${label("مهام الصيانة المحددة", "Maintenance Tasks")} (${tasks.length})</span>
           </div>
-          <ul class="text-[11px] text-gray-400 space-y-1">
+          <ul class="text-[11px] text-gray-400 space-y-1.5">
             ${tasks.slice(0, 3).map((t, idx) => `
-              <li class="truncate flex items-center gap-1.5">
-                <span class="text-blue-400 text-[9px]">▪</span>
-                <span>${idx + 1}. ${e(t.text || t.description || "")}</span>
+              <li class="truncate flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                <span class="truncate">${idx + 1}. ${e(t.text || t.description || "")}</span>
               </li>
             `).join("")}
-            ${tasks.length > 3 ? `<li class="text-[10px] text-gray-500 italic">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
+            ${tasks.length > 3 ? `<li class="text-[10px] text-gray-500 italic ps-3.5">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
           </ul>
         </div>
       </div>
 
       <!-- أزرار الإجراءات -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-800">
+      <div class="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-800/80">
         <button
           type="button"
           onclick="window.openRecordPmExecutionModal('${escapeJsArg(plan.id)}')"
-          class="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-[11px] transition text-center"
+          class="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs transition-all duration-150 text-center shadow-md cursor-pointer"
         >
           ▶️ ${label("تسجيل تنفيذ", "Execute")}
         </button>
@@ -396,7 +396,7 @@ function renderPlanCard(plan) {
           type="button"
           onclick="window.printMachinePmPlanCard('${escapeJsArg(plan.id)}')"
           title="${label("طباعة كارت PM للمعدة", "Print PM Card")}"
-          class="py-1.5 px-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-bold text-[11px] transition"
+          class="py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
         >
           🖨️
         </button>
@@ -406,7 +406,7 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.openAddEditPlanModal('${escapeJsArg(plan.id)}')"
             title="${label("تعديل الخطة والمهام", "Edit Plan & Tasks")}"
-            class="py-1.5 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
+            class="py-2 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
           >
             ✏️
           </button>
@@ -416,7 +416,7 @@ function renderPlanCard(plan) {
           type="button"
           onclick="window.openPmExecutionsHistoryModal('${escapeJsArg(plan.id)}')"
           title="${label("سجل التنفيذات السابقة", "Execution History")}"
-          class="py-1.5 px-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-bold text-[11px] transition"
+          class="py-2 px-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-gray-300 hover:text-white font-bold text-xs transition-all cursor-pointer border border-gray-700/80 shadow-sm"
         >
           📜
         </button>
@@ -426,7 +426,7 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.deletePmPlan('${escapeJsArg(plan.id)}')"
             title="${label("حذف الخطة", "Delete Plan")}"
-            class="py-1.5 px-2 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-300 text-[11px] transition"
+            class="py-2 px-2.5 rounded-xl border border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-300 active:scale-95 text-xs transition-all cursor-pointer shadow-sm"
           >
             🗑️
           </button>

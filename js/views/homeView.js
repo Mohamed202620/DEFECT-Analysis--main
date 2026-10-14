@@ -217,7 +217,7 @@ export const HomeView = () => {
           ${hasPermission("suggestions") ? `
           <button
             onclick="window.navigateTo('suggestions')"
-            class="col-span-1 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
+            class="col-span-1 sm:col-span-2 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
             <span class="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/>
@@ -226,20 +226,6 @@ export const HomeView = () => {
             <div class="flex-1 min-w-0">
               <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenSubmit || 'إرسال مقترح'}</div>
               <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc || 'مقترح كايزن جديد'}</div>
-            </div>
-            <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
-          </button>
-
-          <!-- متابعة الكايزن -->
-          <button
-            onclick="window.navigateTo('kaizenBoard')"
-            class="col-span-1 relative group dyn-card border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/60 via-amber-900/30 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center gap-2.5 sm:gap-3 text-start transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md cursor-pointer">
-            <span class="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform text-xl">
-              🏆
-            </span>
-            <div class="flex-1 min-w-0">
-              <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenTrack || 'متابعة الكايزن'}</div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenTrackDesc || 'مراجعة واعتماد المقترحات'}</div>
             </div>
             <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
           </button>
