@@ -59,13 +59,10 @@ const [pmApiSource, managerDesktopSource] = await Promise.all([
   readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
   readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
 ]);
-await t("manager dashboard counts PM records without downloading the collection", () => {
-  const countApi = pmApiSource.match(/export async function fetchPmRecordCountApi\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
-  assert.match(countApi, /getCountFromServer/);
-  assert.doesNotMatch(countApi, /getDocs/);
-  assert.match(managerDesktopSource, /fetchPmRecordCountApi\(\)/);
+await t("manager dashboard PM card uses PM work orders of the current month", () => {
+  assert.match(managerDesktopSource, /fetchPmOrdersApi\(\)/);
   assert.doesNotMatch(managerDesktopSource, /fetchPmRecordsApi\(\)/);
-  assert.match(managerDesktopSource, /pmRecordCount \?\? '--'/);
+  assert.match(managerDesktopSource, /pmMonthTotal/);
   assert.match(managerDesktopSource, /let _managerDesktopLoadInFlight = null/);
   assert.match(managerDesktopSource, /if \(!_managerDesktopLoadInFlight\)/);
 });
