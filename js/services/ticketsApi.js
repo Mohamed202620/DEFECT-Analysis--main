@@ -1778,6 +1778,15 @@ export function subscribeToPmOrdersApi(callback) {
   };
 }
 
+const PM_TASK_STAGES = ["assigned", "in_progress"];
+const PM_CLOSED_STATUSES = ["completed", "completed_partial"];
+// قواعد الأمان تسمح بتعديل مهام PM فقط لبلاغ "مُسند" أو "قيد التنفيذ"
+function pmTaskStageError(data) {
+  return PM_TASK_STAGES.includes(data?.status)
+    ? null
+    : "يجب إسناد أمر PM لفني وبدء التنفيذ (حالة البلاغ: مُسند / قيد التنفيذ) قبل تنفيذ المهام";
+}
+
 export async function updatePmOrderApi(ticketId, changes) {
   const allowedStatuses = ["unplanned", "planned", "in_progress", "completed", "deferred"];
   if (!allowedStatuses.includes(changes?.pmStatus)) {
@@ -1829,34 +1838,37 @@ export async function updatePmOrderApi(ticketId, changes) {
  */
 export async function initializePmTasksApi(ticketId, tasks = null) {
   const allowedStatuses = ["unplanned", "planned", "in_progress"];
-  
+
   try {
     const ticketRef = doc(db, "tickets", ticketId);
     const ticketSnap = await getDoc(ticketRef);
-    
+
     if (!ticketSnap.exists()) {
       return { status: "error", message: "أمر PM غير موجود" };
     }
-    
+
     const currentData = ticketSnap.data();
     const pmStatus = currentData.pmStatus || "unplanned";
-    
+
     if (!allowedStatuses.includes(pmStatus)) {
       return { status: "error", message: "لا يمكن تهيئة المهام في الحالة الحالية" };
     }
-    
-    // إذا كانت مهام موجودة بالفعل، لا تُ sobrescribir
-    if (currentData.pmTasks && Array.isArray(currentData.pmTasks) && currentData.pmTasks.length > 0) {
+
+    // المهام الموجودة لا تُستبدل
+    if (Array.isArray(currentData.pmTasks) && currentData.pmTasks.length > 0) {
       return { status: "success", message: "المهام مهيأة بالفعل", data: currentData.pmTasks };
     }
-    
+
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
     // مهام افتراضية من نموذج PM (checklist)
     const defaultTasks = tasks || [
-      { id: "hydraulic", description: "فحص ضغط الهيدروليك", status: "pending" },
-      { id: "filters", description: "تنظيف الفلاتر ونظام التبريد", status: "pending" },
-      { id: "lubrication", description: "التشحيم والتزييت الدوري", status: "pending" }
+      { id: "hydraulic", description: "فحص ضغط الهيدروليك" },
+      { id: "filters", description: "تنظيف الفلاتر ونظام التبريد" },
+      { id: "lubrication", description: "التشحيم والتزييت الدوري" }
     ];
-    
+
     const pmTasks = defaultTasks.map((task, index) => ({
       id: task.id || `task_${index}`,
       description: task.description,
@@ -1866,14 +1878,14 @@ export async function initializePmTasksApi(ticketId, tasks = null) {
       completedBy: null,
       completedByUid: null
     }));
-    
+
     await updateDoc(ticketRef, stampUpdate({
       pmTasks,
       pmStatus: pmStatus === "unplanned" ? "planned" : pmStatus
     }));
-    
+
     return { status: "success", data: pmTasks };
-    
+
   } catch (error) {
     console.error("Error initializing PM tasks:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
@@ -1884,46 +1896,59 @@ export async function initializePmTasksApi(ticketId, tasks = null) {
  * تحديث مهمة PM واحدة (تم التنفيذ / لم يتم التنفيذ)
  */
 export async function updatePmTaskApi(ticketId, taskId, { status, reason = null }) {
-  if (!["done", "not_done"].includes(status)) {
+  if (!["pending", "done", "not_done"].includes(status)) {
     return { status: "error", message: "حالة مهمة غير صالحة" };
   }
-  
-  if (status === "not_done" && !reason?.trim()) {
+
+  const cleanReason = String(reason || "").trim();
+  if (status === "not_done" && !cleanReason) {
     return { status: "error", message: "سبب عدم التنفيذ مطلوب" };
   }
-  
+
   try {
     const ticketRef = doc(db, "tickets", ticketId);
     const ticketSnap = await getDoc(ticketRef);
-    
+
     if (!ticketSnap.exists()) {
       return { status: "error", message: "أمر PM غير موجود" };
     }
-    
+
     const currentData = ticketSnap.data();
-    const pmTasks = currentData.pmTasks || [];
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
+    const currentPmStatus = currentData.pmStatus || "unplanned";
+    if (PM_CLOSED_STATUSES.includes(currentPmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - أعد جدولته أولاً لتعديل المهام" };
+    }
+
+    const pmTasks = (currentData.pmTasks || []).map(t => ({ ...t }));
     const taskIndex = pmTasks.findIndex(t => t.id === taskId);
-    
+
     if (taskIndex === -1) {
       return { status: "error", message: "المهمة غير موجودة" };
     }
-    
-    const myUid = localStorage.getItem("userId") || "";
-    const myName = localStorage.getItem("name") || "";
-    
+
+    const isPending = status === "pending";
     pmTasks[taskIndex] = {
       ...pmTasks[taskIndex],
       status,
-      reason: status === "not_done" ? reason.trim() : null,
-      completedAt: new Date().toISOString(),
-      completedBy: myName,
-      completedByUid: myUid
+      reason: status === "not_done" ? cleanReason : null,
+      completedAt: isPending ? null : new Date().toISOString(),
+      completedBy: isPending ? null : (localStorage.getItem("name") || ""),
+      completedByUid: isPending ? null : (localStorage.getItem("userId") || "")
     };
-    
-    await updateDoc(ticketRef, stampUpdate({ pmTasks }));
-    
+
+    const changes = { pmTasks };
+    // أول تنفيذ فعلي ينقل الأمر تلقائياً إلى "قيد التنفيذ"
+    if (!isPending && ["unplanned", "planned"].includes(currentPmStatus)) {
+      changes.pmStatus = "in_progress";
+    }
+
+    await updateDoc(ticketRef, stampUpdate(changes));
+
     return { status: "success", data: pmTasks[taskIndex] };
-    
+
   } catch (error) {
     console.error("Error updating PM task:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
@@ -1939,71 +1964,71 @@ export async function completePmOrderApi(ticketId) {
   try {
     const ticketRef = doc(db, "tickets", ticketId);
     const ticketSnap = await getDoc(ticketRef);
-    
+
     if (!ticketSnap.exists()) {
       return { status: "error", message: "أمر PM غير موجود" };
     }
-    
+
     const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "هذا الأمر منتهٍ بالفعل" };
+    }
+
     const pmTasks = currentData.pmTasks || [];
-    
+
     if (pmTasks.length === 0) {
       return { status: "error", message: "لا توجد مهام محددة لهذا الأمر" };
     }
-    
-    const doneTasks = pmTasks.filter(t => t.status === "done");
-    const notDoneTasks = pmTasks.filter(t => t.status === "not_done");
-    const pendingTasks = pmTasks.filter(t => t.status === "pending");
-    
+
+    const nowIso = new Date().toISOString();
+    const myUid = localStorage.getItem("userId") || "";
+    const myName = localStorage.getItem("name") || "";
+
     // المهام المعلقة تُعتبر "لم يتم تنفيذها" تلقائياً عند الإنهاء
-    const allNotDone = [...notDoneTasks, ...pendingTasks.map(t => ({ ...t, status: "not_done", reason: "لم يتم التنفيذ عند الإنهاء", completedAt: new Date().toISOString() }))];
-    
-    const isPartial = allNotDone.length > 0;
-    const newPmStatus = isPartial ? "completed_partial" : "completed";
-    
-    // تحديث المهام: المهام المعلقة تصبح not_done مع سبب تلقائي
-    const updatedTasks = pmTasks.map(t => {
-      if (t.status === "pending") {
-        return {
+    const updatedTasks = pmTasks.map(t => t.status === "done" || t.status === "not_done"
+      ? t
+      : {
           ...t,
           status: "not_done",
           reason: "لم يتم التنفيذ عند الإنهاء",
-          completedAt: new Date().toISOString(),
-          completedBy: localStorage.getItem("name") || "",
-          completedByUid: localStorage.getItem("userId") || ""
-        };
-      }
-      return t;
-    });
-    
-    const myUid = localStorage.getItem("userId") || "";
-    const myName = localStorage.getItem("name") || "";
-    
+          completedAt: nowIso,
+          completedBy: myName,
+          completedByUid: myUid
+        });
+
+    const doneTasks = updatedTasks.filter(t => t.status === "done");
+    const notDoneTasks = updatedTasks.filter(t => t.status === "not_done");
+    const isPartial = notDoneTasks.length > 0;
+    const newPmStatus = isPartial ? "completed_partial" : "completed";
+
+    // ملاحظة: لا نغيّر status البلاغ نفسه - قاعدة الأمان الخاصة بمهام PM
+    // لا تسمح بتغييره (الإغلاق الفعلي يتم عبر مسار البلاغات المعتاد)
     await updateDoc(ticketRef, stampUpdate({
       pmStatus: newPmStatus,
       pmTasks: updatedTasks,
-      status: "resolved", // البلاغ نفسه يُغلق كـ resolved بانتظار التأكيد
-      completedAt: new Date().toISOString(),
+      completedAt: nowIso,
       completedBy: myName,
       completedByUid: myUid,
       completedTasksCount: doneTasks.length,
-      totalTasksCount: pmTasks.length,
-      pendingTasksCount: allNotDone.length,
-      // للسماح بإنشاء أمر عمل جديد من المهام المتبقية
+      totalTasksCount: updatedTasks.length,
+      pendingTasksCount: notDoneTasks.length,
       hasRemainingTasks: isPartial,
-      remainingTasks: allNotDone.map(t => ({ id: t.id, description: t.description, reason: t.reason }))
+      remainingTasks: notDoneTasks.map(t => ({ id: t.id, description: t.description || "", reason: t.reason || "" }))
     }));
-    
-    return { 
-      status: "success", 
-      data: { 
+
+    return {
+      status: "success",
+      data: {
         pmStatus: newPmStatus,
         doneCount: doneTasks.length,
-        notDoneCount: allNotDone.length,
+        notDoneCount: notDoneTasks.length,
         isPartial
       }
     };
-    
+
   } catch (error) {
     console.error("Error completing PM order:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
@@ -2016,54 +2041,66 @@ export async function completePmOrderApi(ticketId) {
  */
 export async function createFollowupFromRemainingTasksApi(ticketId, { title, description }) {
   try {
-    const ticketRef = doc(db, "tickets", ticketId);
-    const ticketSnap = await getDoc(ticketRef);
-    
-    if (!ticketSnap.exists()) {
-      return { status: "error", message: "أمر PM الأصلي غير موجود" };
-    }
-    
-    const currentData = ticketSnap.data();
-    const remainingTasks = currentData.remainingTasks || [];
-    
-    if (!remainingTasks.length) {
-      return { status: "error", message: "لا توجد مهام متبقية لتحويلها" };
-    }
-    
-    // التحقق من الصلاحيات
     if (!hasFullDataAccess(getCurrentRole())) {
       return { status: "error", message: "ليست لديك صلاحية إنشاء أوامر متابعة" };
     }
-    
-    // إنشاء تذكرة جديدة (CM) من المهام المتبقية
-    const { createTicketApi } = await import("./ticketsApi.js");
-    
-    const newTicketPayload = {
-      line: currentData.line,
-      machine: currentData.machine,
-      location: currentData.location,
-      priority: currentData.priority,
-      description: description || `متابعة مهام PM غير المنفذة من الأمر ${ticketId}`,
-      category: "PM Follow-up",
-      maintenanceType: "CM", // أمر عمل تصحيحي للمهام المتبقية
-      maintenanceNotes: `مهام متبقية من PM ${ticketId}: ${remainingTasks.map(t => t.description).join(", ")}`,
-      assignedTo: currentData.assignedTo,
-      assignedToUid: currentData.assignedToUid
-    };
-    
-    const result = await createTicketApi(newTicketPayload);
-    
-    if (result.status === "success") {
-      // ربط الأمر الجديد بالأصلي
-      await updateDoc(ticketRef, stampUpdate({
-        followupTicketId: result.id
-      }));
-      
-      return { status: "success", data: { followupTicketId: result.id } };
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM الأصلي غير موجود" };
     }
-    
-    return result;
-    
+
+    const currentData = ticketSnap.data();
+    if (currentData.followupTicketId) {
+      return { status: "error", message: "تم إنشاء أمر متابعة لهذا الأمر مسبقاً" };
+    }
+
+    const remainingTasks = currentData.remainingTasks || [];
+    if (!remainingTasks.length) {
+      return { status: "error", message: "لا توجد مهام متبقية لتحويلها" };
+    }
+
+    const myName = localStorage.getItem("name") || "";
+    const myUid = localStorage.getItem("userId") || "";
+    const sourceRef = currentData.issueId || ticketId;
+    const cleanTitle = String(title || "").trim();
+
+    // بلاغ جديد (Pending) عبر المسار المعتمد؛ قواعد الإنشاء تمنع الإسناد المسبق
+    const result = await saveIssueApi({
+      issueId: `PMF-${Date.now()}`,
+      line: currentData.line || "",
+      machine: currentData.machine || "",
+      location: currentData.location || "",
+      priority: currentData.priority || "Medium",
+      category: "PM Follow-up",
+      maintenanceType: "CM",
+      description: String(description || "").trim() || `متابعة مهام PM غير المنفذة من الأمر ${sourceRef}`,
+      maintenanceNotes: `مهام متبقية من PM ${sourceRef}: ${remainingTasks.map(t => t.description).join("، ")}`,
+      ...(cleanTitle && { followupTitle: cleanTitle }),
+      linkedPmTicketId: ticketId,
+      reportedBy: myName,
+      reportedByUid: myUid,
+      reporter: {
+        name: myName,
+        job: localStorage.getItem("job") || "",
+        department: localStorage.getItem("department") || "",
+        shift: localStorage.getItem("shift") || ""
+      },
+      status: "pending",
+      createdAt: new Date().toISOString()
+    }, { skipOfflineQueue: true });
+
+    if (result.status === "success" && result.id) {
+      await updateDoc(ticketRef, stampUpdate({ followupTicketId: result.id }));
+      return { status: "success", data: { followupTicketId: result.id, unifiedNumber: result.unifiedNumber || "" } };
+    }
+
+    return result.status === "success"
+      ? { status: "error", message: "تعذر الحصول على رقم أمر المتابعة" }
+      : result;
+
   } catch (error) {
     console.error("Error creating followup from remaining tasks:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
@@ -2073,35 +2110,44 @@ export async function createFollowupFromRemainingTasksApi(ticketId, { title, des
 /**
  * إعادة جدولة المهام المتبقية (تحديث موعد التنفيذ)
  */
-export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, assignedToUid }) {
+export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, assignedToUid, maintenanceNotes }) {
   try {
-    const ticketRef = doc(db, "tickets", ticketId);
-    const ticketSnap = await getDoc(ticketRef);
-    
-    if (!ticketSnap.exists()) {
-      return { status: "error", message: "أمر PM غير موجود" };
-    }
-    
-    const currentData = ticketSnap.data();
-    
     if (!hasFullDataAccess(getCurrentRole())) {
       return { status: "error", message: "ليست لديك صلاحية إعادة جدولة أوامر PM" };
     }
-    
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+
+    if (ticketSnap.data().pmStatus === "completed") {
+      return { status: "error", message: "لا يمكن إعادة جدولة أمر مكتمل بالكامل" };
+    }
+
     const plannedDateRaw = String(plannedDate || "").trim();
     if (plannedDateRaw && Number.isNaN(new Date(plannedDateRaw).getTime())) {
       return { status: "error", message: "موعد التنفيذ غير صالح" };
     }
-    
+
+    const cleanAssignedTo = String(assignedTo || "").trim();
+    const cleanAssignedToUid = String(assignedToUid || "").trim();
+    if (!!cleanAssignedTo !== !!cleanAssignedToUid) {
+      return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
+    }
+
     await updateDoc(ticketRef, stampUpdate({
       pmStatus: "planned",
       plannedDate: plannedDateRaw || null,
-      assignedTo: String(assignedTo || "").trim() || null,
-      assignedToUid: String(assignedToUid || "").trim() || null
+      assignedTo: cleanAssignedTo || null,
+      assignedToUid: cleanAssignedToUid || null,
+      ...(maintenanceNotes !== undefined && { maintenanceNotes: String(maintenanceNotes || "").trim() })
     }));
-    
+
     return { status: "success" };
-    
+
   } catch (error) {
     console.error("Error rescheduling PM tasks:", error);
     return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
