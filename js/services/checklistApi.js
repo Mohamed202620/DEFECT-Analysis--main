@@ -94,7 +94,7 @@ async function saveChecklistRecord(type, payload) {
     return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {
     console.error(`Error saving ${type} checklist record:`, error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -128,7 +128,7 @@ export async function fetchLatestChecklistApi(machine, type) {
     return { status: "success", data: latest };
   } catch (error) {
     console.error(`Error fetching latest ${type} checklist:`, error);
-    return { status: "error", message: error.message, data: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: null };
   }
 }
 
@@ -158,6 +158,6 @@ export async function fetchChecklistHistoryApi(machine, type, maxCount = 10) {
     return { status: "success", data: records };
   } catch (error) {
     console.error(`Error fetching ${type} checklist history:`, error);
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
   }
 }

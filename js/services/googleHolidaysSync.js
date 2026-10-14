@@ -112,7 +112,7 @@ export async function syncEgyptianHolidaysFromGoogle({ silent = false } = {}) {
     return { status: "success", data: parsed, source: "google", updatedAt: getEgyptianHolidaysUpdatedAt() };
   } catch (error) {
     if (!silent) {
-      console.warn("[GoogleHolidays] فشلت المزامنة الحية من Google، سيتم استخدام آخر نسخة محفوظة محليًا:", error.message);
+      console.warn("[GoogleHolidays] فشلت المزامنة الحية من Google، سيتم استخدام آخر نسخة محفوظة محليًا:", error?.message);
     }
     const cached = getLocalEgyptianHolidays();
     return {
@@ -120,7 +120,7 @@ export async function syncEgyptianHolidaysFromGoogle({ silent = false } = {}) {
       data: cached,
       source: "cache",
       offline: true,
-      message: error.message,
+      message: error?.message || "حدث خطأ غير متوقع",
       updatedAt: getEgyptianHolidaysUpdatedAt()
     };
   }

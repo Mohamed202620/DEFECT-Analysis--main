@@ -219,7 +219,7 @@ window.confirmIssue = async function() {
       alert("❌ حدث خطأ أثناء الإرسال: " + (res?.message || "خطأ غير معروف"));
     }
   } catch (err) {
-    alert("❌ خطأ بالاتصال: " + err.message);
+    alert("❌ خطأ بالاتصال: " + (err?.message || "خطأ غير معروف"));
   } finally {
     if (btn) {
       btn.disabled = false;

@@ -96,7 +96,7 @@ export async function savePmApi(payload) {
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -129,7 +129,7 @@ export async function fetchPmRecordsApi() {
   } catch (error) {
 
     console.error("Error fetching PM records:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -143,7 +143,7 @@ export async function fetchPmRecordCountApi() {
     return { status: "success", count: countSnapshot.data().count };
   } catch (error) {
     console.error("Error counting PM records:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -177,7 +177,7 @@ export async function fetchPmRecordsForSearchApi({ isFullAccess, myName }) {
 
   } catch (error) {
     console.error("Error fetching PM records for search:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 
 }

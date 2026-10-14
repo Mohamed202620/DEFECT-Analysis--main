@@ -59,7 +59,7 @@ export async function fetchAttendancePatternApi({ forceRefresh = false } = {}) {
     } catch (e) { /* تجاهل امتلاء المساحة */ }
     return { status: "success", data: patternMemoryCache };
   } catch (error) {
-    console.warn("[AttendanceSettings] فشل جلب الـ Pattern من Firestore، سيتم استخدام الكاش المحلي:", error.message);
+    console.warn("[AttendanceSettings] فشل جلب الـ Pattern من Firestore، سيتم استخدام الكاش المحلي:", error?.message);
     try {
       const raw = localStorage.getItem(PATTERN_LOCAL_CACHE_KEY);
       patternMemoryCache = raw ? JSON.parse(raw) : { teams: { green: {}, blue: {}, red: {} }, fileName: "", updatedAt: null };
@@ -91,7 +91,7 @@ export async function saveAttendancePatternApi(teams, fileName) {
     return { status: "success", message: "تم حفظ الـ Pattern بنجاح" };
   } catch (error) {
     console.error("[AttendanceSettings] Error saving pattern:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -125,7 +125,7 @@ export async function fetchPayrollRulesApi({ forceRefresh = false } = {}) {
     } catch (e) { /* تجاهل */ }
     return { status: "success", data: rulesMemoryCache };
   } catch (error) {
-    console.warn("[AttendanceSettings] فشل جلب قواعد الإضافي من Firestore، سيتم استخدام الكاش المحلي:", error.message);
+    console.warn("[AttendanceSettings] فشل جلب قواعد الإضافي من Firestore، سيتم استخدام الكاش المحلي:", error?.message);
     try {
       const raw = localStorage.getItem(RULES_LOCAL_CACHE_KEY);
       rulesMemoryCache = raw ? { ...DEFAULT_PAYROLL_RULES, ...JSON.parse(raw) } : { ...DEFAULT_PAYROLL_RULES };
@@ -156,7 +156,7 @@ export async function savePayrollRulesApi(rules) {
     return { status: "success", message: "تم حفظ إعدادات الإضافي بنجاح" };
   } catch (error) {
     console.error("[AttendanceSettings] Error saving payroll rules:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 

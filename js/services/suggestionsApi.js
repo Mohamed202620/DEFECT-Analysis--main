@@ -142,7 +142,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -188,7 +188,7 @@ export function subscribeToSuggestionsBoardApi({ role, myName, myUid, status }, 
 
     const onErr = (error) => {
       console.error("Error subscribing to suggestions board:", error);
-      callback({ status: "error", message: error.message });
+      callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     };
 
     if (role === "admin" || role === "manager") {
@@ -247,7 +247,7 @@ export function subscribeToSuggestionsBoardApi({ role, myName, myUid, status }, 
     };
   } catch (error) {
     console.error("Error subscribing to suggestions board:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -401,7 +401,7 @@ export async function reviewSuggestionApi(suggestionId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error reviewing suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -445,7 +445,7 @@ export async function rejectSuggestionApi(suggestionId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error rejecting suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -483,7 +483,7 @@ export async function requestSuggestionRevisionApi(suggestionId, notes) {
     return { status: "success" };
   } catch (error) {
     console.error("Error requesting suggestion revision:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -518,7 +518,7 @@ export async function returnSuggestionToReviewApi(suggestionId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error returning suggestion to review:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -576,7 +576,7 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
     return { status: "success" };
   } catch (error) {
     console.error("Error resubmitting suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -624,7 +624,7 @@ export async function assignAndApproveSuggestionApi(suggestionId, { assignedTo, 
     return { status: "success" };
   } catch (error) {
     console.error("Error assigning/approving suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -685,7 +685,7 @@ export async function implementSuggestionApi(suggestionId, notes = "", afterImag
     return { status: "success" };
   } catch (error) {
     console.error("Error implementing suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -702,7 +702,7 @@ export async function fetchSuggestionLogsApi(suggestionId) {
     return { status: "success", data: items };
   } catch (error) {
     console.error("Error fetching suggestion logs:", error);
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
   }
 }
 
@@ -735,7 +735,7 @@ export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
     return { status: "success", data: items };
   } catch (error) {
     console.error("Error fetching suggestions for report:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -776,6 +776,6 @@ export async function fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName
     return { status: "success", data: Array.from(merged.values()) };
   } catch (error) {
     console.error("Error fetching suggestions for search:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }

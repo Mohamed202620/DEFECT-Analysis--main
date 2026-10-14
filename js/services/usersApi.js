@@ -246,7 +246,7 @@ export async function fetchUsers({ forceRefresh = false } = {}) {
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -486,7 +486,7 @@ export async function registerUserApi(userData) {
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -574,7 +574,7 @@ export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
 
     console.error("Error fetching managers/admins:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -635,7 +635,7 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
 
     console.error("Error fetching technicians:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -791,7 +791,7 @@ export async function updatePermissionsApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -925,7 +925,7 @@ export async function fetchCurrentUserProfileApi(forceRefresh = false) {
     return { status: "success", user: userObj };
   } catch (error) {
     console.error("Error fetching current user profile from Firestore:", error);
-    return { status: "error", message: error.message, user: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", user: null };
   }
 }
 
@@ -966,7 +966,7 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
 
     console.error("Error updating user machine department:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -1134,7 +1134,7 @@ export async function updateUserStatusApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -1240,7 +1240,7 @@ export async function deleteUserApi(userId) {
       status: "error",
 
       message:
-        error.message ||
+        error?.message ||
         "فشل حذف المستخدم"
 
     };

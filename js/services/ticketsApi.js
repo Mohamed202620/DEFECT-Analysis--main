@@ -214,7 +214,7 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {
     console.error("Error saving issue/ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -430,7 +430,7 @@ async function _syncOfflineTicketActionsApiImpl() {
           await setDoc(templateRef, template);
           result = { status: "success" };
         } catch (error) {
-          result = { status: "error", message: error.message };
+          result = { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
         }
       } else if (type === "new_machine_error") {
         const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
@@ -721,7 +721,7 @@ export async function fetchTicketCountsApi({ role, myName } = {}) {
     };
   } catch (error) {
     console.error("Error calculating ticket counts:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -742,7 +742,7 @@ export async function fetchPendingTicketsApi() {
     const fallback = emptyResultOnMissingIndex(error, "fetchPendingTicketsApi");
     if (fallback) return fallback;
     console.error("Error fetching pending tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -764,7 +764,7 @@ export async function fetchTicketsForTechnicianApi(technicianName) {
     const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForTechnicianApi");
     if (fallback) return fallback;
     console.error("Error fetching technician tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -785,7 +785,7 @@ export async function fetchResolvedTicketsApi() {
     const fallback = emptyResultOnMissingIndex(error, "fetchResolvedTicketsApi");
     if (fallback) return fallback;
     console.error("Error fetching resolved tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -839,7 +839,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
             return;
           }
           console.error(`Error in ${context}:`, error);
-          callback({ status: "error", message: error.message });
+          callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
         }
       );
     };
@@ -982,7 +982,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 
   } catch (error) {
     console.error("Error subscribing to tickets board:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -1041,7 +1041,7 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
     return { status: "success", data: tickets };
   } catch (error) {
     console.error("Error fetching tickets for report:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1091,7 +1091,7 @@ export async function fetchTicketsForSearchApi({ isFullAccess, myUid, myName }) 
     return { status: "success", data: Array.from(merged.values()) };
   } catch (error) {
     console.error("Error fetching tickets for search:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1107,7 +1107,7 @@ export async function updateTicketStatusApi(ticketId, status, notes = "") {
     return { status: "success" };
   } catch (error) {
     console.error("Error updating ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1131,7 +1131,7 @@ function emptyResultOnMissingIndex(error, context) {
   if (isMissingIndexError(error)) {
     console.warn(
       `[${context}] محتاج Index في Firestore - ` +
-      `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
+      `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error?.message || "خطأ غير معروف"}`
     );
     return { status: "success", data: [] };
   }
@@ -1169,7 +1169,7 @@ export async function fetchTicketLogsApi(ticketId) {
     return { status: "success", data: logs };
   } catch (error) {
     console.error("Error fetching ticket logs:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1182,7 +1182,7 @@ export async function fetchTicketByIdApi(ticketId) {
     return { status: "success", data: { id: docSnap.id, ...docSnap.data() } };
   } catch (error) {
     console.error("Error fetching ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1236,7 +1236,7 @@ export async function fetchActiveTicketForMachineApi(machine, line = "") {
     return { status: "success", ticket: activeTickets[0], totalActive: activeTickets.length };
   } catch (error) {
     console.error("Error fetching active ticket for machine:", error);
-    return { status: "error", message: error.message, ticket: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", ticket: null };
   }
 }
 
@@ -1319,7 +1319,7 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     return { status: "success", update: newUpdate };
   } catch (error) {
     console.error("Error appending shift note to ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1438,7 +1438,7 @@ export async function fetchMyNotificationsApi(uid) {
     const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
     if (fallback) return fallback;
     console.error("Error fetching notifications:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1473,7 +1473,7 @@ export async function countUnreadNotificationsApi(uid) {
     const fallback = emptyResultOnMissingIndex(error, "countUnreadNotificationsApi");
     if (fallback) return { status: "success", count: 0 };
     console.error("Error counting unread notifications:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1509,12 +1509,12 @@ export function subscribeToMyNotificationsApi(uid, callback) {
           return;
         }
         console.error("Error subscribing to notifications:", error);
-        callback({ status: "error", message: error.message });
+        callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
       }
     );
   } catch (error) {
     console.error("Error subscribing to notifications:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -1525,7 +1525,7 @@ export async function markNotificationReadApi(notificationId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error marking notification read:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1561,7 +1561,7 @@ export async function markAllNotificationsAsRead(uid) {
     const fallback = emptyResultOnMissingIndex(error, "markAllNotificationsAsRead");
     if (fallback) return { status: "success", updated: 0 };
     console.error("Error marking all notifications as read:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1600,7 +1600,7 @@ export async function assignTicketApi(ticketId, {
     return { status: "success" };
   } catch (error) {
     console.error("Error assigning ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1680,7 +1680,7 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
     return { status: "success", unifiedNumber };
   } catch (error) {
     console.error("Error classifying ticket as PM:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1726,7 +1726,7 @@ export async function fetchPmOrdersApi() {
     return { status: "success", data: orders };
   } catch (error) {
     console.error("Error fetching PM work orders:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1767,7 +1767,7 @@ export async function updatePmOrderApi(ticketId, changes) {
     return { status: "success" };
   } catch (error) {
     console.error("Error updating PM work order:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1828,7 +1828,7 @@ export async function initializePmTasksApi(ticketId, tasks = null) {
     
   } catch (error) {
     console.error("Error initializing PM tasks:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1878,7 +1878,7 @@ export async function updatePmTaskApi(ticketId, taskId, { status, reason = null 
     
   } catch (error) {
     console.error("Error updating PM task:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1958,7 +1958,7 @@ export async function completePmOrderApi(ticketId) {
     
   } catch (error) {
     console.error("Error completing PM order:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2018,7 +2018,7 @@ export async function createFollowupFromRemainingTasksApi(ticketId, { title, des
     
   } catch (error) {
     console.error("Error creating followup from remaining tasks:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2056,7 +2056,7 @@ export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, 
     
   } catch (error) {
     console.error("Error rescheduling PM tasks:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2148,7 +2148,7 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
     return { status: "success" };
   } catch (error) {
     console.error("Error reassigning ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2179,7 +2179,7 @@ export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}
     return { status: "success" };
   } catch (error) {
     console.error("Error starting ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2325,7 +2325,7 @@ export async function resolveTicketApi(
     return { status: "success" };
   } catch (error) {
     console.error("Error resolving ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2366,7 +2366,7 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
     return { status: "success" };
   } catch (error) {
     console.error("Error closing ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2438,7 +2438,7 @@ export async function bulkCloseTicketsApi(ticketIds) {
     };
   } catch (error) {
     console.error("Error bulk closing tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2467,7 +2467,7 @@ export async function rejectTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error rejecting ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2518,7 +2518,7 @@ export async function reopenTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error reopening ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2590,7 +2590,7 @@ export async function releaseTicketsOfUserApi(userId, userName = "") {
     return { status: "success", released: targets.length };
   } catch (error) {
     console.error("Error releasing tickets of unavailable user:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2635,7 +2635,7 @@ export async function escalateOverdueTicketsApi(overdueTickets = []) {
     return { status: "success", escalated: count };
   } catch (error) {
     console.warn("escalateOverdueTicketsApi failed:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2681,7 +2681,7 @@ export async function declineTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error declining ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 

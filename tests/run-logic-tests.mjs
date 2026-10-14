@@ -238,8 +238,8 @@ await t("report API index failures are not returned as empty successful reports"
     suggestionsApiSource.indexOf("export async function fetchSuggestionsForReportApi"),
     suggestionsApiSource.indexOf("export async function fetchSuggestionsForSearchApi")
   );
-  assert.ok(ticketsReport.includes('return { status: "error", message: error.message }'));
-  assert.ok(suggestionsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(ticketsReport.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع" }'));
+  assert.ok(suggestionsReport.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع" }'));
   assert.ok(!ticketsReport.includes('return { status: "success", data: [] }'));
   assert.ok(!suggestionsReport.includes('return { status: "success", data: [] }'));
 });
@@ -347,7 +347,7 @@ await t("machine-error history query has its index and reports retrieval errors"
     index.fields.some(field => field.fieldPath === "errorCode") &&
     index.fields.some(field => field.fieldPath === "scannedAt")
   ));
-  assert.ok(machineErrorsSource.includes('return { status: "error", message: error.message, data: [] }'));
+  assert.ok(machineErrorsSource.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] }'));
   assert.ok(errorScannerSource.includes("if (result.status === 'error')"));
   assert.ok(errorScannerSource.includes("tr.historyLoadError"));
   assert.ok(knowledgeBaseSource.includes("periodLoadError = result.status === 'error'"));

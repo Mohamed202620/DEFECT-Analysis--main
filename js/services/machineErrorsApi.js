@@ -88,7 +88,7 @@ export async function findMachineErrorByCode(code) {
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -223,7 +223,7 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -252,7 +252,7 @@ export async function verifyMachineErrorApi(errorId) {
 
     console.error("Error verifying machine error:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -324,7 +324,7 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
 
     console.error("Error logging machine error occurrence:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -365,7 +365,7 @@ export async function fetchMachineErrorHistoryApi(code) {
 
     console.error("Error fetching machine error history:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -401,7 +401,7 @@ export async function fetchAllMachineErrorsApi() {
 
     console.error("Error fetching machine errors list:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -436,7 +436,7 @@ export async function fetchMachineErrorLogsSinceApi(sinceIso) {
 
     console.error("Error fetching machine error logs since date:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 

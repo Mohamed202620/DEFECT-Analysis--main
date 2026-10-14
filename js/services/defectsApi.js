@@ -128,7 +128,7 @@ export async function saveDefectApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
