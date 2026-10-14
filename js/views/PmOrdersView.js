@@ -1,14 +1,16 @@
 import { openActionModal } from "../components/ActionModal.js";
 import { fetchTechniciansApi } from "../services/usersApi.js";
 import { exportToExcel, exportToPdf } from "../services/exportUtility.js";
-import { fetchPmOrdersApi, subscribeToPmOrdersApi, updatePmOrderApi, initializePmTasksApi, updatePmTaskApi, completePmOrderApi, createFollowupFromRemainingTasksApi, reschedulePmTasksApi } from "../services/api.js";
+import { fetchPmOrdersApi, subscribeToPmOrdersApi, updatePmOrderApi, setPmDowntimeApi, initializePmTasksApi, updatePmTaskApi, completePmOrderApi, createFollowupFromRemainingTasksApi, reschedulePmTasksApi } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 import { hasFullDataAccess, hasPermission } from "../permissions.js";
 
 let pmOrders = [];
 let visibleOrders = [];
 let selectedOrderIds = new Set();
-let filters = { search: "", line: "", machine: "", from: "", to: "", priority: "", status: "", assignment: "", downtime: "" };
+const emptyFilters = () => ({ search: "", line: "", machine: "", from: "", to: "", priority: "", status: "", assignment: "", downtime: "", quick: "" });
+let filters = emptyFilters();
+let filtersOpen = false;
 
 const isEn = () => (window.currentLang || "ar") === "en";
 const label = (ar, en) => isEn() ? en : ar;
@@ -79,31 +81,41 @@ const taskStats = order => {
 };
 const localDateKey = () => localDateValue(new Date().toISOString()) || new Date().toISOString().slice(0, 10);
 
-function pmBtn(cls, fn, ticketId, text) {
-  return `<button type="button" onclick="window.${fn}('${escapeJsArg(ticketId)}')" class="whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition ${cls}">${text}</button>`;
+const todayKey = () => localDateKey();
+const isOpenOrder = order => !PM_CLOSED.includes(order.pmStatus || "unplanned");
+const isOverdue = order => { const d = localDateValue(order.plannedDate); return isOpenOrder(order) && !!d && d < todayKey(); };
+const isUnscheduled = order => isOpenOrder(order) && !localDateValue(order.plannedDate);
+const isUnassigned = order => isOpenOrder(order) && !order.assignedTo;
+const isDowntime = order => order.downtimeRequired === true;
+const orderNumber = order => order.unifiedNumber || order.id;
+const quickPredicates = { overdue: isOverdue, unscheduled: isUnscheduled, unassigned: isUnassigned };
+
+function pmBtn(cls, fn, ticketId, text, title = "") {
+  return `<button type="button" ${title ? `title="${escapeHtml(title)}"` : ""} onclick="window.${fn}('${escapeJsArg(ticketId)}')" class="whitespace-nowrap rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition ${cls}">${text}</button>`;
 }
 
+// الإجراءات: زر رئيسي واحد (تنفيذ) + كارت + تخطيط، والباقي حسب الحالة
 function getTaskActionButtons(order) {
   const id = order.id;
   const status = order.pmStatus || "unplanned";
   const isClosed = PM_CLOSED.includes(status);
   const { total } = taskStats(order);
   const btns = [];
-  if (canPlanPmOrders() && status !== "completed_partial") {
-    btns.push(pmBtn("bg-blue-600 hover:bg-blue-500", "editPmOrder", id, label("تخطيط", "Plan")));
-  }
   if (canWorkOnOrder(order)) {
     if (total > 0) {
       const editable = isPmEditable(order);
-      btns.push(pmBtn(editable ? "bg-emerald-600 hover:bg-emerald-500" : "bg-gray-600 hover:bg-gray-500", "executePmTasks", id, editable ? label("تنفيذ المهام", "Execute tasks") : label("عرض المهام", "View tasks")));
-      if (editable) btns.push(pmBtn("bg-indigo-600 hover:bg-indigo-500", "completePmOrder", id, label("إنهاء", "Complete")));
+      btns.push(pmBtn(editable ? "bg-emerald-600 hover:bg-emerald-500" : "bg-gray-600 hover:bg-gray-500", "executePmTasks", id, editable ? label("▶ تنفيذ", "▶ Execute") : label("المهام", "Tasks")));
     } else if (!isClosed) {
       if (taskStageReady(order)) {
-        btns.push(pmBtn("bg-teal-600 hover:bg-teal-500", "initializePmTasks", id, label("تهيئة المهام", "Init tasks")));
+        btns.push(pmBtn("bg-emerald-600 hover:bg-emerald-500", "executePmTasks", id, label("▶ تنفيذ", "▶ Execute")));
       } else {
-        btns.push(`<span class="text-[10px] text-gray-500">${label("بانتظار الإسناد وبدء التنفيذ", "Awaiting assignment")}</span>`);
+        btns.push(`<span class="text-[10px] text-gray-500">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`);
       }
     }
+  }
+  btns.push(pmBtn("bg-slate-600 hover:bg-slate-500", "printPmCard", id, "🖨️", label("كارت PM للطباعة", "Printable PM card")));
+  if (canPlanPmOrders() && status !== "completed_partial") {
+    btns.push(pmBtn("bg-blue-600 hover:bg-blue-500", "editPmOrder", id, label("تخطيط", "Plan")));
   }
   if (canPlanPmOrders() && (status === "completed_partial" || status === "deferred")) {
     btns.push(pmBtn("bg-amber-600 hover:bg-amber-500", "reschedulePmOrder", id, label("إعادة جدولة", "Reschedule")));
@@ -112,33 +124,32 @@ function getTaskActionButtons(order) {
     if (order.followupTicketId) {
       btns.push(`<span class="rounded px-2 py-1 text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${label("تمت المتابعة", "Follow-up created")}</span>`);
     } else if (canPlanPmOrders() && (order.remainingTasks || []).length) {
-      btns.push(pmBtn("bg-rose-600 hover:bg-rose-500", "createFollowupFromRemaining", id, label("متابعة المتبقي", "Follow-up remaining")));
+      btns.push(pmBtn("bg-rose-600 hover:bg-rose-500", "createFollowupFromRemaining", id, label("متابعة المتبقي", "Follow-up")));
     }
   }
-  return btns.length ? `<div class="flex flex-wrap gap-1.5">${btns.join("")}</div>` : "—";
+  return `<div class="flex flex-wrap items-center gap-1.5">${btns.join("")}</div>`;
 }
 
 function taskProgressCell(order) {
   const { total, done, notDone } = taskStats(order);
-  if (!total) return `<span class="text-gray-500">—</span>`;
+  if (!total) return "";
   const pct = Math.round((done / total) * 100);
-  return `<div class="min-w-24">
-    <div class="mb-1 text-[11px] font-bold text-gray-200">${done}/${total}${notDone ? ` <span class="text-rose-300">· ❌ ${notDone}</span>` : ""}</div>
-    <div class="h-1.5 w-full overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div>
-  </div>`;
+  return `<div class="mt-1.5 flex items-center gap-2"><div class="h-1.5 w-16 overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div><span class="text-[10px] font-bold text-gray-300">${done}/${total}${notDone ? ` · ❌${notDone}` : ""}</span></div>`;
 }
 
 function filteredPmOrders() {
   const search = filters.search.trim().toLocaleLowerCase();
-  return pmOrders.filter(order => {
+  const quick = quickPredicates[filters.quick];
+  const list = pmOrders.filter(order => {
     const statusLabelStr = pmStatusLabel(order.pmStatus || "unplanned");
     const matchSearch = !search || [
-      order.issueId, order.id, order.unifiedNumber, order.line, order.machine, order.location, order.description,
+      order.issueId, order.id, order.unifiedNumber, order.originalUnifiedNumber, order.line, order.machine, order.location, order.description,
       order.reportedBy, order.assignedTo, order.maintenanceNotes, order.delayReason,
       order.category, order.priority, order.pmStatus, statusLabelStr
     ].some(value => String(value || "").toLocaleLowerCase().includes(search));
     const planDate = orderFilterDate(order);
     return matchSearch
+      && (!quick || quick(order))
       && (!filters.line || order.line === filters.line)
       && (!filters.machine || order.machine === filters.machine)
       && (!filters.from || (planDate && planDate >= filters.from))
@@ -146,249 +157,167 @@ function filteredPmOrders() {
       && (!filters.priority || order.priority === filters.priority)
       && (!filters.status || (order.pmStatus || "unplanned") === filters.status)
       && (!filters.assignment || (filters.assignment === "assigned" ? !!order.assignedTo : !order.assignedTo))
-      && (!filters.downtime || String(order.downtimeRequired === true) === filters.downtime);
+      && (!filters.downtime || String(isDowntime(order)) === filters.downtime);
   });
+  // الترتيب: المتأخر ثم المجدول (الأقرب أولاً) ثم غير المجدول ثم المنتهي
+  const rank = order => isOverdue(order) ? 0 : (isOpenOrder(order) ? (localDateValue(order.plannedDate) ? 1 : 2) : 3);
+  return list.sort((a, b) => rank(a) - rank(b)
+    || (localDateValue(a.plannedDate) || "9999").localeCompare(localDateValue(b.plannedDate) || "9999")
+    || String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 }
 
-function filterSelect(id, currentValue, options, allLabel) {
-  return `<select id="${id}" class="min-w-32 flex-1 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
-    <option value="">${allLabel}</option>
-    ${options.map(value => `<option value="${escapeHtml(value)}" ${currentValue === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}
-  </select>`;
+const selectOptions = (id, current, options, allLabel) => `<select id="${id}" class="min-w-0 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
+  <option value="">${allLabel}</option>
+  ${options.map(([value, text]) => `<option value="${escapeHtml(value)}" ${current === value ? "selected" : ""}>${escapeHtml(text)}</option>`).join("")}
+</select>`;
+
+const GRID_COLS = "md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.3fr)_auto]";
+
+function orderRow(order) {
+  const checked = selectedOrderIds.has(order.id);
+  const status = order.pmStatus || "unplanned";
+  const overdue = isOverdue(order);
+  const planned = formatDisplayDate(order.plannedDate);
+  const downtime = isDowntime(order);
+  const canMark = canPlanPmOrders() && status !== "completed_partial";
+  const downtimeBadge = canMark
+    ? `<button type="button" data-downtime-toggle="${escapeHtml(order.id)}" title="${label("تبديل توقف الخط", "Toggle line downtime")}" class="rounded px-2 py-0.5 text-[10px] font-bold border transition ${downtime ? "bg-rose-500/25 text-rose-200 border-rose-500/50" : "bg-transparent text-gray-500 border-gray-700 hover:text-rose-300 hover:border-rose-500/40"}">⚡ ${downtime ? label("توقف الخط", "Downtime") : ""}</button>`
+    : (downtime ? `<span class="rounded px-2 py-0.5 text-[10px] font-bold border bg-rose-500/25 text-rose-200 border-rose-500/50">⚡ ${label("توقف الخط", "Downtime")}</span>` : "");
+  return `
+    <div class="flex gap-2 border-b border-gray-800 p-3 transition-colors ${checked ? "bg-blue-950/20" : overdue ? "bg-rose-950/10" : "hover:bg-gray-800/40"}">
+      <input type="checkbox" data-order-id="${escapeHtml(order.id)}" ${checked ? "checked" : ""} aria-label="${label("تحديد", "Select")}" class="pmRowCheckbox mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-600 bg-slate-900 text-blue-600">
+      <div class="grid min-w-0 flex-1 grid-cols-1 items-center gap-2 ${GRID_COLS}">
+        <div class="min-w-0">
+          <div class="font-mono text-xs font-bold text-blue-300">${escapeHtml(orderNumber(order))}</div>
+          <div class="truncate text-[10px] text-gray-400">${label("البلاغ", "Ticket")}: ${escapeHtml(order.issueId || order.id)}</div>
+        </div>
+        <div class="min-w-0">
+          <div class="truncate text-xs font-bold text-gray-100">${escapeHtml(valueOrDash(order.machine))}</div>
+          <div class="truncate text-[10px] text-gray-400">${escapeHtml(valueOrDash(order.line))}${order.description ? ` · ${escapeHtml(order.description)}` : ""}</div>
+        </div>
+        <div class="text-xs ${overdue ? "font-bold text-rose-300" : "text-gray-200"}">
+          ${planned ? `📅 ${escapeHtml(planned)}` : `<span class="text-amber-300">${unscheduledLabel()}</span>`}
+          ${overdue ? `<div class="text-[10px] font-bold text-rose-400">⏰ ${label("متأخر", "Overdue")}</div>` : ""}
+        </div>
+        <div class="truncate text-xs ${order.assignedTo ? "text-gray-200" : "text-blue-300"}">👤 ${escapeHtml(order.assignedTo || unassignedLabel())}</div>
+        <div>
+          <div class="flex flex-wrap items-center gap-1.5">${pmStatusBadge(status)}${downtimeBadge}</div>
+          ${taskProgressCell(order)}
+        </div>
+        ${getTaskActionButtons(order)}
+      </div>
+    </div>`;
+}
+
+function chipButton(key, text, count, active, onCls) {
+  return `<button type="button" ${key === "downtime" ? 'id="pmQuickDowntimeBtn"' : ""} data-chip="${key}" aria-pressed="${active}" class="rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? onCls : "border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"}">${text}: ${count}</button>`;
 }
 
 function renderPmOrders() {
   const container = document.getElementById("pmOrdersContainer");
   if (!container) return;
+  const activeEl = typeof document !== "undefined" ? document.activeElement : null;
+  const focusId = activeEl && activeEl.id && container.contains(activeEl) ? activeEl.id : "";
+  const caret = focusId && typeof activeEl.selectionStart === "number" ? activeEl.selectionStart : null;
+
   visibleOrders = filteredPmOrders();
-  const unscheduledCount = visibleOrders.filter(order => !order.plannedDate).length;
-  const unassignedCount = visibleOrders.filter(order => !order.assignedTo).length;
-  const downtimeCount = visibleOrders.filter(order => order.downtimeRequired === true).length;
-  const lines = [...new Set(pmOrders.map(order => order.line).filter(Boolean))].sort();
-  const machines = [...new Set(pmOrders.map(order => order.machine).filter(Boolean))].sort();
-  const priorities = [...new Set(pmOrders.map(order => order.priority).filter(Boolean))].sort();
-
-  const isAllVisibleSelected = visibleOrders.length > 0 && visibleOrders.every(order => selectedOrderIds.has(order.id));
-  const selectedCount = visibleOrders.filter(order => selectedOrderIds.has(order.id)).length;
-
-  const rows = visibleOrders.map(order => {
-    const isChecked = selectedOrderIds.has(order.id);
-    return `
-    <tr class="border-b border-gray-800 align-top ${isChecked ? 'bg-blue-950/20' : 'hover:bg-gray-800/40'} transition-colors">
-      <td class="p-3 text-center">
-        <input type="checkbox" data-order-id="${escapeHtml(order.id)}" class="pmRowCheckbox rounded border-gray-600 bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4" ${isChecked ? "checked" : ""}>
-      </td>
-      <td class="p-3 font-mono text-xs text-blue-300 font-bold">${escapeHtml(order.id)}</td>
-      <td class="p-3 font-mono text-xs text-amber-300 font-bold">${escapeHtml(order.unifiedNumber || "—")}</td>
-      <td class="p-3 font-mono text-xs text-gray-300 font-bold">${escapeHtml(order.issueId || order.id)}</td>
-      <td class="p-3 font-bold text-gray-100">${escapeHtml(valueOrDash(order.line))}</td>
-      <td class="p-3 font-bold text-gray-100">${escapeHtml(valueOrDash(order.machine))}</td>
-      <td class="p-3 min-w-48 whitespace-normal text-gray-200">${escapeHtml(valueOrDash(order.description))}</td>
-      <td class="p-3">${escapeHtml(valueOrDash(order.priority))}</td>
-      <td class="p-3">
-        ${pmStatusBadge(order.pmStatus)}
-      </td>
-      <td class="p-3 text-gray-300">${escapeHtml(formatDisplayDate(order.createdAt) || valueOrDash(""))}</td>
-      <td class="p-3 text-gray-200">${escapeHtml(formatDisplayDate(order.plannedDate) || unscheduledLabel())}</td>
-      <td class="p-3 text-gray-300">${escapeHtml(order.assignedTo || unassignedLabel())}</td>
-      <td class="p-3">
-        ${order.downtimeRequired === true
-          ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">⚡ ${label("مطلوب", "Required")}</span>`
-          : `<span class="text-gray-400 text-[11px]">${label("غير مطلوب", "Not required")}</span>`}
-      </td>
-      <td class="p-3 min-w-40 whitespace-normal text-gray-400 text-[11px]">${escapeHtml(order.maintenanceNotes || order.delayReason || "—")}</td>
-      <td class="p-3">${taskProgressCell(order)}</td>
-      <td class="p-3">${getTaskActionButtons(order)}</td>
-    </tr>
-  `}).join("");
+  const uniq = key => [...new Set(pmOrders.map(order => order[key]).filter(Boolean))].sort().map(v => [v, v]);
+  const counts = {
+    overdue: pmOrders.filter(isOverdue).length,
+    unscheduled: pmOrders.filter(isUnscheduled).length,
+    unassigned: pmOrders.filter(isUnassigned).length,
+    downtime: pmOrders.filter(order => isOpenOrder(order) && isDowntime(order)).length
+  };
+  const selectedVisible = visibleOrders.filter(order => selectedOrderIds.has(order.id));
+  const selectedCount = selectedVisible.length;
+  const allSelected = visibleOrders.length > 0 && selectedCount === visibleOrders.length;
+  const scopeCount = selectedCount || visibleOrders.length;
+  const hasExtra = !!(filters.machine || filters.priority || filters.assignment || filters.from || filters.to || filters.downtime);
+  const showExtra = filtersOpen || hasExtra;
+  const dateInput = (id, value, text) => `<label class="flex items-center gap-1.5 text-[11px] text-gray-400"><span>${text}</span><input id="${id}" type="date" value="${escapeHtml(value)}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#0F172A] p-1.5 text-xs text-white"></label>`;
 
   container.innerHTML = `
-    <div class="space-y-4" dir="${isEn() ? "ltr" : "rtl"}">
-      <!-- شريط الإحصائيات والأزرار السريعة -->
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex flex-wrap gap-2 text-xs">
-          <span class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-amber-300 font-bold">${label("غير مجدول", "Unscheduled")}: ${unscheduledCount}</span>
-          <span class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-blue-300 font-bold">${unassignedLabel()}: ${unassignedCount}</span>
-          <span class="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-rose-300 font-bold">⚡ ${label("توقف الخط مطلوب", "Downtime required")}: ${downtimeCount}</span>
-          <span class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-gray-200 font-bold">${label("إجمالي النتائج", "Results")}: ${visibleOrders.length}</span>
+    <div class="space-y-3 text-start" dir="${isEn() ? "ltr" : "rtl"}">
+      <div class="flex flex-wrap items-center gap-2">
+        ${chipButton("all", label("الكل", "All"), pmOrders.length, !filters.quick && filters.downtime !== "true", "border-blue-500/60 bg-blue-500/20 text-blue-200")}
+        ${chipButton("overdue", `⏰ ${label("متأخر", "Overdue")}`, counts.overdue, filters.quick === "overdue", "border-rose-500/60 bg-rose-500/20 text-rose-200")}
+        ${chipButton("unscheduled", label("غير مجدول", "Unscheduled"), counts.unscheduled, filters.quick === "unscheduled", "border-amber-500/60 bg-amber-500/20 text-amber-200")}
+        ${chipButton("unassigned", unassignedLabel(), counts.unassigned, filters.quick === "unassigned", "border-sky-500/60 bg-sky-500/20 text-sky-200")}
+        ${chipButton("downtime", `⚡ ${label("توقف الخط", "Line downtime")}`, counts.downtime, filters.downtime === "true", "border-orange-500/60 bg-orange-500/20 text-orange-200")}
+        <button type="button" id="pmOrdersRefresh" class="ms-auto rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700">↻ ${label("تحديث", "Refresh")}</button>
+      </div>
+
+      <div class="space-y-2 rounded-xl border border-gray-800 bg-[#1E293B] p-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="pmFilterSearch" value="${escapeHtml(filters.search)}" placeholder="🔍 ${label("بحث: رقم الأمر / البلاغ / المعدة / الفني", "Search: order / ticket / machine / technician")}" class="min-w-0 flex-1 basis-56 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
+          ${selectOptions("pmFilterStatus", filters.status, ["unplanned", "planned", "in_progress", "completed", "completed_partial", "deferred"].map(s => [s, pmStatusLabel(s)]), label("كل الحالات", "All statuses"))}
+          ${selectOptions("pmFilterLine", filters.line, uniq("line"), label("كل الخطوط", "All lines"))}
+          <button type="button" id="pmToggleFilters" class="rounded-lg border px-3 py-2 text-xs font-bold ${hasExtra ? "border-blue-500/60 text-blue-300" : "border-gray-700 text-gray-300"} bg-[#0F172A] hover:bg-gray-800">⚙️ ${label("المزيد", "More")}</button>
         </div>
-        <div class="flex items-center gap-2">
-          <button type="button" id="pmQuickDowntimeBtn" class="rounded-lg border border-rose-500/50 bg-rose-500/20 hover:bg-rose-500/30 px-3 py-2 text-xs font-bold text-rose-300 transition flex items-center gap-1.5">
-            <span>⚡</span>
-            <span>${filters.downtime === "true" ? label("عرض كل المهام", "Show all tasks") : label("استخراج PM لتوقف الخط", "Line downtime PM")}</span>
-          </button>
-          <button type="button" id="pmOrdersRefresh" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700 transition">${label("تحديث", "Refresh")}</button>
+        ${showExtra ? `
+        <div class="grid grid-cols-1 gap-2 border-t border-gray-800 pt-2 sm:grid-cols-2 lg:grid-cols-4">
+          ${selectOptions("pmFilterMachine", filters.machine, uniq("machine"), label("كل المعدات", "All machines"))}
+          ${selectOptions("pmFilterPriority", filters.priority, uniq("priority"), label("كل الأولويات", "All priorities"))}
+          ${selectOptions("pmFilterAssignment", filters.assignment, [["assigned", label("مسند", "Assigned")], ["unassigned", unassignedLabel()]], label("مسند وغير مسند", "Assigned & unassigned"))}
+          ${selectOptions("pmFilterDowntime", filters.downtime, [["true", label("يتطلب توقف الخط", "Downtime required")], ["false", label("لا يتطلب توقفاً", "No downtime")]], label("كل متطلبات التوقف", "All downtime needs"))}
+          ${dateInput("pmFilterFrom", filters.from, label("من", "From"))}
+          ${dateInput("pmFilterTo", filters.to, label("إلى", "To"))}
+          <button type="button" id="pmResetFiltersBtn" class="rounded-lg border border-gray-700 bg-[#0F172A] px-3 py-2 text-xs font-bold text-gray-300 hover:bg-gray-800 sm:col-span-2">${label("إعادة ضبط الفلاتر", "Reset filters")}</button>
+        </div>` : ""}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <label class="flex cursor-pointer items-center gap-2 text-gray-300">
+          <input type="checkbox" id="pmSelectAll" ${allSelected ? "checked" : ""} class="h-4 w-4 cursor-pointer rounded border-gray-600 bg-slate-900 text-blue-600">
+          <span>${selectedCount ? label(`محدد ${selectedCount} من ${visibleOrders.length}`, `${selectedCount} of ${visibleOrders.length} selected`) : label(`تحديد الكل (${visibleOrders.length})`, `Select all (${visibleOrders.length})`)}</span>
+        </label>
+        ${selectedCount ? `<button type="button" id="pmClearSelectionBtn" class="font-bold text-blue-400 underline">${label("إلغاء التحديد", "Clear")}</button>` : ""}
+        <div class="ms-auto flex flex-wrap items-center gap-2">
+          ${selectedCount && canPlanPmOrders() ? `
+            <button type="button" id="pmBulkDowntimeOn" class="rounded-lg border border-rose-500/50 bg-rose-500/20 px-3 py-2 font-bold text-rose-200 hover:bg-rose-500/30">⚡ ${label("علّم توقف الخط", "Mark downtime")}</button>
+            <button type="button" id="pmBulkDowntimeOff" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 font-bold text-gray-300 hover:bg-gray-700">${label("إلغاء التوقف", "Unmark")}</button>` : ""}
+          <button type="button" onclick="window.printPmCards()" class="rounded-lg bg-slate-600 px-3 py-2 font-bold text-white hover:bg-slate-500">🖨️ ${label("كروت PM", "PM cards")} (${scopeCount})</button>
+          ${canExportPmOrders() ? `
+            <button type="button" onclick="window.exportPmOrders('excel')" class="rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white hover:bg-emerald-600">📊 Excel (${scopeCount})</button>
+            <button type="button" onclick="window.exportPmOrders('pdf')" class="rounded-lg bg-rose-700 px-3 py-2 font-bold text-white hover:bg-rose-600">📄 PDF (${scopeCount})</button>` : ""}
         </div>
       </div>
 
-      <!-- فلاتر التصفية المتقدمة -->
-      <div class="rounded-xl border border-gray-800 bg-[#1E293B] p-3 space-y-3">
-        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          <input id="pmFilterSearch" value="${escapeHtml(filters.search)}" placeholder="${label("بحث في البلاغ أو المعدة أو الوصف", "Search ticket, asset, or description")}" class="min-w-0 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
-          ${filterSelect("pmFilterLine", filters.line, lines, label("كل الخطوط", "All lines"))}
-          ${filterSelect("pmFilterMachine", filters.machine, machines, label("كل المعدات", "All machines"))}
-          <select id="pmFilterPriority" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white"><option value="">${label("كل الأولويات", "All priorities")}</option>${priorities.map(value => `<option value="${escapeHtml(value)}" ${filters.priority === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select>
-          <!-- فلتر من تاريخ -->
-          <div class="relative rounded-lg border border-gray-700 bg-[#0F172A] p-2 hover:border-blue-500/50 transition flex flex-col justify-between">
-            <div class="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-1 pointer-events-none">
-              <span class="flex items-center gap-1 text-blue-300">
-                <span>📅</span>
-                <span>${label("من تاريخ", "From Date")}</span>
-              </span>
-              <span class="text-[9px] text-gray-500 font-normal">${label("(تنفيذ / إنشاء)", "(planned / created)")}</span>
-            </div>
-            <div class="flex items-center justify-between min-h-[26px]">
-              <span class="text-xs ${filters.from ? 'text-white font-mono font-bold' : 'text-gray-400'} flex items-center gap-1.5 pointer-events-none">
-                ${filters.from
-                  ? `<span>🗓️</span> <span>${escapeHtml(formatDisplayDate(filters.from) || filters.from)}</span>`
-                  : `<span>📅</span> <span>${label("اختر التاريخ...", "Select date...")}</span>`}
-              </span>
-              ${filters.from ? `
-                <button type="button" onclick="event.stopPropagation(); window.clearPmFilterDate('from')" title="${label("إلغاء التاريخ", "Clear date")}" class="relative z-20 text-gray-400 hover:text-rose-400 text-xs px-1 font-bold leading-none cursor-pointer">✕</button>
-              ` : ''}
-            </div>
-            <input id="pmFilterFrom" type="date" value="${escapeHtml(filters.from)}" aria-label="${label("من تاريخ", "From Date")}" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" ${filters.from ? 'style="width: calc(100% - 28px);"' : ''}>
-          </div>
-
-          <!-- فلتر إلى تاريخ -->
-          <div class="relative rounded-lg border border-gray-700 bg-[#0F172A] p-2 hover:border-blue-500/50 transition flex flex-col justify-between">
-            <div class="flex items-center justify-between text-[10px] font-bold text-gray-400 mb-1 pointer-events-none">
-              <span class="flex items-center gap-1 text-blue-300">
-                <span>📅</span>
-                <span>${label("إلى تاريخ", "To Date")}</span>
-              </span>
-              <span class="text-[9px] text-gray-500 font-normal">${label("(تنفيذ / إنشاء)", "(planned / created)")}</span>
-            </div>
-            <div class="flex items-center justify-between min-h-[26px]">
-              <span class="text-xs ${filters.to ? 'text-white font-mono font-bold' : 'text-gray-400'} flex items-center gap-1.5 pointer-events-none">
-                ${filters.to
-                  ? `<span>🗓️</span> <span>${escapeHtml(formatDisplayDate(filters.to) || filters.to)}</span>`
-                  : `<span>📅</span> <span>${label("اختر التاريخ...", "Select date...")}</span>`}
-              </span>
-              ${filters.to ? `
-                <button type="button" onclick="event.stopPropagation(); window.clearPmFilterDate('to')" title="${label("إلغاء التاريخ", "Clear date")}" class="relative z-20 text-gray-400 hover:text-rose-400 text-xs px-1 font-bold leading-none cursor-pointer">✕</button>
-              ` : ''}
-            </div>
-            <input id="pmFilterTo" type="date" value="${escapeHtml(filters.to)}" aria-label="${label("إلى تاريخ", "To Date")}" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" ${filters.to ? 'style="width: calc(100% - 28px);"' : ''}>
-          </div>
-          <select id="pmFilterStatus" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
-            <option value="">${label("كل الحالات", "All statuses")}</option>
-            ${["unplanned", "planned", "in_progress", "completed", "completed_partial", "deferred"].map(status => `<option value="${status}" ${filters.status === status ? "selected" : ""}>${pmStatusLabel(status)}</option>`).join("")}
-          </select>
-          <select id="pmFilterAssignment" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
-            <option value="">${label("مسند وغير مسند", "Assigned and unassigned")}</option>
-            <option value="assigned" ${filters.assignment === "assigned" ? "selected" : ""}>${label("مسند", "Assigned")}</option>
-            <option value="unassigned" ${filters.assignment === "unassigned" ? "selected" : ""}>${unassignedLabel()}</option>
-          </select>
-          <select id="pmFilterDowntime" class="rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white sm:col-span-2 xl:col-span-2">
-            <option value="">${label("كل متطلبات التوقف", "All downtime needs")}</option>
-            <option value="true" ${filters.downtime === "true" ? "selected" : ""}>⚡ ${label("يتطلب توقف الخط (فرصة تنفيذ أثناء العطل)", "Downtime required (run during stoppage)")}</option>
-            <option value="false" ${filters.downtime === "false" ? "selected" : ""}>${label("لا يتطلب توقفاً", "No downtime required")}</option>
-          </select>
-          <div class="flex gap-2 sm:col-span-2 xl:col-span-2">
-            <button type="button" id="pmResetFiltersBtn" class="w-full rounded-lg border border-gray-700 bg-[#0F172A] hover:bg-gray-800 px-3 py-2 text-xs font-bold text-gray-300 transition">
-              ${label("إعادة ضبط الفلاتر", "Reset filters")}
-            </button>
-          </div>
-        </div>
-
-        <!-- أزرار التصدير وشريط التحديد -->
-        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-800/80">
-          <div class="flex items-center gap-2 text-xs">
-            ${selectedCount > 0 ? `
-              <span class="rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-300 px-3 py-1.5 font-bold">
-                ✓ ${label(`تم تحديد ${selectedCount} أمر من أصل ${visibleOrders.length}`, `${selectedCount} of ${visibleOrders.length} selected`)}
-              </span>
-              <button type="button" id="pmClearSelectionBtn" class="text-blue-400 hover:text-blue-300 font-bold underline px-1 text-xs">
-                ${label("إلغاء التحديد", "Clear")}
-              </button>
-            ` : `
-              <span class="text-gray-400 text-xs">
-                ${label("حدد أوامر لتصديرها، أو صدّر كل النتائج المعروضة:", "Select orders to export, or export all results:")}
-              </span>
-            `}
-          </div>
-
-          <div class="flex items-center gap-2">
-            <button type="button" onclick="window.exportPmOrders('excel')" class="rounded-lg bg-emerald-700 hover:bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-md">
-              <span>📊 Excel</span>
-              <span>${selectedCount > 0 ? `(${selectedCount})` : `(${visibleOrders.length})`}</span>
-            </button>
-            <button type="button" onclick="window.exportPmOrders('pdf')" class="rounded-lg bg-rose-700 hover:bg-rose-600 px-4 py-2 text-xs font-bold text-white transition flex items-center gap-1.5 shadow-md">
-              <span>📄 PDF</span>
-              <span>${selectedCount > 0 ? `(${selectedCount})` : `(${visibleOrders.length})`}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- جدول أوامر PM مع أعمدة التحديد والبيانات الكاملة -->
       ${visibleOrders.length ? `
-        <div class="overflow-x-auto rounded-xl border border-gray-800 bg-[#1E293B]">
-          <table class="min-w-[1400px] w-full text-start text-xs text-gray-200">
-            <thead class="sticky top-0 bg-gray-800 text-gray-300 select-none">
-              <tr>
-                <th class="p-3 w-10 text-center">
-                  <input type="checkbox" id="pmSelectAll" title="${label("تحديد الكل", "Select all")}" ${isAllVisibleSelected ? "checked" : ""} class="rounded border-gray-600 bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer w-4 h-4">
-                </th>
-                ${[
-                  label("رقم الأمر", "Work order"), label("الرقم الموحد", "Unified #"),
-                  label("رقم البلاغ", "Ticket"),
-                  label("الخط", "Line"), label("المعدة", "Equipment"),
-                  label("وصف المهمة", "Task description"), label("الأولوية", "Priority"),
-                  label("الحالة", "Status"), label("تاريخ الإنشاء", "Created"),
-                  label("موعد التنفيذ", "Planned date"), label("الفني / الفريق", "Assigned to"),
-                  label("توقف الخط", "Downtime"), label("ملاحظات التخطيط / التأجيل", "Planning / delay notes"),
-                  label("المهام", "Tasks"), label("الإجراء", "Action")
-                ].map(header => `<th class="whitespace-nowrap p-3">${header}</th>`).join("")}
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
+        <div class="overflow-hidden rounded-xl border border-gray-800 bg-[#1E293B]">
+          <div class="hidden gap-2 border-b border-gray-800 bg-gray-800 p-3 ps-9 text-[11px] font-bold text-gray-300 md:grid ${GRID_COLS}">
+            <span>${label("الأمر / البلاغ", "Order / ticket")}</span><span>${label("المعدة / الخط", "Machine / line")}</span><span>${label("موعد التنفيذ", "Planned")}</span><span>${label("الفني", "Technician")}</span><span>${label("الحالة", "Status")}</span><span>${label("الإجراء", "Action")}</span>
+          </div>
+          ${visibleOrders.map(orderRow).join("")}
         </div>
       ` : `<div class="rounded-xl border border-gray-800 bg-[#1E293B] p-8 text-center text-sm text-gray-400">${pmOrders.length ? label("لا توجد أوامر مطابقة للفلاتر.", "No orders match these filters.") : label("لا توجد بلاغات مصنفة PM حتى الآن.", "No tickets have been classified as PM yet.")}</div>`}
     </div>
   `;
 
-  // ربط الأحداث
-  container.querySelector("#pmOrdersRefresh")?.addEventListener("click", () => window.loadPmOrdersBoard(true));
-  container.querySelector("#pmQuickDowntimeBtn")?.addEventListener("click", () => {
-    filters.downtime = filters.downtime === "true" ? "" : "true";
+  const on = (selector, event, handler) => container.querySelector(selector)?.addEventListener(event, handler);
+  on("#pmOrdersRefresh", "click", () => window.loadPmOrdersBoard(true));
+  on("#pmToggleFilters", "click", () => { filtersOpen = !showExtra; renderPmOrders(); });
+  on("#pmResetFiltersBtn", "click", () => { filters = emptyFilters(); selectedOrderIds.clear(); renderPmOrders(); });
+  on("#pmClearSelectionBtn", "click", () => { selectedOrderIds.clear(); renderPmOrders(); });
+  on("#pmBulkDowntimeOn", "click", () => window.setPmDowntimeSelected(true));
+  on("#pmBulkDowntimeOff", "click", () => window.setPmDowntimeSelected(false));
+  on("#pmSelectAll", "change", event => {
+    visibleOrders.forEach(order => event.target.checked ? selectedOrderIds.add(order.id) : selectedOrderIds.delete(order.id));
     renderPmOrders();
   });
-  container.querySelector("#pmResetFiltersBtn")?.addEventListener("click", () => {
-    filters = { search: "", line: "", machine: "", from: "", to: "", priority: "", status: "", assignment: "", downtime: "" };
-    selectedOrderIds.clear();
+  container.querySelectorAll("[data-chip]").forEach(button => button.addEventListener("click", () => {
+    const key = button.dataset.chip;
+    if (key === "all") { filters.quick = ""; filters.downtime = ""; }
+    else if (key === "downtime") { filters.downtime = filters.downtime === "true" ? "" : "true"; }
+    else { filters.quick = filters.quick === key ? "" : key; }
     renderPmOrders();
-  });
-  container.querySelector("#pmClearSelectionBtn")?.addEventListener("click", () => {
-    selectedOrderIds.clear();
+  }));
+  container.querySelectorAll("[data-downtime-toggle]").forEach(button => button.addEventListener("click", () => window.togglePmDowntime(button.dataset.downtimeToggle)));
+  container.querySelectorAll(".pmRowCheckbox").forEach(checkbox => checkbox.addEventListener("change", event => {
+    const orderId = event.target.dataset.orderId;
+    if (event.target.checked) selectedOrderIds.add(orderId); else selectedOrderIds.delete(orderId);
     renderPmOrders();
-  });
-
-  // تحديد الكل
-  const selectAllEl = container.querySelector("#pmSelectAll");
-  selectAllEl?.addEventListener("change", e => {
-    if (e.target.checked) {
-      visibleOrders.forEach(o => selectedOrderIds.add(o.id));
-    } else {
-      visibleOrders.forEach(o => selectedOrderIds.delete(o.id));
-    }
-    renderPmOrders();
-  });
-
-  // تحديد صف فردي
-  container.querySelectorAll(".pmRowCheckbox").forEach(checkbox => {
-    checkbox.addEventListener("change", e => {
-      const orderId = e.target.dataset.orderId;
-      if (e.target.checked) {
-        selectedOrderIds.add(orderId);
-      } else {
-        selectedOrderIds.delete(orderId);
-      }
-      renderPmOrders();
-    });
-  });
+  }));
 
   const filterFields = {
     pmFilterSearch: "search", pmFilterLine: "line", pmFilterMachine: "machine",
@@ -396,27 +325,168 @@ function renderPmOrders() {
     pmFilterStatus: "status", pmFilterAssignment: "assignment", pmFilterDowntime: "downtime"
   };
   for (const [elementId, filterName] of Object.entries(filterFields)) {
-    const element = container.querySelector(`#${elementId}`);
-    element?.addEventListener(elementId === "pmFilterSearch" ? "input" : "change", event => {
+    container.querySelector(`#${elementId}`)?.addEventListener(elementId === "pmFilterSearch" ? "input" : "change", event => {
       filters[filterName] = event.target.value;
       renderPmOrders();
     });
   }
+
+  if (focusId) {
+    const el = container.querySelector(`#${focusId}`);
+    if (el) {
+      el.focus();
+      if (caret !== null && el.setSelectionRange) { try { el.setSelectionRange(caret, caret); } catch (_) { /* غير مدعوم لهذا النوع */ } }
+    }
+  }
 }
 
+// ============================================================
+// كارت PM ميداني للطباعة
+// ============================================================
+
+const DEFAULT_PM_TASKS = () => [
+  label("فحص ضغط الهيدروليك", "Check hydraulic pressure"),
+  label("تنظيف الفلاتر ونظام التبريد", "Clean filters & cooling system"),
+  label("التشحيم والتزييت الدوري", "Periodic lubrication")
+];
+
+function pmCardHtml(order) {
+  const e = escapeHtml;
+  const status = order.pmStatus || "unplanned";
+  const saved = Array.isArray(order.pmTasks) && order.pmTasks.length ? order.pmTasks : null;
+  const rows = saved
+    ? saved.map(t => ({ desc: t.description, st: t.status, reason: t.reason }))
+    : [...(order.description ? [order.description] : []), ...DEFAULT_PM_TASKS()].map(desc => ({ desc, st: "", reason: "" }));
+  const box = on => (on ? "☑" : "☐");
+  const notes = [order.maintenanceNotes, order.delayReason].filter(Boolean).join(" | ");
+  const ticketRef = [order.issueId || order.id, order.originalUnifiedNumber].filter(Boolean).join(" · ");
+  const field = (name, value) => `<td class="k">${name}</td><td class="v">${e(value || "—")}</td>`;
+  return `
+  <section class="pm-card" dir="${isEn() ? "ltr" : "rtl"}">
+    <div class="hd"><div><div class="t">${label("بطاقة صيانة وقائية (PM)", "Preventive Maintenance (PM) Card")}</div><div class="s">${label("طُبعت", "Printed")}: ${e(formatDisplayDate(new Date().toISOString()))}</div></div><div class="n">${e(orderNumber(order))}</div></div>
+    <table class="info"><tr>${field(label("البلاغ الأصلي", "Original ticket"), ticketRef)}${field(label("موعد التنفيذ", "Planned date"), formatDisplayDate(order.plannedDate) || unscheduledLabel())}</tr>
+      <tr>${field(label("الخط", "Line"), order.line)}${field(label("المعدة", "Equipment"), order.machine)}</tr>
+      <tr>${field(label("الفني", "Technician"), order.assignedTo || "")}${field(label("توقف الخط", "Line downtime"), isDowntime(order) ? label("مطلوب ⚡", "Required ⚡") : label("غير مطلوب", "Not required"))}</tr></table>
+    <table class="tasks"><thead><tr><th style="width:24px">#</th><th>${label("مهام الصيانة", "Maintenance tasks")}</th><th style="width:54px">${label("تم", "Done")}</th><th style="width:64px">${label("لم يتم", "Not done")}</th><th style="width:30%">${label("السبب / ملاحظة", "Reason / note")}</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${e(r.desc)}</td><td class="c">${box(r.st === "done")}</td><td class="c">${box(r.st === "not_done")}</td><td>${e(r.reason || "")}</td></tr>`).join("")}
+    </tbody></table>
+    <div class="res"><b>${label("نتيجة التنفيذ", "Result")}:</b> ${box(status === "completed")} ${label("مكتمل", "Completed")} &nbsp; ${box(status === "completed_partial")} ${label("مكتمل جزئياً", "Partial")} &nbsp; ${box(status === "deferred")} ${label("مؤجل", "Deferred")}</div>
+    <div class="notes"><b>${label("ملاحظات", "Notes")}:</b> ${e(notes)}</div>
+    <div class="sig"><div>${label("الفني المنفذ", "Technician")}: ..................</div><div>${label("المشرف", "Supervisor")}: ..................</div><div>${label("التاريخ / الوقت", "Date / time")}: ............</div></div>
+  </section>`;
+}
+
+const PM_CARD_CSS = `
+  #pmCardOverlay .pm-card{background:#fff;color:#111;border:1.5px solid #111;border-radius:6px;padding:12px;margin:0 auto 12px;font-family:Tahoma,Arial,sans-serif;font-size:12px;break-inside:avoid}
+  #pmCardOverlay .hd{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}
+  #pmCardOverlay .t{font-size:15px;font-weight:700}#pmCardOverlay .s{font-size:10px;color:#555}
+  #pmCardOverlay .n{font-size:20px;font-weight:800;font-family:monospace;border:2px solid #111;padding:2px 10px;border-radius:4px}
+  #pmCardOverlay table{width:100%;border-collapse:collapse}
+  #pmCardOverlay .info td{border:1px solid #888;padding:4px 6px}#pmCardOverlay .info .k{background:#eee;font-weight:700;width:16%}#pmCardOverlay .info .v{width:34%}
+  #pmCardOverlay .tasks{margin-top:8px}#pmCardOverlay .tasks th,#pmCardOverlay .tasks td{border:1px solid #888;padding:6px}#pmCardOverlay .tasks th{background:#ddd}
+  #pmCardOverlay .c{text-align:center;font-size:16px}
+  #pmCardOverlay .res,#pmCardOverlay .notes{margin-top:8px;border:1px solid #888;padding:6px}#pmCardOverlay .notes{min-height:44px}
+  #pmCardOverlay .sig{display:flex;justify-content:space-between;gap:8px;margin-top:14px;font-size:11px}
+  @media print{
+    body > *:not(#pmCardOverlay){display:none !important}
+    #pmCardOverlay{position:static !important;inset:auto !important;overflow:visible !important;background:#fff !important;padding:0 !important}
+    #pmCardOverlay .no-print{display:none !important}
+    #pmCardOverlay .pm-card{margin:0 0 8mm;border-radius:0}
+    @page{size:A4;margin:10mm}
+  }`;
+
+function onPmCardKey(event) { if (event.key === "Escape") closePmCards(); }
+function closePmCards() {
+  document.getElementById("pmCardOverlay")?.remove();
+  document.removeEventListener("keydown", onPmCardKey);
+}
+
+function openPmCards(orders) {
+  if (!orders.length) {
+    alert(label("لا توجد أوامر لطباعتها.", "No orders to print."));
+    return;
+  }
+  if (orders.length > 30 && !confirm(label(`سيتم تجهيز ${orders.length} كارت. متابعة؟`, `Prepare ${orders.length} cards. Continue?`))) return;
+  closePmCards();
+  const overlay = document.createElement("div");
+  overlay.id = "pmCardOverlay";
+  overlay.className = "fixed inset-0 z-[120] overflow-auto bg-gray-200 p-3";
+  overlay.innerHTML = `<style>${PM_CARD_CSS}</style>
+    <div class="no-print mx-auto mb-3 flex max-w-3xl items-center justify-between gap-2" dir="${isEn() ? "ltr" : "rtl"}">
+      <span class="text-sm font-bold text-gray-800">${label("معاينة كروت PM", "PM cards preview")} (${orders.length})</span>
+      <div class="flex gap-2">
+        <button type="button" data-pm-card-act="print" class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500">🖨️ ${label("طباعة", "Print")}</button>
+        <button type="button" data-pm-card-act="close" class="rounded-lg bg-gray-700 px-4 py-2 text-xs font-bold text-white hover:bg-gray-600">✕ ${label("إغلاق", "Close")}</button>
+      </div>
+    </div>
+    <div class="mx-auto max-w-3xl">${orders.map(pmCardHtml).join("")}</div>`;
+  overlay.addEventListener("click", event => {
+    const button = event.target.closest("[data-pm-card-act]");
+    if (!button) return;
+    if (button.dataset.pmCardAct === "print") window.print(); else closePmCards();
+  });
+  document.body.appendChild(overlay);
+  document.addEventListener("keydown", onPmCardKey);
+}
+
+window.printPmCard = function(ticketId) {
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (order) openPmCards([order]);
+};
+
+// المحدد (من المعروض) وإلا كل النتائج المعروضة
+window.printPmCards = function() {
+  const filtered = filteredPmOrders();
+  const selected = filtered.filter(order => selectedOrderIds.has(order.id));
+  openPmCards(selected.length ? selected : filtered);
+};
+
+// ============================================================
+// تحديد أوامر توقف الخط
+// ============================================================
+
+window.togglePmDowntime = async function(ticketId) {
+  if (!canPlanPmOrders()) {
+    alert(label("ليست لديك صلاحية تعديل توقف الخط.", "You are not allowed to change line downtime."));
+    return;
+  }
+  const order = pmOrders.find(item => item.id === ticketId);
+  if (!order) return;
+  const next = !isDowntime(order);
+  const result = await setPmDowntimeApi([ticketId], next);
+  if (result.status === "success") {
+    order.downtimeRequired = next;
+    renderPmOrders();
+  } else {
+    alert(`${label("تعذر التحديث:", "Update failed:")} ${result.message || ""}`);
+  }
+};
+
+window.setPmDowntimeSelected = async function(value) {
+  if (!canPlanPmOrders()) return;
+  const targets = visibleOrders.filter(order => selectedOrderIds.has(order.id) && order.pmStatus !== "completed_partial");
+  if (!targets.length) {
+    alert(label("حدد أوامر أولاً.", "Select orders first."));
+    return;
+  }
+  const result = await setPmDowntimeApi(targets.map(order => order.id), value);
+  if (result.status !== "success") {
+    alert(`${label("تعذر التحديث:", "Update failed:")} ${result.message || ""}`);
+    return;
+  }
+  targets.forEach(order => { order.downtimeRequired = value; });
+  if (result.data.failed) alert(label(`تم تحديث ${result.data.updated} وتعذر ${result.data.failed}.`, `${result.data.updated} updated, ${result.data.failed} failed.`));
+  renderPmOrders();
+};
+
 export const PmOrdersView = () => `
-  <section class="app-page space-y-4 p-3 pb-24 text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 class="text-lg font-black text-blue-400 flex items-center gap-2">
-          <span>🗓️</span>
-          <span>${label("أوامر الصيانة الوقائية (PM)", "Preventive Maintenance Orders (PM)")}</span>
-        </h2>
-        <p class="mt-1 text-xs text-gray-400">${label("استخراج وتخطيط مهام PM المرتبطة بخطوط الإنتاج والمعدات، وتصدير أوامر العمل الميدانية أثناء التوقف.", "Plan, filter and extract PM work orders linked to production lines and equipment for field downtime work.")}</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <button type="button" onclick="window.navigateTo('pm')" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700 transition">${label("تسجيل نموذج PM", "Record PM form")}</button>
-      </div>
+  <section class="app-page space-y-3 p-3 pb-24 text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
+    <div>
+      <h2 class="flex items-center gap-2 text-lg font-black text-blue-400">
+        <span>🗓️</span>
+        <span>${label("أوامر الصيانة الوقائية (PM)", "Preventive Maintenance Orders (PM)")}</span>
+      </h2>
+      <p class="mt-1 text-xs text-gray-400">${label("تخطيط وتنفيذ أوامر PM وطباعة كروت الفنيين وتصدير أوامر توقف الخط.", "Plan and execute PM orders, print technician cards and export line-downtime orders.")}</p>
     </div>
     <div id="pmOrdersContainer" aria-live="polite" class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>
   </section>
@@ -429,11 +499,7 @@ window.clearPmFilterDate = function(key) {
 };
 
 window.openPmOrdersWithFilter = function(presetFilters = {}) {
-  filters = {
-    search: "", line: "", machine: "", from: "", to: "",
-    priority: "", status: "", assignment: "", downtime: "",
-    ...presetFilters
-  };
+  filters = { ...emptyFilters(), ...presetFilters };
   selectedOrderIds.clear();
   if (typeof window.navigateTo === "function") {
     window.navigateTo("pmOrders");
@@ -444,6 +510,7 @@ let unsubscribePmOrders = null;
 
 window.cleanupPmOrdersBoard = function() {
   closePmTasksModal();
+  closePmCards();
   if (typeof unsubscribePmOrders === "function") unsubscribePmOrders();
   unsubscribePmOrders = null;
 };
@@ -505,32 +572,39 @@ window.editPmOrder = async function(ticketId) {
     technicianOptions.push({ value: `${order.assignedToUid}::${order.assignedTo}`, label: order.assignedTo });
   }
   const values = await openActionModal({
-    title: `${label("تخطيط أمر PM", "Plan PM order")} · ${order.issueId || order.id}`,
-    submitLabel: label("حفظ التخطيط", "Save plan"),
+    title: `${label("تخطيط أمر PM", "Plan PM order")} · ${orderNumber(order)}`,
+    submitLabel: label("حفظ", "Save"),
     fields: [
-      { id: "line", label: label("خط الإنتاج", "Production line"), defaultValue: order.line || "" },
-      { id: "machine", label: label("المعدة", "Equipment"), defaultValue: order.machine || "" },
-      { id: "location", label: label("الموقع", "Location"), defaultValue: order.location || "" },
-      { id: "priority", label: label("الأولوية", "Priority"), type: "select", defaultValue: order.priority || "Medium", options: ["High", "Medium", "Low"].map(v => ({ value: v, label: v })) },
-      { id: "plannedDate", label: label("موعد التنفيذ (اتركه فارغاً لغير المجدول)", "Planned date (leave blank if unscheduled)"), type: "date", defaultValue: dateValue(order.plannedDate) },
-      { id: "pmStatus", label: label("حالة أمر PM", "PM order status"), type: "select", defaultValue: order.pmStatus || "unplanned", options: ["unplanned", "planned", "in_progress", "completed", "deferred"].map(status => ({ value: status, label: pmStatusLabel(status) })) },
-      { id: "assignedTo", label: label("الفني (اختياري)", "Technician (optional)"), type: "select", defaultValue: order.assignedToUid ? `${order.assignedToUid}::${order.assignedTo}` : "", options: technicianOptions },
-      { id: "downtimeRequired", label: label("هل يتطلب توقف خط الإنتاج؟", "Does this require line downtime?"), type: "select", defaultValue: order.downtimeRequired === true ? "true" : "false", options: [{ value: "false", label: label("لا / غير محدد", "No / unset") }, { value: "true", label: label("نعم", "Yes") }] },
-      { id: "maintenanceNotes", label: label("ملاحظات التخطيط", "Planning notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" },
-      { id: "delayReason", label: label("سبب التأجيل (إن وجد)", "Reason for delay (if any)"), type: "textarea", defaultValue: order.delayReason || "" }
+      { id: "plannedDate", label: label("موعد التنفيذ", "Planned date"), type: "date", defaultValue: dateValue(order.plannedDate) },
+      { id: "assignedTo", label: label("الفني", "Technician"), type: "select", defaultValue: order.assignedToUid ? `${order.assignedToUid}::${order.assignedTo}` : "", options: technicianOptions },
+      { id: "downtimeRequired", label: label("توقف الخط", "Line downtime"), type: "select", defaultValue: order.downtimeRequired === true ? "true" : "false", options: [{ value: "false", label: label("غير مطلوب", "Not required") }, { value: "true", label: label("مطلوب ⚡", "Required ⚡") }] },
+      { id: "pmStatus", label: label("الحالة", "Status"), type: "select", defaultValue: order.pmStatus || "unplanned", options: ["unplanned", "planned", "in_progress", "completed", "deferred"].map(status => ({ value: status, label: pmStatusLabel(status) })) },
+      { id: "maintenanceNotes", label: label("ملاحظات", "Notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" },
+      { id: "delayReason", label: label("سبب التأجيل (إن وجد)", "Delay reason (if any)"), type: "textarea", defaultValue: order.delayReason || "" }
     ]
   });
   if (!values) return;
   const [assignedToUid, ...assignedNameParts] = String(values.assignedTo || "").split("::");
-  const assignedTo = assignedNameParts.join("::");
+  const plannedDate = String(values.plannedDate || "").trim();
+  // الحالة تتبع وجود الموعد تلقائياً لتقليل الخطوات
+  let pmStatus = values.pmStatus;
+  if (pmStatus === "unplanned" && plannedDate) pmStatus = "planned";
+  else if (pmStatus === "planned" && !plannedDate) pmStatus = "unplanned";
   pmOrderSaving = true;
   let result;
   try {
     result = await updatePmOrderApi(ticketId, {
-      ...values,
-      assignedTo: assignedTo || "",
+      line: order.line || "",
+      machine: order.machine || "",
+      location: order.location || "",
+      priority: order.priority || "Medium",
+      plannedDate,
+      pmStatus,
+      assignedTo: assignedNameParts.join("::") || "",
       assignedToUid: assignedToUid || "",
-      downtimeRequired: values.downtimeRequired === "true"
+      downtimeRequired: values.downtimeRequired === "true",
+      maintenanceNotes: values.maintenanceNotes,
+      delayReason: values.delayReason
     });
   } finally {
     pmOrderSaving = false;
@@ -695,7 +769,7 @@ window.initializePmTasks = async function(ticketId) {
   }
 };
 
-window.executePmTasks = function(ticketId) {
+window.executePmTasks = async function(ticketId) {
   const order = pmOrders.find(item => item.id === ticketId);
   if (!order) {
     alert(label("تعذر العثور على أمر PM.", "PM order not found."));
@@ -706,8 +780,19 @@ window.executePmTasks = function(ticketId) {
     return;
   }
   if (!(order.pmTasks || []).length) {
-    alert(label("لا توجد مهام محددة. اضغط 'تهيئة المهام' أولاً.", "No tasks defined. Click 'Init tasks' first."));
-    return;
+    // لا مهام بعد: تُهيَّأ المهام الافتراضية تلقائياً (خطوة واحدة بدل زر منفصل)
+    if (!isPmEditable(order)) {
+      alert(label("لا توجد مهام لهذا الأمر.", "This order has no tasks."));
+      return;
+    }
+    const initResult = await initializePmTasksApi(ticketId);
+    if (initResult.status !== "success") {
+      alert(`${label("فشل التهيئة:", "Initialization failed:")} ${initResult.message || ""}`);
+      return;
+    }
+    order.pmTasks = initResult.data;
+    if ((order.pmStatus || "unplanned") === "unplanned") order.pmStatus = "planned";
+    renderPmOrders();
   }
   closePmTasksModal();
   pmTasksModalState = { ticketId, reasonFor: null, reasonText: "", error: "", busy: false };
@@ -920,7 +1005,7 @@ window.exportPmOrders = async function(format) {
     `${label("النطاق", "Scope")}: ${hasSelected ? label(`محدد يدوياً (${data.length} أمر)`, `Selected (${data.length} orders)`) : label(`نتائج التصفية (${data.length} أمر)`, `All filtered (${data.length} orders)`)}`
   ].join(" | ");
 
-  const isDowntimeFocus = filters.downtime === "true";
+  const isDowntimeFocus = filters.downtime === "true" || (hasSelected && data.every(isDowntime));
   const title = isDowntimeFocus
     ? label("تقرير وخطة مهام الصيانة الوقائية (PM) عند توقف الخط", "Line Downtime PM Work Orders Report")
     : label("تقرير أوامر الصيانة الوقائية", "Preventive Maintenance Work Orders Report");
