@@ -1018,9 +1018,25 @@ service cloud.firestore {
     // pmPlans - خطط الصيانة الوقائية الدورية لكل ماكينة
     // ==========================================================
     match /pmPlans/{planId} {
-      allow read: if isSignedIn();
-      allow create, update: if isActive()
-                            && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      allow read: if isActive();
+      allow create: if isActive()
+                    && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      allow update: if isActive()
+                    && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      // تسجيل التنفيذ الفعلي (savePmExecutionApi) يقوم به الفني أيضاً: كان
+      // سجل pmExecutions يُنشأ بنجاح ثم يفشل تحديث الخطة (permission-denied)
+      // لغير أدوار الإدارة فلا يتقدم موعد الصيانة ويتكرر السجل عند إعادة
+      // المحاولة. مسموح هنا بحقول التنفيذ فقط، ونسبتها لصاحب الطلب نفسه،
+      // وبزيادة العدّاد بواحد فقط (لا تعديل لمهام الخطة ولا دوريتها).
+      allow update: if isActive()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastExecution"])
+                        || request.resource.data.lastExecution.executedByUid == request.auth.uid)
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastDeferral"])
+                        || request.resource.data.lastDeferral.executedByUid == request.auth.uid)
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["executionCount"])
+                        || request.resource.data.executionCount == resource.data.get("executionCount", 0) + 1);
       allow delete: if isAdmin();
     }
 
@@ -1028,7 +1044,12 @@ service cloud.firestore {
     // pmExecutions - سجلات التنفيذ الفعلي لخطط PM الدورية
     // ==========================================================
     match /pmExecutions/{executionId} {
-      allow read, create: if isSignedIn();
+      allow read: if isActive();
+      // السجل ينسب للمستخدم الحالي فقط وبنتيجة صالحة (لا انتحال منفِّذ آخر)
+      allow create: if isActive()
+                    && request.resource.data.get("executedByUid", "") == request.auth.uid
+                    && request.resource.data.get("planId", null) is string
+                    && request.resource.data.get("result", "") in ["completed", "completed_partial", "deferred"];
       allow update, delete: if isAdmin() || isManagerRole();
     }
 
