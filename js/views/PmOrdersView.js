@@ -26,8 +26,10 @@ import {
 } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
 import { loadScriptWithFallback } from "../utils/loadExternalScript.js";
-import { hasFullDataAccess, hasPermission, isAdminRole } from "../permissions.js";
+import { hasFullDataAccess, hasPermission, isAdminRole, isManagerRole, getCurrentRole } from "../permissions.js";
 import { getMachineTypeEntries } from "../machines.js";
+import { normalizeLine, formatLineLabel } from "../utils/lineUtils.js";
+import { getPlanDueStatus, getPlanDueBucket, normalizeDateKey, resolveExecutionResult } from "../utils/pmSchedule.js";
 
 let pmOrders = [];
 let visibleOrders = [];
@@ -44,6 +46,11 @@ let plansStatusFilter = "";
 
 let downtimeSelectedLine = "Line 1";
 let downtimeSelectedMachine = "";
+
+// أخطاء الاشتراك اللحظي (صلاحيات/شبكة/فهرس): كانت تُتجاهل فتبقى الصفحة فارغة
+// أو معلّقة على "جاري التحميل" دون أي تفسير للمستخدم
+let pmOrdersLoadError = "";
+let pmPlansLoadError = "";
 
 function getAllAvailableMachines(lineFilter = "") {
   try {
@@ -67,9 +74,13 @@ function getAllAvailableMachines(lineFilter = "") {
 }
 
 function preparePlanAsCard(plan) {
+  // بطاقة الخطة المطبوعة فارغة للتنفيذ الميداني: لا تعرض نتيجة آخر تنفيذ
+  // (كانت تُظهر "مكتمل" مؤشراً عليها والفني السابق كمُسنَد إليه)
+  const lineKey = String(plan.line || "Line 1").replace(/\s+/g, "");
   return {
     id: plan.id,
-    unifiedNumber: `PLAN-${(plan.line || "L1").replace(/\\s+/g, "")}-${plan.machine}`,
+    planCard: true,
+    unifiedNumber: `PLAN-${lineKey}-${plan.machine}`,
     issueId: plan.id,
     maintenanceType: "PM",
     line: plan.line || "Line 1",
@@ -77,9 +88,9 @@ function preparePlanAsCard(plan) {
     location: plan.department === "frontend" ? label("قسم Front-End", "Front-End Area") : label("قسم Back-End", "Back-End Area"),
     description: `${label("خطة صيانة وقائية دورية", "Periodic Preventive Maintenance Plan")} (${plan.frequencyLabel || plan.frequency})`,
     priority: "High",
-    pmStatus: plan.lastExecution?.result || "planned",
+    pmStatus: "planned",
     plannedDate: plan.nextDueDate,
-    assignedTo: plan.lastExecution?.technicianName || label("فريق الصيانة الدورية", "Periodic PM Team"),
+    assignedTo: label("فريق الصيانة الدورية", "Periodic PM Team"),
     downtimeRequired: true,
     pmTasks: (plan.tasks || []).map((t, idx) => ({
       id: t.id || `task_${idx + 1}`,
@@ -120,6 +131,8 @@ const formatDisplayDate = value => {
 };
 
 const canPlanPmOrders = () => hasFullDataAccess();
+const canCreateFollowup = () => isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole());
+const canRecordPmExecution = () => hasFullDataAccess() || hasPermission("pm");
 const canExportPmOrders = () => hasPermission("pm") || hasPermission("reports") || hasFullDataAccess();
 
 const pmStatusLabel = status => ({
@@ -192,7 +205,7 @@ function getTaskActionButtons(order) {
     }
   }
   btns.push(pmBtn("bg-slate-600 hover:bg-slate-500", "printPmCard", id, "🖨️", label("كارت PM للطباعة", "Printable PM card")));
-  if (canPlanPmOrders() && status !== "completed_partial") {
+  if (canPlanPmOrders() && !isClosed) {
     btns.push(pmBtn("bg-blue-600 hover:bg-blue-500", "editPmOrder", id, label("تخطيط", "Plan")));
   }
   if (canPlanPmOrders() && (status === "completed_partial" || status === "deferred")) {
@@ -201,7 +214,7 @@ function getTaskActionButtons(order) {
   if (status === "completed_partial") {
     if (order.followupTicketId) {
       btns.push(`<span class="rounded px-2 py-1 text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${label("تمت المتابعة", "Follow-up created")}</span>`);
-    } else if (canPlanPmOrders() && (order.remainingTasks || []).length) {
+    } else if (canCreateFollowup() && (order.remainingTasks || []).length) {
       btns.push(pmBtn("bg-rose-600 hover:bg-rose-500", "createFollowupFromRemaining", id, label("متابعة المتبقي", "Follow-up")));
     }
   }
@@ -228,7 +241,7 @@ function filteredPmOrders() {
     const planDate = orderFilterDate(order);
     return matchSearch
       && (!quick || quick(order))
-      && (!filters.line || order.line === filters.line)
+      && (!filters.line || normalizeLine(order.line) === normalizeLine(filters.line))
       && (!filters.machine || order.machine === filters.machine)
       && (!filters.from || (planDate && planDate >= filters.from))
       && (!filters.to || (planDate && planDate <= filters.to))
@@ -257,7 +270,7 @@ function orderRow(order) {
   const overdue = isOverdue(order);
   const planned = formatDisplayDate(order.plannedDate);
   const downtime = isDowntime(order);
-  const canMark = canPlanPmOrders() && status !== "completed_partial";
+  const canMark = canPlanPmOrders() && isOpenOrder(order);
   const downtimeBadge = canMark
     ? `<button type="button" data-downtime-toggle="${escapeHtml(order.id)}" title="${label("تبديل توقف الخط", "Toggle line downtime")}" class="rounded px-2 py-0.5 text-[10px] font-bold border transition ${downtime ? "bg-rose-500/25 text-rose-200 border-rose-500/50" : "bg-transparent text-gray-500 border-gray-700 hover:text-rose-300 hover:border-rose-500/40"}">⚡ ${downtime ? label("توقف الخط", "Downtime") : ""}</button>`
     : (downtime ? `<span class="rounded px-2 py-0.5 text-[10px] font-bold border bg-rose-500/25 text-rose-200 border-rose-500/50">⚡ ${label("توقف الخط", "Downtime")}</span>` : "");
@@ -309,7 +322,7 @@ window.selectDowntimeMachine = function(machine) {
 
 function renderPlanCard(plan) {
   const e = escapeHtml;
-  const dueInfo = calculateDueStatus(plan.nextDueDate, plan.lastExecution?.executedAt);
+  const dueInfo = getPlanDueStatus(plan);
   const tasks = Array.isArray(plan.tasks) ? plan.tasks : [];
   const freqLabel = plan.frequencyLabel || getFrequencyLabel(plan.frequency, plan.customDays);
   const lastExec = plan.lastExecution;
@@ -327,24 +340,24 @@ function renderPlanCard(plan) {
     : "";
 
   return `
-    <div class="rounded-2xl border border-gray-800/80 bg-gradient-to-br from-[#1E293B] via-[#1E293B] to-[#0F172A] hover:border-blue-500/45 transition-all duration-200 p-4 space-y-3.5 flex flex-col justify-between shadow-xl">
+    <div class="rounded-xl border border-gray-800 bg-[#1E293B] hover:border-gray-700 transition p-4 space-y-3 flex flex-col justify-between shadow-md">
       <div>
-        <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-3">
+        <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-2.5">
           <div>
             <div class="flex items-center gap-2">
-              <span class="text-base font-black text-white tracking-tight">${e(plan.machine)}</span>
-              <span class="rounded-lg px-2 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
+              <span class="text-base font-black text-white">${e(plan.machine)}</span>
+              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
             </div>
-            <div class="text-[11px] text-gray-400 mt-1 font-medium">
+            <div class="text-[11px] text-gray-400 mt-0.5">
               ${plan.department === "frontend" ? "Front-End" : "Back-End"} · ⏱️ ${plan.estimatedDurationMinutes || 30} ${label("دقيقة", "min")}
             </div>
           </div>
-          <span class="rounded-full px-2.5 py-1 text-[10px] font-bold ${dueInfo.badgeClass} whitespace-nowrap shadow-sm">
+          <span class="rounded px-2 py-0.5 text-[10px] font-bold ${dueInfo.badgeClass} whitespace-nowrap">
             ${dueInfo.label}
           </span>
         </div>
 
-        <div class="mt-3 space-y-2 text-xs">
+        <div class="mt-2.5 space-y-1.5 text-xs">
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("الدورية:", "Frequency:")}</span>
             <span class="font-bold text-amber-300">🔄 ${e(freqLabel)}</span>
@@ -352,51 +365,57 @@ function renderPlanCard(plan) {
 
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("آخر تنفيذ:", "Last Run:")}</span>
-            <span class="text-gray-200 text-[11px] flex items-center gap-1.5 font-mono">
+            <span class="text-gray-200 text-[11px] flex items-center gap-1">
               ${lastExecText} ${lastResultBadge}
             </span>
           </div>
 
+          ${plan.lastDeferral?.executedAt && (!lastExec?.executedAt || String(plan.lastDeferral.executedAt) > String(lastExec.executedAt)) ? `
+          <div class="flex justify-between items-center text-gray-300">
+            <span class="text-gray-400 font-medium">${label("آخر تأجيل:", "Last Deferral:")}</span>
+            <span class="text-rose-300 text-[11px]">⏸️ ${formatDisplayDate(plan.lastDeferral.executedAt)}</span>
+          </div>` : ""}
+
           <div class="flex justify-between items-center text-gray-300">
             <span class="text-gray-400 font-medium">${label("الموعد القادم:", "Next Due:")}</span>
-            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-400 font-black' : 'text-emerald-300'} font-mono">
+            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-400 font-black' : 'text-emerald-300'}">
               📅 ${formatDisplayDate(plan.nextDueDate) || unscheduledLabel()}
             </span>
           </div>
         </div>
 
         <!-- قائمة المهام مختصرة -->
-        <div class="mt-3.5 bg-[#0F172A] rounded-xl p-3 border border-gray-800/80 shadow-inner">
-          <div class="flex items-center justify-between text-[11px] font-bold text-gray-300 mb-2">
+        <div class="mt-3 bg-[#0F172A] rounded-lg p-2.5 border border-gray-800/80">
+          <div class="flex items-center justify-between text-[11px] font-bold text-gray-300 mb-1.5">
             <span>📋 ${label("مهام الصيانة المحددة", "Maintenance Tasks")} (${tasks.length})</span>
           </div>
-          <ul class="text-[11px] text-gray-400 space-y-1.5">
+          <ul class="text-[11px] text-gray-400 space-y-1">
             ${tasks.slice(0, 3).map((t, idx) => `
-              <li class="truncate flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
-                <span class="truncate">${idx + 1}. ${e(t.text || t.description || "")}</span>
+              <li class="truncate flex items-center gap-1.5">
+                <span class="text-blue-400 text-[9px]">▪</span>
+                <span>${idx + 1}. ${e(t.text || t.description || "")}</span>
               </li>
             `).join("")}
-            ${tasks.length > 3 ? `<li class="text-[10px] text-gray-500 italic ps-3.5">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
+            ${tasks.length > 3 ? `<li class="text-[10px] text-gray-500 italic">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
           </ul>
         </div>
       </div>
 
       <!-- أزرار الإجراءات -->
-      <div class="flex flex-wrap items-center gap-1.5 pt-3 border-t border-gray-800/80">
-        <button
+      <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-800">
+        ${canRecordPmExecution() ? `<button
           type="button"
           onclick="window.openRecordPmExecutionModal('${escapeJsArg(plan.id)}')"
-          class="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs transition-all duration-150 text-center shadow-md cursor-pointer"
+          class="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-[11px] transition text-center"
         >
           ▶️ ${label("تسجيل تنفيذ", "Execute")}
-        </button>
+        </button>` : ""}
 
         <button
           type="button"
           onclick="window.printMachinePmPlanCard('${escapeJsArg(plan.id)}')"
           title="${label("طباعة كارت PM للمعدة", "Print PM Card")}"
-          class="py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
+          class="py-1.5 px-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-bold text-[11px] transition"
         >
           🖨️
         </button>
@@ -406,7 +425,7 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.openAddEditPlanModal('${escapeJsArg(plan.id)}')"
             title="${label("تعديل الخطة والمهام", "Edit Plan & Tasks")}"
-            class="py-2 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs transition-all cursor-pointer shadow-sm"
+            class="py-1.5 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
           >
             ✏️
           </button>
@@ -416,7 +435,7 @@ function renderPlanCard(plan) {
           type="button"
           onclick="window.openPmExecutionsHistoryModal('${escapeJsArg(plan.id)}')"
           title="${label("سجل التنفيذات السابقة", "Execution History")}"
-          class="py-2 px-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 active:scale-95 text-gray-300 hover:text-white font-bold text-xs transition-all cursor-pointer border border-gray-700/80 shadow-sm"
+          class="py-1.5 px-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-bold text-[11px] transition"
         >
           📜
         </button>
@@ -426,7 +445,7 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.deletePmPlan('${escapeJsArg(plan.id)}')"
             title="${label("حذف الخطة", "Delete Plan")}"
-            class="py-2 px-2.5 rounded-xl border border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-300 active:scale-95 text-xs transition-all cursor-pointer shadow-sm"
+            class="py-1.5 px-2 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-300 text-[11px] transition"
           >
             🗑️
           </button>
@@ -438,22 +457,19 @@ function renderPlanCard(plan) {
 
 function renderPeriodicPlansTabHtml() {
   const q = plansSearch.trim().toLowerCase();
+  const bucketFilter = { overdue: "due", upcoming: "upcoming", never: "never" }[plansStatusFilter] || "";
   const filteredPlans = pmPlans.filter(p => {
     const matchSearch = !q || [p.machine, p.line, p.department, p.notes, ...(p.tasks || []).map(t => t.text)].some(v => String(v || "").toLowerCase().includes(q));
-    const matchLine = !plansLineFilter || p.line === plansLineFilter;
-    const dueInfo = calculateDueStatus(p.nextDueDate, p.lastExecution?.executedAt);
-    const matchStatus = !plansStatusFilter || (
-      plansStatusFilter === "overdue" ? (dueInfo.status === "overdue" || dueInfo.status === "due_today") :
-      plansStatusFilter === "upcoming" ? dueInfo.status === "upcoming" :
-      plansStatusFilter === "never" ? dueInfo.status === "never_executed" : true
-    );
+    const matchLine = !plansLineFilter || (formatLineLabel(p.line) || p.line) === plansLineFilter;
+    const matchStatus = !bucketFilter || getPlanDueBucket(p) === bucketFilter;
     return matchSearch && matchLine && matchStatus;
-  });
+  }).sort((a, b) => (normalizeDateKey(a.nextDueDate) || "9999").localeCompare(normalizeDateKey(b.nextDueDate) || "9999")
+    || String(a.machine || "").localeCompare(String(b.machine || "")));
 
   const totalPlans = pmPlans.length;
-  const overdueCount = pmPlans.filter(p => ["overdue", "due_today"].includes(calculateDueStatus(p.nextDueDate, p.lastExecution?.executedAt).status)).length;
-  const upcomingCount = pmPlans.filter(p => calculateDueStatus(p.nextDueDate, p.lastExecution?.executedAt).status === "upcoming").length;
-  const pendingFirst = pmPlans.filter(p => calculateDueStatus(p.nextDueDate, p.lastExecution?.executedAt).status === "never_executed").length;
+  const overdueCount = pmPlans.filter(p => getPlanDueBucket(p) === "due").length;
+  const upcomingCount = pmPlans.filter(p => getPlanDueBucket(p) === "upcoming").length;
+  const pendingFirst = pmPlans.filter(p => getPlanDueBucket(p) === "never").length;
 
   return `
     <div class="space-y-4">
@@ -548,16 +564,16 @@ function renderLineDowntimeTabHtml() {
   const lineMachines = getAllAvailableMachines(line);
 
   // إذا لم تكن الماكينة المختارة ضمن ماكينات هذا الخط، اختر أول ماكينة
-  if (!downtimeSelectedMachine && lineMachines.length) {
+  if ((!downtimeSelectedMachine || !lineMachines.some(m => m.name === downtimeSelectedMachine)) && lineMachines.length) {
     downtimeSelectedMachine = lineMachines[0].name;
   }
 
   const selectedMachine = downtimeSelectedMachine || (lineMachines[0]?.name || "");
-  const plan = pmPlans.find(p => p.machine === selectedMachine && (p.line === line || !p.line));
+  const plan = pmPlans.find(p => p.machine === selectedMachine && (!p.line || normalizeLine(p.line) === normalizeLine(line)));
 
   // أوامر PM المسندة من الأعطال المفتوحة لنفس الخط والماكينة
   const machineAssignedOrders = pmOrders.filter(order => {
-    return order.machine === selectedMachine && (order.line === line || !order.line) && isOpenOrder(order);
+    return order.machine === selectedMachine && (!order.line || normalizeLine(order.line) === normalizeLine(line)) && isOpenOrder(order);
   });
 
   return `
@@ -637,8 +653,8 @@ function renderLineDowntimeTabHtml() {
               </div>
 
               ${plan ? `
-                <span class="rounded px-2.5 py-1 text-xs font-bold ${calculateDueStatus(plan.nextDueDate, plan.lastExecution?.executedAt).badgeClass}">
-                  ${calculateDueStatus(plan.nextDueDate, plan.lastExecution?.executedAt).label}
+                <span class="rounded px-2.5 py-1 text-xs font-bold ${getPlanDueStatus(plan).badgeClass}">
+                  ${getPlanDueStatus(plan).label}
                 </span>
               ` : `
                 <span class="rounded px-2.5 py-1 text-xs font-bold bg-gray-700 text-gray-300">
@@ -796,13 +812,13 @@ function renderLineDowntimeTabHtml() {
                         <span class="font-bold text-amber-300">${e(order.priority || "Medium")}</span>
                       </div>
                       <div class="flex items-center gap-1.5 pt-1">
-                        <button
+                        ${canWorkOnOrder(order) ? (taskStageReady(order) ? `<button
                           type="button"
                           onclick="window.executePmTasks('${escapeJsArg(order.id)}')"
                           class="flex-1 py-1 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition text-center"
                         >
                           ▶️ ${label("تنفيذ", "Execute")}
-                        </button>
+                        </button>` : `<span class="flex-1 text-center text-[10px] text-gray-500">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`) : `<span class="flex-1"></span>`}
                         <button
                           type="button"
                           onclick="window.printPmCard('${escapeJsArg(order.id)}')"
@@ -907,7 +923,7 @@ function renderPmOrders() {
   const caret = focusId && typeof activeEl.selectionStart === "number" ? activeEl.selectionStart : null;
 
   visibleOrders = filteredPmOrders();
-  const uniq = key => [...new Set(pmOrders.map(order => order[key]).filter(Boolean))].sort().map(v => [v, v]);
+  const uniq = key => [...new Set(pmOrders.map(order => key === "line" ? (formatLineLabel(order.line) || order.line) : order[key]).filter(Boolean))].sort().map(v => [v, v]);
   const counts = {
     overdue: pmOrders.filter(isOverdue).length,
     unscheduled: pmOrders.filter(isUnscheduled).length,
@@ -922,7 +938,7 @@ function renderPmOrders() {
   const showExtra = filtersOpen || hasExtra;
   const dateInput = (id, value, text) => `<label class="flex items-center gap-1.5 text-[11px] text-gray-400"><span>${text}</span><input id="${id}" type="date" value="${escapeHtml(value)}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#0F172A] p-1.5 text-xs text-white"></label>`;
 
-  const overduePlansCount = pmPlans.filter(p => ["overdue", "due_today"].includes(calculateDueStatus(p.nextDueDate, p.lastExecution?.executedAt).status)).length;
+  const overduePlansCount = pmPlans.filter(p => getPlanDueBucket(p) === "due").length;
   const assignedOpenCount = pmOrders.filter(isOpenOrder).length;
 
   const tabsNavHtml = `
@@ -973,12 +989,22 @@ function renderPmOrders() {
     contentHtml = renderAssignedOrdersTabHtml(counts, selectedVisible, selectedCount, allSelected, scopeCount, showExtra, uniq, dateInput);
   }
 
+  const loadError = [pmPlansLoadError, pmOrdersLoadError].filter(Boolean).join(" | ");
+  const errorBanner = loadError ? `
+      <div role="alert" class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-200">
+        <span class="font-bold">⚠️ ${label("تعذر تحميل بعض بيانات PM:", "Some PM data failed to load:")}</span>
+        <span class="min-w-0 break-words">${escapeHtml(loadError)}</span>
+        <button type="button" id="pmRetryLoad" class="ms-auto rounded-lg border border-red-400/50 px-3 py-1.5 font-bold text-red-100 hover:bg-red-500/20">↻ ${label("إعادة المحاولة", "Retry")}</button>
+      </div>` : "";
+
   container.innerHTML = `
     <div class="text-start" dir="${isEn() ? "ltr" : "rtl"}">
       ${tabsNavHtml}
+      ${errorBanner}
       ${contentHtml}
     </div>
   `;
+  container.querySelector("#pmRetryLoad")?.addEventListener("click", () => window.loadPmOrdersBoard(true));
 
   if (activePmTab === "plans") {
     const searchInput = container.querySelector("#pmPlanSearchInput");
@@ -1135,7 +1161,7 @@ function pmCardHtml(order) {
       </div>
     </div>
     <table class="info">
-      <tr>${field(label("البلاغ الأصلي", "Original ticket"), ticketRef)}${field(label("موعد التنفيذ", "Planned date"), formatDisplayDate(order.plannedDate) || unscheduledLabel())}</tr>
+      <tr>${field(order.planCard ? label("خطة PM", "PM plan") : label("البلاغ الأصلي", "Original ticket"), order.planCard ? (order.description || ticketRef) : ticketRef)}${field(label("موعد التنفيذ", "Planned date"), formatDisplayDate(order.plannedDate) || unscheduledLabel())}</tr>
       <tr>${field(label("الخط", "Line"), order.line)}${field(label("المعدة", "Equipment"), order.machine)}</tr>
       <tr>${field(label("الفني", "Technician"), order.assignedTo || "")}${field(label("توقف الخط", "Line downtime"), isDowntime(order) ? label("مطلوب ⚡", "Required ⚡") : label("غير مطلوب", "Not required"))}</tr>
     </table>
@@ -1255,24 +1281,30 @@ window.printPmCards = function() {
 };
 
 // مسح QR لكارت أمر PM من الكاميرا لفتح نافذة التنفيذ مباشرة
-window.openPmOrderTasksFromQr = async function(ticketId) {
-  if (!ticketId) return;
+window.openPmOrderTasksFromQr = async function(refId) {
+  if (!refId) return;
+  const ref = String(refId).trim();
   if (typeof window.navigateTo === "function") {
     window.navigateTo("pmOrders");
   }
-  if (!pmOrders || !pmOrders.length) {
-    if (typeof window.loadPmOrdersBoard === "function") {
-      await window.loadPmOrdersBoard();
-    }
+  if (typeof window.loadPmOrdersBoard === "function" && (!pmOrders.length || !pmPlans.length)) {
+    await window.loadPmOrdersBoard();
   }
+  // الرمز قد يخص أمر PM (معرّف البلاغ/الرقم الموحد) أو بطاقة خطة مطبوعة
+  // (معرّف الخطة) - الأخيرة كانت تنتهي بـ "غير موجود"
   const tryOpen = (attempts = 0) => {
-    const order = pmOrders.find(item => item.id === ticketId || item.unifiedNumber === ticketId);
+    const plan = pmPlans.find(item => item.id === ref);
+    if (plan) {
+      window.openRecordPmExecutionModal(plan.id);
+      return;
+    }
+    const order = pmOrders.find(item => item.id === ref || item.unifiedNumber === ref);
     if (order && typeof window.executePmTasks === "function") {
       window.executePmTasks(order.id);
-    } else if (attempts < 6) {
-      setTimeout(() => tryOpen(attempts + 1), 200);
-    } else if (typeof window.executePmTasks === "function") {
-      window.executePmTasks(ticketId);
+    } else if (attempts < 40) {
+      setTimeout(() => tryOpen(attempts + 1), 250);
+    } else {
+      alert(label("تعذر العثور على أمر أو خطة PM مطابقة للرمز.", "No PM order or plan matches this code."));
     }
   };
   setTimeout(() => tryOpen(), 100);
@@ -1301,7 +1333,7 @@ window.togglePmDowntime = async function(ticketId) {
 
 window.setPmDowntimeSelected = async function(value) {
   if (!canPlanPmOrders()) return;
-  const targets = visibleOrders.filter(order => selectedOrderIds.has(order.id) && order.pmStatus !== "completed_partial");
+  const targets = visibleOrders.filter(order => selectedOrderIds.has(order.id) && isOpenOrder(order));
   if (!targets.length) {
     alert(label("حدد أوامر أولاً.", "Select orders first."));
     return;
@@ -1336,16 +1368,20 @@ window.clearPmFilterDate = function(key) {
 };
 
 window.openPmOrdersWithFilter = function(presetFilters = {}) {
-  filters = { ...emptyFilters(), ...presetFilters };
+  const { tab, ...rest } = presetFilters;
+  const line = formatLineLabel(rest.line) || "";
+  filters = { ...emptyFilters(), ...rest, line };
   selectedOrderIds.clear();
-  if (presetFilters.tab) {
-    activePmTab = presetFilters.tab;
+  if (tab) {
+    activePmTab = tab;
+  } else if (rest.machine || rest.line) {
+    activePmTab = "assigned";
   }
-  if (presetFilters.machine || presetFilters.line) {
-    plansSearch = presetFilters.machine || "";
-    plansLineFilter = presetFilters.line || "";
-    downtimeSelectedLine = presetFilters.line || downtimeSelectedLine || "Line 1";
-    downtimeSelectedMachine = presetFilters.machine || "";
+  if (rest.machine || rest.line) {
+    plansSearch = rest.machine || "";
+    plansLineFilter = line;
+    downtimeSelectedLine = line || downtimeSelectedLine || "Line 1";
+    downtimeSelectedMachine = rest.machine || "";
   }
   if (typeof window.navigateTo === "function") {
     window.navigateTo("pmOrders");
@@ -1379,11 +1415,16 @@ window.loadPmOrdersBoard = async function(force = false) {
   window.cleanupPmOrdersBoard();
   container.innerHTML = `<div class="py-6 text-center text-xs text-gray-400">${label("جاري تحميل بيانات الصيانة الوقائية...", "Loading PM data...")}</div>`;
 
+  pmOrdersLoadError = "";
+  pmPlansLoadError = "";
   unsubscribePmPlans = subscribeToPmPlansApi((result) => {
     if (result.status === "success") {
       pmPlans = result.data || [];
-      renderPmOrders();
+      pmPlansLoadError = "";
+    } else {
+      pmPlansLoadError = result.message || label("تعذر تحميل خطط PM", "Could not load PM plans");
     }
+    renderPmOrders();
   });
 
   unsubscribePmOrders = subscribeToPmOrdersApi((result) => {
@@ -1393,8 +1434,12 @@ window.loadPmOrdersBoard = async function(force = false) {
       pmOrders = result.data || [];
       const knownIds = new Set(pmOrders.map(order => order.id));
       selectedOrderIds.forEach(id => { if (!knownIds.has(id)) selectedOrderIds.delete(id); });
+      pmOrdersLoadError = "";
       renderPmOrders();
       if (pmTasksModalState) renderPmTasksModal();
+    } else {
+      pmOrdersLoadError = result.message || label("تعذر تحميل أوامر PM", "Could not load PM orders");
+      renderPmOrders();
     }
   });
 };
@@ -1432,7 +1477,7 @@ window.editPmOrder = async function(ticketId) {
       { id: "plannedDate", label: label("موعد التنفيذ", "Planned date"), type: "date", defaultValue: dateValue(order.plannedDate) },
       { id: "assignedTo", label: label("الفني", "Technician"), type: "select", defaultValue: order.assignedToUid ? `${order.assignedToUid}::${order.assignedTo}` : "", options: technicianOptions },
       { id: "downtimeRequired", label: label("توقف الخط", "Line downtime"), type: "select", defaultValue: order.downtimeRequired === true ? "true" : "false", options: [{ value: "false", label: label("غير مطلوب", "Not required") }, { value: "true", label: label("مطلوب ⚡", "Required ⚡") }] },
-      { id: "pmStatus", label: label("الحالة", "Status"), type: "select", defaultValue: order.pmStatus || "unplanned", options: ["unplanned", "planned", "in_progress", "completed", "deferred"].map(status => ({ value: status, label: pmStatusLabel(status) })) },
+      { id: "pmStatus", label: label("الحالة", "Status"), type: "select", defaultValue: order.pmStatus || "unplanned", options: ["unplanned", "planned", "in_progress", "deferred"].map(status => ({ value: status, label: pmStatusLabel(status) })) },
       { id: "maintenanceNotes", label: label("ملاحظات", "Notes"), type: "textarea", defaultValue: order.maintenanceNotes || "" },
       { id: "delayReason", label: label("سبب التأجيل (إن وجد)", "Delay reason (if any)"), type: "textarea", defaultValue: order.delayReason || "" }
     ]
@@ -1467,6 +1512,7 @@ window.editPmOrder = async function(ticketId) {
     alert(`${label("فشل حفظ التخطيط:", "Failed to save plan:")} ${result.message || ""}`);
     return;
   }
+  if (result.warning) alert(result.warning);
   await window.loadPmOrdersBoard();
 };
 
@@ -2000,12 +2046,40 @@ function closePlanEditModal() {
   document.getElementById("pmPlanEditOverlay")?.remove();
   planModalState = null;
 }
+// الأزرار تُولَّد كـ inline onclick وتحتاج دوالاً عامة (دوال الـ module ليست
+// على window فكانت أزرار الإلغاء/✕ وتعديل نص المهمة ترمي ReferenceError)
+window.closePlanEditModal = closePlanEditModal;
+window.updatePlanTaskText = function(index, value) {
+  if (planModalState?.tasks[index]) planModalState.tasks[index].text = String(value ?? "");
+};
+
+// نقل القيم المكتوبة في الحقول إلى الحالة قبل أي إعادة رسم (تغيير الخط،
+// إضافة/حذف/تحريك مهمة) حتى لا تضيع الدورية والتاريخ والمدة والملاحظات
+function syncPlanStateFromDom() {
+  const state = planModalState;
+  const overlay = document.getElementById("pmPlanEditOverlay");
+  if (!state || !overlay) return;
+  const val = id => overlay.querySelector(id)?.value;
+  if (!state.isEdit) {
+    state.line = val("#editPlanLine") ?? state.line;
+    state.machine = val("#editPlanMachine") ?? state.machine;
+  }
+  state.frequency = val("#editPlanFreq") ?? state.frequency;
+  const cd = parseInt(val("#editPlanCustomDays"), 10);
+  if (Number.isFinite(cd)) state.customDays = cd;
+  const du = parseInt(val("#editPlanDuration"), 10);
+  if (Number.isFinite(du)) state.estimatedDurationMinutes = du;
+  state.startDate = val("#editPlanStartDate") ?? state.startDate;
+  state.notes = val("#editPlanNotes") ?? state.notes;
+  state.pendingTaskText = val("#newPlanTaskInput") ?? state.pendingTaskText;
+}
 
 window.addPlanTaskItem = function() {
   if (!planModalState) return;
-  const input = document.getElementById("newPlanTaskInput");
-  const text = (input?.value || "").trim();
+  syncPlanStateFromDom();
+  const text = String(planModalState.pendingTaskText || "").trim();
   if (!text) return;
+  planModalState.pendingTaskText = "";
   planModalState.tasks.push({
     id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     text,
@@ -2016,6 +2090,7 @@ window.addPlanTaskItem = function() {
 
 window.deletePlanTaskItem = function(index) {
   if (!planModalState) return;
+  syncPlanStateFromDom();
   planModalState.tasks.splice(index, 1);
   planModalState.tasks.forEach((t, i) => { t.order = i + 1; });
   renderPlanEditModal();
@@ -2023,6 +2098,7 @@ window.deletePlanTaskItem = function(index) {
 
 window.movePlanTaskItem = function(index, direction) {
   if (!planModalState) return;
+  syncPlanStateFromDom();
   const target = index + direction;
   if (target < 0 || target >= planModalState.tasks.length) return;
   const temp = planModalState.tasks[index];
@@ -2034,6 +2110,7 @@ window.movePlanTaskItem = function(index, direction) {
 
 window.addPresetPlanTask = function(text) {
   if (!planModalState) return;
+  syncPlanStateFromDom();
   if (!planModalState.tasks.some(t => t.text === text)) {
     planModalState.tasks.push({
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -2066,7 +2143,7 @@ function renderPlanEditModal() {
           <span>📋</span>
           <span>${state.isEdit ? label("تعديل خطة PM دورية", "Edit Periodic PM Plan") : label("إنشاء خطة PM دورية جديدة", "New Periodic PM Plan")}</span>
         </h3>
-        <button type="button" onclick="closePlanEditModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closePlanEditModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
       ${state.error ? `<div role="alert" class="p-2.5 rounded-lg bg-red-500/20 text-red-200 border border-red-500/40 text-xs">${e(state.error)}</div>` : ""}
@@ -2074,7 +2151,7 @@ function renderPlanEditModal() {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div>
           <label class="block font-bold text-gray-300 mb-1">${label("خط الإنتاج", "Production Line")} <span class="text-red-400">*</span></label>
-          <select id="editPlanLine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500">
+          <select id="editPlanLine" ${state.isEdit ? "disabled" : ""} class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500">
             <option value="Line 1" ${state.line === "Line 1" ? "selected" : ""}>Line 1</option>
             <option value="Line 2" ${state.line === "Line 2" ? "selected" : ""}>Line 2</option>
           </select>
@@ -2118,7 +2195,7 @@ function renderPlanEditModal() {
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("تاريخ بدء / استحقاق الخطة", "First Scheduled Date")}</label>
+          <label class="block font-bold text-gray-300 mb-1">${state.isEdit ? label("موعد الاستحقاق القادم", "Next Due Date") : label("تاريخ بدء / استحقاق الخطة", "First Scheduled Date")}</label>
           <input type="date" id="editPlanStartDate" value="${escapeHtml(state.startDate || localDateKey())}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500" />
         </div>
       </div>
@@ -2151,6 +2228,8 @@ function renderPlanEditModal() {
           <input
             type="text"
             id="newPlanTaskInput"
+            value="${escapeHtml(state.pendingTaskText || "")}"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();window.addPlanTaskItem();}"
             placeholder="${label("اكتب نص مهمة الصيانة الجديدة...", "Enter maintenance task description...")}"
             class="flex-1 p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
           />
@@ -2171,7 +2250,7 @@ function renderPlanEditModal() {
               <input
                 type="text"
                 value="${e(task.text)}"
-                onchange="planModalState.tasks[${idx}].text = this.value"
+                oninput="window.updatePlanTaskText(${idx}, this.value)"
                 class="flex-1 bg-transparent border-0 text-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1.5 py-0.5"
               />
               <div class="flex items-center gap-1 shrink-0">
@@ -2211,7 +2290,7 @@ function renderPlanEditModal() {
       <div class="flex gap-2 border-t border-gray-700 pt-3">
         <button
           type="button"
-          onclick="closePlanEditModal()"
+          onclick="window.closePlanEditModal()"
           class="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold text-xs transition"
         >
           ${label("إلغاء", "Cancel")}
@@ -2233,7 +2312,11 @@ function renderPlanEditModal() {
   const lineEl = overlay.querySelector("#editPlanLine");
   if (lineEl && !state.isEdit) {
     lineEl.addEventListener("change", ev => {
+      syncPlanStateFromDom();
       state.line = ev.target.value;
+      if (state.machine && !getAllAvailableMachines(state.line).some(m => m.name === state.machine)) {
+        state.machine = "";
+      }
       renderPlanEditModal();
     });
   }
@@ -2299,16 +2382,19 @@ window.handleSavePlanSubmit = async function() {
   const overlay = document.getElementById("pmPlanEditOverlay");
   if (!overlay) return;
 
-  const line = overlay.querySelector("#editPlanLine")?.value || state.line;
-  const machine = state.isEdit ? state.machine : (overlay.querySelector("#editPlanMachine")?.value || state.machine);
-  const frequency = overlay.querySelector("#editPlanFreq")?.value || state.frequency;
-  const customDays = parseInt(overlay.querySelector("#editPlanCustomDays")?.value, 10) || state.customDays;
-  const duration = parseInt(overlay.querySelector("#editPlanDuration")?.value, 10) || state.estimatedDurationMinutes;
-  const startDate = overlay.querySelector("#editPlanStartDate")?.value || state.startDate;
-  const notes = overlay.querySelector("#editPlanNotes")?.value || state.notes;
+  syncPlanStateFromDom();
+  const { line, machine, frequency, customDays, startDate } = state;
+  const duration = state.estimatedDurationMinutes;
+  const notes = state.notes; // مسموح بتفريغها (كانت القيمة القديمة تعود عند المسح)
 
   if (!machine) {
     state.error = label("يرجى اختيار الماكينة أولاً.", "Please select a machine first.");
+    renderPlanEditModal();
+    return;
+  }
+
+  if (frequency === "custom" && !(customDays >= 1)) {
+    state.error = label("أدخل عدد أيام صحيحاً للدورية المخصصة.", "Enter a valid number of days for the custom interval.");
     renderPlanEditModal();
     return;
   }
@@ -2341,7 +2427,6 @@ window.handleSavePlanSubmit = async function() {
     if (res.status === "success") {
       alert(res.message || label("تم حفظ الخطة بنجاح ✅", "Plan saved successfully ✅"));
       closePlanEditModal();
-      await window.loadPmOrdersBoard();
     } else {
       state.error = res.message || label("فشل حفظ الخطة.", "Failed to save plan.");
       state.busy = false;
@@ -2364,8 +2449,47 @@ function closeExecutionModal() {
   document.getElementById("pmExecutionModalOverlay")?.remove();
   executionModalState = null;
 }
+window.closeExecutionModal = closeExecutionModal;
+window.renderExecutionModal = () => renderExecutionModal();
+window.setExecutionTaskNote = function(idx, value) {
+  if (executionModalState?.tasks[idx]) executionModalState.tasks[idx].note = String(value ?? "");
+};
+
+// حفظ ما كُتب في الحقول قبل أي إعادة رسم (تبديل مهمة/نتيجة كان يمسح
+// اسم الفني والمشرف والملاحظات)
+function syncExecutionStateFromDom() {
+  const state = executionModalState;
+  const overlay = document.getElementById("pmExecutionModalOverlay");
+  if (!state || !overlay) return;
+  state.technicianName = overlay.querySelector("#execTechName")?.value ?? state.technicianName;
+  state.supervisorName = overlay.querySelector("#execSupervisorName")?.value ?? state.supervisorName;
+  state.notes = overlay.querySelector("#execNotes")?.value ?? state.notes;
+}
+
+window.setExecutionResult = function(value) {
+  const state = executionModalState;
+  if (!state) return;
+  syncExecutionStateFromDom();
+  const total = state.tasks.length;
+  const done = state.tasks.filter(t => t.status === "done").length;
+  state.error = "";
+  if (value === "completed" && done !== total) {
+    state.error = label("لا يمكن اختيار «مكتمل» وبعض المهام لم تُنفَّذ — علّم كل المهام أو اختر جزئي/مؤجل.", "Cannot mark Completed while some tasks are not done — tick all tasks or choose Partial/Deferred.");
+  } else if (value === "completed_partial" && (done === 0 || done === total)) {
+    state.error = done === 0
+      ? label("لا توجد أي مهمة منفذة — اختر «مؤجل».", "No task was done — choose Deferred.")
+      : label("كل المهام منفذة — اختر «مكتمل».", "All tasks are done — choose Completed.");
+  } else {
+    state.result = value;
+  }
+  renderExecutionModal();
+};
 
 window.openRecordPmExecutionModal = function(planId) {
+  if (!canRecordPmExecution()) {
+    alert(label("ليست لديك صلاحية تسجيل تنفيذ الصيانة الوقائية.", "You are not allowed to record PM executions."));
+    return;
+  }
   const plan = pmPlans.find(p => p.id === planId);
   if (!plan) {
     alert(label("تعذر العثور على خطة PM المحددة.", "Plan not found."));
@@ -2378,10 +2502,14 @@ window.openRecordPmExecutionModal = function(planId) {
     status: "done", // افتراض تم التنفيذ افتراضياً لتقليل الخطوات الميدانية
     note: ""
   }));
+  // رمز التنفيذ يُولَّد مرة عند فتح النافذة: إعادة المحاولة بعد انقطاع الشبكة
+  // تعيد نفس الرمز فلا يتكرر سجل التنفيذ
+  const clientToken = `exec_${plan.id}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   executionModalState = {
     planId: plan.id,
     plan,
+    clientToken,
     technicianName: localStorage.getItem("name") || "فني صيانة",
     supervisorName: "",
     result: "completed",
@@ -2420,7 +2548,7 @@ function renderExecutionModal() {
             ⚙️ ${e(plan.machine)} · ${e(plan.line || "Line 1")} · 🔄 ${e(plan.frequencyLabel || plan.frequency)}
           </div>
         </div>
-        <button type="button" onclick="closeExecutionModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closeExecutionModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
       ${state.error ? `<div role="alert" class="p-2.5 rounded-lg bg-red-500/20 text-red-200 border border-red-500/40 text-xs">${e(state.error)}</div>` : ""}
@@ -2479,7 +2607,7 @@ function renderExecutionModal() {
                   type="text"
                   placeholder="${label("سبب عدم التنفيذ أو ملاحظة...", "Reason for not completing...")}"
                   value="${e(task.note)}"
-                  onchange="executionModalState.tasks[${idx}].note = this.value"
+                  oninput="window.setExecutionTaskNote(${idx}, this.value)"
                   class="w-full p-1.5 rounded-lg bg-[#0F172A] border border-rose-500/50 text-[11px] text-rose-200 placeholder-rose-400/50"
                 />
               ` : ""}
@@ -2493,15 +2621,15 @@ function renderExecutionModal() {
         <label class="block font-bold text-xs text-gray-200">${label("نتيجة التنفيذ العامة:", "Overall Result:")}</label>
         <div class="grid grid-cols-3 gap-2 text-xs">
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed" ? "border-emerald-500 bg-emerald-600/30 text-emerald-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
-            <input type="radio" name="execResultRadio" value="completed" ${state.result === "completed" ? "checked" : ""} onchange="executionModalState.result = this.value; renderExecutionModal()" class="sr-only" />
+            <input type="radio" name="execResultRadio" value="completed" ${state.result === "completed" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>✅ ${label("مكتمل", "Completed")}</span>
           </label>
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed_partial" ? "border-amber-500 bg-amber-600/30 text-amber-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
-            <input type="radio" name="execResultRadio" value="completed_partial" ${state.result === "completed_partial" ? "checked" : ""} onchange="executionModalState.result = this.value; renderExecutionModal()" class="sr-only" />
+            <input type="radio" name="execResultRadio" value="completed_partial" ${state.result === "completed_partial" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>⚠️ ${label("جزئي", "Partial")}</span>
           </label>
           <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "deferred" ? "border-rose-500 bg-rose-600/30 text-rose-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
-            <input type="radio" name="execResultRadio" value="deferred" ${state.result === "deferred" ? "checked" : ""} onchange="executionModalState.result = this.value; renderExecutionModal()" class="sr-only" />
+            <input type="radio" name="execResultRadio" value="deferred" ${state.result === "deferred" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>⏸️ ${label("مؤجل", "Deferred")}</span>
           </label>
         </div>
@@ -2517,7 +2645,7 @@ function renderExecutionModal() {
       <div class="flex gap-2 border-t border-gray-700 pt-3">
         <button
           type="button"
-          onclick="closeExecutionModal()"
+          onclick="window.closeExecutionModal()"
           class="flex-1 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 text-white font-bold text-xs transition"
         >
           ${label("إلغاء", "Cancel")}
@@ -2538,12 +2666,11 @@ function renderExecutionModal() {
 
 window.toggleExecutionTaskStatus = function(idx, isDone) {
   if (!executionModalState || !executionModalState.tasks[idx]) return;
+  syncExecutionStateFromDom();
   executionModalState.tasks[idx].status = isDone ? "done" : "not_done";
-  // إذا كانت كل المهام تم التنفيذ => النتيجة مكتمل، وإذا جزء لم يتم => جزئي
-  const allDone = executionModalState.tasks.every(t => t.status === "done");
-  const anyDone = executionModalState.tasks.some(t => t.status === "done");
-  if (allDone) executionModalState.result = "completed";
-  else if (anyDone) executionModalState.result = "completed_partial";
+  executionModalState.error = "";
+  // النتيجة تتبع المهام: كلها تمت => مكتمل، بعضها => جزئي، لا شيء => مؤجل
+  executionModalState.result = resolveExecutionResult(executionModalState.tasks, "completed");
   renderExecutionModal();
 };
 
@@ -2554,12 +2681,20 @@ window.handleSaveExecutionSubmit = async function() {
   const overlay = document.getElementById("pmExecutionModalOverlay");
   if (!overlay) return;
 
-  const techName = (overlay.querySelector("#execTechName")?.value || state.technicianName).trim();
-  const supervisorName = (overlay.querySelector("#execSupervisorName")?.value || state.supervisorName).trim();
-  const notes = (overlay.querySelector("#execNotes")?.value || state.notes).trim();
+  syncExecutionStateFromDom();
+  const techName = String(state.technicianName || "").trim();
+  const supervisorName = String(state.supervisorName || "").trim();
+  const notes = String(state.notes || "").trim();
 
   if (!techName) {
     state.error = label("يرجى كتابة اسم الفني المنفذ.", "Please enter technician name.");
+    renderExecutionModal();
+    return;
+  }
+
+  const missingReason = state.tasks.find(t => t.status !== "done" && !String(t.note || "").trim());
+  if (missingReason) {
+    state.error = `${label("اكتب سبب عدم تنفيذ المهمة:", "Enter the reason this task was not done:")} ${missingReason.text}`;
     renderExecutionModal();
     return;
   }
@@ -2577,21 +2712,24 @@ window.handleSaveExecutionSubmit = async function() {
       department: state.plan.department,
       technicianName: techName,
       supervisorName,
-      executedBy: techName,
-      executedByUid: localStorage.getItem("userId") || "",
       executedAt: new Date().toISOString(),
       result: state.result,
       tasks: state.tasks,
       notes,
       source: "line_downtime",
-      clientToken: `exec_${state.plan.id}_${Date.now()}`
+      clientToken: state.clientToken
     };
 
     const res = await savePmExecutionApi(payload);
     if (res.status === "success") {
-      alert(`${label("تم تسجيل التنفيذ بنجاح وتحديث موعد الصيانة القادم إلى:", "Execution recorded! Next due date:")} ${res.nextDueDate || "محدث"} ✅`);
+      if (res.deferred) {
+        alert(res.message || label("تم تسجيل التأجيل — لم يتغير موعد الاستحقاق.", "Deferral recorded — due date unchanged."));
+      } else if (res.duplicate) {
+        alert(label("سبق تسجيل هذا التنفيذ.", "This execution was already recorded."));
+      } else {
+        alert(`${label("تم تسجيل التنفيذ بنجاح وتحديث موعد الصيانة القادم إلى:", "Execution recorded! Next due date:")} ${res.nextDueDate || ""} ✅`);
+      }
       closeExecutionModal();
-      await window.loadPmOrdersBoard();
     } else {
       state.error = res.message || label("فشل تسجيل التنفيذ.", "Failed to record execution.");
       state.busy = false;
@@ -2611,6 +2749,7 @@ window.handleSaveExecutionSubmit = async function() {
 function closeHistoryModal() {
   document.getElementById("pmHistoryOverlay")?.remove();
 }
+window.closeHistoryModal = closeHistoryModal;
 
 window.openPmExecutionsHistoryModal = async function(planId) {
   const plan = pmPlans.find(p => p.id === planId);
@@ -2635,7 +2774,7 @@ window.openPmExecutionsHistoryModal = async function(planId) {
           </h3>
           <div class="text-xs text-gray-300 mt-1">⚙️ ${e(plan.machine)} · ${e(plan.line || "Line 1")}</div>
         </div>
-        <button type="button" onclick="closeHistoryModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closeHistoryModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
       <div id="pmHistoryListContainer" class="py-8 text-center text-xs text-gray-400">
@@ -2645,11 +2784,16 @@ window.openPmExecutionsHistoryModal = async function(planId) {
   `;
 
   try {
-    const res = await fetchPmExecutionsApi({ planId: plan.id, machine: plan.machine });
+    const res = await fetchPmExecutionsApi({ planId: plan.id });
     const container = document.getElementById("pmHistoryListContainer");
     if (!container) return;
 
-    if (res.status === "success" && res.data?.length) {
+    if (res.status !== "success") {
+      container.innerHTML = `<div role="alert" class="p-4 text-center text-red-300 text-xs">⚠️ ${e(res.message || label("تعذر تحميل السجل", "Could not load history"))}</div>`;
+      return;
+    }
+
+    if (res.data?.length) {
       container.innerHTML = `
         <div class="space-y-3 text-start">
           ${res.data.map((exec, idx) => {
@@ -2674,6 +2818,12 @@ window.openPmExecutionsHistoryModal = async function(planId) {
                     <span>${label("المهام المنجزة:", "Completed:")} <strong class="text-emerald-400">${exec.tasksSummary.done || 0}/${exec.tasksSummary.total || 0}</strong></span>
                     ${exec.tasksSummary.notDone ? `<span class="text-rose-400">${label("لم تنفذ:", "Not done:")} ${exec.tasksSummary.notDone}</span>` : ""}
                   </div>
+                ` : ""}
+
+                ${(exec.tasks || []).filter(t => t.status === "not_done").length ? `
+                  <ul class="text-[11px] text-rose-300 space-y-0.5 list-disc ps-4">
+                    ${(exec.tasks || []).filter(t => t.status === "not_done").map(t => `<li>${e(t.text)}${t.note ? ` — ${e(t.note)}` : ""}</li>`).join("")}
+                  </ul>
                 ` : ""}
 
                 ${exec.notes ? `
@@ -2753,7 +2903,7 @@ window.exportDowntimePmPlan = async function(format, planId) {
 
   // تصدير PDF احترافي مع نماذج التوقيعات الميدانية
   const exportTime = new Date().toLocaleString(isEnDoc ? "en-US" : "ar-EG");
-  const dueInfo = calculateDueStatus(plan.nextDueDate, plan.lastExecution?.executedAt);
+  const dueInfo = getPlanDueStatus(plan);
 
   const tableRows = rows.map(r => `
     <tr>
