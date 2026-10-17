@@ -776,5 +776,113 @@ await t("استعلامات البحث والتقارير: تبحث بالـ UID
   assert.ok(pmTicketsApiSource.includes("where(\"reportedByUid\", \"==\", myUid)") && pmTicketsApiSource.includes("where(\"reportedBy\", \"==\", myName)"), "غياب استعلام الاسم والـ UID معاً في تذاكر البحث/التقارير");
 });
 
+// ---------- PM periodic plans: schedule & execution logic (تنفيذ فعلي) ----------
+console.log("PM Periodic Plans");
+const pmS = await import("../js/utils/pmSchedule.js");
+const [pmApiSrc, pmViewSrc2, pmTicketsSrc2, rulesSrc] = await Promise.all([
+  readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/PmOrdersView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.rules", import.meta.url), "utf8")
+]);
+
+await t("مواعيد PM: التواريخ المحلية بلا انزياح يوم ونهاية الشهر لا تتجاوز", () => {
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "daily"), "2026-10-15");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "weekly"), "2026-10-21");
+  assert.equal(pmS.calculateNextDueDate("2026-01-31", "monthly"), "2026-02-28");
+  assert.equal(pmS.calculateNextDueDate("2028-01-31", "monthly"), "2028-02-29");
+  assert.equal(pmS.calculateNextDueDate("2026-11-30", "quarterly"), "2027-02-28");
+  assert.equal(pmS.calculateNextDueDate("2026-08-31", "semi_annual"), "2027-02-28");
+  assert.equal(pmS.calculateNextDueDate("2028-02-29", "annual"), "2029-02-28");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "custom", 10), "2026-10-24");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14T22:30:00.000Z", "daily").length, 10);
+  assert.equal(pmS.parseLocalDate("2026-02-31"), null);
+});
+
+await t("حالة الاستحقاق: متأخر/اليوم/قريب/أول تنفيذ/ساري وفئات الإحصائيات متنافية", () => {
+  const key = d => pmS.toDateKey(new Date(Date.now() + d * 86400000));
+  assert.equal(pmS.calculateDueStatus(key(-3), "x").status, "overdue");
+  assert.equal(pmS.calculateDueStatus(key(0), "x").status, "due_today");
+  assert.equal(pmS.calculateDueStatus(key(2), "x").status, "due_soon");
+  assert.equal(pmS.calculateDueStatus(key(10), null).status, "never_executed");
+  assert.equal(pmS.calculateDueStatus(key(10), "2026-01-01").status, "upcoming");
+  const plans = [
+    { nextDueDate: key(-1) }, { nextDueDate: key(0), lastExecution: { executedAt: "2026-01-01" } },
+    { nextDueDate: key(1), lastExecution: { executedAt: "2026-01-01" } }, { nextDueDate: key(20) },
+    { nextDueDate: key(20), lastExecution: { executedAt: "2026-01-01" } }
+  ];
+  const buckets = plans.map(pmS.getPlanDueBucket);
+  assert.deepEqual(buckets, ["due", "due", "upcoming", "never", "upcoming"]);
+});
+
+await t("نتيجة التنفيذ تُشتق من المهام (لا مكتمل مع مهام ناقصة ولا جزئي بلا مهام منفذة)", () => {
+  const T = (...st) => st.map((status, i) => ({ id: "t" + i, text: "m" + i, status, note: "" }));
+  assert.equal(pmS.resolveExecutionResult(T("done", "done"), "completed"), "completed");
+  assert.equal(pmS.resolveExecutionResult(T("done", "not_done"), "completed"), "completed_partial");
+  assert.equal(pmS.resolveExecutionResult(T("not_done", "not_done"), "completed_partial"), "deferred");
+  assert.equal(pmS.resolveExecutionResult(T("done", "not_done"), "deferred"), "deferred");
+  assert.equal(pmS.sanitizeExecutionTasks([{ id: "a", text: " x ", status: "weird" }])[0].status, "not_done");
+});
+
+await t("تحديث الخطة بعد التنفيذ: المكتمل يقدّم الموعد ويزيد العدّاد، المؤجل لا يغيّره، وإعادة الإرسال لا تكرر", () => {
+  const plan = { frequency: "monthly", nextDueDate: "2026-10-01", executionCount: 2 };
+  const base = { executionId: "ex_1", executedAt: "2026-10-12T09:00:00", executedBy: "A", executedByUid: "u", technicianName: "A", tasksSummary: { total: 1, done: 1, notDone: 0 }, notes: "" };
+  const done = pmS.buildPlanPatchAfterExecution(plan, { ...base, result: "completed" });
+  assert.equal(done.nextDueDate, "2026-11-12");
+  assert.equal(done.executionCount, 3);
+  assert.equal(done.lastExecution.result, "completed");
+  const deferred = pmS.buildPlanPatchAfterExecution(plan, { ...base, result: "deferred" });
+  assert.equal(deferred.nextDueDate, "2026-10-01");
+  assert.equal(deferred.executionCount, undefined);
+  assert.equal(deferred.lastExecution, undefined);
+  assert.equal(deferred.lastDeferral.executionId, "ex_1");
+  assert.equal(pmS.buildPlanPatchAfterExecution({ ...plan, lastExecution: { executionId: "ex_1" } }, { ...base, result: "completed" }), null);
+  const custom = pmS.buildPlanPatchAfterExecution({ frequency: "custom", customDays: 10, nextDueDate: "2026-10-01" }, { ...base, result: "completed_partial" });
+  assert.equal(custom.nextDueDate, "2026-10-22");
+});
+
+await t("تعديل الخطة: التاريخ اليدوي يُحترم، وتغيير الدورية يُحسب من آخر تنفيذ، وبدونهما يبقى الموعد", () => {
+  const existing = { frequency: "monthly", nextDueDate: "2026-11-12", lastExecution: { executedAt: "2026-10-12T09:00:00" } };
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-20", frequency: "monthly", customDays: null }), "2026-11-20");
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-12", frequency: "weekly", customDays: null }), "2026-10-19");
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-12", frequency: "monthly", customDays: null }), "2026-11-12");
+});
+
+await t("pmApi: منع تكرار الخطة، حفظ ذري للتنفيذ، معرّف تنفيذ حتمي، وإعادة تصدير الأسماء الأصلية", () => {
+  assert.ok(pmApiSrc.includes("duplicate: true") && pmApiSrc.includes("snap.exists()"), "غياب منع تكرار الخطة");
+  assert.ok(pmApiSrc.includes("writeBatch(db)") && pmApiSrc.includes("batch.set(execRef") && pmApiSrc.includes("batch.update(planRef"), "التنفيذ والخطة ليسا في batch واحد");
+  assert.ok(pmApiSrc.includes("clientToken") && pmApiSrc.includes("existingExec.exists()"), "غياب idempotency للتنفيذ");
+  assert.ok(pmApiSrc.includes("export { PM_FREQUENCIES, getFrequencyLabel, calculateNextDueDate, calculateDueStatus }"));
+  assert.ok(!pmApiSrc.includes("orderBy(\"machine\")") && !pmApiSrc.includes("where(\"planId\", \"==\", planId), orderBy"), "استعلام يحتاج فهرساً مركباً");
+});
+
+await t("واجهة PM: لا inline handler يعتمد على متغيرات module، والدوال العامة مُعرّضة على window", () => {
+  assert.ok(!/onclick="closePlanEditModal\(\)"|onclick="closeExecutionModal\(\)"|onclick="closeHistoryModal\(\)"/.test(pmViewSrc2));
+  assert.ok(!pmViewSrc2.includes("onchange=\"planModalState") && !pmViewSrc2.includes("executionModalState.result = this.value") && !pmViewSrc2.includes("onchange=\"executionModalState"));
+  for (const fn of ["closePlanEditModal", "closeExecutionModal", "closeHistoryModal", "updatePlanTaskText", "setExecutionTaskNote", "setExecutionResult"]) {
+    assert.ok(pmViewSrc2.includes(`window.${fn} =`), `غياب window.${fn}`);
+  }
+  assert.ok(pmViewSrc2.includes("syncPlanStateFromDom") && pmViewSrc2.includes("syncExecutionStateFromDom"), "غياب مزامنة الحقول قبل إعادة الرسم");
+});
+
+await t("بطاقة الخطة المطبوعة فارغة، والـ QR لبطاقة الخطة يفتح تسجيل التنفيذ", () => {
+  assert.ok(pmViewSrc2.includes('pmStatus: "planned"') && pmViewSrc2.includes("planCard: true"));
+  assert.ok(!pmViewSrc2.includes("lastExecution?.technicianName || label"), "اسم الفني السابق يظهر على البطاقة");
+  assert.ok(pmViewSrc2.includes("pmPlans.find(item => item.id === ref)") && pmViewSrc2.includes("openRecordPmExecutionModal(plan.id)"));
+});
+
+await t("أوامر PM: الإسناد من التخطيط ينقل الحالة (assign/reassign/release) ولا يقبل إنهاءً يدوياً", () => {
+  assert.ok(pmTicketsSrc2.includes("transitionPmTicketAfterPlanning"));
+  assert.ok(pmTicketsSrc2.includes('action: "assign"') && pmTicketsSrc2.includes('action: "reassign"') && pmTicketsSrc2.includes('action: "release"'));
+  assert.ok(pmTicketsSrc2.includes('const allowedStatuses = ["unplanned", "planned", "in_progress", "deferred"]'));
+  assert.ok(pmTicketsSrc2.includes("PMF-${ticketId}"), "أمر المتابعة غير حتمي");
+  assert.ok(pmTicketsSrc2.includes('action: "start"') && pmTicketsSrc2.includes("بدء تلقائي"));
+});
+
+await t("قواعد Firestore: الفني يسجل تنفيذ الخطة بحقول التنفيذ فقط وسجل التنفيذ ينسب لصاحبه", () => {
+  assert.ok(rulesSrc.includes('hasOnly(\n                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])'));
+  assert.ok(rulesSrc.includes('request.resource.data.get("executedByUid", "") == request.auth.uid'));
+});
+
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
 process.exit(failed ? 1 : 0);

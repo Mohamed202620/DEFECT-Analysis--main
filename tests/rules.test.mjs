@@ -10,6 +10,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   getDoc,
@@ -621,4 +622,61 @@ test("QR image scan resolves a catalog machine and submits a permitted checklist
     items: [],
     createdAt: "2026-10-11T09:00:01.000Z"
   }));
+});
+
+test("pm plans: a technician can record an execution on a plan but cannot edit or delete the plan definition", async () => {
+  const planPath = "pmPlans/plan_line1_backend_press_01";
+  await seed(planPath, {
+    line: "Line 1",
+    machine: "Backend Press 01",
+    frequency: "monthly",
+    tasks: [{ id: "task_1", text: "Check oil", order: 1 }],
+    nextDueDate: "2026-10-01",
+    executionCount: 0,
+    updatedAt: "before"
+  });
+  const technicianDb = dbFor("technician");
+  const execution = (overrides = {}) => ({
+    executionId: "ex_1",
+    executedAt: "2026-10-12T10:00:00.000Z",
+    executedBy: users.technician.name,
+    executedByUid: "technician",
+    result: "completed",
+    ...overrides
+  });
+
+  await assertFails(updateDoc(doc(technicianDb, planPath), { tasks: [], updatedAt: "now", updatedBy: users.technician.name }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution({ executedByUid: "manager" }),
+    nextDueDate: "2026-11-12",
+    executionCount: 1,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution(),
+    nextDueDate: "2026-11-12",
+    executionCount: 5,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertSucceeds(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution(),
+    nextDueDate: "2026-11-12",
+    executionCount: 1,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertFails(deleteDoc(doc(technicianDb, planPath)));
+  await assertSucceeds(deleteDoc(doc(dbFor("admin"), planPath)));
+});
+
+test("pm executions: a user can only log an execution as themselves with a valid result", async () => {
+  const technicianDb = dbFor("technician");
+  const base = { planId: "plan_line1_backend_press_01", machine: "Backend Press 01", executedByUid: "technician", result: "completed" };
+  await assertSucceeds(setDoc(doc(technicianDb, "pmExecutions/ex_ok"), base));
+  await assertFails(setDoc(doc(technicianDb, "pmExecutions/ex_spoof"), { ...base, executedByUid: "manager" }));
+  await assertFails(setDoc(doc(technicianDb, "pmExecutions/ex_bad_result"), { ...base, result: "weird" }));
+  await assertFails(updateDoc(doc(technicianDb, "pmExecutions/ex_ok"), { notes: "edited" }));
+  await assertSucceeds(updateDoc(doc(dbFor("manager"), "pmExecutions/ex_ok"), { notes: "reviewed" }));
 });
