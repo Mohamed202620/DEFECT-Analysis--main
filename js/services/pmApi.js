@@ -8,7 +8,8 @@ import { db } from "../providers/backend/index.js";
 import {
   getDepartmentForMachineValue,
   getCurrentUserMachineContext,
-  getMachineTypeReference
+  getMachineTypeReference,
+  getLineForMachineValue
 } from "../machines.js";
 
 import {
@@ -24,9 +25,30 @@ import {
   orderBy,
   query,
   where,
-  onSnapshot
+  onSnapshot,
+  writeBatch
 } from "../providers/backend/index.js";
 import { normalizeLine, formatLineLabel } from "../utils/lineUtils.js";
+import { getCurrentRole, hasFullDataAccess, hasPermission, isAdminRole } from "../permissions.js";
+import {
+  PM_FREQUENCIES,
+  PM_MAX_CUSTOM_DAYS,
+  isValidFrequency,
+  getFrequencyLabel,
+  calculateNextDueDate,
+  calculateDueStatus,
+  normalizeDateKey,
+  toDateKey,
+  sanitizeExecutionTasks,
+  summarizeExecutionTasks,
+  resolveExecutionResult,
+  buildPlanPatchAfterExecution,
+  resolveNextDueOnEdit
+} from "../utils/pmSchedule.js";
+
+// نفس الأسماء المُصدَّرة سابقاً من هذا الملف (api.js يعيد تصديرها) - المنطق
+// نفسه انتقل إلى utils/pmSchedule.js ليكون قابلاً للاختبار دون Firebase
+export { PM_FREQUENCIES, getFrequencyLabel, calculateNextDueDate, calculateDueStatus };
 
 
 // ============================================================
@@ -177,126 +199,16 @@ export async function fetchPmRecordsForSearchApi({ isFullAccess, myName }) {
 // ============================================================
 // PERIODIC PM PLANS & LINE DOWNTIME PM ENGINE
 // نظام إدارة خطط الصيانة الوقائية الدورية والتنفيذ الفعلي
+// (منطق الحساب النقي في utils/pmSchedule.js)
 // ============================================================
 
-export const PM_FREQUENCIES = [
-  { id: "daily", ar: "يومي", en: "Daily", defaultDays: 1 },
-  { id: "weekly", ar: "أسبوعي", en: "Weekly", defaultDays: 7 },
-  { id: "monthly", ar: "شهري", en: "Monthly", defaultDays: 30 },
-  { id: "quarterly", ar: "ربع سنوي (3 أشهر)", en: "Quarterly (3 months)", defaultDays: 90 },
-  { id: "semi_annual", ar: "نصف سنوي (6 أشهر)", en: "Semi-annual (6 months)", defaultDays: 180 },
-  { id: "annual", ar: "سنوي", en: "Annual", defaultDays: 365 },
-  { id: "custom", ar: "دورية مخصصة", en: "Custom interval", defaultDays: 14 }
-];
-
-export function getFrequencyLabel(frequencyId, customDays = null) {
-  const isEn = (window.currentLang || "ar") === "en";
-  if (frequencyId === "custom" && customDays) {
-    return isEn ? `Every ${customDays} days` : `كل ${customDays} يوم`;
-  }
-  const item = PM_FREQUENCIES.find(f => f.id === frequencyId);
-  return item ? (isEn ? item.en : item.ar) : (frequencyId || "");
-}
-
-/**
- * حساب موعد الصيانة القادم بدقة بناءً على تاريخ الأساس ونوع الدورية
- */
-export function calculateNextDueDate(baseDateStr, frequency, customDays = 1) {
-  const raw = String(baseDateStr || "").trim();
-  let base = raw ? new Date(raw) : new Date();
-  if (Number.isNaN(base.getTime())) base = new Date();
-
-  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-
-  switch (frequency) {
-    case "daily":
-      d.setDate(d.getDate() + 1);
-      break;
-    case "weekly":
-      d.setDate(d.getDate() + 7);
-      break;
-    case "monthly":
-      d.setMonth(d.getMonth() + 1);
-      break;
-    case "quarterly":
-      d.setMonth(d.getMonth() + 3);
-      break;
-    case "semi_annual":
-      d.setMonth(d.getMonth() + 6);
-      break;
-    case "annual":
-      d.setFullYear(d.getFullYear() + 1);
-      break;
-    case "custom":
-    default:
-      const days = Math.max(1, parseInt(customDays, 10) || 1);
-      d.setDate(d.getDate() + days);
-      break;
-  }
-
-  const pad = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/**
- * تقييم حالة استحقاق الخطة (متأخر، مستحق اليوم، يستحق قريباً، ساري)
- */
-export function calculateDueStatus(nextDueDateStr, lastExecutionDateStr = null) {
-  const isEn = (window.currentLang || "ar") === "en";
-  if (!nextDueDateStr) {
-    return {
-      status: "never_executed",
-      label: isEn ? "Pending First Run" : "بانتظار أول تنفيذ",
-      badgeClass: "bg-amber-500/20 text-amber-300 border border-amber-500/30",
-      daysDiff: 0
-    };
-  }
-
-  const now = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-  const [ny, nm, nd] = nextDueDateStr.split("-").map(Number);
-  const [ty, tm, td] = todayStr.split("-").map(Number);
-  const nextTime = new Date(ny, nm - 1, nd).getTime();
-  const todayTime = new Date(ty, tm - 1, td).getTime();
-
-  const diffDays = Math.round((nextTime - todayTime) / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    const overdueDays = Math.abs(diffDays);
-    return {
-      status: "overdue",
-      label: isEn ? `Overdue by ${overdueDays}d` : `متأخر (${overdueDays} يوم)`,
-      badgeClass: "bg-red-500/20 text-red-300 border border-red-500/30",
-      daysDiff: diffDays
-    };
-  } else if (diffDays === 0) {
-    return {
-      status: "due_today",
-      label: isEn ? "Due Today ⚡" : "مستحق اليوم ⚡",
-      badgeClass: "bg-orange-500/20 text-orange-300 border border-orange-500/30",
-      daysDiff: 0
-    };
-  } else if (diffDays <= 2) {
-    return {
-      status: "due_soon",
-      label: isEn ? `Due in ${diffDays}d` : `يستحق خلال ${diffDays} يوم`,
-      badgeClass: "bg-yellow-500/20 text-yellow-300 border border-yellow-500/30",
-      daysDiff: diffDays
-    };
-  } else {
-    return {
-      status: "upcoming",
-      label: isEn ? `Scheduled (${nextDueDateStr})` : `ساري ومجدول (${nextDueDateStr})`,
-      badgeClass: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
-      daysDiff: diffDays
-    };
-  }
-}
+const currentUserName = () => localStorage.getItem("name") || "مستخدم";
+const currentUserUid = () => localStorage.getItem("userId") || "";
+const todayKey = () => toDateKey(new Date());
 
 /**
  * توليد معرّف موحد ومستقر للخطة لمنع تكرار الخطط لنفس الماكينة
+ * (لا يُغيَّر - المعرّفات القديمة المخزّنة تعتمد على هذه الصيغة)
  */
 export function buildPlanDocId(line, machine) {
   const normLine = normalizeLine(line) || "L0";
@@ -306,19 +218,21 @@ export function buildPlanDocId(line, machine) {
 
 /**
  * جلب جميع خطط الصيانة الوقائية الدورية
+ * (الترتيب محلياً: استعلام where + orderBy على حقلين مختلفين كان يتطلب
+ *  فهرساً مركباً غير معرّف فيفشل الجلب بخطأ failed-precondition)
  */
 export async function fetchPmPlansApi({ line = "" } = {}) {
   try {
     const plansRef = collection(db, "pmPlans");
-    let q = query(plansRef, orderBy("machine", "asc"));
-    if (line) {
-      q = query(plansRef, where("line", "==", formatLineLabel(line)), orderBy("machine", "asc"));
-    }
+    const q = line
+      ? query(plansRef, where("line", "==", formatLineLabel(line) || String(line)))
+      : query(plansRef);
     const snap = await getDocs(q);
     const plans = [];
     snap.forEach(d => {
       plans.push({ id: d.id, ...d.data() });
     });
+    plans.sort((a, b) => String(a.machine || "").localeCompare(String(b.machine || "")));
     return { status: "success", data: plans };
   } catch (error) {
     console.error("Error fetching PM plans:", error);
@@ -353,90 +267,142 @@ export function subscribeToPmPlansApi(callback) {
   }
 }
 
+function normalizePlanTasks(rawTasks) {
+  const list = Array.isArray(rawTasks) ? rawTasks : [];
+  const seen = new Set();
+  const out = [];
+  list.forEach((t, idx) => {
+    const text = String(t?.text || t?.description || "").trim().slice(0, 500);
+    if (!text) return;
+    // معرّفات المهام الموجودة تُحفظ كما هي (سجل التنفيذ يشير إليها)
+    let id = String(t?.id || "").trim() || `task_${idx + 1}_${Date.now()}`;
+    if (seen.has(id)) id = `${id}_${out.length + 1}`;
+    seen.add(id);
+    out.push({ id, text, order: out.length + 1 });
+  });
+  return out.slice(0, 100);
+}
+
 /**
  * حفظ أو تحديث خطة PM دورية لماكينة مع منع التكرار والحفاظ على سجل التنفيذ
+ *  - خطة جديدة (بدون id): المعرّف حتمي (خط + ماكينة)؛ إن وُجدت خطة لنفس
+ *    الماكينة يُرفض الحفظ بدل الكتابة فوقها بصمت.
+ *  - تعديل (id): الخط والماكينة ثابتان، ولا يُعاد إنشاء خطة محذوفة.
+ *  - لا يُكتب lastExecution/executionCount عند التعديل (حتى لا يُستبدل
+ *    تنفيذ سُجّل في نفس اللحظة من جهاز آخر).
  */
 export async function savePmPlanApi(planPayload) {
-  const machine = String(planPayload?.machine || "").trim();
-  if (!machine) {
+  if (!hasFullDataAccess(getCurrentRole())) {
+    return { status: "error", message: "ليست لديك صلاحية إدارة خطط الصيانة الوقائية" };
+  }
+
+  const requestedId = String(planPayload?.id || "").trim();
+  let machine = String(planPayload?.machine || "").trim();
+  if (!machine && !requestedId) {
     return { status: "error", message: "يرجى تحديد الماكينة قبل حفظ الخطة" };
   }
 
-  const rawLine = planPayload?.line;
-  const lineLabel = formatLineLabel(rawLine) || (normalizeLine(rawLine) ? `Line ${normalizeLine(rawLine)}` : "Line 1");
   const frequency = planPayload?.frequency || "monthly";
-  const customDays = parseInt(planPayload?.customDays, 10) || 14;
+  if (!isValidFrequency(frequency)) {
+    return { status: "error", message: "دورية الصيانة غير صالحة" };
+  }
+  let customDays = null;
+  if (frequency === "custom") {
+    customDays = parseInt(planPayload?.customDays, 10);
+    if (!Number.isFinite(customDays) || customDays < 1 || customDays > PM_MAX_CUSTOM_DAYS) {
+      return { status: "error", message: `عدد أيام الدورية المخصصة يجب أن يكون بين 1 و${PM_MAX_CUSTOM_DAYS}` };
+    }
+  }
 
-  const department =
-    planPayload?.department ||
-    getDepartmentForMachineValue(machine) ||
-    getCurrentUserMachineContext().machineDepartment ||
-    "backend";
+  const startDateRaw = String(planPayload?.startDate || "").trim();
+  const startDate = normalizeDateKey(startDateRaw);
+  if (startDateRaw && !startDate) {
+    return { status: "error", message: "تاريخ بدء/استحقاق الخطة غير صالح" };
+  }
 
-  // معرّف مستند حتمي للماكينة والخط يمنع التكرار تماماً
-  const planDocId = planPayload?.id || buildPlanDocId(lineLabel, machine);
-  const planDocRef = doc(db, "pmPlans", planDocId);
+  const tasks = normalizePlanTasks(planPayload?.tasks);
+  if (!tasks.length) {
+    return { status: "error", message: "يرجى إضافة مهمة صيانة واحدة على الأقل للخطة" };
+  }
+
+  const duration = Math.min(1440, Math.max(1, parseInt(planPayload?.estimatedDurationMinutes, 10) || 30));
+  const notes = String(planPayload?.notes ?? "").trim().slice(0, 2000);
 
   try {
-    // فحص ما إذا كانت الخطة موجودة مسبقاً للحفاظ على بيانات التنفيذ السابقة
-    const existingSnap = await getDoc(planDocRef);
-    let previousExecution = null;
-    let previousExecutionCount = 0;
-    let calculatedNextDue = "";
+    let planDocId = requestedId;
+    let planDocRef;
+    let existing = null;
+    let lineLabel = formatLineLabel(planPayload?.line) || "Line 1";
 
-    if (existingSnap.exists()) {
-      const oldData = existingSnap.data();
-      previousExecution = oldData.lastExecution || null;
-      previousExecutionCount = oldData.executionCount || 0;
-      // إذا كان هناك تنفيذ سابق، نحسب الموعد القادم بناءً عليه وعلى الدورية الجديدة
-      if (previousExecution?.executedAt) {
-        calculatedNextDue = calculateNextDueDate(previousExecution.executedAt, frequency, customDays);
-      } else if (planPayload.startDate) {
-        calculatedNextDue = planPayload.startDate;
-      } else {
-        calculatedNextDue = oldData.nextDueDate || calculateNextDueDate(new Date().toISOString(), frequency, customDays);
+    if (requestedId) {
+      planDocRef = doc(db, "pmPlans", requestedId);
+      const snap = await getDoc(planDocRef);
+      if (!snap.exists()) {
+        return { status: "error", message: "الخطة غير موجودة (ربما تم حذفها). أعد فتح القائمة وحاول مجدداً" };
       }
+      existing = snap.data();
+      machine = String(existing.machine || machine).trim();
+      lineLabel = formatLineLabel(existing.line) || existing.line || lineLabel;
     } else {
-      // خطة جديدة لأول مرة: الموعد القادم يبدأ من تاريخ البداية المختار أو اليوم
-      calculatedNextDue = planPayload.startDate || calculateNextDueDate(new Date().toISOString(), frequency, customDays);
+      planDocId = buildPlanDocId(lineLabel, machine);
+      planDocRef = doc(db, "pmPlans", planDocId);
+      const snap = await getDoc(planDocRef);
+      if (snap.exists()) {
+        return {
+          status: "error",
+          duplicate: true,
+          existingId: planDocId,
+          message: "توجد خطة PM لهذه الماكينة في هذا الخط بالفعل — افتحها للتعديل بدلاً من إنشاء خطة مكررة"
+        };
+      }
     }
 
-    const tasks = Array.isArray(planPayload.tasks) && planPayload.tasks.length
-      ? planPayload.tasks.map((t, idx) => ({
-          id: t.id || `task_${idx + 1}_${Date.now()}`,
-          text: String(t.text || t.description || "").trim(),
-          order: typeof t.order === "number" ? t.order : idx + 1
-        })).filter(t => t.text.length > 0)
-      : [
-          { id: "task_1", text: "الفحص الظاهري والميكانيكي العام للمعدة", order: 1 }
-        ];
-
+    const nowIso = new Date().toISOString();
     const dataToSave = {
       line: lineLabel,
       machine,
-      department,
       frequency,
       frequencyLabel: getFrequencyLabel(frequency, customDays),
-      customDays: frequency === "custom" ? customDays : null,
-      estimatedDurationMinutes: parseInt(planPayload.estimatedDurationMinutes, 10) || 30,
-      notes: String(planPayload.notes || "").trim(),
+      customDays,
+      estimatedDurationMinutes: duration,
+      notes,
       tasks,
-      nextDueDate: calculatedNextDue,
-      updatedAt: new Date().toISOString(),
-      updatedBy: localStorage.getItem("name") || "مستخدم",
-      updatedByUid: localStorage.getItem("userId") || ""
+      updatedAt: nowIso,
+      updatedBy: currentUserName(),
+      updatedByUid: currentUserUid()
     };
 
-    if (previousExecution) {
-      dataToSave.lastExecution = previousExecution;
-      dataToSave.executionCount = previousExecutionCount;
-    }
-
-    if (!existingSnap.exists()) {
-      dataToSave.createdAt = new Date().toISOString();
-      dataToSave.createdBy = localStorage.getItem("name") || "مستخدم";
-      dataToSave.createdByUid = localStorage.getItem("userId") || "";
+    if (!existing) {
+      // خطة جديدة: لا تُقبل إلا لماكينة موجودة في الكتالوج وعلى خطها الصحيح
+      const machineReference = getMachineTypeReference(machine);
+      if (!machineReference) {
+        return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
+      }
+      const catalogLine = formatLineLabel(getLineForMachineValue(machine));
+      if (catalogLine && catalogLine !== lineLabel) {
+        return { status: "error", message: `هذه الماكينة تتبع ${catalogLine} وليس ${lineLabel}` };
+      }
+      dataToSave.department =
+        planPayload?.department ||
+        getDepartmentForMachineValue(machine) ||
+        getCurrentUserMachineContext().machineDepartment ||
+        "backend";
+      Object.assign(dataToSave, machineReference);
+      dataToSave.nextDueDate = startDate || calculateNextDueDate(todayKey(), frequency, customDays || 1);
       dataToSave.executionCount = 0;
+      dataToSave.createdAt = nowIso;
+      dataToSave.createdBy = currentUserName();
+      dataToSave.createdByUid = currentUserUid();
+    } else {
+      dataToSave.department =
+        existing.department ||
+        planPayload?.department ||
+        getDepartmentForMachineValue(machine) ||
+        "backend";
+      const nextDue = resolveNextDueOnEdit({ existing, startDate, frequency, customDays });
+      if (nextDue !== normalizeDateKey(existing.nextDueDate)) {
+        dataToSave.nextDueDate = nextDue;
+      }
     }
 
     await setDoc(planDocRef, dataToSave, { merge: true });
@@ -444,7 +410,7 @@ export async function savePmPlanApi(planPayload) {
     return {
       status: "success",
       id: planDocId,
-      message: existingSnap.exists()
+      message: existing
         ? "تم تحديث خطة الصيانة الوقائية مع الحفاظ على سجل التنفيذ السابق ✅"
         : "تم إنشاء خطة الصيانة الوقائية للماكينة بنجاح ✅"
     };
@@ -455,10 +421,14 @@ export async function savePmPlanApi(planPayload) {
 }
 
 /**
- * حذف خطة صيانة وقائية
+ * حذف خطة صيانة وقائية (أدمن فقط - مطابق لقاعدة pmPlans). سجل التنفيذات
+ * (pmExecutions) يبقى محفوظاً.
  */
 export async function deletePmPlanApi(planId) {
   if (!planId) return { status: "error", message: "معرف الخطة غير محدد" };
+  if (!isAdminRole(getCurrentRole())) {
+    return { status: "error", message: "حذف الخطط متاح لمدير النظام فقط" };
+  }
   try {
     const planRef = doc(db, "pmPlans", planId);
     await deleteDoc(planRef);
@@ -469,125 +439,148 @@ export async function deletePmPlanApi(planId) {
   }
 }
 
-// ذاكرة تخزين مؤقتة للتوكنات لمنع الإرسال المكرر عند إعادة المحاولة السريعة
+// حماية فورية من النقر المزدوج داخل نفس الجلسة (الحماية الحقيقية من التكرار
+// هي معرّف مستند التنفيذ الحتمي المشتق من clientToken)
 const executionTokensCache = new Set();
 
 /**
  * تسجيل نتيجة التنفيذ الفعلي لخطة PM وتحديث سجل الخطة وموعد الصيانة القادم
- * شرط إلزامي: منع التكرار عند إعادة المحاولة + تحديث موعد الصيانة فقط عند التسجيل الفعلي
+ *  - سجل التنفيذ وتحديث الخطة في Batch واحد (إما الاثنان أو لا شيء).
+ *  - معرّف سجل التنفيذ مشتق من clientToken: إعادة الإرسال بعد انقطاع لا
+ *    تنشئ سجلاً مكرراً ولا تُحتسب تنفيذاً ثانياً.
+ *  - المؤجل لا يغيّر الموعد ولا يُحتسب تنفيذاً؛ المكتمل/الجزئي يحسب الموعد
+ *    من تاريخ التنفيذ الفعلي.
+ *  - الماكينة والخط والقسم من الخطة نفسها (لا من حمولة العميل).
  */
 export async function savePmExecutionApi(payload) {
-  const machine = String(payload?.machine || "").trim();
   const planId = String(payload?.planId || "").trim();
-
-  if (!machine) {
-    return { status: "error", message: "يرجى تحديد الماكينة لتسجيل التنفيذ" };
+  if (!planId) {
+    return { status: "error", message: "يرجى تحديد خطة PM لتسجيل التنفيذ" };
   }
 
-  // حماية من التكرار عند النقر المزدوج أو إعادة الإرسال السريع
-  const clientToken = payload?.clientToken || `${planId}_${Date.now()}`;
-  if (executionTokensCache.has(clientToken)) {
-    return { status: "success", message: "تم تسجيل هذا التنفيذ بالفعل" };
+  const myUid = currentUserUid();
+  if (!myUid) {
+    return { status: "error", message: "تعذر تحديد المستخدم الحالي - أعد تسجيل الدخول" };
   }
-  executionTokensCache.add(clientToken);
-  // تنظيف التوكن بعد دقيقة
-  setTimeout(() => executionTokensCache.delete(clientToken), 60000);
+  if (!(hasFullDataAccess(getCurrentRole()) || hasPermission("pm"))) {
+    return { status: "error", message: "ليست لديك صلاحية تسجيل تنفيذ الصيانة الوقائية" };
+  }
+
+  const rawToken = String(payload?.clientToken || "").trim()
+    || `exec_${planId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const execDocId = `ex_${rawToken}`.replace(/[^A-Za-z0-9_\-.]/g, "_").slice(0, 150);
+
+  if (executionTokensCache.has(execDocId)) {
+    return { status: "success", duplicate: true, id: execDocId, message: "تم تسجيل هذا التنفيذ بالفعل" };
+  }
+  executionTokensCache.add(execDocId);
 
   try {
-    const lineLabel = formatLineLabel(payload.line) || "Line 1";
-    const department =
-      payload.department ||
-      getDepartmentForMachineValue(machine) ||
-      getCurrentUserMachineContext().machineDepartment ||
-      "backend";
+    const planRef = doc(db, "pmPlans", planId);
+    const planSnap = await getDoc(planRef);
+    if (!planSnap.exists()) {
+      executionTokensCache.delete(execDocId);
+      return { status: "error", message: "الخطة غير موجودة (ربما تم حذفها)" };
+    }
+    const plan = { id: planSnap.id, ...planSnap.data() };
 
-    const executedAt = payload.executedAt || new Date().toISOString();
-    const executedBy = payload.executedBy || localStorage.getItem("name") || "فني صيانة";
-    const executedByUid = payload.executedByUid || localStorage.getItem("userId") || "";
-    const result = payload.result || "completed"; // "completed" | "completed_partial" | "deferred"
+    const execRef = doc(db, "pmExecutions", execDocId);
+    const existingExec = await getDoc(execRef);
+    if (existingExec.exists()) {
+      return {
+        status: "success",
+        duplicate: true,
+        id: execDocId,
+        nextDueDate: plan.nextDueDate || "",
+        message: "تم تسجيل هذا التنفيذ بالفعل"
+      };
+    }
 
-    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-    const tasksSummary = {
-      total: tasks.length,
-      done: tasks.filter(t => t.status === "done").length,
-      notDone: tasks.filter(t => t.status === "not_done").length
-    };
+    const tasks = sanitizeExecutionTasks(payload?.tasks);
+    const missingReason = tasks.find(t => t.status === "not_done" && !t.note);
+    if (missingReason) {
+      executionTokensCache.delete(execDocId);
+      return { status: "error", message: `اكتب سبب عدم تنفيذ المهمة: ${missingReason.text}` };
+    }
 
-    // 1. حفظ سجل التنفيذ الفعلي في مجموعة pmExecutions
+    const result = resolveExecutionResult(tasks, payload?.result);
+    const tasksSummary = summarizeExecutionTasks(tasks);
+
+    let executedAtDate = payload?.executedAt ? new Date(payload.executedAt) : new Date();
+    if (Number.isNaN(executedAtDate.getTime())) executedAtDate = new Date();
+    const executedAt = executedAtDate.toISOString();
+
+    const executedBy = currentUserName();
+    const technicianName = String(payload?.technicianName || "").trim().slice(0, 120) || executedBy;
+    const notes = String(payload?.notes || "").trim().slice(0, 2000);
+    const nowIso = new Date().toISOString();
+
     const executionDocData = {
       planId,
-      machine,
-      line: lineLabel,
-      department,
+      machine: plan.machine || "",
+      line: plan.line || formatLineLabel(payload?.line) || "Line 1",
+      department: plan.department || "backend",
       executedAt,
       executedBy,
-      executedByUid,
-      technicianName: payload.technicianName || executedBy,
-      supervisorName: payload.supervisorName || "",
+      executedByUid: myUid,
+      technicianName,
+      supervisorName: String(payload?.supervisorName || "").trim().slice(0, 120),
       result,
       tasks,
       tasksSummary,
-      notes: String(payload.notes || "").trim(),
-      source: payload.source || "line_downtime", // "line_downtime" | "routine"
-      clientToken,
-      createdAt: new Date().toISOString()
+      notes,
+      source: payload?.source === "routine" ? "routine" : "line_downtime", // "line_downtime" | "routine"
+      clientToken: rawToken,
+      createdAt: nowIso
     };
 
-    const execDocRef = await addDoc(collection(db, "pmExecutions"), executionDocData);
+    const planPatch = buildPlanPatchAfterExecution(plan, {
+      executionId: execDocId,
+      executedAt,
+      executedBy,
+      executedByUid: myUid,
+      technicianName,
+      result,
+      tasksSummary,
+      notes
+    });
 
-    // 2. تحديث الخطة المرتبطة: آخر تنفيذ وحساب الموعد القادم وفقاً للدورية المحددة
-    let nextDueDate = "";
-    if (planId) {
-      const planDocRef = doc(db, "pmPlans", planId);
-      const planSnap = await getDoc(planDocRef);
+    const batch = writeBatch(db);
+    batch.set(execRef, executionDocData);
+    if (planPatch) batch.update(planRef, planPatch);
+    await batch.commit();
 
-      if (planSnap.exists()) {
-        const planData = planSnap.data();
-        nextDueDate = calculateNextDueDate(executedAt, planData.frequency || "monthly", planData.customDays || 30);
-
-        await updateDoc(planDocRef, {
-          lastExecution: {
-            executionId: execDocRef.id,
-            executedAt,
-            executedBy,
-            executedByUid,
-            technicianName: payload.technicianName || executedBy,
-            result,
-            tasksSummary,
-            notes: String(payload.notes || "").trim()
-          },
-          nextDueDate,
-          executionCount: (planData.executionCount || 0) + 1,
-          updatedAt: new Date().toISOString(),
-          updatedBy: executedBy
-        });
-      }
-    }
-
+    const isDeferred = result === "deferred";
     return {
       status: "success",
-      id: execDocRef.id,
-      nextDueDate,
-      message: "تم تسجيل نتيجة التنفيذ الفعلي وتحديث موعد الصيانة القادم بنجاح ✅"
+      id: execDocId,
+      result,
+      deferred: isDeferred,
+      nextDueDate: planPatch?.nextDueDate ?? plan.nextDueDate ?? "",
+      message: isDeferred
+        ? "تم تسجيل التأجيل — لم يتغير موعد الاستحقاق لأن العمل لم يُنفَّذ ⏸️"
+        : "تم تسجيل نتيجة التنفيذ الفعلي وتحديث موعد الصيانة القادم بنجاح ✅"
     };
   } catch (error) {
     console.error("Error saving PM execution:", error);
-    executionTokensCache.delete(clientToken);
+    executionTokensCache.delete(execDocId);
     return { status: "error", message: error?.message || "تعذر تسجيل نتيجة التنفيذ الفعلي" };
   }
 }
 
 /**
  * جلب سجل التنفيذات السابقة لماكينة أو خطة
+ * (الترتيب والحد محلياً لتجنب الحاجة لفهرس مركب - كان الاستعلام السابق
+ *  where + orderBy يفشل بدون فهرس فيظهر "لا توجد سجلات" رغم وجودها)
  */
-export async function fetchPmExecutionsApi({ machine = "", planId = "", limitCount = 30 } = {}) {
+export async function fetchPmExecutionsApi({ machine = "", planId = "", limitCount = 50 } = {}) {
   try {
     const execRef = collection(db, "pmExecutions");
     let q;
     if (planId) {
-      q = query(execRef, where("planId", "==", planId), orderBy("executedAt", "desc"));
+      q = query(execRef, where("planId", "==", planId));
     } else if (machine) {
-      q = query(execRef, where("machine", "==", machine), orderBy("executedAt", "desc"));
+      q = query(execRef, where("machine", "==", machine));
     } else {
       q = query(execRef, orderBy("executedAt", "desc"));
     }
@@ -597,10 +590,11 @@ export async function fetchPmExecutionsApi({ machine = "", planId = "", limitCou
     snap.forEach(d => {
       executions.push({ id: d.id, ...d.data() });
     });
-    return { status: "success", data: executions };
+    executions.sort((a, b) => String(b.executedAt || "").localeCompare(String(a.executedAt || "")));
+    const max = Math.max(1, parseInt(limitCount, 10) || 50);
+    return { status: "success", data: executions.slice(0, max) };
   } catch (error) {
     console.error("Error fetching PM executions:", error);
     return { status: "error", message: error?.message || "تعذر جلب سجل التنفيذ" };
   }
 }
-

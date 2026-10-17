@@ -8,7 +8,7 @@
 
 import { ensureAuthReady } from "../config.js";
 import { uploadBase64Images } from "./imageUpload.js";
-import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
+import { getCurrentRole, isAdminRole, isManagerRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
@@ -1787,8 +1787,70 @@ function pmTaskStageError(data) {
     : "يجب إسناد أمر PM لفني وبدء التنفيذ (حالة البلاغ: مُسند / قيد التنفيذ) قبل تنفيذ المهام";
 }
 
+// ------------------------------------------------------------
+// مزامنة حالة بلاغ PM مع الإسناد من شاشة التخطيط.
+// قاعدة تخطيط PM (firestore.rules) لا تسمح بتغيير status، بينما قاعدة
+// تنفيذ المهام تتطلب status = assigned/in_progress - فكان الأمر المُخطَّط
+// لفني يبقى "pending" للأبد وتظل مهامه مقفلة (بانتظار الإسناد). هنا
+// ننقل الحالة بنفس مسارات دورة حياة البلاغ المعتمدة (assign / reassign /
+// release) بعد حفظ التخطيط.
+// ------------------------------------------------------------
+async function transitionPmTicketAfterPlanning(ticketId, before, { assignedTo, assignedToUid }) {
+  const fromStatus = String(before?.status || "").trim().toLowerCase();
+  const role = getCurrentRole();
+  const canLog = isAdminRole(role) || isManagerRole(role);
+  const prevUid = before?.assignedToUid || "";
+
+  if (assignedToUid) {
+    if (fromStatus === "pending") {
+      const data = stampUpdate({ status: "assigned", assignedTo, assignedToUid });
+      if (canLog) {
+        await updateTicketWithLog(ticketId, data, {
+          action: "assign",
+          fromStatus: "pending",
+          toStatus: "assigned",
+          note: `تم إسناد أمر PM إلى ${assignedTo}`
+        });
+      } else {
+        await updateDoc(doc(db, "tickets", ticketId), data);
+      }
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: "تم إسناد أمر صيانة وقائية (PM) جديد إليك",
+        ticketId
+      });
+      return;
+    }
+    if (["assigned", "in_progress"].includes(fromStatus) && prevUid !== assignedToUid && canLog) {
+      await updateTicketWithLog(ticketId, stampUpdate({ status: "assigned", assignedTo, assignedToUid }), {
+        action: "reassign",
+        fromStatus,
+        toStatus: "assigned",
+        note: `إعادة إسناد أمر PM من "${before?.assignedTo || "غير محدد"}" إلى "${assignedTo}"`
+      });
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: "تم إسناد أمر صيانة وقائية (PM) إليك (إعادة إسناد)",
+        ticketId
+      });
+      if (prevUid && prevUid !== assignedToUid) {
+        createNotification(prevUid, {
+          type: "declined",
+          message: `تم سحب أمر PM منك وإعادة إسناده إلى ${assignedTo}`,
+          ticketId
+        });
+      }
+    }
+  }
+}
+
 export async function updatePmOrderApi(ticketId, changes) {
-  const allowedStatuses = ["unplanned", "planned", "in_progress", "completed", "deferred"];
+  // "completed" لا يُضبط يدوياً من التخطيط: الإنهاء يتم من شاشة التنفيذ
+  // (إنهاء الأمر) كي تُحسب المهام المنفذة والمتبقية ويُسجَّل المنفِّذ والوقت
+  const allowedStatuses = ["unplanned", "planned", "in_progress", "deferred"];
+  if (changes?.pmStatus === "completed") {
+    return { status: "error", message: "إنهاء أمر PM يتم من زر «تنفيذ» ثم «إنهاء الأمر» لتُسجَّل المهام والمنفِّذ" };
+  }
   if (!allowedStatuses.includes(changes?.pmStatus)) {
     return { status: "error", message: "حالة أمر PM غير صالحة" };
   }
@@ -1808,7 +1870,49 @@ export async function updatePmOrderApi(ticketId, changes) {
       return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
     }
 
-    await updateDoc(doc(db, "tickets", ticketId), stampUpdate({
+    const ticketRef = doc(db, "tickets", ticketId);
+    const snap = await getDoc(ticketRef);
+    if (!snap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+    const before = snap.data();
+    if (before.maintenanceType !== "PM") {
+      return { status: "error", message: "هذا البلاغ ليس أمر PM" };
+    }
+    if (PM_CLOSED_STATUSES.includes(before.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - استخدم «إعادة جدولة» لإعادة فتحه" };
+    }
+
+    const fromStatus = String(before.status || "").trim().toLowerCase();
+    const role = getCurrentRole();
+    const isMgr = isAdminRole(role) || isManagerRole(role);
+
+    // إلغاء إسناد أمر مُسند/قيد التنفيذ: يعيده لقائمة الانتظار (مثل اعتذار الفني)
+    // حتى لا يبقى assigned بلا مُسنَد إليه فتتجمد مهامه
+    if (!assignedToUid && ["assigned", "in_progress"].includes(fromStatus)) {
+      if (!isMgr) {
+        return { status: "error", message: "إلغاء إسناد أمر مُسند أو قيد التنفيذ متاح للمدير فقط" };
+      }
+      await updateTicketWithLog(ticketId, stampUpdate({
+        status: "pending",
+        assignedTo: null,
+        assignedToUid: null
+      }), {
+        action: "release",
+        fromStatus,
+        toStatus: "pending",
+        note: "إلغاء إسناد أمر PM من شاشة التخطيط"
+      });
+      if (before.assignedToUid) {
+        createNotification(before.assignedToUid, {
+          type: "declined",
+          message: "تم سحب أمر PM منك وإلغاء إسناده",
+          ticketId
+        });
+      }
+    }
+
+    await updateDoc(ticketRef, stampUpdate({
       line: String(changes.line || "").trim(),
       machine: String(changes.machine || "").trim(),
       location: String(changes.location || "").trim(),
@@ -1821,6 +1925,16 @@ export async function updatePmOrderApi(ticketId, changes) {
       delayReason: String(changes.delayReason || "").trim(),
       downtimeRequired: changes.downtimeRequired === true
     }));
+
+    try {
+      await transitionPmTicketAfterPlanning(ticketId, before, { assignedTo, assignedToUid });
+    } catch (transitionError) {
+      console.error("PM planning saved but ticket status transition failed:", transitionError);
+      return {
+        status: "success",
+        warning: `تم حفظ التخطيط لكن تعذر تحديث حالة الإسناد: ${transitionError?.message || ""}`
+      };
+    }
     return { status: "success" };
   } catch (error) {
     console.error("Error updating PM work order:", error);
@@ -2008,6 +2122,7 @@ export async function updatePmTaskApi(ticketId, taskId, { status, reason = null 
     }
 
     const isPending = status === "pending";
+    const myUid = localStorage.getItem("userId") || "";
     pmTasks[taskIndex] = {
       ...pmTasks[taskIndex],
       status,
@@ -2024,6 +2139,26 @@ export async function updatePmTaskApi(ticketId, taskId, { status, reason = null 
     }
 
     await updateDoc(ticketRef, stampUpdate(changes));
+
+    // أول تنفيذ فعلي لمهمة على أمر "مُسند" ينقل البلاغ إلى "قيد التنفيذ"
+    // (نفس مسار بدء التنفيذ: الفني المُسند أو الأدمن فقط حسب القواعد).
+    // محاولة مساعدة فقط - فشلها لا يُبطل حفظ المهمة.
+    if (
+      !isPending &&
+      String(currentData.status || "").trim().toLowerCase() === "assigned" &&
+      (isAdminRole(getCurrentRole()) || (!!myUid && currentData.assignedToUid === myUid))
+    ) {
+      try {
+        await updateTicketWithLog(ticketId, stampUpdate({ status: "in_progress" }), {
+          action: "start",
+          fromStatus: "assigned",
+          toStatus: "in_progress",
+          note: "بدء تلقائي عند أول تنفيذ لمهمة PM"
+        });
+      } catch (startError) {
+        console.warn("Could not auto-start PM ticket:", startError);
+      }
+    }
 
     return { status: "success", data: pmTasks[taskIndex] };
 
@@ -2119,7 +2254,9 @@ export async function completePmOrderApi(ticketId) {
  */
 export async function createFollowupFromRemainingTasksApi(ticketId, { title, description }) {
   try {
-    if (!hasFullDataAccess(getCurrentRole())) {
+    // ربط أمر المتابعة بالأمر الأصلي (followupTicketId) تسمح به القواعد للمدير
+    // والأدمن فقط - كان المهندس ينشئ بلاغاً ثم يفشل الربط فيبقى بلاغاً يتيماً
+    if (!(isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole()))) {
       return { status: "error", message: "ليست لديك صلاحية إنشاء أوامر متابعة" };
     }
 
@@ -2147,7 +2284,9 @@ export async function createFollowupFromRemainingTasksApi(ticketId, { title, des
 
     // بلاغ جديد (Pending) عبر المسار المعتمد؛ قواعد الإنشاء تمنع الإسناد المسبق
     const result = await saveIssueApi({
-      issueId: `PMF-${Date.now()}`,
+      // معرّف حتمي: إعادة المحاولة بعد فشل ربط followupTicketId تعيد نفس
+      // البلاغ (saveIssueApi يكتشفه) بدل إنشاء أمر متابعة مكرر
+      issueId: `PMF-${ticketId}`,
       line: currentData.line || "",
       machine: currentData.machine || "",
       location: currentData.location || "",
@@ -2201,6 +2340,10 @@ export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, 
       return { status: "error", message: "أمر PM غير موجود" };
     }
 
+    if (ticketSnap.data().maintenanceType !== "PM") {
+      return { status: "error", message: "هذا البلاغ ليس أمر PM" };
+    }
+
     if (ticketSnap.data().pmStatus === "completed") {
       return { status: "error", message: "لا يمكن إعادة جدولة أمر مكتمل بالكامل" };
     }
@@ -2216,6 +2359,30 @@ export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, 
       return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
     }
 
+    if (!plannedDateRaw) {
+      return { status: "error", message: "موعد التنفيذ الجديد مطلوب لإعادة الجدولة" };
+    }
+
+    const before = ticketSnap.data();
+    const fromStatus = String(before.status || "").trim().toLowerCase();
+    const role = getCurrentRole();
+    const isMgr = isAdminRole(role) || isManagerRole(role);
+    if (!cleanAssignedToUid && ["assigned", "in_progress"].includes(fromStatus)) {
+      if (!isMgr) {
+        return { status: "error", message: "إلغاء إسناد أمر مُسند أو قيد التنفيذ متاح للمدير فقط" };
+      }
+      await updateTicketWithLog(ticketId, stampUpdate({
+        status: "pending",
+        assignedTo: null,
+        assignedToUid: null
+      }), {
+        action: "release",
+        fromStatus,
+        toStatus: "pending",
+        note: "إلغاء إسناد أمر PM عند إعادة الجدولة"
+      });
+    }
+
     await updateDoc(ticketRef, stampUpdate({
       pmStatus: "planned",
       plannedDate: plannedDateRaw || null,
@@ -2223,6 +2390,19 @@ export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, 
       assignedToUid: cleanAssignedToUid || null,
       ...(maintenanceNotes !== undefined && { maintenanceNotes: String(maintenanceNotes || "").trim() })
     }));
+
+    try {
+      await transitionPmTicketAfterPlanning(ticketId, before, {
+        assignedTo: cleanAssignedTo,
+        assignedToUid: cleanAssignedToUid
+      });
+    } catch (transitionError) {
+      console.error("PM reschedule saved but ticket status transition failed:", transitionError);
+      return {
+        status: "success",
+        warning: `تمت إعادة الجدولة لكن تعذر تحديث حالة الإسناد: ${transitionError?.message || ""}`
+      };
+    }
 
     return { status: "success" };
 
