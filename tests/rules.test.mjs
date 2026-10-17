@@ -680,3 +680,60 @@ test("pm executions: a user can only log an execution as themselves with a valid
   await assertFails(updateDoc(doc(technicianDb, "pmExecutions/ex_ok"), { notes: "edited" }));
   await assertSucceeds(updateDoc(doc(dbFor("manager"), "pmExecutions/ex_ok"), { notes: "reviewed" }));
 });
+
+test("counters: sequence starts at 1, increments by exactly 1 (compare-and-swap) and is bound to its prefix", async () => {
+  const userDb = dbFor("technician");
+  const counter = (current, prefix = "BR") => ({ current, prefix, updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "technician" });
+
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(5)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(1, "KZ")));
+  await assertFails(setDoc(doc(userDb, "counters/random"), counter(1)));
+  await assertSucceeds(setDoc(doc(userDb, "counters/tickets"), counter(1)));
+
+  // رقمان متزامنان على نفس القيمة: يُقبل الأول فقط (الثاني يُرفض كاملاً)
+  await assertSucceeds(setDoc(doc(userDb, "counters/tickets"), counter(2)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(2)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(5)));
+  await assertFails(deleteDoc(doc(dbFor("admin"), "counters/tickets")));
+});
+
+test("counters: a ticket and its counter are written atomically and a lost race rejects the whole batch", async () => {
+  const userDb = dbFor("reporter");
+  const counter = current => ({ current, prefix: "BR", updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "reporter" });
+  const newTicket = number => ticket({ createdAtServer: serverTimestamp(), unifiedNumber: number });
+
+  const first = writeBatch(userDb);
+  first.set(doc(userDb, "counters/tickets"), counter(1));
+  first.set(doc(userDb, "tickets/seq-a"), newTicket("BR-001"));
+  await assertSucceeds(first.commit());
+
+  const stale = writeBatch(userDb);
+  stale.set(doc(userDb, "counters/tickets"), counter(1));
+  stale.set(doc(userDb, "tickets/seq-b"), newTicket("BR-001"));
+  await assertFails(stale.commit());
+  assert.equal((await getDoc(doc(dbFor("admin"), "tickets/seq-b"))).exists(), false);
+});
+
+test("counters: only an active admin can reset a counter to zero", async () => {
+  await seed("counters/tickets", { current: 7, prefix: "BR", updatedAt: "x", updatedBy: "admin" });
+  const reset = { current: 0, prefix: "BR", updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "admin" };
+  await assertFails(setDoc(doc(dbFor("manager"), "counters/tickets"), reset));
+  await assertFails(setDoc(doc(dbFor("admin"), "counters/tickets"), { ...reset, current: 3 }));
+  await assertFails(setDoc(doc(dbFor("admin"), "counters/tickets"), { ...reset, prefix: "KZ" }));
+  await assertSucceeds(setDoc(doc(dbFor("admin"), "counters/tickets"), reset));
+  await assertSucceeds(setDoc(doc(dbFor("technician"), "counters/tickets"), { ...reset, current: 1, updatedBy: "technician" }));
+});
+
+test("a ticket already classified as PM cannot be classified (and renumbered) again", async () => {
+  await seed("tickets/pm-twice", ticket({ maintenanceType: "PM", pmStatus: "unplanned", unifiedNumber: "PM-001" }));
+  await assertFails(updateDoc(doc(dbFor("manager"), "tickets/pm-twice"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    unifiedNumber: "PM-002",
+    reviewedBy: users.manager.name,
+    reviewedByUid: "manager",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.manager.name
+  }));
+});

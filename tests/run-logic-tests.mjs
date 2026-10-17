@@ -701,10 +701,11 @@ await t("دورة CM: بلاغ assigned يعرض الإسناد/البدء لل�
   const k = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", assignedTo: "Tech", reportedByUid: "U9" });
   assert.ok(k.includes("start") && k.includes("resolve"), k.join(","));
 });
-await t("تصنيف PM: لا إسناد إجباري، لا تغيير للحالة، ولا مستند جديد (updateDoc على نفس البلاغ)", () => {
+await t("تصنيف PM: لا إسناد إجباري، لا تغيير للحالة، ولا مستند جديد (تحديث البلاغ نفسه مع رقم PM في دفعة واحدة)", () => {
   const pmBranch = pmTicketsApiSource.slice(pmTicketsApiSource.indexOf("existing.maintenanceType === \"PM\""), pmTicketsApiSource.indexOf("export async function fetchPmOrdersApi"));
-  const payload = pmBranch.slice(pmBranch.indexOf("updateDoc(ticketRef"), pmBranch.indexOf("return { status: \"success\" };", pmBranch.indexOf("updateDoc(ticketRef")));
+  const payload = pmBranch.slice(pmBranch.indexOf("batch.update(ticketRef"), pmBranch.indexOf("catch (sequenceError)"));
   assert.ok(payload.includes("maintenanceType: \"PM\"") && !/\bstatus:/.test(payload) && !pmBranch.includes("addDoc("), "فرع PM يغيّر الحالة أو ينشئ مستنداً");
+  assert.ok(pmBranch.includes("commitWithSequence(\"pmOrders\""), "رقم PM لا يُحجز من تسلسل أوامر الصيانة");
   assert.ok(pmBranch.includes("duplicate: true"), "لا حارس تكرار");
 });
 await t("أوامر PM: الجلب بنطاق صلاحيات والتعديل مقصور على المخوّلين", () => {
@@ -747,7 +748,7 @@ const [mSearchSrc, mSearchViewSrc, reportsViewSrc, ticketsBoardSrc, mgrDesktopTi
 ]);
 
 await t("البحث المتقدم: يشمل رقم البلاغ ومسار الصيانة PM/CM والحالة والأولوية والملاحظات", () => {
-  assert.ok(mSearchSrc.includes("r.issueId"), "رقم البلاغ غير مدرج في بحث MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("recordNumberSearchText(r)"), "رقم البلاغ غير مدرج في بحث MaintenanceSearch");
   assert.ok(mSearchSrc.includes("r.maintenanceType"), "مسار الصيانة غير مدرج في بحث MaintenanceSearch");
   assert.ok(mSearchSrc.includes("routeFilter"), "فلتر مسار الصيانة غير مطبق في MaintenanceSearch");
   assert.ok(mSearchSrc.includes("isOverdueTicket"), "فلتر البلاغات المتأخرة غير مطبق في MaintenanceSearch");
@@ -882,6 +883,98 @@ await t("أوامر PM: الإسناد من التخطيط ينقل الحالة
 await t("قواعد Firestore: الفني يسجل تنفيذ الخطة بحقول التنفيذ فقط وسجل التنفيذ ينسب لصاحبه", () => {
   assert.ok(rulesSrc.includes('hasOnly(\n                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])'));
   assert.ok(rulesSrc.includes('request.resource.data.get("executedByUid", "") == request.auth.uid'));
+});
+
+
+// ---------- الترقيم التسلسلي الموحد ----------
+const { formatSequenceNumber, parseRecordNumber, normalizeRecordNumber, displayRecordNumber, recordNumberSearchText, SEQUENCE_PREFIXES } = await import("../js/utils/recordNumber.js");
+const { allocateAndCommit } = await import("../js/utils/sequenceCore.js");
+console.log("Sequence numbering");
+await t("الصيغة المختصرة تبدأ من 001 ولكل نوع بادئته", () => {
+  assert.equal(formatSequenceNumber("tickets", 1), "BR-001");
+  assert.equal(formatSequenceNumber("suggestions", 2), "KZ-002");
+  assert.equal(formatSequenceNumber("pmOrders", 3), "PM-003");
+  assert.equal(formatSequenceNumber("tickets", 1000), "BR-1000");
+  assert.throws(() => formatSequenceNumber("tickets", 0));
+  assert.throws(() => formatSequenceNumber("unknown", 1));
+  assert.equal(new Set(Object.values(SEQUENCE_PREFIXES)).size, Object.keys(SEQUENCE_PREFIXES).length, "بادئات مكررة");
+});
+await t("السجلات القديمة (5 خانات) تُعرض مختصرة ويُعثر عليها بالبحث بأي صيغة", () => {
+  assert.equal(normalizeRecordNumber("BR-00012"), "BR-012");
+  assert.deepEqual(parseRecordNumber("#br012"), { prefix: "BR", number: 12 });
+  assert.equal(parseRecordNumber("IS-1730000000000-ab12"), null);
+  assert.equal(displayRecordNumber({ unifiedNumber: "KZ-00005", id: "x" }), "KZ-005");
+  assert.equal(displayRecordNumber({ issueId: "IS-1", id: "x" }), "IS-1");
+  assert.equal(displayRecordNumber({ unifiedNumber: "PLAN-L1-M" }), "PLAN-L1-M");
+  const hay = recordNumberSearchText({ unifiedNumber: "BR-00012", originalUnifiedNumber: "BR-00003" }).toLowerCase();
+  for (const q of ["br-012", "br012", "br-00012", "br-003"]) assert.ok(hay.includes(q), q);
+});
+
+// محاكاة Firestore: قاعدة CAS (العدّاد +1 فقط) + دفعة ذرّية، مع تداخل المستخدمين
+function makeFakeStore() {
+  const store = { counter: 0, records: new Map(), commits: 0 };
+  const deps = {
+    sleep: async () => {},
+    readCounter: async () => { await Promise.resolve(); return store.counter; },
+    commit: async (type, next, unifiedNumber, addWrites) => {
+      await new Promise(r => setTimeout(r, Math.random() * 3));      // تأخير الشبكة
+      const writes = [];
+      addWrites({ set: (id, data) => writes.push([id, data]) }, unifiedNumber);
+      if (next !== store.counter + 1) { const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e; }
+      if (writes.some(([id]) => store.records.has(id) && id.startsWith("fixed"))) { const e = new Error("denied"); e.code = "permission-denied"; throw e; }
+      store.counter = next; store.commits++;
+      for (const [id, data] of writes) store.records.set(id, data);
+    }
+  };
+  return { store, deps };
+}
+await t("40 مستخدماً متزامناً: أرقام فريدة متتالية 001..040 بلا تكرار ولا فجوات", async () => {
+  const { store, deps } = makeFakeStore();
+  deps.maxAttempts = 100;
+  const results = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+    allocateAndCommit("tickets", (batch, num) => batch.set(`t${i}`, { unifiedNumber: num }), deps)));
+  const nums = results.map(r => r.unifiedNumber).sort();
+  assert.equal(new Set(nums).size, 40);
+  assert.equal(nums[0], "BR-001"); assert.equal(nums[39], "BR-040");
+  assert.equal(store.counter, 40);
+  for (const [, rec] of store.records) assert.ok(results.some(r => r.unifiedNumber === rec.unifiedNumber));
+});
+await t("رفض غير متعلق بالسباق (قاعدة السجل) لا يستهلك رقماً ولا يُعاد في حلقة", async () => {
+  const { store, deps } = makeFakeStore();
+  store.records.set("fixed-1", { unifiedNumber: "BR-X" });
+  await assert.rejects(() => allocateAndCommit("tickets", (b, n) => b.set("fixed-1", { unifiedNumber: n }), deps), /denied/);
+  assert.equal(store.counter, 0);
+  const ok = await allocateAndCommit("tickets", (b, n) => b.set("fixed-2", { unifiedNumber: n }), deps);
+  assert.equal(ok.unifiedNumber, "BR-001");
+});
+await t("أخطاء الشبكة تُرمى فوراً بدون إعادة محاولة", async () => {
+  let calls = 0;
+  const deps = { sleep: async () => {}, readCounter: async () => 0, commit: async () => { calls++; const e = new Error("offline"); e.code = "unavailable"; throw e; } };
+  await assert.rejects(() => allocateAndCommit("tickets", () => {}, deps), /offline/);
+  assert.equal(calls, 1);
+});
+const [seqApiSrc, firestoreRulesSrc, ...creatorSrcs] = await Promise.all([
+  "../js/services/sequenceApi.js", "../firestore.rules",
+  "../js/services/ticketsApi.js", "../js/services/suggestionsApi.js", "../js/services/defectsApi.js",
+  "../js/services/machineErrorsApi.js", "../js/services/checklistApi.js", "../js/services/pmApi.js"
+].map(f => readFile(new URL(f, import.meta.url), "utf8")));
+await t("sequenceApi لا يعتمد على حزم غير متاحة في المتصفح (firebase/firestore, runTransaction)", () => {
+  assert.doesNotMatch(seqApiSrc, /from\s+["']firebase\//);
+  assert.doesNotMatch(seqApiSrc, /runTransaction\s*\(|import\s*\{[^}]*runTransaction/);
+});
+await t("كل مسارات الإنشاء تحجز الرقم والسجل معاً (commitWithSequence) بدل حجز منفصل", () => {
+  for (const src of creatorSrcs) { assert.doesNotMatch(src, /allocateUnifiedNumber/); }
+  const used = creatorSrcs.map(src => (src.match(/commitWithSequence\("(\w+)"/g) || []).join(","));
+  const all = used.join(",");
+  for (const type of ["tickets", "pmOrders", "suggestions", "defects", "machineErrors", "checklists", "pmRecords"]) {
+    assert.ok(all.includes(`("${type}"`) || creatorSrcs.some(src => src.includes(`sequenceType`)) && type === "tickets", `النوع ${type} بلا مسار حجز ذرّي`);
+  }
+});
+await t("قواعد counters: بداية من 1، +1 فقط، ربط البادئة بالمعرّف، وإعادة الضبط للأدمن فقط", () => {
+  const block = firestoreRulesSrc.slice(firestoreRulesSrc.indexOf("match /counters/{counterId}"));
+  assert.ok(block.includes("current == 1") && block.includes("resource.data.current + 1"));
+  assert.ok(block.includes("counterPrefixMatches(counterId") && block.includes("isAdmin()") && block.includes("current == 0"));
+  assert.ok(block.includes("allow delete: if false"));
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
