@@ -671,7 +671,7 @@ exports.getNextSequenceNumber = onCall({ region: "us-central1" }, async (request
       return next;
     });
 
-    const displayNumber = `${prefix}-${String(result).padStart(5, "0")}`;
+    const displayNumber = `${prefix}-${String(result).padStart(3, "0")}`;
 
     return { status: "success", number: result, displayNumber };
 
@@ -736,7 +736,7 @@ exports.getSequenceCounter = onCall({ region: "us-central1" }, async (request) =
     const counterDoc = await db.collection("counters").doc(type).get();
     const current = counterDoc.exists ? (counterDoc.data().current || 0) : 0;
 
-    return { status: "success", type, prefix, current, nextDisplayNumber: `${prefix}-${String(current + 1).padStart(5, "0")}` };
+    return { status: "success", type, prefix, current, nextDisplayNumber: `${prefix}-${String(current + 1).padStart(3, "0")}` };
   } catch (error) {
     console.error("Error getting sequence counter:", error);
     throw new HttpsError("internal", "تعذر قراءة العداد: " + error.message);
