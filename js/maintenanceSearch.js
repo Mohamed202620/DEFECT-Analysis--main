@@ -39,6 +39,7 @@ import {
 } from './branding.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 import { escapeJsArg } from "./utils/escapeHtml.js";
+import { displayRecordNumber, recordNumberSearchText } from "./utils/recordNumber.js";
 
 // ============================================================
 // حالة الموديول
@@ -590,7 +591,7 @@ function renderResults() {
       const priorityLabel = PRIORITY_LABELS[r.priority] || '';
       const routeStr = String(r.maintenanceType || '').toUpperCase() === 'PM' ? 'صيانة وقائية pm' : 'صيانة تصحيحية cm';
       const haystack = [
-        r.id, r.issueId, r.customId, r.ticketId, r.unifiedNumber,
+        r.id, recordNumberSearchText(r), r.customId, r.ticketId,
         r.machine, r.machineName, r.line, r.description, r.notes, r.locationInMachine,
         r.reportedBy, r.assignedTo, r.reporter?.name, r.category, r.mechanicNotes,
         r.title, r.problem, r.solution, r.name, r.impact, r.type, r.issueType,
@@ -711,7 +712,7 @@ window.exportMaintenanceSearchResults = async function () {
 
     return [
       kindStr,
-      record.issueId || record.id || '',
+      displayRecordNumber(record, ''),
       titleText,
       statusText,
       formatPdfDate(record.createdAt),
@@ -909,8 +910,7 @@ function ticketResultCard(t) {
   const machineName = escapeHtml(t.machine || t.machineName || '-');
   const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
   const isOverdue = isOverdueTicket(t);
-  const ticketIdDisplay = escapeHtml(t.issueId || t.id || '-');
-  const unifiedNumberDisplay = t.unifiedNumber ? escapeHtml(t.unifiedNumber) : null;
+  const unifiedNumberDisplay = escapeHtml(displayRecordNumber(t));
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs hover:border-slate-700 transition-colors">
@@ -930,10 +930,7 @@ function ticketResultCard(t) {
         </div>
       </div>
 
-      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
-      <div class="text-[10px] font-mono text-blue-400 font-semibold">
-        #${ticketIdDisplay}
-      </div>
+      <div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>
 
       ${t.description ? `<p class="text-[11px] text-gray-400 line-clamp-2">${escapeHtml(t.description)}</p>` : ''}
 
@@ -960,7 +957,7 @@ function ticketResultCard(t) {
 function pmResultCard(p) {
   const checklist = p.checklist || {};
   const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
-  const unifiedNumberDisplay = p.unifiedNumber ? escapeHtml(p.unifiedNumber) : null;
+  const unifiedNumberDisplay = p.unifiedNumber ? escapeHtml(displayRecordNumber(p)) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -994,7 +991,7 @@ function pmResultCard(p) {
 function suggestionResultCard(s) {
   const status = String(s.status || 'new').trim().toLowerCase();
   const titleText = escapeHtml(s.title || s.machine || '-');
-  const unifiedNumberDisplay = s.unifiedNumber ? escapeHtml(s.unifiedNumber) : null;
+  const unifiedNumberDisplay = s.unifiedNumber ? escapeHtml(displayRecordNumber(s)) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">

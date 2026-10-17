@@ -8,6 +8,7 @@ import { buildPdfStatsCardsHtml } from './branding.js';
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { escapeHtml, escapeJsArg } from './utils/escapeHtml.js';
+import { displayRecordNumber, recordNumberSearchText } from './utils/recordNumber.js';
 import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
@@ -120,8 +121,7 @@ function ticketCardHtml(ticket) {
             <div class="flex items-center gap-2">
               ${bulkCheckboxHtml}
               <span class="font-black text-sm text-slate-100">${escapeHtml(machineName)}</span>
-              ${ticket.unifiedNumber ? `<span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(ticket.unifiedNumber)}</span>` : ""}
-              ${ticket.issueId ? `<span class="text-[10px] font-mono font-bold text-blue-400">#${escapeHtml(ticket.issueId)}</span>` : ""}
+              <span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(displayRecordNumber(ticket, ""))}</span>
               ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(ticket.line)}</span>` : ""}
             </div>
             <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
@@ -201,7 +201,7 @@ function getFilteredBoardTickets() {
       const statusStr = String(t.status || '').toLowerCase();
       const statusLabel = String(tr.status[statusStr] || statusStr).toLowerCase();
       const haystack = [
-        t.id, t.issueId, t.machine, t.machineName, t.line, t.description,
+        t.id, recordNumberSearchText(t), t.machine, t.machineName, t.line, t.description,
         t.assignedTo, t.reportedBy, t.priority, t.type, t.maintenanceType,
         routeStr, statusStr, statusLabel, t.mechanicNotes, t.notes
       ].filter(Boolean).join(' ').toLowerCase();
@@ -1070,7 +1070,7 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
   return `
     <div style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — #${escapeReportHtml(ticket.issueId || ticket.id)}</span>
+        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — ${escapeReportHtml(displayRecordNumber(ticket))}</span>
         <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
           ${escapeReportHtml(tr.status[status] || ticket.status || "-")}
         </span>

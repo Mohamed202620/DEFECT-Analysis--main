@@ -12,6 +12,7 @@ import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '.
 // الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
 // نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
 import { translations } from './config.js';
+import { displayRecordNumber } from './utils/recordNumber.js';
 // إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
 // نفس التعريف في statistics.js بالظبط
@@ -116,7 +117,7 @@ window.confirmIssue = async function() {
         const dt = dup.ticket;
         const proceed = confirm(
           "⚠️ يوجد بلاغ مفتوح بالفعل لهذه الماكينة" +
-          (dt.issueId ? ` (${dt.issueId})` : "") +
+          (` (${displayRecordNumber(dt, "")})`) +
           (dt.status ? ` - الحالة: ${dt.status}` : "") +
           "\n\nالأفضل إضافة تحديث الوردية على البلاغ الحالي بدل فتح بلاغ جديد." +
           "\nهل تريد تسجيل بلاغ جديد رغم ذلك؟"
