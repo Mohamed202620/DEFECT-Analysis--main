@@ -438,9 +438,12 @@ service cloud.firestore {
                     && ticketReporterUnchanged();
 
       // تصنيف البلاغ إلى PM لا ينشئ مستنداً جديداً ولا يتطلب إسناداً.
+      // الرقم الموحد PM-xxx يُمنح مرة واحدة: لا إعادة تصنيف لبلاغ مصنّف PM بالفعل
+      // (يمنع استهلاك رقمين أو استبدال رقم أمر بآخر عند التصنيف المتزامن).
       allow update: if resource.data.status == "pending"
                     && request.resource.data.status == "pending"
                     && request.resource.data.get("maintenanceType", null) == "PM"
+                    && resource.data.get("maintenanceType", null) != "PM"
                     && isMaintenanceReviewer()
                     && request.resource.data.get("assignedToUid", null) == null
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
@@ -1054,20 +1057,46 @@ service cloud.firestore {
     }
 
     // ==========================================================
-    // counters - عدادات الترقيم الموحد لكل نوع سجل
-    // يتم إدارتها عبر Firestore Transaction من العميل مباشرة (خطة Spark المجانية)
-    // السماح بالقراءة للجميع، والكتابة فقط للزيادة الذرّية بـ 1 مع الحفاظ على البادئة
+    // counters - عدادات الترقيم الموحد (BR-001 / KZ-001 / PM-001 ...)
+    // لكل نوع سجل عدّاد مستقل بمعرّف ثابت. الحجز يتم من العميل مباشرة (خطة Spark
+    // المجانية بدون Cloud Functions) عبر writeBatch يضم تحديث العدّاد وكتابة السجل
+    // معاً. القاعدة هنا هي الـ Compare-And-Swap:
+    //   - الإنشاء الأول يبدأ من 1 فقط، والتحديث +1 فقط من القيمة الحالية على السيرفر؛
+    //     فإذا حجز مستخدمان نفس الرقم معاً تنجح دفعة واحدة وتُرفض الأخرى كاملة
+    //     (لا تكرار) ثم تعيد المحاولة بالرقم التالي (لا فجوات).
+    //   - المعرّف مرتبط بالبادئة الصحيحة (لا عدّادات عشوائية).
+    //   - إعادة الضبط إلى 0 (قبل الإطلاق الرسمي فقط) للأدمن النشط حصراً؛
+    //     والتحقق من خلو السجلات يتم في resetSequenceCountersForLaunch (sequenceApi.js).
+    //   - لا حذف نهائياً.
     // ==========================================================
+    function counterPrefixMatches(counterId, prefix) {
+      return (counterId == "tickets" && prefix == "BR")
+          || (counterId == "suggestions" && prefix == "KZ")
+          || (counterId == "pmOrders" && prefix == "PM")
+          || (counterId == "defects" && prefix == "DF")
+          || (counterId == "machineErrors" && prefix == "ME")
+          || (counterId == "checklists" && prefix == "CL")
+          || (counterId == "pmRecords" && prefix == "PR");
+    }
+
     match /counters/{counterId} {
       allow read: if isActive();
-      // إنشاء عداد جديد: يجب أن يبدأ من 1 ويكون له بادئة صحيحة
+      // إنشاء عداد جديد: يبدأ من 1 ويكون له بادئة تطابق معرّفه
       allow create: if isActive()
+        && request.resource.data.current is int
         && request.resource.data.current == 1
-        && request.resource.data.prefix in ["BR", "KZ", "PM", "DF", "ME", "CL", "PR"]
+        && counterPrefixMatches(counterId, request.resource.data.prefix)
         && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
       // تحديث عداد موجود: زيادة current بـ 1 فقط، وعدم تغيير البادئة
       allow update: if isActive()
+        && request.resource.data.current is int
         && request.resource.data.current == resource.data.current + 1
+        && request.resource.data.prefix == resource.data.prefix
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      // إعادة الضبط إلى الصفر قبل الإطلاق الرسمي: أدمن نشط فقط، ولا تغيير للبادئة
+      allow update: if isAdmin()
+        && request.resource.data.current is int
+        && request.resource.data.current == 0
         && request.resource.data.prefix == resource.data.prefix
         && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
       allow delete: if false;
