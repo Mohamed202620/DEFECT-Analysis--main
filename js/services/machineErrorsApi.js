@@ -182,18 +182,18 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
       return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
     }
 
-    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-    const unifiedNumber = await allocateUnifiedNumber("machineErrors");
-    await setDoc(errorRef, {
+    // الرقم الموحد (ME-001...) يُحجز ويُكتب مع العطل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const { unifiedNumber } = await commitWithSequence("machineErrors", (batch, number) => batch.set(errorRef, {
       ...restPayload,
       ...machineReference,
       errorCode: normalized,
-      unifiedNumber, // الرقم الموحد الجديد: ME-00001
+      unifiedNumber: number, // الرقم الموحد الجديد: ME-001
       department,
       ...(imageUrl && { imageUrl }),
       status: "pending_review",
       createdAt: new Date().toISOString()
-    });
+    }));
 
     return {
       status: "success",

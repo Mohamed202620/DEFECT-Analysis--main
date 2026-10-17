@@ -154,6 +154,11 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       } catch (_) { /* مساعد فقط - مايمنعش الحفظ */ }
     }
 
+    // الترقيم الموحد: البلاغ يأخذ رقماً من تسلسل البلاغات (BR-001...)، أما أمر الصيانة
+    // الوقائية (maintenanceType = PM) فيأخذ رقماً من تسلسل أوامر الصيانة (PM-001...).
+    // حجز الرقم وكتابة البلاغ في دفعة ذرّية واحدة: لا تكرار ولا أرقام ضائعة عند الفشل.
+    const sequenceType = ticketData.maintenanceType === "PM" ? "pmOrders" : "tickets";
+
     let docRef;
     if (ticketDocId) {
       docRef = doc(db, "tickets", ticketDocId);
@@ -164,27 +169,28 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
           return { status: "success", id: ticketDocId, duplicate: true };
         }
       } catch (_) { /* القراءة مساعدة فقط (قد تفشل أوفلاين) */ }
+    } else {
+      docRef = doc(collection(db, "tickets"));
+    }
 
-      const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-      ticketData.unifiedNumber = await allocateUnifiedNumber("tickets"); // مثال: BR-00001
-
-      try {
-        await setDoc(docRef, ticketData);
-      } catch (writeError) {
-        // الكتابة التانية لنفس المعرّف بتتحسب update وقاعدة الأمان بترفضها:
-        // لو المستند فعلاً موجود لنفس المُبلّغ يبقى الرفع الأول نجح
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    try {
+      const sequence = await commitWithSequence(sequenceType, (batch, unifiedNumber) => {
+        batch.set(docRef, { ...ticketData, unifiedNumber });
+      });
+      ticketData.unifiedNumber = sequence.unifiedNumber;
+    } catch (writeError) {
+      // الكتابة التانية لنفس المعرّف بتتحسب update وقاعدة الأمان بترفضها:
+      // لو المستند فعلاً موجود لنفس المُبلّغ يبقى الرفع الأول نجح
+      if (ticketDocId) {
         try {
           const again = await getDoc(docRef);
           if (again.exists() && again.data().reportedByUid === reporterUid) {
             return { status: "success", id: ticketDocId, duplicate: true };
           }
         } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
-        throw writeError;
       }
-    } else {
-      const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-      ticketData.unifiedNumber = await allocateUnifiedNumber("tickets"); // مثال: BR-00001
-      docRef = await addDoc(collection(db, "tickets"), ticketData);
+      throw writeError;
     }
 
     // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): قبل هذا
@@ -1635,22 +1641,35 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
       return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ إلا في حالة قيد الانتظار" };
     }
 
-    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-    const unifiedNumber = await allocateUnifiedNumber("pmOrders"); // مثال: PM-00001
-
-    await updateDoc(ticketRef, stampUpdate({
-      maintenanceType: "PM",
-      pmStatus: existing.pmStatus || "unplanned",
-      ...(existing.unifiedNumber && !String(existing.unifiedNumber).startsWith("PM-")
-        ? { originalUnifiedNumber: existing.unifiedNumber } : {}),
-      unifiedNumber, // الرقم الموحد الجديد: PM-00001
-      assignedTo: null,
-      assignedToUid: null,
-      reviewedBy: localStorage.getItem("name") || "",
-      reviewedByUid: localStorage.getItem("userId") || "",
-      reviewedAt: new Date().toISOString()
-    }));
-    // return { status: "success" }; // pattern for test
+    // رقم أمر الصيانة (PM-001...) من تسلسله المستقل؛ حجز الرقم وتحديث البلاغ في دفعة
+    // ذرّية واحدة، والرقم الأصلي للبلاغ (BR-xxx) يبقى محفوظاً في originalUnifiedNumber.
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    let unifiedNumber;
+    try {
+      ({ unifiedNumber } = await commitWithSequence("pmOrders", (batch, number) => {
+        batch.update(ticketRef, stampUpdate({
+          maintenanceType: "PM",
+          pmStatus: existing.pmStatus || "unplanned",
+          ...(existing.unifiedNumber && !String(existing.unifiedNumber).startsWith("PM-")
+            ? { originalUnifiedNumber: existing.unifiedNumber } : {}),
+          unifiedNumber: number, // الرقم الموحد الجديد: PM-001
+          assignedTo: null,
+          assignedToUid: null,
+          reviewedBy: localStorage.getItem("name") || "",
+          reviewedByUid: localStorage.getItem("userId") || "",
+          reviewedAt: new Date().toISOString()
+        }));
+      }));
+    } catch (sequenceError) {
+      // تصنيف متزامن من مستخدم آخر: لو أصبح البلاغ PM بالفعل نعتبرها نجاحاً (بدون رقم ثانٍ)
+      try {
+        const again = await getDoc(ticketRef);
+        if (again.exists() && again.data().maintenanceType === "PM") {
+          return { status: "success", duplicate: true, unifiedNumber: again.data().unifiedNumber };
+        }
+      } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
+      throw sequenceError;
+    }
     return { status: "success", unifiedNumber };
   } catch (error) {
     console.error("Error classifying ticket as PM:", error);

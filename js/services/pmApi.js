@@ -84,18 +84,19 @@ export async function savePmApi(payload) {
       return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
     }
 
-    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-    const unifiedNumber = await allocateUnifiedNumber("pmRecords");
-    const docRef = await addDoc(
-      collection(db, "pmRecords"),
+    // الرقم الموحد (PR-001...) يُحجز ويُكتب مع السجل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "pmRecords"));
+    const { unifiedNumber } = await commitWithSequence("pmRecords", (batch, number) => batch.set(
+      docRef,
       {
         ...payload,
         ...machineReference,
         department,
-        unifiedNumber, // الرقم الموحد الجديد: PR-00001
+        unifiedNumber: number, // الرقم الموحد الجديد: PR-001
         createdAt: new Date().toISOString()
       }
-    );
+    ));
 
     return {
       status: "success",

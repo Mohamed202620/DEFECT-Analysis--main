@@ -16,7 +16,7 @@ import { uploadBase64Images } from "./imageUpload.js";
 
 import {
   collection,
-  addDoc,
+  doc,
   getDocs,
   query,
   where,
@@ -64,17 +64,18 @@ async function saveChecklistRecord(type, payload) {
       }
     }
 
-    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-    const unifiedNumber = await allocateUnifiedNumber("checklists");
-    const docRef = await addDoc(collection(db, "machineChecklists"), {
+    // الرقم الموحد (CL-001...) يُحجز ويُكتب مع السجل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "machineChecklists"));
+    const { unifiedNumber } = await commitWithSequence("checklists", (batch, number) => batch.set(docRef, {
       ...payload,
       ...machineReference,
       items: itemsWithUploadedPhotos,
       type,
       department,
-      unifiedNumber, // الرقم الموحد الجديد: CL-00001
+      unifiedNumber: number, // الرقم الموحد الجديد: CL-001
       createdAt: new Date().toISOString()
-    });
+    }));
 
     return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {

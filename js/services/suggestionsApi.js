@@ -83,14 +83,15 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, "suggestion_" + Date.now());
 
-    const { allocateUnifiedNumber } = await import("./sequenceApi.js");
-    const unifiedNumber = await allocateUnifiedNumber("suggestions");
-    const docRef = await addDoc(
-      collection(db, "suggestions"),
+    // الرقم الموحد (KZ-001...) يُحجز ويُكتب مع المقترح في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "suggestions"));
+    const { unifiedNumber } = await commitWithSequence("suggestions", (batch, number) => batch.set(
+      docRef,
       {
         ...restPayload,
         ...(imageUrls.length && { imageUrls }),
-        unifiedNumber, // الرقم الموحد الجديد: KZ-00001
+        unifiedNumber: number, // الرقم الموحد الجديد: KZ-001
 
         // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
         // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"
@@ -105,7 +106,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
         status: "new",
         createdAt: new Date().toISOString()
       }
-    );
+    ));
 
     // إصلاح (إشعارات): المقترح الجديد ما كانش بيبلّغ أي أدمن/مدير (بعكس
     // البلاغات الجديدة وإعادة الإرسال بعد التعديل) - الأدمن كان لازم يفتح
