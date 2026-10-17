@@ -12,6 +12,7 @@ import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate, STATUS_LABELS } from
 import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '../../statistics.js';
 import { exportToExcel } from '../../services/exportUtility.js';
 import { escapeHtml } from "../../utils/escapeHtml.js";
+import { displayRecordNumber } from "../../utils/recordNumber.js";
 import { escapeJsArg } from "../../utils/escapeHtml.js"; // MGR-DESKTOP
 
 let paretoChartInstance = null;
@@ -973,7 +974,7 @@ window.exportManagerExecutiveSummary = async function() {
       const st = String(t.status || 'pending').toLowerCase().trim();
       const created = parseTicketDate(t);
       return [
-        t.issueId || t.id || '',
+        displayRecordNumber(t, ''),
         t.line || '',
         t.machine || '',
         t.priority || (isEn ? 'Normal' : 'عادية'),

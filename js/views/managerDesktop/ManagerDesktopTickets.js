@@ -10,6 +10,7 @@ import { fetchTechniciansApi } from '../../services/usersApi.js';
 import { assignTicketApi, reassignTicketApi, fetchTicketByIdApi } from '../../services/ticketsApi.js';
 import { openActionModal } from '../../components/ActionModal.js';
 import { escapeHtml, escapeJsArg } from "../../utils/escapeHtml.js";
+import { displayRecordNumber, recordNumberSearchText } from "../../utils/recordNumber.js";
 
 let activeFilteredTickets = [];
 let selectedRowIndex = 0;
@@ -198,7 +199,7 @@ function filterAndSortTickets(allTickets) {
       const matchTech = String(t.assignedTo || '').toLowerCase().includes(q);
       const matchReporter = String(t.reportedBy || '').toLowerCase().includes(q);
       const matchId = String(t.id || '').toLowerCase().includes(q);
-      const matchIssueId = String(t.issueId || '').toLowerCase().includes(q);
+      const matchIssueId = recordNumberSearchText(t).toLowerCase().includes(q);
       const matchType = String(t.type || '').toLowerCase().includes(q);
       const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
       const matchRoute = (isPm ? 'pm صيانة وقائية' : 'cm صيانة تصحيحية').includes(q);
@@ -828,12 +829,12 @@ window.mgrBulkAssignPrompt = async function() {
       } else if (MGR_REASSIGNABLE_STATUSES.includes(status)) {
         res = await reassignTicketApi(ticketId, { assignedTo, assignedToUid: assignedToUid || null });
       } else {
-        failures.push(`${ticket.issueId || ticketId}: ${isEn ? 'status does not allow assignment' : 'حالة التذكرة لا تسمح بالإسناد'}`);
+        failures.push(`${displayRecordNumber(ticket, ticketId)}: ${isEn ? 'status does not allow assignment' : 'حالة التذكرة لا تسمح بالإسناد'}`);
         continue;
       }
 
       if (res.status === "success") successCount++;
-      else failures.push(`${ticket.issueId || ticketId}: ${res.message || ''}`);
+      else failures.push(`${displayRecordNumber(ticket, ticketId)}: ${res.message || ''}`);
     } catch (err) {
       failures.push(`${ticketId}: ${err?.message || ''}`);
     }
