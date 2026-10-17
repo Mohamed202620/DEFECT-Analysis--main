@@ -7,6 +7,7 @@ import {
 } from '../services/api.js';
 import { COMPANY_NAME_AR, COMPANY_NAME_EN, COMPANY_SHORT } from '../branding.js';
 import { parseTicketDate } from '../ticketStatusConstants.js';
+import { displayRecordNumber } from '../utils/recordNumber.js';
 import {
   filterRecordsByDateRange,
   formatReportTicketStatus,
@@ -336,10 +337,10 @@ function attachmentsCell(rec) {
 
 function buildTicketSheet(tickets, isAr, isEn) {
   const headers = isAr
-    ? ['الرقم الموحد', 'رقم البلاغ', 'الماكينة / الخط', 'مسار الصيانة', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
-    : ['Unified #', 'Ticket ID', 'Machine / Line', 'Route', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
+    ? ['رقم البلاغ', 'المعرّف الداخلي', 'الماكينة / الخط', 'مسار الصيانة', 'نوع العطل', 'الحالة', 'الأولوية', 'تاريخ الإنشاء', 'تم بواسطة', 'مسندة إلى', 'الوصف', 'ملاحظات المعالجة', 'المرفقات']
+    : ['Ticket #', 'Internal ID', 'Machine / Line', 'Route', 'Issue Type', 'Status', 'Priority', 'Created Date', 'Reported By', 'Assigned To', 'Description', 'Resolution Notes', 'Attachments'];
   const rows = tickets.map(t => [
-    t.unifiedNumber || '',
+    displayRecordNumber(t, ''),
     t.issueId || t.id || '',
     t.machine || t.machineName || '',
     String(t.maintenanceType || '').toUpperCase() === 'PM' ? (isAr ? 'صيانة وقائية PM' : 'PM') : (isAr ? 'صيانة تصحيحية CM' : 'CM'),
@@ -363,10 +364,10 @@ function buildTicketSheet(tickets, isAr, isEn) {
 
 function buildPmSheet(pmRecords, isAr, isEn) {
   const headers = isAr
-    ? ['الرقم الموحد', 'رقم السجل', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
-    : ['Unified #', 'PM ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
+    ? ['رقم السجل', 'المعرّف الداخلي', 'الماكينة', 'نوع الفحص', 'الحالة', 'تاريخ التنفيذ', 'اسم الفني', 'الملاحظات', 'قطع الغيار', 'المرفقات']
+    : ['Record #', 'Internal ID', 'Machine', 'Check Type', 'Status', 'Execution Date', 'Technician', 'Notes', 'Spare Parts', 'Attachments'];
   const rows = pmRecords.map(pm => [
-    pm.unifiedNumber || '',
+    displayRecordNumber(pm, ''),
     pm.id || '',
     pm.machine || '',
     pm.checkType || pm.type || (isAr ? 'وقائية' : 'Preventive'),
@@ -389,10 +390,10 @@ function buildPmSheet(pmRecords, isAr, isEn) {
 
 function buildKaizenSheet(suggestions, isAr, isEn) {
   const headers = isAr
-    ? ['الرقم الموحد', 'رقم المقترح', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
-    : ['Unified #', 'ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
+    ? ['رقم المقترح', 'المعرّف الداخلي', 'عنوان المقترح', 'الماكينة / القسم', 'الحالة', 'تاريخ التقديم', 'مقدم المقترح', 'المشكلة الحالية', 'مقترح التحسين', 'المردود المتوقع', 'ملاحظات المراجعة', 'المرفقات']
+    : ['Suggestion #', 'Internal ID', 'Title', 'Machine / Dept', 'Status', 'Date', 'Submitted By', 'Current Problem', 'Proposed Improvement', 'Expected Impact', 'Review Notes', 'Attachments'];
   const rows = suggestions.map(s => [
-    s.unifiedNumber || '',
+    displayRecordNumber(s, ''),
     s.id || '',
     s.title || '',
     s.machine || s.department || '',

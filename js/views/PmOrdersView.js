@@ -25,6 +25,7 @@ import {
   fetchPmExecutionsApi
 } from "../services/api.js";
 import { escapeHtml, escapeJsArg } from "../utils/escapeHtml.js";
+import { displayRecordNumber, recordNumberSearchText } from "../utils/recordNumber.js";
 import { loadScriptWithFallback } from "../utils/loadExternalScript.js";
 import { hasFullDataAccess, hasPermission, isAdminRole, isManagerRole, getCurrentRole } from "../permissions.js";
 import { getMachineTypeEntries } from "../machines.js";
@@ -178,7 +179,7 @@ const isOverdue = order => { const d = localDateValue(order.plannedDate); return
 const isUnscheduled = order => isOpenOrder(order) && !localDateValue(order.plannedDate);
 const isUnassigned = order => isOpenOrder(order) && !order.assignedTo;
 const isDowntime = order => order.downtimeRequired === true;
-const orderNumber = order => order.unifiedNumber || order.id;
+const orderNumber = order => displayRecordNumber(order);
 const quickPredicates = { overdue: isOverdue, unscheduled: isUnscheduled, unassigned: isUnassigned };
 
 function pmBtn(cls, fn, ticketId, text, title = "") {
@@ -234,7 +235,7 @@ function filteredPmOrders() {
   const list = pmOrders.filter(order => {
     const statusLabelStr = pmStatusLabel(order.pmStatus || "unplanned");
     const matchSearch = !search || [
-      order.issueId, order.id, order.unifiedNumber, order.originalUnifiedNumber, order.line, order.machine, order.location, order.description,
+      order.id, recordNumberSearchText(order), order.line, order.machine, order.location, order.description,
       order.reportedBy, order.assignedTo, order.maintenanceNotes, order.delayReason,
       order.category, order.priority, order.pmStatus, statusLabelStr
     ].some(value => String(value || "").toLocaleLowerCase().includes(search));
@@ -280,7 +281,7 @@ function orderRow(order) {
       <div class="grid min-w-0 flex-1 grid-cols-1 items-center gap-2 ${GRID_COLS}">
         <div class="min-w-0">
           <div class="font-mono text-xs font-bold text-blue-300">${escapeHtml(orderNumber(order))}</div>
-          <div class="truncate text-[10px] text-gray-400">${label("البلاغ", "Ticket")}: ${escapeHtml(order.issueId || order.id)}</div>
+          <div class="truncate text-[10px] text-gray-400">${order.originalUnifiedNumber ? `${label("البلاغ", "Ticket")}: ${escapeHtml(displayRecordNumber({ unifiedNumber: order.originalUnifiedNumber }))}` : ""}</div>
         </div>
         <div class="min-w-0">
           <div class="truncate text-xs font-bold text-gray-100">${escapeHtml(valueOrDash(order.machine))}</div>
@@ -803,7 +804,7 @@ function renderLineDowntimeTabHtml() {
                   ${machineAssignedOrders.map(order => `
                     <div class="p-3 rounded-xl bg-[#0F172A] border border-gray-800 hover:border-indigo-500/50 transition space-y-2 text-xs">
                       <div class="flex items-start justify-between gap-1.5">
-                        <span class="font-mono font-bold text-white text-[11px]">${e(order.unifiedNumber || order.id)}</span>
+                        <span class="font-mono font-bold text-white text-[11px]">${e(displayRecordNumber(order))}</span>
                         ${pmStatusBadge(order.pmStatus)}
                       </div>
                       <div class="text-gray-300 text-[11px] font-medium line-clamp-2">${e(order.description || label("صيانة وقائية لعطل", "PM for breakdown"))}</div>
@@ -1140,7 +1141,7 @@ function pmCardHtml(order) {
     : [{ desc: defaultTaskDesc, st: "", reason: "" }];
   const box = on => (on ? "☑" : "☐");
   const notes = [order.maintenanceNotes, order.delayReason].filter(Boolean).join(" | ");
-  const ticketRef = [order.issueId || order.id, order.originalUnifiedNumber].filter(Boolean).join(" · ");
+  const ticketRef = [displayRecordNumber({ unifiedNumber: order.originalUnifiedNumber, issueId: order.issueId, id: order.id })].filter(Boolean).join(" · ");
   const field = (name, value) => `<td class="k">${name}</td><td class="v">${e(value || "—")}</td>`;
   const orderNum = orderNumber(order);
   const qrSvg = generatePmQrSvg(`PM:${order.id}`, 52);
@@ -1298,7 +1299,7 @@ window.openPmOrderTasksFromQr = async function(refId) {
       window.openRecordPmExecutionModal(plan.id);
       return;
     }
-    const order = pmOrders.find(item => item.id === ref || item.unifiedNumber === ref);
+    const order = pmOrders.find(item => item.id === ref || item.unifiedNumber === ref || displayRecordNumber(item) === ref);
     if (order && typeof window.executePmTasks === "function") {
       window.executePmTasks(order.id);
     } else if (attempts < 40) {
@@ -1589,7 +1590,7 @@ function renderPmTasksModal() {
       <div class="mb-3 flex items-start justify-between gap-2">
         <div>
           <h3 class="text-sm font-bold text-blue-400">${editable ? label("تنفيذ مهام PM", "Execute PM tasks") : label("مهام PM (عرض فقط)", "PM tasks (view only)")}</h3>
-          <div class="mt-1 text-xs text-gray-300">${escapeHtml(order.issueId || order.id)} · ${escapeHtml(valueOrDash(order.machine))} · ${escapeHtml(valueOrDash(order.line))}</div>
+          <div class="mt-1 text-xs text-gray-300">${escapeHtml(displayRecordNumber(order))} · ${escapeHtml(valueOrDash(order.machine))} · ${escapeHtml(valueOrDash(order.line))}</div>
         </div>
         ${pmStatusBadge(order.pmStatus)}
       </div>
@@ -1790,7 +1791,7 @@ window.completePmOrder = async function(ticketId) {
   const done = tasks.filter(t => t.status === "done").length;
   const notDone = tasks.filter(t => t.status === "not_done").length;
   const pending = tasks.length - done - notDone;
-  const name = order.issueId || order.id;
+  const name = displayRecordNumber(order);
   const msg = label(
     `أمر PM: ${name}\n✅ منفذة: ${done} | ❌ لم تنفذ: ${notDone} | ⏳ معلقة: ${pending}\n\nالمهام المعلقة ستُسجل كـ "لم يتم تنفيذها" مع سبب تلقائي.\nإذا بقيت مهام غير منفذة، سيكون الأمر "مكتمل جزئياً".\n\nتأكيد الإنهاء؟`,
     `PM Order: ${name}\n✅ Done: ${done} | ❌ Not done: ${notDone} | ⏳ Pending: ${pending}\n\nPending tasks will be marked as "Not done" with an auto reason.\nIf tasks remain not done, the order becomes "Partially completed".\n\nConfirm completion?`
@@ -1830,7 +1831,7 @@ window.createFollowupFromRemaining = async function(ticketId) {
     alert(label("لا توجد مهام متبقية للمتابعة.", "No remaining tasks to follow up."));
     return;
   }
-  const name = order.issueId || order.id;
+  const name = displayRecordNumber(order);
   const title = prompt(label("عنوان أمر المتابعة:", "Follow-up order title:"), `${label("متابعة PM", "PM follow-up")} - ${name}`);
   if (!title || !title.trim()) return;
   const description = prompt(label("وصف أمر المتابعة:", "Follow-up order description:"), `${label("مهام متبقية من PM", "Remaining tasks from PM")} ${name}: ${remainingTasks.map(t => t.description).join(", ")}`);
@@ -1838,7 +1839,7 @@ window.createFollowupFromRemaining = async function(ticketId) {
 
   const result = await createFollowupFromRemainingTasksApi(ticketId, { title: title.trim(), description: description.trim() });
   if (result.status === "success") {
-    alert(label(`تم إنشاء أمر متابعة جديد: ${result.data.unifiedNumber || result.data.followupTicketId}`, `Follow-up order created: ${result.data.unifiedNumber || result.data.followupTicketId}`));
+    alert(label(`تم إنشاء أمر متابعة جديد: ${result.data.unifiedNumber ? displayRecordNumber({ unifiedNumber: result.data.unifiedNumber }) : result.data.followupTicketId}`, `Follow-up order created: ${result.data.unifiedNumber ? displayRecordNumber({ unifiedNumber: result.data.unifiedNumber }) : result.data.followupTicketId}`));
     await window.loadPmOrdersBoard();
   } else {
     alert(`${label("فشل إنشاء المتابعة:", "Follow-up creation failed:")} ${result.message || ""}`);
@@ -1870,7 +1871,7 @@ window.reschedulePmOrder = async function(ticketId) {
   }
 
   const values = await openActionModal({
-    title: `${label("إعادة جدولة أمر PM", "Reschedule PM order")} · ${order.issueId || order.id}`,
+    title: `${label("إعادة جدولة أمر PM", "Reschedule PM order")} · ${displayRecordNumber(order)}`,
     submitLabel: label("حفظ", "Save"),
     fields: [
       { id: "plannedDate", label: label("موعد التنفيذ الجديد (مطلوب)", "New planned date (required)"), type: "date", defaultValue: "" },
@@ -1939,7 +1940,7 @@ window.exportPmOrders = async function(format) {
 
   const rows = data.map(order => [
     order.id,
-    order.unifiedNumber || "",
+    displayRecordNumber(order),
     order.issueId || order.id,
     "PM",
     order.line || "",

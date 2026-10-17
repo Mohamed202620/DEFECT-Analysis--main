@@ -4,6 +4,7 @@ import { buildAttachmentPickerHtml, initAttachmentPicker, getAttachmentFiles, re
 import { fetchActiveTicketForMachineApi, appendShiftNoteToTicketApi } from '../services/api.js';
 import { escapeJsArg } from "../utils/escapeHtml.js";
 import { escapeHtml } from "../utils/escapeHtml.js";
+import { displayRecordNumber } from "../utils/recordNumber.js";
 
 let currentDetectedActiveTicket = null;
 
@@ -68,7 +69,7 @@ window.checkActiveTicketForMachine = async function() {
 
           <div class="bg-[#0F172A]/90 p-2.5 rounded-lg border border-slate-700/80 space-y-1 text-[11px] text-slate-300">
             <div class="flex items-center justify-between gap-2">
-              <span class="font-bold text-white font-mono">#${escapeHtml(t.issueId || t.id)}</span>
+              <span class="font-bold text-white font-mono">${escapeHtml(displayRecordNumber(t))}</span>
               <span class="text-slate-400 text-[10px]">${createdDate}</span>
             </div>
             <div class="text-slate-200 line-clamp-2">
