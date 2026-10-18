@@ -23,7 +23,7 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 | `FIREBASE_API_KEY` | Text | Firebase project's web API key (used only to create a migrated Auth account) |
 | `SERVICE_ACCOUNT_JSON` | **Secret** | محتوى ملف JSON كاملًا |
 | `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB (ولّد مفتاحًا جديدًا من imgbb.com/api: القديم كان ظاهرًا في الكود) |
-| `ALLOWED_ORIGINS` | Text | نطاقات الموقعين `maintenance-defect-system` و`my-dev-2026` المسموح بها مفصولة بفواصل؛ مطلوب ولا يوجد fallback. |
+| `ALLOWED_ORIGINS` | Text | نطاقات موقع الإنتاج `maintenance-defect-system` المسموح بها مفصولة بفواصل؛ مطلوب ولا يوجد fallback. (موقع dev القديم `my-dev-2026` لم يعد يُستخدم؛ أزله من هذه القائمة يدويًا إن كان موجودًا.) |
 
 لـ live Hosting deploy الحالي، حساب GitHub deployer يحتاج `roles/firebasehosting.admin` و`roles/serviceusage.apiKeysViewer` على المشروع. لا تستخدمه لحساب Worker.
 
@@ -64,14 +64,20 @@ firebase deploy --only hosting,firestore:rules,firestore:indexes
 - فحص "آخر Admin" غير ذري (لا transaction): يحدث خلل فقط لو نزّل أدمنان بعضهما في اللحظة نفسها.
 - إن سُرّب `SERVICE_ACCOUNT_JSON` فهو مفتاح Admin كامل: ألغِه من Firebase/Google Cloud وولّد غيره.
 
-## موقع Firebase Hosting لفرع dev
+## Worker التطوير (بيئة dev المنفصلة)
 
-موقع `my-dev-2026.web.app` منفصل عن موقع الإنتاج على مستوى Hosting فقط، لكنه يستخدم مشروع Firebase الحالي نفسه وCloudflare Worker الإنتاجي. لذلك تسجيل الدخول وقراءة/كتابة Firestore من موقع dev تتصل بالبيانات الفعلية؛ استخدم حسابات وبيانات اختبار معتمدة، ولا تنفذ اختبارات تدميرية.
+بيئة dev تستخدم Worker مستقل `https://maintenance-backend-dev.mom379339.workers.dev` ومشروع Firebase مستقل `dev-test-37e8a`. انشر `worker.mjs` نفسه على Worker التطوير من لوحة Cloudflare، واضبط Variables and Secrets له **هو فقط** (لا تغيّر متغيرات Worker الإنتاج):
 
-يجب أن يتضمن إعداد `ALLOWED_ORIGINS` في Worker الإنتاج origin التالي حتى تعمل طلبات الواجهة من موقع dev:
+| الاسم | النوع | القيمة |
+| --- | --- | --- |
+| `FIREBASE_ENV` | Text | `development` |
+| `FIREBASE_PROJECT_ID` | Text | `dev-test-37e8a` |
+| `FIREBASE_HOSTING_SITE` | Text | موقع Hosting الخاص بـ dev (نفس القيمة في `.firebaserc` → target `dev`، افتراضيًا `dev-test-37e8a`) |
+| `ALLOWED_ORIGINS` | Text | `https://dev-test-37e8a.web.app,https://dev-test-37e8a.firebaseapp.com` (عدّلها لتطابق الموقع الفعلي؛ ممنوع إضافة نطاقات الإنتاج أو `my-dev-2026`) |
+| `SERVICE_ACCOUNT_JSON` | Secret | مفتاح حساب خدمة تابع لـ `dev-test-37e8a` (الـ Worker يرفض أي حساب لمشروع آخر) |
+| `FIREBASE_API_KEY` | Text | apiKey لتطبيق Web في مشروع dev |
+| `IMGBB_API_KEY` | Secret | مفتاح ImgBB (يفضّل مفتاح منفصل للاختبار) |
 
-```text
-https://my-dev-2026.web.app
-```
+الـ Worker يرفض الإقلاع في وضع `development` إذا كان المشروع أو الموقع أو أي origin يخص الإنتاج. تأكد بعد الضبط من `https://maintenance-backend-dev.mom379339.workers.dev/health`؛ يجب أن يعيد `environment: "development"` و`projectId: "dev-test-37e8a"`. Workflow نشر dev يفحص هذه الاستجابة قبل النشر ويتوقف إن لم تطابق.
 
-لا تنشئ Worker أو Firebase project منفصلًا لهذا المسار، ولا تغيّر إعدادات `FIREBASE_PROJECT_ID` أو حساب خدمة Worker للإنتاج. نشر فرع `dev` يحدّث موقع Hosting `my-dev-2026` فقط؛ ولا ينشر Worker أو Functions أو Firestore rules/indexes.
+الواجهة المنشورة على dev تتصل بهذا الـ Worker حصرًا، ولا تتراجع إلى Worker الإنتاج.
