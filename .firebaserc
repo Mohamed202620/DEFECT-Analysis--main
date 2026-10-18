@@ -1,15 +1,20 @@
 {
   "projects": {
-    "default": "maintenance-defect-system"
+    "default": "maintenance-defect-system",
+    "dev": "dev-test-37e8a"
   },
   "targets": {
     "maintenance-defect-system": {
       "hosting": {
-        "dev": [
-          "my-dev-2026"
-        ],
         "main": [
           "maintenance-defect-system"
+        ]
+      }
+    },
+    "dev-test-37e8a": {
+      "hosting": {
+        "dev": [
+          "dev-test-37e8a"
         ]
       }
     }
