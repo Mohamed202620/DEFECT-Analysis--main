@@ -16,10 +16,9 @@ import {
 } from "./firebase.js";
 import { phoneToCanonicalAuthEmail, phoneToLegacyAuthEmail } from "./utils/phoneUtils.js";
 import {
-  DEFAULT_FIREBASE_FUNCTIONS_REGION,
-  PRODUCTION_BACKEND_WORKER_URL,
-  PRODUCTION_FIREBASE_CONFIG
-} from "./firebaseDefaults.js";
+  assertFirebaseAppMatchesEnvironment,
+  resolveFirebaseRuntimeConfig
+} from "./firebaseEnv.js";
 
 
 // ============================================================
@@ -59,27 +58,57 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 // ============================================================
 
 const appConfig = window.APP_CONFIG || {};
-const firebaseConfig = {
-  apiKey: appConfig.FIREBASE_API_KEY || PRODUCTION_FIREBASE_CONFIG.apiKey,
-  authDomain: appConfig.FIREBASE_AUTH_DOMAIN || PRODUCTION_FIREBASE_CONFIG.authDomain,
-  projectId: appConfig.FIREBASE_PROJECT_ID || PRODUCTION_FIREBASE_CONFIG.projectId,
-  storageBucket: appConfig.FIREBASE_STORAGE_BUCKET || PRODUCTION_FIREBASE_CONFIG.storageBucket,
-  messagingSenderId: appConfig.FIREBASE_MESSAGING_SENDER_ID || PRODUCTION_FIREBASE_CONFIG.messagingSenderId,
-  appId: appConfig.FIREBASE_APP_ID || PRODUCTION_FIREBASE_CONFIG.appId
-};
 
+// اختيار البيئة (dev / production) يتم في js/firebaseEnv.js. في dev لا يوجد أي رجوع
+// لإعدادات الإنتاج: لو الإعدادات ناقصة أو تشير لمشروع/Worker الإنتاج نوقف التطبيق
+// قبل أي initializeApp ونعرض رسالة واضحة بدل الاتصال بالإنتاج بالخطأ.
+function reportFirebaseConfigFailure(error) {
+  const message = error?.message || String(error);
+  try {
+    window.__FIREBASE_CONFIG_ERROR__ = message;
+    console.error("[Firebase config] " + message);
+    if (typeof document !== "undefined" && document.body && document.createElement) {
+      const banner = document.createElement("div");
+      banner.setAttribute?.("role", "alert");
+      banner.dir = "rtl";
+      banner.style.cssText =
+        "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;" +
+        "justify-content:center;padding:24px;background:#7f1d1d;color:#fff;" +
+        "font:16px/1.7 sans-serif;text-align:center";
+      banner.textContent =
+        "تم إيقاف التطبيق: إعدادات Firebase غير صالحة لهذه البيئة، ولن يتم الاتصال بأي مشروع آخر. " +
+        "(" + message + ")";
+      document.body.appendChild(banner);
+    }
+  } catch {
+    // لا شيء: الرمي بعد هذه الدالة هو ما يوقف التطبيق
+  }
+}
+
+let runtimeConfig;
+try {
+  runtimeConfig = resolveFirebaseRuntimeConfig({
+    appConfig,
+    hostname: (typeof window !== "undefined" && window.location?.hostname) || ""
+  });
+} catch (error) {
+  reportFirebaseConfigFailure(error);
+  throw error;
+}
+
+const firebaseConfig = runtimeConfig.firebaseConfig;
+
+export const APP_ENVIRONMENT = runtimeConfig.environment;
 export const FIREBASE_API_KEY = firebaseConfig.apiKey;
 export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 
 // عنوان الـ Worker (Cloudflare) البديل المجاني لـ Cloud Functions (خطة Spark).
 // عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
-// الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
-// لـ Cloud Functions الأصلية (خطة Blaze).
-export const BACKEND_WORKER_URL =
-  appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
+// الـ Worker فقط (راجع cloudflare-worker/README.md). في dev هو Worker التطوير
+// حصراً (مفروض في firebaseEnv.js)، وفي الإنتاج السلوك كما كان.
+export const BACKEND_WORKER_URL = runtimeConfig.backendWorkerUrl;
 
-export const FIREBASE_FUNCTIONS_REGION =
-  appConfig.FIREBASE_FUNCTIONS_REGION || DEFAULT_FIREBASE_FUNCTIONS_REGION;
+export const FIREBASE_FUNCTIONS_REGION = runtimeConfig.functionsRegion;
 
 // ============================================================
 // ثوابت التطبيق
@@ -159,10 +188,16 @@ export const ALL_PERMISSIONS = [
 // تهيئة Firebase
 // ============================================================
 
-export const app =
-  getApps().length
-    ? getApp()
-    : initializeApp(firebaseConfig);
+export const app = (() => {
+  const instance = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  try {
+    assertFirebaseAppMatchesEnvironment(APP_ENVIRONMENT, instance.options);
+  } catch (error) {
+    reportFirebaseConfigFailure(error);
+    throw error;
+  }
+  return instance;
+})();
 
 
 // Offline Persistence (Firestore v9+): بيخلي البيانات اللي
@@ -212,6 +247,7 @@ export function getRegistrationAuthContext() {
     _registrationApp =
       getApps().find(a => a.name === "RegistrationApp") ||
       initializeApp(firebaseConfig, "RegistrationApp");
+    assertFirebaseAppMatchesEnvironment(APP_ENVIRONMENT, _registrationApp.options);
   }
   return {
     auth: getAuth(_registrationApp),
