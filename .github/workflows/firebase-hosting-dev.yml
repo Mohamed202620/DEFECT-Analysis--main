@@ -70,6 +70,16 @@ jobs:
       - name: Verify Hosting target belongs to the dev project
         run: node scripts/verify-dev-targets.mjs site
 
+      - name: Deploy Firestore rules and indexes (dev project only)
+        env:
+          FIREBASE_DEV_PROJECT_ID_VALIDATED: ${{ env.FIREBASE_DEV_PROJECT_ID_VALIDATED }}
+          FIREBASE_DEV_SERVICE_ACCOUNT_NORMALIZED: ${{ env.FIREBASE_DEV_SERVICE_ACCOUNT_NORMALIZED }}
+        run: |
+          node --input-type=module -e 'import { writeFileSync } from "node:fs"; writeFileSync("/tmp/firebase-dev-service-account.json", process.env.FIREBASE_DEV_SERVICE_ACCOUNT_NORMALIZED, { mode: 0o600 });'
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/firebase-dev-service-account.json
+          npx firebase-tools deploy --only firestore:rules,firestore:indexes --project "$FIREBASE_DEV_PROJECT_ID_VALIDATED" --non-interactive
+          rm -f /tmp/firebase-dev-service-account.json
+
       - name: Deploy to Firebase Hosting (dev project)
         # FirebaseExtended/action-hosting-deploy v0 tag (pinned commit)
         uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
