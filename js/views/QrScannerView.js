@@ -236,6 +236,26 @@ async function handleResolvedMachineValue(payload, manualSelectedLine = null) {
   if (!resultBox) return false;
 
   const scannedValue = String(payload?.value || '').trim();
+  const rawText = String(payload?.rawText || scannedValue).trim();
+
+  // فحص هل الكود المقروء يمثل أمر صيانة وقائية PM
+  if (rawText.toUpperCase().startsWith("PM:") || scannedValue.toUpperCase().startsWith("PM:")) {
+    const ticketId = (rawText.toUpperCase().startsWith("PM:") ? rawText.slice(3) : scannedValue.slice(3)).trim();
+    window.stopQrScan();
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(80); } catch (_) {}
+    }
+    if (typeof window.openPmOrderTasksFromQr === "function") {
+      window.openPmOrderTasksFromQr(ticketId);
+    } else {
+      if (typeof window.navigateTo === "function") window.navigateTo("pmOrders");
+      setTimeout(() => {
+        if (typeof window.executePmTasks === "function") window.executePmTasks(ticketId);
+      }, 300);
+    }
+    return true;
+  }
+
   let qrLine = normalizeLine(payload?.line);
 
   // كود فارغ

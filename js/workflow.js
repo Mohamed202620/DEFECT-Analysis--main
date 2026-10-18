@@ -12,6 +12,7 @@ import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '.
 // الأسبوع + أسماء الأعمدة) ماتفضلش ثابتة بالعربي لما اللغة تتغيّر -
 // نفس translations المستخدمة في كل الملفات التانية، بدون تكرار
 import { translations } from './config.js';
+import { displayRecordNumber } from './utils/recordNumber.js';
 // إصلاح (تنظيف/Refactor): isClosedStatus بقت مستوردة من ملف ثوابت
 // مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا مكررة مع
 // نفس التعريف في statistics.js بالظبط
@@ -116,7 +117,7 @@ window.confirmIssue = async function() {
         const dt = dup.ticket;
         const proceed = confirm(
           "⚠️ يوجد بلاغ مفتوح بالفعل لهذه الماكينة" +
-          (dt.issueId ? ` (${dt.issueId})` : "") +
+          (` (${displayRecordNumber(dt, "")})`) +
           (dt.status ? ` - الحالة: ${dt.status}` : "") +
           "\n\nالأفضل إضافة تحديث الوردية على البلاغ الحالي بدل فتح بلاغ جديد." +
           "\nهل تريد تسجيل بلاغ جديد رغم ذلك؟"
@@ -164,6 +165,13 @@ window.confirmIssue = async function() {
     },
 
     status: isSelfResolved ? "resolved" : "pending",
+    ...(type === "PM" && {
+      maintenanceType: "PM",
+      pmStatus: "unplanned",
+      reviewedBy: localStorage.getItem("name") || "",
+      reviewedByUid: localStorage.getItem("userId") || "",
+      reviewedAt: new Date().toISOString()
+    }),
     ...(isSelfResolved && {
       isSelfResolved: true,
       mechanicNotes: "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): " + (selfResolvedNotes || "تم الفحص والتصليح الميداني مباشرة"),
@@ -212,7 +220,7 @@ window.confirmIssue = async function() {
       alert("❌ حدث خطأ أثناء الإرسال: " + (res?.message || "خطأ غير معروف"));
     }
   } catch (err) {
-    alert("❌ خطأ بالاتصال: " + err.message);
+    alert("❌ خطأ بالاتصال: " + (err?.message || "خطأ غير معروف"));
   } finally {
     if (btn) {
       btn.disabled = false;

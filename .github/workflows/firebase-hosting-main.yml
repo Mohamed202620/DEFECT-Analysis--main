@@ -27,12 +27,12 @@ jobs:
         # actions/setup-node v4 (pinned tag commit)
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
+            npm ci --no-audit --no-fund
           else
             npm install --no-audit --no-fund
           fi

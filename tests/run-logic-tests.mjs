@@ -59,13 +59,10 @@ const [pmApiSource, managerDesktopSource] = await Promise.all([
   readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
   readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
 ]);
-await t("manager dashboard counts PM records without downloading the collection", () => {
-  const countApi = pmApiSource.match(/export async function fetchPmRecordCountApi\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
-  assert.match(countApi, /getCountFromServer/);
-  assert.doesNotMatch(countApi, /getDocs/);
-  assert.match(managerDesktopSource, /fetchPmRecordCountApi\(\)/);
+await t("manager dashboard PM card uses PM work orders of the current month", () => {
+  assert.match(managerDesktopSource, /fetchPmOrdersApi\(\)/);
   assert.doesNotMatch(managerDesktopSource, /fetchPmRecordsApi\(\)/);
-  assert.match(managerDesktopSource, /pmRecordCount \?\? '--'/);
+  assert.match(managerDesktopSource, /pmMonthTotal/);
   assert.match(managerDesktopSource, /let _managerDesktopLoadInFlight = null/);
   assert.match(managerDesktopSource, /if \(!_managerDesktopLoadInFlight\)/);
 });
@@ -238,8 +235,8 @@ await t("report API index failures are not returned as empty successful reports"
     suggestionsApiSource.indexOf("export async function fetchSuggestionsForReportApi"),
     suggestionsApiSource.indexOf("export async function fetchSuggestionsForSearchApi")
   );
-  assert.ok(ticketsReport.includes('return { status: "error", message: error.message }'));
-  assert.ok(suggestionsReport.includes('return { status: "error", message: error.message }'));
+  assert.ok(ticketsReport.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع" }'));
+  assert.ok(suggestionsReport.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع" }'));
   assert.ok(!ticketsReport.includes('return { status: "success", data: [] }'));
   assert.ok(!suggestionsReport.includes('return { status: "success", data: [] }'));
 });
@@ -347,7 +344,7 @@ await t("machine-error history query has its index and reports retrieval errors"
     index.fields.some(field => field.fieldPath === "errorCode") &&
     index.fields.some(field => field.fieldPath === "scannedAt")
   ));
-  assert.ok(machineErrorsSource.includes('return { status: "error", message: error.message, data: [] }'));
+  assert.ok(machineErrorsSource.includes('return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] }'));
   assert.ok(errorScannerSource.includes("if (result.status === 'error')"));
   assert.ok(errorScannerSource.includes("tr.historyLoadError"));
   assert.ok(knowledgeBaseSource.includes("periodLoadError = result.status === 'error'"));
@@ -679,6 +676,305 @@ await t("تطابق الاسم وحده لا يعرض إعادة إرسال مق
     name: "Ali"
   }).map(action => action.key);
   assert.ok(!actions.includes("resubmit"), actions.join(","));
+});
+
+console.log("PM work orders");
+const PM_STATUS = await import("../js/ticketStatusConstants.js");
+const [pmViewSrc, pmTicketsApiSource] = await Promise.all([
+  readFile(new URL("../js/views/PmOrdersView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8")
+]);
+await t("بلاغ PM المعلّق لا يُحتسب متأخراً بينما CM المعلّق القديم يُحتسب", () => {
+  const old = new Date(Date.now() - 100 * 3600 * 1000).toISOString();
+  assert.equal(PM_STATUS.isOverdueTicket({ status: "pending", maintenanceType: "PM", priority: "High", createdAt: old }), false);
+  assert.equal(PM_STATUS.isOverdueTicket({ status: "pending", maintenanceType: "CM", priority: "High", createdAt: old }), true);
+});
+await t("المدير يرى اختصار 'فتح أمر PM' بدل 'تصنيف' على بلاغ PM، ويظل 'تصنيف' للبلاغ غير المصنّف", () => {
+  asUser("manager", "M1", "Mona");
+  const pm = keys({ status: "pending", maintenanceType: "PM", reportedByUid: "U9" });
+  assert.ok(pm.includes("open_pm_orders") && !pm.includes("review"), pm.join(","));
+  const fresh = keys({ status: "pending", reportedByUid: "U9" });
+  assert.ok(fresh.includes("review") && !fresh.includes("open_pm_orders"), fresh.join(","));
+});
+await t("دورة CM: بلاغ assigned يعرض الإسناد/البدء للفني المُسند كما كان", () => {
+  asUser("technician", "T1", "Tech");
+  const k = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", assignedTo: "Tech", reportedByUid: "U9" });
+  assert.ok(k.includes("start") && k.includes("resolve"), k.join(","));
+});
+await t("تصنيف PM: لا إسناد إجباري، لا تغيير للحالة، ولا مستند جديد (تحديث البلاغ نفسه مع رقم PM في دفعة واحدة)", () => {
+  const pmBranch = pmTicketsApiSource.slice(pmTicketsApiSource.indexOf("existing.maintenanceType === \"PM\""), pmTicketsApiSource.indexOf("export async function fetchPmOrdersApi"));
+  const payload = pmBranch.slice(pmBranch.indexOf("batch.update(ticketRef"), pmBranch.indexOf("catch (sequenceError)"));
+  assert.ok(payload.includes("maintenanceType: \"PM\"") && !/\bstatus:/.test(payload) && !pmBranch.includes("addDoc("), "فرع PM يغيّر الحالة أو ينشئ مستنداً");
+  assert.ok(pmBranch.includes("commitWithSequence(\"pmOrders\""), "رقم PM لا يُحجز من تسلسل أوامر الصيانة");
+  assert.ok(pmBranch.includes("duplicate: true"), "لا حارس تكرار");
+});
+await t("أوامر PM: الجلب بنطاق صلاحيات والتعديل مقصور على المخوّلين", () => {
+  assert.ok(pmTicketsApiSource.includes('where("reportedByUid", "==", myUid))') && pmTicketsApiSource.includes("hasFullDataAccess(role)"));
+  assert.ok(pmTicketsApiSource.includes("ليست لديك صلاحية تخطيط أوامر الصيانة الوقائية"));
+  assert.ok(pmViewSrc.includes("canPlanPmOrders()"));
+});
+await t("فلتر التاريخ يرجع لتاريخ الإنشاء للأوامر غير المجدولة", () => {
+  assert.ok(pmViewSrc.includes("localDateValue(order.plannedDate) || localDateValue(order.createdAt)"));
+});
+await t("تصدير PM: يستخدم exportToExcel/exportToPdf مع RTL وتواريخ منسّقة", () => {
+  assert.ok(pmViewSrc.includes("exportToExcel(title, headers, rows") && pmViewSrc.includes("exportToPdf(title"));
+  assert.ok(pmViewSrc.includes('dir="${isEn() ? "ltr" : "rtl"}"'));
+  assert.ok(!pmViewSrc.includes('order.createdAt || "",'), "تاريخ ISO خام في التصدير");
+});
+await t("المدير والمهندس يريان خيار تصنيف PM على البلاغات المسندة والقائمة", () => {
+  asUser("manager", "M1", "Mona");
+  const mgrAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(mgrAssigned.includes("classify_pm"), "المدير لا يرى classify_pm على بلاغ assigned: " + mgrAssigned.join(","));
+  asUser("engineer", "E1", "Eng");
+  const engAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(engAssigned.includes("classify_pm"), "المهندس لا يرى classify_pm على بلاغ assigned: " + engAssigned.join(","));
+  asUser("technician", "T1", "Tech");
+  const techAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(!techAssigned.includes("classify_pm"), "الفني يرى classify_pm بشكل غير مصرح: " + techAssigned.join(","));
+});
+await t("واجهة PM تدعم تحديد الأوامر المتعددة وفلتر توقف الخط الميداني", () => {
+  assert.ok(pmViewSrc.includes("selectedOrderIds"), "غياب selectedOrderIds في PmOrdersView");
+  assert.ok(pmViewSrc.includes("pmQuickDowntimeBtn"), "غياب زر توقف الخط السريع");
+  assert.ok(pmViewSrc.includes("openPmOrdersWithFilter"), "غياب openPmOrdersWithFilter");
+});
+
+console.log("Search & Filter Workflow Integration");
+const [mSearchSrc, mSearchViewSrc, reportsViewSrc, ticketsBoardSrc, mgrDesktopTicketsSrc] = await Promise.all([
+  readFile(new URL("../js/maintenanceSearch.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/MaintenanceSearchView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/reportsView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/ticketsBoard.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopTickets.js", import.meta.url), "utf8")
+]);
+
+await t("البحث المتقدم: يشمل رقم البلاغ ومسار الصيانة PM/CM والحالة والأولوية والملاحظات", () => {
+  assert.ok(mSearchSrc.includes("recordNumberSearchText(r)"), "رقم البلاغ غير مدرج في بحث MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("r.maintenanceType"), "مسار الصيانة غير مدرج في بحث MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("routeFilter"), "فلتر مسار الصيانة غير مطبق في MaintenanceSearch");
+  assert.ok(mSearchSrc.includes("isOverdueTicket"), "فلتر البلاغات المتأخرة غير مطبق في MaintenanceSearch");
+  assert.ok(mSearchViewSrc.includes("mRouteFilter"), "غياب قائمة مسار الصيانة في MaintenanceSearchView");
+});
+
+await t("شيت تقرير البلاغات Excel: يحتوي عمود مسار الصيانة (PM/CM) لتسهيل الفرز الميداني", () => {
+  assert.ok(reportsViewSrc.includes("مسار الصيانة"), "غياب عمود مسار الصيانة في تقارير Excel بالعربية");
+  assert.ok(reportsViewSrc.includes("Route"), "غياب عمود مسار الصيانة في تقارير Excel بالإنجليزية");
+  assert.ok(reportsViewSrc.includes("صيانة وقائية PM"), "غياب تمييز PM في شيت البلاغات");
+});
+
+await t("لوحة متابعة البلاغات: تدعم البحث المباشر وإلغاء التصفية ولافتة فلتر كروت الرئيسية", () => {
+  assert.ok(ticketsBoardSrc.includes("handleTicketsBoardSearch"), "غياب handleTicketsBoardSearch في ticketsBoard");
+  assert.ok(ticketsBoardSrc.includes("clearTicketsBoardSearch"), "غياب clearTicketsBoardSearch في ticketsBoard");
+  assert.ok(ticketsBoardSrc.includes("activeBannerHtml"), "غياب لافتة التصفية النشطة في ticketsBoard");
+});
+
+await t("لوحة الديسكتوب للمدير: البحث النصي يشمل رقم البلاغ ومسار PM/CM والحالة والملاحظات", () => {
+  assert.ok(mgrDesktopTicketsSrc.includes("matchIssueId"), "غياب بحث issueId في ManagerDesktopTickets");
+  assert.ok(mgrDesktopTicketsSrc.includes("matchRoute"), "غياب بحث مسار الصيانة في ManagerDesktopTickets");
+  assert.ok(mgrDesktopTicketsSrc.includes("matchNotes"), "غياب بحث الملاحظات في ManagerDesktopTickets");
+});
+
+await t("استعلامات البحث والتقارير: تبحث بالـ UID والاسم معاً لتطابق النتائج مع قاعدة البيانات", () => {
+  assert.ok(pmTicketsApiSource.includes("where(\"reportedByUid\", \"==\", myUid)") && pmTicketsApiSource.includes("where(\"reportedBy\", \"==\", myName)"), "غياب استعلام الاسم والـ UID معاً في تذاكر البحث/التقارير");
+});
+
+// ---------- PM periodic plans: schedule & execution logic (تنفيذ فعلي) ----------
+console.log("PM Periodic Plans");
+const pmS = await import("../js/utils/pmSchedule.js");
+const [pmApiSrc, pmViewSrc2, pmTicketsSrc2, rulesSrc] = await Promise.all([
+  readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/PmOrdersView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../firestore.rules", import.meta.url), "utf8")
+]);
+
+await t("مواعيد PM: التواريخ المحلية بلا انزياح يوم ونهاية الشهر لا تتجاوز", () => {
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "daily"), "2026-10-15");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "weekly"), "2026-10-21");
+  assert.equal(pmS.calculateNextDueDate("2026-01-31", "monthly"), "2026-02-28");
+  assert.equal(pmS.calculateNextDueDate("2028-01-31", "monthly"), "2028-02-29");
+  assert.equal(pmS.calculateNextDueDate("2026-11-30", "quarterly"), "2027-02-28");
+  assert.equal(pmS.calculateNextDueDate("2026-08-31", "semi_annual"), "2027-02-28");
+  assert.equal(pmS.calculateNextDueDate("2028-02-29", "annual"), "2029-02-28");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14", "custom", 10), "2026-10-24");
+  assert.equal(pmS.calculateNextDueDate("2026-10-14T22:30:00.000Z", "daily").length, 10);
+  assert.equal(pmS.parseLocalDate("2026-02-31"), null);
+});
+
+await t("حالة الاستحقاق: متأخر/اليوم/قريب/أول تنفيذ/ساري وفئات الإحصائيات متنافية", () => {
+  const key = d => pmS.toDateKey(new Date(Date.now() + d * 86400000));
+  assert.equal(pmS.calculateDueStatus(key(-3), "x").status, "overdue");
+  assert.equal(pmS.calculateDueStatus(key(0), "x").status, "due_today");
+  assert.equal(pmS.calculateDueStatus(key(2), "x").status, "due_soon");
+  assert.equal(pmS.calculateDueStatus(key(10), null).status, "never_executed");
+  assert.equal(pmS.calculateDueStatus(key(10), "2026-01-01").status, "upcoming");
+  const plans = [
+    { nextDueDate: key(-1) }, { nextDueDate: key(0), lastExecution: { executedAt: "2026-01-01" } },
+    { nextDueDate: key(1), lastExecution: { executedAt: "2026-01-01" } }, { nextDueDate: key(20) },
+    { nextDueDate: key(20), lastExecution: { executedAt: "2026-01-01" } }
+  ];
+  const buckets = plans.map(pmS.getPlanDueBucket);
+  assert.deepEqual(buckets, ["due", "due", "upcoming", "never", "upcoming"]);
+});
+
+await t("نتيجة التنفيذ تُشتق من المهام (لا مكتمل مع مهام ناقصة ولا جزئي بلا مهام منفذة)", () => {
+  const T = (...st) => st.map((status, i) => ({ id: "t" + i, text: "m" + i, status, note: "" }));
+  assert.equal(pmS.resolveExecutionResult(T("done", "done"), "completed"), "completed");
+  assert.equal(pmS.resolveExecutionResult(T("done", "not_done"), "completed"), "completed_partial");
+  assert.equal(pmS.resolveExecutionResult(T("not_done", "not_done"), "completed_partial"), "deferred");
+  assert.equal(pmS.resolveExecutionResult(T("done", "not_done"), "deferred"), "deferred");
+  assert.equal(pmS.sanitizeExecutionTasks([{ id: "a", text: " x ", status: "weird" }])[0].status, "not_done");
+});
+
+await t("تحديث الخطة بعد التنفيذ: المكتمل يقدّم الموعد ويزيد العدّاد، المؤجل لا يغيّره، وإعادة الإرسال لا تكرر", () => {
+  const plan = { frequency: "monthly", nextDueDate: "2026-10-01", executionCount: 2 };
+  const base = { executionId: "ex_1", executedAt: "2026-10-12T09:00:00", executedBy: "A", executedByUid: "u", technicianName: "A", tasksSummary: { total: 1, done: 1, notDone: 0 }, notes: "" };
+  const done = pmS.buildPlanPatchAfterExecution(plan, { ...base, result: "completed" });
+  assert.equal(done.nextDueDate, "2026-11-12");
+  assert.equal(done.executionCount, 3);
+  assert.equal(done.lastExecution.result, "completed");
+  const deferred = pmS.buildPlanPatchAfterExecution(plan, { ...base, result: "deferred" });
+  assert.equal(deferred.nextDueDate, "2026-10-01");
+  assert.equal(deferred.executionCount, undefined);
+  assert.equal(deferred.lastExecution, undefined);
+  assert.equal(deferred.lastDeferral.executionId, "ex_1");
+  assert.equal(pmS.buildPlanPatchAfterExecution({ ...plan, lastExecution: { executionId: "ex_1" } }, { ...base, result: "completed" }), null);
+  const custom = pmS.buildPlanPatchAfterExecution({ frequency: "custom", customDays: 10, nextDueDate: "2026-10-01" }, { ...base, result: "completed_partial" });
+  assert.equal(custom.nextDueDate, "2026-10-22");
+});
+
+await t("تعديل الخطة: التاريخ اليدوي يُحترم، وتغيير الدورية يُحسب من آخر تنفيذ، وبدونهما يبقى الموعد", () => {
+  const existing = { frequency: "monthly", nextDueDate: "2026-11-12", lastExecution: { executedAt: "2026-10-12T09:00:00" } };
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-20", frequency: "monthly", customDays: null }), "2026-11-20");
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-12", frequency: "weekly", customDays: null }), "2026-10-19");
+  assert.equal(pmS.resolveNextDueOnEdit({ existing, startDate: "2026-11-12", frequency: "monthly", customDays: null }), "2026-11-12");
+});
+
+await t("pmApi: منع تكرار الخطة، حفظ ذري للتنفيذ، معرّف تنفيذ حتمي، وإعادة تصدير الأسماء الأصلية", () => {
+  assert.ok(pmApiSrc.includes("duplicate: true") && pmApiSrc.includes("snap.exists()"), "غياب منع تكرار الخطة");
+  assert.ok(pmApiSrc.includes("writeBatch(db)") && pmApiSrc.includes("batch.set(execRef") && pmApiSrc.includes("batch.update(planRef"), "التنفيذ والخطة ليسا في batch واحد");
+  assert.ok(pmApiSrc.includes("clientToken") && pmApiSrc.includes("existingExec.exists()"), "غياب idempotency للتنفيذ");
+  assert.ok(pmApiSrc.includes("export { PM_FREQUENCIES, getFrequencyLabel, calculateNextDueDate, calculateDueStatus }"));
+  assert.ok(!pmApiSrc.includes("orderBy(\"machine\")") && !pmApiSrc.includes("where(\"planId\", \"==\", planId), orderBy"), "استعلام يحتاج فهرساً مركباً");
+});
+
+await t("واجهة PM: لا inline handler يعتمد على متغيرات module، والدوال العامة مُعرّضة على window", () => {
+  assert.ok(!/onclick="closePlanEditModal\(\)"|onclick="closeExecutionModal\(\)"|onclick="closeHistoryModal\(\)"/.test(pmViewSrc2));
+  assert.ok(!pmViewSrc2.includes("onchange=\"planModalState") && !pmViewSrc2.includes("executionModalState.result = this.value") && !pmViewSrc2.includes("onchange=\"executionModalState"));
+  for (const fn of ["closePlanEditModal", "closeExecutionModal", "closeHistoryModal", "updatePlanTaskText", "setExecutionTaskNote", "setExecutionResult"]) {
+    assert.ok(pmViewSrc2.includes(`window.${fn} =`), `غياب window.${fn}`);
+  }
+  assert.ok(pmViewSrc2.includes("syncPlanStateFromDom") && pmViewSrc2.includes("syncExecutionStateFromDom"), "غياب مزامنة الحقول قبل إعادة الرسم");
+});
+
+await t("بطاقة الخطة المطبوعة فارغة، والـ QR لبطاقة الخطة يفتح تسجيل التنفيذ", () => {
+  assert.ok(pmViewSrc2.includes('pmStatus: "planned"') && pmViewSrc2.includes("planCard: true"));
+  assert.ok(!pmViewSrc2.includes("lastExecution?.technicianName || label"), "اسم الفني السابق يظهر على البطاقة");
+  assert.ok(pmViewSrc2.includes("pmPlans.find(item => item.id === ref)") && pmViewSrc2.includes("openRecordPmExecutionModal(plan.id)"));
+});
+
+await t("أوامر PM: الإسناد من التخطيط ينقل الحالة (assign/reassign/release) ولا يقبل إنهاءً يدوياً", () => {
+  assert.ok(pmTicketsSrc2.includes("transitionPmTicketAfterPlanning"));
+  assert.ok(pmTicketsSrc2.includes('action: "assign"') && pmTicketsSrc2.includes('action: "reassign"') && pmTicketsSrc2.includes('action: "release"'));
+  assert.ok(pmTicketsSrc2.includes('const allowedStatuses = ["unplanned", "planned", "in_progress", "deferred"]'));
+  assert.ok(pmTicketsSrc2.includes("PMF-${ticketId}"), "أمر المتابعة غير حتمي");
+  assert.ok(pmTicketsSrc2.includes('action: "start"') && pmTicketsSrc2.includes("بدء تلقائي"));
+});
+
+await t("قواعد Firestore: الفني يسجل تنفيذ الخطة بحقول التنفيذ فقط وسجل التنفيذ ينسب لصاحبه", () => {
+  assert.ok(rulesSrc.includes('hasOnly(\n                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])'));
+  assert.ok(rulesSrc.includes('request.resource.data.get("executedByUid", "") == request.auth.uid'));
+});
+
+
+// ---------- الترقيم التسلسلي الموحد ----------
+const { formatSequenceNumber, parseRecordNumber, normalizeRecordNumber, displayRecordNumber, recordNumberSearchText, SEQUENCE_PREFIXES } = await import("../js/utils/recordNumber.js");
+const { allocateAndCommit } = await import("../js/utils/sequenceCore.js");
+console.log("Sequence numbering");
+await t("الصيغة المختصرة تبدأ من 001 ولكل نوع بادئته", () => {
+  assert.equal(formatSequenceNumber("tickets", 1), "BR-001");
+  assert.equal(formatSequenceNumber("suggestions", 2), "KZ-002");
+  assert.equal(formatSequenceNumber("pmOrders", 3), "PM-003");
+  assert.equal(formatSequenceNumber("tickets", 1000), "BR-1000");
+  assert.throws(() => formatSequenceNumber("tickets", 0));
+  assert.throws(() => formatSequenceNumber("unknown", 1));
+  assert.equal(new Set(Object.values(SEQUENCE_PREFIXES)).size, Object.keys(SEQUENCE_PREFIXES).length, "بادئات مكررة");
+});
+await t("السجلات القديمة (5 خانات) تُعرض مختصرة ويُعثر عليها بالبحث بأي صيغة", () => {
+  assert.equal(normalizeRecordNumber("BR-00012"), "BR-012");
+  assert.deepEqual(parseRecordNumber("#br012"), { prefix: "BR", number: 12 });
+  assert.equal(parseRecordNumber("IS-1730000000000-ab12"), null);
+  assert.equal(displayRecordNumber({ unifiedNumber: "KZ-00005", id: "x" }), "KZ-005");
+  assert.equal(displayRecordNumber({ issueId: "IS-1", id: "x" }), "IS-1");
+  assert.equal(displayRecordNumber({ unifiedNumber: "PLAN-L1-M" }), "PLAN-L1-M");
+  const hay = recordNumberSearchText({ unifiedNumber: "BR-00012", originalUnifiedNumber: "BR-00003" }).toLowerCase();
+  for (const q of ["br-012", "br012", "br-00012", "br-003"]) assert.ok(hay.includes(q), q);
+});
+
+// محاكاة Firestore: قاعدة CAS (العدّاد +1 فقط) + دفعة ذرّية، مع تداخل المستخدمين
+function makeFakeStore() {
+  const store = { counter: 0, records: new Map(), commits: 0 };
+  const deps = {
+    sleep: async () => {},
+    readCounter: async () => { await Promise.resolve(); return store.counter; },
+    commit: async (type, next, unifiedNumber, addWrites) => {
+      await new Promise(r => setTimeout(r, Math.random() * 3));      // تأخير الشبكة
+      const writes = [];
+      addWrites({ set: (id, data) => writes.push([id, data]) }, unifiedNumber);
+      if (next !== store.counter + 1) { const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e; }
+      if (writes.some(([id]) => store.records.has(id) && id.startsWith("fixed"))) { const e = new Error("denied"); e.code = "permission-denied"; throw e; }
+      store.counter = next; store.commits++;
+      for (const [id, data] of writes) store.records.set(id, data);
+    }
+  };
+  return { store, deps };
+}
+await t("40 مستخدماً متزامناً: أرقام فريدة متتالية 001..040 بلا تكرار ولا فجوات", async () => {
+  const { store, deps } = makeFakeStore();
+  deps.maxAttempts = 100;
+  const results = await Promise.all(Array.from({ length: 40 }, (_, i) =>
+    allocateAndCommit("tickets", (batch, num) => batch.set(`t${i}`, { unifiedNumber: num }), deps)));
+  const nums = results.map(r => r.unifiedNumber).sort();
+  assert.equal(new Set(nums).size, 40);
+  assert.equal(nums[0], "BR-001"); assert.equal(nums[39], "BR-040");
+  assert.equal(store.counter, 40);
+  for (const [, rec] of store.records) assert.ok(results.some(r => r.unifiedNumber === rec.unifiedNumber));
+});
+await t("رفض غير متعلق بالسباق (قاعدة السجل) لا يستهلك رقماً ولا يُعاد في حلقة", async () => {
+  const { store, deps } = makeFakeStore();
+  store.records.set("fixed-1", { unifiedNumber: "BR-X" });
+  await assert.rejects(() => allocateAndCommit("tickets", (b, n) => b.set("fixed-1", { unifiedNumber: n }), deps), /denied/);
+  assert.equal(store.counter, 0);
+  const ok = await allocateAndCommit("tickets", (b, n) => b.set("fixed-2", { unifiedNumber: n }), deps);
+  assert.equal(ok.unifiedNumber, "BR-001");
+});
+await t("أخطاء الشبكة تُرمى فوراً بدون إعادة محاولة", async () => {
+  let calls = 0;
+  const deps = { sleep: async () => {}, readCounter: async () => 0, commit: async () => { calls++; const e = new Error("offline"); e.code = "unavailable"; throw e; } };
+  await assert.rejects(() => allocateAndCommit("tickets", () => {}, deps), /offline/);
+  assert.equal(calls, 1);
+});
+const [seqApiSrc, firestoreRulesSrc, ...creatorSrcs] = await Promise.all([
+  "../js/services/sequenceApi.js", "../firestore.rules",
+  "../js/services/ticketsApi.js", "../js/services/suggestionsApi.js", "../js/services/defectsApi.js",
+  "../js/services/machineErrorsApi.js", "../js/services/checklistApi.js", "../js/services/pmApi.js"
+].map(f => readFile(new URL(f, import.meta.url), "utf8")));
+await t("sequenceApi لا يعتمد على حزم غير متاحة في المتصفح (firebase/firestore, runTransaction)", () => {
+  assert.doesNotMatch(seqApiSrc, /from\s+["']firebase\//);
+  assert.doesNotMatch(seqApiSrc, /runTransaction\s*\(|import\s*\{[^}]*runTransaction/);
+});
+await t("كل مسارات الإنشاء تحجز الرقم والسجل معاً (commitWithSequence) بدل حجز منفصل", () => {
+  for (const src of creatorSrcs) { assert.doesNotMatch(src, /allocateUnifiedNumber/); }
+  const used = creatorSrcs.map(src => (src.match(/commitWithSequence\("(\w+)"/g) || []).join(","));
+  const all = used.join(",");
+  for (const type of ["tickets", "pmOrders", "suggestions", "defects", "machineErrors", "checklists", "pmRecords"]) {
+    assert.ok(all.includes(`("${type}"`) || creatorSrcs.some(src => src.includes(`sequenceType`)) && type === "tickets", `النوع ${type} بلا مسار حجز ذرّي`);
+  }
+});
+await t("قواعد counters: بداية من 1، +1 فقط، ربط البادئة بالمعرّف، وإعادة الضبط للأدمن فقط", () => {
+  const block = firestoreRulesSrc.slice(firestoreRulesSrc.indexOf("match /counters/{counterId}"));
+  assert.ok(block.includes("current == 1") && block.includes("resource.data.current + 1"));
+  assert.ok(block.includes("counterPrefixMatches(counterId") && block.includes("isAdmin()") && block.includes("current == 0"));
+  assert.ok(block.includes("allow delete: if false"));
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);

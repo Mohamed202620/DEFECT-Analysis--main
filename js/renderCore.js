@@ -97,6 +97,16 @@ if (
 
 }
 
+if (
+  activePage === "pmOrders" &&
+  currentPage !== "pmOrders" &&
+  typeof window.cleanupPmOrdersBoard === "function"
+) {
+
+  window.cleanupPmOrdersBoard();
+
+}
+
 // ========================================================
 // KAIZEN BOARD CLEANUP
 // (لو كنا في صفحة 'kaizenBoard' وهنغادرها لصفحة تانية، اقفل الـ
@@ -128,9 +138,16 @@ if (
 }
 
 activePage = currentPage;
-applyManagerDesktopMode(); // MGR-DESKTOP
+  applyManagerDesktopMode(); // MGR-DESKTOP
 
-app.style.opacity = "0.4";
+  // مزامنة الصلاحيات من Firestore للصفحات الإدارية الحساسة
+  // هذا يضمن أن أي تغيير في الدور/الصلاحيات من أدمن آخر ينعكس فوراً
+  const adminPages = ["users", "requests", "machines", "settings", "system", "dailyTipsSettings"];
+  if (adminPages.includes(currentPage)) {
+    import("./services/usersApi.js").then(m => m.fetchCurrentUserProfileApi(true)).catch(() => {});
+  }
+
+  app.style.opacity = "0.4";
 
 setTimeout(() => {
 
@@ -527,6 +544,12 @@ if (currentPage === "tickets") {
   }, 100);  
 
 }  
+
+if (currentPage === "pmOrders") {
+  setTimeout(() => {
+    if (typeof window.loadPmOrdersBoard === "function") window.loadPmOrdersBoard();
+  }, 100);
+}
 
 
 // ========================================================  

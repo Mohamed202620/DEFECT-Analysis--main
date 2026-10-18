@@ -10,6 +10,7 @@ import { fetchTechniciansApi } from '../../services/usersApi.js';
 import { assignTicketApi, reassignTicketApi, fetchTicketByIdApi } from '../../services/ticketsApi.js';
 import { openActionModal } from '../../components/ActionModal.js';
 import { escapeHtml, escapeJsArg } from "../../utils/escapeHtml.js";
+import { displayRecordNumber, recordNumberSearchText } from "../../utils/recordNumber.js";
 
 let activeFilteredTickets = [];
 let selectedRowIndex = 0;
@@ -198,7 +199,15 @@ function filterAndSortTickets(allTickets) {
       const matchTech = String(t.assignedTo || '').toLowerCase().includes(q);
       const matchReporter = String(t.reportedBy || '').toLowerCase().includes(q);
       const matchId = String(t.id || '').toLowerCase().includes(q);
-      return matchMachine || matchLine || matchDesc || matchTech || matchReporter || matchId;
+      const matchIssueId = recordNumberSearchText(t).toLowerCase().includes(q);
+      const matchType = String(t.type || '').toLowerCase().includes(q);
+      const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
+      const matchRoute = (isPm ? 'pm صيانة وقائية' : 'cm صيانة تصحيحية').includes(q);
+      const statusStr = String(t.status || '').toLowerCase();
+      const statusLabel = String(STATUS_LABELS[statusStr] || '').toLowerCase();
+      const matchStatus = statusStr.includes(q) || statusLabel.includes(q);
+      const matchNotes = String(t.mechanicNotes || t.notes || '').toLowerCase().includes(q);
+      return matchMachine || matchLine || matchDesc || matchTech || matchReporter || matchId || matchIssueId || matchType || matchRoute || matchStatus || matchNotes;
     });
   }
 
@@ -482,7 +491,7 @@ function renderSidePreview(ticket) {
             type="button"
             onclick="window.mgrPromptAssignTicket('${escapeJsArg(ticket.id)}')"
             class="text-[11px] font-bold text-blue-500 hover:underline">
-            ${ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن')}
+            ${String(ticket.status || '').trim().toLowerCase() === 'pending' ? (isEn ? 'Review / classify' : 'مراجعة وتصنيف') : (ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن'))}
           </button>` : ''}
         </div>
       </div>
@@ -687,6 +696,21 @@ window.mgrPromptAssignTicket = async function(ticketId) {
     return;
   }
 
+  if (isNewAssign) {
+    if (ticket.maintenanceType === "PM") {
+      alert(isEn
+        ? "This ticket is already classified as PM. Plan or assign it from PM Work Orders."
+        : "هذا البلاغ مصنّف صيانة وقائية (PM) بالفعل. خطّطه أو أسنده من أوامر الصيانة الوقائية.");
+      return;
+    }
+    if (typeof window.handleTicketAction === "function") {
+      await window.handleTicketAction(ticketId, "review");
+    } else {
+      alert(isEn ? "Ticket review is not available right now. Reload and try again." : "تعذر فتح مراجعة البلاغ الآن. حدّث الصفحة وحاول مرة أخرى.");
+    }
+    return;
+  }
+
   const techResult = await fetchTechniciansApi();
   const technicians = techResult.status === "success" ? techResult.data : [];
 
@@ -805,12 +829,12 @@ window.mgrBulkAssignPrompt = async function() {
       } else if (MGR_REASSIGNABLE_STATUSES.includes(status)) {
         res = await reassignTicketApi(ticketId, { assignedTo, assignedToUid: assignedToUid || null });
       } else {
-        failures.push(`${ticket.issueId || ticketId}: ${isEn ? 'status does not allow assignment' : 'حالة التذكرة لا تسمح بالإسناد'}`);
+        failures.push(`${displayRecordNumber(ticket, ticketId)}: ${isEn ? 'status does not allow assignment' : 'حالة التذكرة لا تسمح بالإسناد'}`);
         continue;
       }
 
       if (res.status === "success") successCount++;
-      else failures.push(`${ticket.issueId || ticketId}: ${res.message || ''}`);
+      else failures.push(`${displayRecordNumber(ticket, ticketId)}: ${res.message || ''}`);
     } catch (err) {
       failures.push(`${ticketId}: ${err?.message || ''}`);
     }

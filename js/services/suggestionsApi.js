@@ -75,6 +75,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
 
   try {
 
+
     // دعم صورة واحدة (الاسم القديم "image" - للتوافق) أو أكثر من
     // صورة دفعة واحدة عبر "images" (الاسم الجديد)، ورفعها كلها على
     // ImgBB وتخزين الروابط فقط (imageUrls) بدل الـ Base64 الكامل
@@ -82,11 +83,15 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, "suggestion_" + Date.now());
 
-    const docRef = await addDoc(
-      collection(db, "suggestions"),
+    // الرقم الموحد (KZ-001...) يُحجز ويُكتب مع المقترح في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "suggestions"));
+    const { unifiedNumber } = await commitWithSequence("suggestions", (batch, number) => batch.set(
+      docRef,
       {
         ...restPayload,
         ...(imageUrls.length && { imageUrls }),
+        unifiedNumber: number, // الرقم الموحد الجديد: KZ-001
 
         // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
         // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"
@@ -101,7 +106,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
         status: "new",
         createdAt: new Date().toISOString()
       }
-    );
+    ));
 
     // إصلاح (إشعارات): المقترح الجديد ما كانش بيبلّغ أي أدمن/مدير (بعكس
     // البلاغات الجديدة وإعادة الإرسال بعد التعديل) - الأدمن كان لازم يفتح
@@ -113,6 +118,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     return {
       status: "success",
       id: docRef.id,
+      unifiedNumber,
       message: "تم إرسال مقترح الكايزن بنجاح"
     };
 
@@ -122,7 +128,7 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -168,7 +174,7 @@ export function subscribeToSuggestionsBoardApi({ role, myName, myUid, status }, 
 
     const onErr = (error) => {
       console.error("Error subscribing to suggestions board:", error);
-      callback({ status: "error", message: error.message });
+      callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     };
 
     if (role === "admin" || role === "manager") {
@@ -227,7 +233,7 @@ export function subscribeToSuggestionsBoardApi({ role, myName, myUid, status }, 
     };
   } catch (error) {
     console.error("Error subscribing to suggestions board:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -381,7 +387,7 @@ export async function reviewSuggestionApi(suggestionId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error reviewing suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -425,7 +431,7 @@ export async function rejectSuggestionApi(suggestionId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error rejecting suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -463,7 +469,7 @@ export async function requestSuggestionRevisionApi(suggestionId, notes) {
     return { status: "success" };
   } catch (error) {
     console.error("Error requesting suggestion revision:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -498,7 +504,7 @@ export async function returnSuggestionToReviewApi(suggestionId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error returning suggestion to review:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -556,7 +562,7 @@ export async function resubmitSuggestionApi(suggestionId, { title, line, machine
     return { status: "success" };
   } catch (error) {
     console.error("Error resubmitting suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -604,7 +610,7 @@ export async function assignAndApproveSuggestionApi(suggestionId, { assignedTo, 
     return { status: "success" };
   } catch (error) {
     console.error("Error assigning/approving suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -665,7 +671,7 @@ export async function implementSuggestionApi(suggestionId, notes = "", afterImag
     return { status: "success" };
   } catch (error) {
     console.error("Error implementing suggestion:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -682,7 +688,7 @@ export async function fetchSuggestionLogsApi(suggestionId) {
     return { status: "success", data: items };
   } catch (error) {
     console.error("Error fetching suggestion logs:", error);
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
   }
 }
 
@@ -715,7 +721,7 @@ export async function fetchSuggestionsForReportApi({ role, myName, sinceISO }) {
     return { status: "success", data: items };
   } catch (error) {
     console.error("Error fetching suggestions for report:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -756,6 +762,6 @@ export async function fetchSuggestionsForSearchApi({ isFullAccess, myUid, myName
     return { status: "success", data: Array.from(merged.values()) };
   } catch (error) {
     console.error("Error fetching suggestions for search:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }

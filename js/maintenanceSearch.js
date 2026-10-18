@@ -23,7 +23,7 @@ import { getCurrentRole, hasFullDataAccess } from './permissions.js';
 // مستوردين من ملف ثوابت مشترك (ticketStatusConstants.js) بدل تعريفهم
 // محلياً هنا (نفس القيم مستخدمة في مكان واحد بس قبل كده، لكن أي مكان
 // تاني هيحتاجها مستقبلاً هياخدها من نفس المصدر بدل تكرارها من جديد)
-import { STATUS_LABELS, STATUS_CLASSES } from './ticketStatusConstants.js';
+import { STATUS_LABELS, STATUS_CLASSES, isOverdueTicket } from './ticketStatusConstants.js';
 import {
   fetchTicketsForSearchApi,
   fetchPmRecordsForSearchApi,
@@ -39,6 +39,7 @@ import {
 } from './branding.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 import { escapeJsArg } from "./utils/escapeHtml.js";
+import { displayRecordNumber, recordNumberSearchText } from "./utils/recordNumber.js";
 
 // ============================================================
 // حالة الموديول
@@ -203,6 +204,7 @@ window.handleMaintenanceSearchDateFilterChange = function () {
   const filterValue = el('mDateFilter')?.value || 'all';
   const isCustom = filterValue === 'custom';
 
+  el('mCustomDatesRow')?.classList.toggle('hidden', !isCustom);
   el('mDateFrom')?.classList.toggle('hidden', !isCustom);
   el('mDateTo')?.classList.toggle('hidden', !isCustom);
 
@@ -492,6 +494,15 @@ window.openMaintenanceSearchSuggestionDetails = function (suggestionId) {
 // بناء وعرض النتائج المفلترة
 // ============================================================
 
+function isTicketPm(r) {
+  if (!r || r._kind !== 'ticket') return false;
+  const mt = String(r.maintenanceType || '').toUpperCase();
+  const typ = String(r.type || '').toUpperCase();
+  const ityp = String(r.issueType || '').toUpperCase();
+  const cat = String(r.category || '').toUpperCase();
+  return mt === 'PM' || typ === 'PM' || ityp === 'PM' || cat === 'PM' || cat.includes('وقائية') || mt.includes('PM');
+}
+
 let lastFilteredList = [];
 
 function renderResults() {
@@ -516,6 +527,7 @@ function renderResults() {
   }
 
   const searchTerm = (el('mSearchInput')?.value || '').trim().toLowerCase();
+  const routeFilter = el('mRouteFilter')?.value || 'all';
   const statusFilter = el('mStatusFilter')?.value || 'all';
   const priorityFilter = el('mPriorityFilter')?.value || 'all';
   const machineFilter = el('mMachineFilter')?.value || 'all';
@@ -525,12 +537,27 @@ function renderResults() {
   let list = [...allRecords];
 
   if (currentType !== 'all') {
-    list = list.filter(r => r._kind === currentType);
+    if (currentType === 'pm') {
+      list = list.filter(r => r._kind === 'pm' || isTicketPm(r));
+    } else {
+      list = list.filter(r => r._kind === currentType);
+    }
+  }
+
+  // فلتر مسار الصيانة (CM / PM)
+  if (routeFilter !== 'all') {
+    if (routeFilter === 'pm') {
+      list = list.filter(r => r._kind === 'pm' || isTicketPm(r));
+    } else if (routeFilter === 'cm') {
+      list = list.filter(r => r._kind === 'ticket' && !isTicketPm(r));
+    }
   }
 
   if (statusFilter !== 'all') {
     if (currentType === 'suggestion') {
       list = list.filter(r => r._kind === 'suggestion' && String(r.status || 'new').toLowerCase() === statusFilter);
+    } else if (statusFilter === 'overdue') {
+      list = list.filter(r => r._kind === 'ticket' && isOverdueTicket(r));
     } else {
       const aliasValues = STATUS_FILTER_ALIASES[statusFilter] || [statusFilter];
       list = list.filter(r => r._kind === 'ticket' && aliasValues.includes(String(r.status || '').toLowerCase()));
@@ -547,8 +574,9 @@ function renderResults() {
 
   if (dateRange) {
     list = list.filter(r => {
-      if (!r.createdAt) return false;
-      const created = new Date(r.createdAt);
+      const rawDate = r.createdAt || r.date || r.plannedDate;
+      if (!rawDate) return false;
+      const created = new Date(rawDate);
       if (isNaN(created.getTime())) return false;
       if (dateRange.from && created < dateRange.from) return false;
       if (dateRange.to && created > dateRange.to) return false;
@@ -558,10 +586,17 @@ function renderResults() {
 
   if (searchTerm) {
     list = list.filter(r => {
+      const statusStr = String(r.status || '').toLowerCase();
+      const statusLabel = STATUS_LABELS[statusStr] || SUGGESTION_STATUS_LABELS[statusStr] || '';
+      const priorityLabel = PRIORITY_LABELS[r.priority] || '';
+      const routeStr = String(r.maintenanceType || '').toUpperCase() === 'PM' ? 'صيانة وقائية pm' : 'صيانة تصحيحية cm';
       const haystack = [
-        r.machine, r.line, r.description, r.notes, r.locationInMachine,
+        r.id, recordNumberSearchText(r), r.customId, r.ticketId,
+        r.machine, r.machineName, r.line, r.description, r.notes, r.locationInMachine,
         r.reportedBy, r.assignedTo, r.reporter?.name, r.category, r.mechanicNotes,
-        r.title, r.problem, r.solution, r.name, r.impact
+        r.title, r.problem, r.solution, r.name, r.impact, r.type, r.issueType,
+        r.maintenanceType, routeStr, r.status, statusLabel, r.priority, priorityLabel,
+        r.location, r.delayReason, r.resolutionDetails
       ].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(searchTerm);
     });
@@ -648,8 +683,12 @@ window.exportMaintenanceSearchResults = async function () {
   const rows = lastFilteredList.map(record => {
     const kind = record._kind;
     let kindStr = kind;
-    if (isAr) kindStr = kind === 'ticket' ? 'عطل' : kind === 'suggestion' ? 'مقترح' : 'صيانة وقائية';
-    else kindStr = kind === 'ticket' ? 'Ticket' : kind === 'suggestion' ? 'Suggestion' : 'PM';
+    const isTicketPm = isTicketPm(record);
+    if (isAr) {
+      kindStr = kind === 'ticket' ? (isTicketPm ? 'صيانة وقائية (PM)' : 'عطل (CM)') : (kind === 'suggestion' ? 'مقترح' : 'صيانة وقائية');
+    } else {
+      kindStr = kind === 'ticket' ? (isTicketPm ? 'PM Order' : 'Breakdown (CM)') : (kind === 'suggestion' ? 'Suggestion' : 'PM Record');
+    }
 
     const titleText = kind === 'suggestion' ? (record.title || record.machine || '') : (record.machine || record.machineName || '');
     let statusText = String(record.status || '').toLowerCase();
@@ -673,7 +712,7 @@ window.exportMaintenanceSearchResults = async function () {
 
     return [
       kindStr,
-      record.id || '',
+      displayRecordNumber(record, ''),
       titleText,
       statusText,
       formatPdfDate(record.createdAt),
@@ -869,25 +908,36 @@ window.exportMaintenanceSearchResultsPdf = async function () {
 function ticketResultCard(t) {
   const status = String(t.status || '').trim().toLowerCase();
   const machineName = escapeHtml(t.machine || t.machineName || '-');
+  const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
+  const isOverdue = isOverdueTicket(t);
+  const unifiedNumberDisplay = escapeHtml(displayRecordNumber(t));
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
-      <div class="flex justify-between items-center">
-        <span class="font-bold text-gray-100 flex items-center gap-1.5">
-          <span class="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">🚨 بلاغ</span>
-          ${machineName}
+    <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs hover:border-slate-700 transition-colors">
+      <div class="flex justify-between items-center gap-1.5">
+        <span class="font-bold text-gray-100 flex items-center gap-1.5 truncate">
+          ${isPm 
+            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30">🗓️ PM</span>`
+            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">🚨 CM</span>`}
+          <span class="truncate">${machineName}</span>
+          ${t.line ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">${escapeHtml(t.line)}</span>` : ''}
         </span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
-          ${STATUS_LABELS[status] || escapeHtml(status) || '-'}
-        </span>
+        <div class="flex items-center gap-1 shrink-0">
+          ${isOverdue ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse font-bold">⏰ متأخر</span>` : ''}
+          <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
+            ${STATUS_LABELS[status] || escapeHtml(status) || '-'}
+          </span>
+        </div>
       </div>
 
-      ${t.description ? `<p class="text-[11px] text-gray-400">${escapeHtml(t.description)}</p>` : ''}
+      <div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>
+
+      ${t.description ? `<p class="text-[11px] text-gray-400 line-clamp-2">${escapeHtml(t.description)}</p>` : ''}
 
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
         ${t.priority ? `<span>${PRIORITY_LABELS[t.priority] || escapeHtml(t.priority)}</span>` : ''}
         ${t.reportedBy ? `<span>👤 بلّغ: ${escapeHtml(t.reportedBy)}</span>` : ''}
-        ${t.assignedTo ? `<span>🛠️ مُسندة إلى: ${escapeHtml(t.assignedTo)}</span>` : ''}
+        ${t.assignedTo ? `<span>🛠️ مُسندة: ${escapeHtml(t.assignedTo)}</span>` : ''}
         ${t.createdAt ? `<span>🕓 ${escapeHtml(new Date(t.createdAt).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")))}</span>` : ''}
       </div>
 
@@ -907,6 +957,7 @@ function ticketResultCard(t) {
 function pmResultCard(p) {
   const checklist = p.checklist || {};
   const doneCount = [checklist.hydraulic, checklist.filters, checklist.lubrication].filter(Boolean).length;
+  const unifiedNumberDisplay = p.unifiedNumber ? escapeHtml(displayRecordNumber(p)) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -919,6 +970,8 @@ function pmResultCard(p) {
           ✅ ${doneCount}/3 بنود
         </span>
       </div>
+
+      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
       ${p.notes ? `<p class="text-[11px] text-gray-400">${escapeHtml(p.notes)}</p>` : ''}
 
@@ -938,6 +991,7 @@ function pmResultCard(p) {
 function suggestionResultCard(s) {
   const status = String(s.status || 'new').trim().toLowerCase();
   const titleText = escapeHtml(s.title || s.machine || '-');
+  const unifiedNumberDisplay = s.unifiedNumber ? escapeHtml(displayRecordNumber(s)) : null;
 
   return `
     <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
@@ -950,6 +1004,8 @@ function suggestionResultCard(s) {
           ${SUGGESTION_STATUS_LABELS[status] || escapeHtml(status) || '-'}
         </span>
       </div>
+
+      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
       ${s.problem ? `<p class="text-[11px] text-gray-400">${escapeHtml(s.problem)}</p>` : ''}
 

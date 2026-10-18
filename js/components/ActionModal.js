@@ -73,6 +73,17 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
         `;
       }
 
+      if (field.type === "date") {
+        return `
+          <div class="mb-3">
+            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <input id="modal_${escapeHtml(field.id)}" type="date"
+              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
+              value="${escapeHtml(field.defaultValue || "")}" />
+          </div>
+        `;
+      }
+
       if (field.type === "images") {
         // معرّف مجموعة فريد لكل فتحة نافذة (حتى لو نفس field.id
         // اتكرر في نافذة تانية لاحقاً) - يمنع أي تداخل في الحالة

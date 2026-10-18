@@ -143,6 +143,10 @@ export function parseTicketDate(ticketOrRaw) {
 export function isOverdueTicket(ticket, now = new Date()) {
   if (!ticket) return false;
 
+  // أمر الصيانة الوقائية (PM) ليس عطلاً تصحيحياً: يبقى مستند البلاغ بحالة
+  // pending بدون إسناد حتى يخطّطه المدير، فلا يُحتسب عليه SLA الأعطال.
+  if (ticket.maintenanceType === "PM") return false;
+
   // بلاغ تم إصلاحه وبانتظار تأكيد المُبلّغ/المدير لأكتر من المهلة = متأخر
   // (مراجعة معلّقة) - كان بيختفي من المفتوحة والمتأخرة (M8)
   if (isAwaitingConfirmationStatus(ticket.status)) {

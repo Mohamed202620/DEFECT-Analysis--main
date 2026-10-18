@@ -88,7 +88,7 @@ export async function findMachineErrorByCode(code) {
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -161,6 +161,7 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
     // machineErrors وظهور "Error loading documents" في الكونسول)
     const { image, ...restPayload } = payload;
 
+
     const imageUrl = await uploadBase64Image(
       image,
       `machineError_${normalized}`
@@ -181,19 +182,23 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
       return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
     }
 
-    await setDoc(errorRef, {
+    // الرقم الموحد (ME-001...) يُحجز ويُكتب مع العطل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const { unifiedNumber } = await commitWithSequence("machineErrors", (batch, number) => batch.set(errorRef, {
       ...restPayload,
       ...machineReference,
       errorCode: normalized,
+      unifiedNumber: number, // الرقم الموحد الجديد: ME-001
       department,
       ...(imageUrl && { imageUrl }),
       status: "pending_review",
       createdAt: new Date().toISOString()
-    });
+    }));
 
     return {
       status: "success",
       id: errorRef.id,
+      unifiedNumber,
       message: "تم إضافة العطل بنجاح وهو الآن قيد المراجعة"
     };
 
@@ -203,7 +208,7 @@ export async function saveMachineErrorApi(payload, { skipOfflineQueue = false } 
 
     return {
       status: "error",
-      message: error.message
+      message: error?.message || "حدث خطأ غير متوقع"
     };
 
   }
@@ -232,7 +237,7 @@ export async function verifyMachineErrorApi(errorId) {
 
     console.error("Error verifying machine error:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -304,7 +309,7 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
 
     console.error("Error logging machine error occurrence:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -345,7 +350,7 @@ export async function fetchMachineErrorHistoryApi(code) {
 
     console.error("Error fetching machine error history:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -381,7 +386,7 @@ export async function fetchAllMachineErrorsApi() {
 
     console.error("Error fetching machine errors list:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -416,7 +421,7 @@ export async function fetchMachineErrorLogsSinceApi(sinceIso) {
 
     console.error("Error fetching machine error logs since date:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 

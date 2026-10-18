@@ -102,3 +102,17 @@ Never run import/restore commands against production as a test. This repository 
 - Verify Authentication, an authorized ticket lifecycle, PM submission, notification privacy, and QR scan-to-checklist submission with approved test accounts and data.
 - Confirm the reviewed rules/indexes were actually deployed; check rules/indexes separately from the Hosting release.
 - Monitor Firebase/Worker error rates and permission-denied events. Keep the rollback release and backup references available until the release owner closes the window.
+
+## Sequential record numbers: reset before official launch
+
+Numbers are per record type and short: `BR-001` (tickets), `PM-001` (PM orders), `KZ-001` (Kaizen), `ME-001`, `CL-001`, `PR-001`, `DF-001`. Each number is reserved in the same atomic batch that writes the record (rules enforce `counters/{type}.current` increases by exactly 1), so numbers are never duplicated or skipped.
+
+To start from 001 at launch, **after test data has been cleaned by the data owner**, sign in as an active admin and run once from the browser console:
+
+```js
+const seq = await import('/js/services/sequenceApi.js');
+await seq.resetSequenceCountersForLaunch({ dryRun: true }); // report only
+await seq.resetSequenceCountersForLaunch();                  // resets counters only
+```
+
+The function only writes `counters/*`. It refuses (per type) while any record with that prefix still exists, and never touches records, relations, users or permissions. Deploy the updated `firestore.rules` before the Hosting release.

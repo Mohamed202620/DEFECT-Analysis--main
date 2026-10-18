@@ -48,6 +48,7 @@ export const Sidebar = (activeTab) => {
   const isTabActive = (itemKey) => {
     if (activeTab === itemKey) return true;
     if (itemKey === 'tickets' && activeTab === 'tickets') return true;
+    if (itemKey === 'pm' && (activeTab === 'pm' || activeTab === 'pmOrders')) return true;
     if (itemKey === 'kaizen' && (activeTab === 'kaizenBoard' || activeTab === 'suggestions' || activeTab === 'suggestion')) return true;
     if (itemKey === 'machines' && (activeTab === 'machines' || activeTab === 'machineProfile' || activeTab === 'dailyAM' || activeTab === 'fiveS' || activeTab === 'qr')) return true;
     if (itemKey === 'system' && (activeTab === 'system' || activeTab === 'settings')) return true;
@@ -87,6 +88,12 @@ export const Sidebar = (activeTab) => {
           badge: openCount > 0 ? `${openCount}` : null,
           badgeClass: 'bg-blue-500/20 text-blue-400',
           action: "window.navigateTo('tickets')"
+        },
+        {
+          id: 'pm',
+          iconSvg: ICONS.pm,
+          label: isAr ? 'أوامر الصيانة الوقائية PM' : 'PM Work Orders',
+          action: "window.navigateTo('pmOrders')"
         },
         {
           id: 'requests',
@@ -135,8 +142,8 @@ export const Sidebar = (activeTab) => {
         ...(hasPermission("pm") ? [{
           id: 'pm',
           iconSvg: ICONS.pm,
-          label: isAr ? 'الصيانة الوقائية' : 'Preventive Maint.',
-          action: "window.navigateTo('pm')"
+          label: isAr ? 'أوامر الصيانة الوقائية' : 'PM Work Orders',
+          action: "window.navigateTo('pmOrders')"
         }] : []),
         ...(hasPermission("suggestions") ? [{
           id: 'kaizen',
@@ -341,5 +348,4 @@ if (typeof window !== "undefined") {
     });
   }
 }
-
 

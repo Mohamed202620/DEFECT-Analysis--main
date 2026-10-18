@@ -8,7 +8,7 @@
 
 import { ensureAuthReady } from "../config.js";
 import { uploadBase64Images } from "./imageUpload.js";
-import { getCurrentRole, isAdminRole, hasFullDataAccess } from "../permissions.js";
+import { getCurrentRole, isAdminRole, isManagerRole, hasFullDataAccess } from "../permissions.js";
 // إصلاح (تنظيف/Refactor): قائمة "الحالات المغلقة" بقت مستوردة من ملف
 // ثوابت مشترك (ticketStatusConstants.js) بدل تعريفها محلياً هنا (كانت
 // نفس القيم مكررة يدوياً في أكتر من ملف - workflow.js / statistics.js)
@@ -72,6 +72,8 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
     // قديمة مُخزَّنة محلياً في طابور offlineQueue من قبل هذا التحديث)
     // أو أكثر من صورة دفعة واحدة عبر "images" (الاسم الجديد)
     const { image, images, ...restPayload } = payload;
+
+
     const issueId = payload.issueId || ("IS-" + Date.now());
     // إصلاح (منع تكرار السجلات - مزامنة Offline): لو addDoc نجح فعلاً على
     // السيرفر لكن الرد ضاع (انقطاع شبكة لحظة الرد) العنصر بيفضل في
@@ -152,6 +154,11 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       } catch (_) { /* مساعد فقط - مايمنعش الحفظ */ }
     }
 
+    // الترقيم الموحد: البلاغ يأخذ رقماً من تسلسل البلاغات (BR-001...)، أما أمر الصيانة
+    // الوقائية (maintenanceType = PM) فيأخذ رقماً من تسلسل أوامر الصيانة (PM-001...).
+    // حجز الرقم وكتابة البلاغ في دفعة ذرّية واحدة: لا تكرار ولا أرقام ضائعة عند الفشل.
+    const sequenceType = ticketData.maintenanceType === "PM" ? "pmOrders" : "tickets";
+
     let docRef;
     if (ticketDocId) {
       docRef = doc(db, "tickets", ticketDocId);
@@ -162,22 +169,28 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
           return { status: "success", id: ticketDocId, duplicate: true };
         }
       } catch (_) { /* القراءة مساعدة فقط (قد تفشل أوفلاين) */ }
+    } else {
+      docRef = doc(collection(db, "tickets"));
+    }
 
-      try {
-        await setDoc(docRef, ticketData);
-      } catch (writeError) {
-        // الكتابة التانية لنفس المعرّف بتتحسب update وقاعدة الأمان بترفضها:
-        // لو المستند فعلاً موجود لنفس المُبلّغ يبقى الرفع الأول نجح
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    try {
+      const sequence = await commitWithSequence(sequenceType, (batch, unifiedNumber) => {
+        batch.set(docRef, { ...ticketData, unifiedNumber });
+      });
+      ticketData.unifiedNumber = sequence.unifiedNumber;
+    } catch (writeError) {
+      // الكتابة التانية لنفس المعرّف بتتحسب update وقاعدة الأمان بترفضها:
+      // لو المستند فعلاً موجود لنفس المُبلّغ يبقى الرفع الأول نجح
+      if (ticketDocId) {
         try {
           const again = await getDoc(docRef);
           if (again.exists() && again.data().reportedByUid === reporterUid) {
             return { status: "success", id: ticketDocId, duplicate: true };
           }
         } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
-        throw writeError;
       }
-    } else {
-      docRef = await addDoc(collection(db, "tickets"), ticketData);
+      throw writeError;
     }
 
     // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): قبل هذا
@@ -191,10 +204,10 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
       console.error("Error notifying managers of new ticket:", error);
     });
 
-    return { status: "success", id: docRef.id };
+    return { status: "success", id: docRef.id, unifiedNumber: ticketData.unifiedNumber };
   } catch (error) {
     console.error("Error saving issue/ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -410,7 +423,7 @@ async function _syncOfflineTicketActionsApiImpl() {
           await setDoc(templateRef, template);
           result = { status: "success" };
         } catch (error) {
-          result = { status: "error", message: error.message };
+          result = { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
         }
       } else if (type === "new_machine_error") {
         const { saveMachineErrorApi } = await import("./machineErrorsApi.js");
@@ -701,7 +714,7 @@ export async function fetchTicketCountsApi({ role, myName } = {}) {
     };
   } catch (error) {
     console.error("Error calculating ticket counts:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -722,7 +735,7 @@ export async function fetchPendingTicketsApi() {
     const fallback = emptyResultOnMissingIndex(error, "fetchPendingTicketsApi");
     if (fallback) return fallback;
     console.error("Error fetching pending tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -744,7 +757,7 @@ export async function fetchTicketsForTechnicianApi(technicianName) {
     const fallback = emptyResultOnMissingIndex(error, "fetchTicketsForTechnicianApi");
     if (fallback) return fallback;
     console.error("Error fetching technician tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -765,7 +778,7 @@ export async function fetchResolvedTicketsApi() {
     const fallback = emptyResultOnMissingIndex(error, "fetchResolvedTicketsApi");
     if (fallback) return fallback;
     console.error("Error fetching resolved tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -819,7 +832,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
             return;
           }
           console.error(`Error in ${context}:`, error);
-          callback({ status: "error", message: error.message });
+          callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
         }
       );
     };
@@ -936,7 +949,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
 
-    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
+    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
       const clauses = statusClauses();
       const q = clauses.length === 0
         ? query(ticketsRef, orderBy("createdAt", "desc"), limit(TICKETS_BOARD_DEFAULT_LIMIT))
@@ -962,7 +975,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
 
   } catch (error) {
     console.error("Error subscribing to tickets board:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -994,14 +1007,25 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
       const snap = await getDocs(query(ticketsRef, ...dateClause));
       snap.forEach(docSnap => tickets.push({ id: docSnap.id, ...docSnap.data() }));
     } else {
-      const [reportedSnap, assignedSnap] = await Promise.all([
-        getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""), ...dateClause)),
-        getDocs(query(ticketsRef, where("assignedTo", "==", myName || ""), ...dateClause))
-      ]);
-
+      const queries = [];
+      if (myName) {
+        queries.push(
+          getDocs(query(ticketsRef, where("reportedBy", "==", myName), ...dateClause)),
+          getDocs(query(ticketsRef, where("assignedTo", "==", myName), ...dateClause))
+        );
+      }
+      if (myUid) {
+        queries.push(
+          getDocs(query(ticketsRef, where("reportedByUid", "==", myUid), ...dateClause)),
+          getDocs(query(ticketsRef, where("assignedToUid", "==", myUid), ...dateClause))
+        );
+      }
+      if (!queries.length) {
+        return { status: "success", data: tickets };
+      }
+      const snaps = await Promise.all(queries);
       const merged = new Map();
-      reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-      assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+      snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
       tickets = Array.from(merged.values());
     }
 
@@ -1010,7 +1034,7 @@ export async function fetchTicketsForReportApi({ role, myUid, myName, sinceISO }
     return { status: "success", data: tickets };
   } catch (error) {
     console.error("Error fetching tickets for report:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1034,22 +1058,33 @@ export async function fetchTicketsForSearchApi({ isFullAccess, myUid, myName }) 
       return { status: "success", data: tickets };
     }
 
-    // وصول محدود (فني/مهندس عادي): بلاغاته هو بس (بلّغ بيها أو
-    // مُسندة إليه) - استعلامين بالاسم (نفس أسلوب subscribeToTicketsBoardApi
-    // وfetchTicketsForReportApi) بدل استعلام واحد على كل التذاكر
-    const [reportedSnap, assignedSnap] = await Promise.all([
-      getDocs(query(ticketsRef, where("reportedBy", "==", myName || ""))),
-      getDocs(query(ticketsRef, where("assignedTo", "==", myName || "")))
-    ]);
+    // وصول محدود (فني/مشغل/مهندس عادي): بلاغاته هو بس (بلّغ بيها أو
+    // مُسندة إليه) - استعلامات بالاسم والـ UID لضمان عدم سقوط أي تذكرة
+    const queries = [];
+    if (myName) {
+      queries.push(
+        getDocs(query(ticketsRef, where("reportedBy", "==", myName))),
+        getDocs(query(ticketsRef, where("assignedTo", "==", myName)))
+      );
+    }
+    if (myUid) {
+      queries.push(
+        getDocs(query(ticketsRef, where("reportedByUid", "==", myUid))),
+        getDocs(query(ticketsRef, where("assignedToUid", "==", myUid)))
+      );
+    }
+    if (!queries.length) {
+      return { status: "success", data: [] };
+    }
 
+    const snaps = await Promise.all(queries);
     const merged = new Map();
-    reportedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
-    assignedSnap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() }));
+    snaps.forEach(snap => snap.forEach(docSnap => merged.set(docSnap.id, { id: docSnap.id, ...docSnap.data() })));
 
     return { status: "success", data: Array.from(merged.values()) };
   } catch (error) {
     console.error("Error fetching tickets for search:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1065,7 +1100,7 @@ export async function updateTicketStatusApi(ticketId, status, notes = "") {
     return { status: "success" };
   } catch (error) {
     console.error("Error updating ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1089,7 +1124,7 @@ function emptyResultOnMissingIndex(error, context) {
   if (isMissingIndexError(error)) {
     console.warn(
       `[${context}] محتاج Index في Firestore - ` +
-      `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error.message}`
+      `تم إخفاء الخطأ مؤقتاً. التفاصيل: ${error?.message || "خطأ غير معروف"}`
     );
     return { status: "success", data: [] };
   }
@@ -1127,7 +1162,7 @@ export async function fetchTicketLogsApi(ticketId) {
     return { status: "success", data: logs };
   } catch (error) {
     console.error("Error fetching ticket logs:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1140,7 +1175,7 @@ export async function fetchTicketByIdApi(ticketId) {
     return { status: "success", data: { id: docSnap.id, ...docSnap.data() } };
   } catch (error) {
     console.error("Error fetching ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1194,7 +1229,7 @@ export async function fetchActiveTicketForMachineApi(machine, line = "") {
     return { status: "success", ticket: activeTickets[0], totalActive: activeTickets.length };
   } catch (error) {
     console.error("Error fetching active ticket for machine:", error);
-    return { status: "error", message: error.message, ticket: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", ticket: null };
   }
 }
 
@@ -1277,7 +1312,7 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     return { status: "success", update: newUpdate };
   } catch (error) {
     console.error("Error appending shift note to ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1396,7 +1431,7 @@ export async function fetchMyNotificationsApi(uid) {
     const fallback = emptyResultOnMissingIndex(error, "fetchMyNotificationsApi");
     if (fallback) return fallback;
     console.error("Error fetching notifications:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1431,7 +1466,7 @@ export async function countUnreadNotificationsApi(uid) {
     const fallback = emptyResultOnMissingIndex(error, "countUnreadNotificationsApi");
     if (fallback) return { status: "success", count: 0 };
     console.error("Error counting unread notifications:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1467,12 +1502,12 @@ export function subscribeToMyNotificationsApi(uid, callback) {
           return;
         }
         console.error("Error subscribing to notifications:", error);
-        callback({ status: "error", message: error.message });
+        callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
       }
     );
   } catch (error) {
     console.error("Error subscribing to notifications:", error);
-    callback({ status: "error", message: error.message });
+    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
     return () => {};
   }
 }
@@ -1483,7 +1518,7 @@ export async function markNotificationReadApi(notificationId) {
     return { status: "success" };
   } catch (error) {
     console.error("Error marking notification read:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1519,18 +1554,27 @@ export async function markAllNotificationsAsRead(uid) {
     const fallback = emptyResultOnMissingIndex(error, "markAllNotificationsAsRead");
     if (fallback) return { status: "success", updated: 0 };
     console.error("Error marking all notifications as read:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
-export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUid }) {
-  if (!type || !assignedTo) {
-    return { status: "error", message: "type و assignedTo مطلوبين" };
+export async function assignTicketApi(ticketId, {
+  type,
+  assignedTo,
+  assignedToUid,
+  maintenanceType,
+  reviewedBy,
+  reviewedByUid,
+  reviewedAt
+}) {
+  if (!assignedTo) {
+    return { status: "error", message: "assignedTo مطلوب" };
   }
   try {
     await updateTicketWithLog(ticketId, stampUpdate({
         status: "assigned",
-        type,
+        ...(type && { type }),
+        ...(maintenanceType && { maintenanceType, reviewedBy, reviewedByUid, reviewedAt }),
         assignedTo,
         ...(assignedToUid && { assignedToUid })
       }), {
@@ -1549,7 +1593,841 @@ export async function assignTicketApi(ticketId, { type, assignedTo, assignedToUi
     return { status: "success" };
   } catch (error) {
     console.error("Error assigning ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = "", assignedToUid = "" }) {
+  if (!["CM", "PM"].includes(maintenanceType)) {
+    return { status: "error", message: "نوع الصيانة غير صالح" };
+  }
+
+  if (maintenanceType === "CM") {
+    if (!assignedTo || !assignedToUid) {
+      return { status: "error", message: "يجب إسناد بلاغ CM إلى فني" };
+    }
+    // لا يُحوَّل بلاغ صُنّف PM بالفعل إلى CM من هنا (نفس حارس مسار PM
+    // أدناه) - تفادياً لاختفاء أمر PM من قائمته بعد تخطيطه
+    try {
+      const current = await getDoc(doc(db, "tickets", ticketId));
+      if (current.exists() && current.data().maintenanceType === "PM") {
+        return { status: "error", message: "هذا البلاغ مصنّف PM بالفعل ولا يمكن إعادة تصنيفه" };
+      }
+    } catch (guardError) {
+      console.warn("Could not verify existing maintenance type before CM assignment:", guardError);
+    }
+    return assignTicketApi(ticketId, {
+      assignedTo,
+      assignedToUid,
+      maintenanceType,
+      reviewedBy: localStorage.getItem("name") || "",
+      reviewedByUid: localStorage.getItem("userId") || "",
+      reviewedAt: new Date().toISOString()
+    });
+  }
+
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const snapshot = await getDoc(ticketRef);
+    if (!snapshot.exists()) {
+      return { status: "error", message: "البلاغ غير موجود" };
+    }
+
+    const existing = snapshot.data();
+    if (existing.maintenanceType === "PM") {
+      return { status: "success", duplicate: true };
+    }
+    if (existing.status !== "pending") {
+      return { status: "error", message: "لا يمكن إعادة تصنيف هذا البلاغ إلا في حالة قيد الانتظار" };
+    }
+
+    // رقم أمر الصيانة (PM-001...) من تسلسله المستقل؛ حجز الرقم وتحديث البلاغ في دفعة
+    // ذرّية واحدة، والرقم الأصلي للبلاغ (BR-xxx) يبقى محفوظاً في originalUnifiedNumber.
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    let unifiedNumber;
+    try {
+      ({ unifiedNumber } = await commitWithSequence("pmOrders", (batch, number) => {
+        batch.update(ticketRef, stampUpdate({
+          maintenanceType: "PM",
+          pmStatus: existing.pmStatus || "unplanned",
+          ...(existing.unifiedNumber && !String(existing.unifiedNumber).startsWith("PM-")
+            ? { originalUnifiedNumber: existing.unifiedNumber } : {}),
+          unifiedNumber: number, // الرقم الموحد الجديد: PM-001
+          assignedTo: null,
+          assignedToUid: null,
+          reviewedBy: localStorage.getItem("name") || "",
+          reviewedByUid: localStorage.getItem("userId") || "",
+          reviewedAt: new Date().toISOString()
+        }));
+      }));
+    } catch (sequenceError) {
+      // تصنيف متزامن من مستخدم آخر: لو أصبح البلاغ PM بالفعل نعتبرها نجاحاً (بدون رقم ثانٍ)
+      try {
+        const again = await getDoc(ticketRef);
+        if (again.exists() && again.data().maintenanceType === "PM") {
+          return { status: "success", duplicate: true, unifiedNumber: again.data().unifiedNumber };
+        }
+      } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
+      throw sequenceError;
+    }
+    return { status: "success", unifiedNumber };
+  } catch (error) {
+    console.error("Error classifying ticket as PM:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+export async function fetchPmOrdersApi() {
+  try {
+    await ensureAuthReady();
+    const ticketsRef = collection(db, "tickets");
+    const role = getCurrentRole();
+    const myUid = localStorage.getItem("userId") || "";
+    const myName = localStorage.getItem("name") || "";
+    const merged = new Map();
+
+    if (hasFullDataAccess(role)) {
+      const snapshot = await getDocs(query(ticketsRef, where("maintenanceType", "==", "PM")));
+      snapshot.forEach(ticketSnap => merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() }));
+    } else {
+      // الأدوار غير كاملة الصلاحية ترى أوامر PM التي أبلغت عنها أو أُسندت
+      // إليها فقط (بالـ UID والاسم مثل بقية استعلامات البلاغات)
+      const scopedQueries = [];
+      if (myUid) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedByUid", "==", myUid))),
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedToUid", "==", myUid)))
+        );
+      }
+      if (myName) {
+        scopedQueries.push(
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("reportedBy", "==", myName))),
+          getDocs(query(ticketsRef, where("maintenanceType", "==", "PM"), where("assignedTo", "==", myName)))
+        );
+      }
+      if (!scopedQueries.length) {
+        return { status: "error", message: "Missing user identity for scoped PM query" };
+      }
+      const scoped = await Promise.all(scopedQueries);
+      scoped.forEach(snapshot => snapshot.forEach(ticketSnap => {
+        merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() });
+      }));
+    }
+
+    const orders = Array.from(merged.values());
+    orders.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    return { status: "success", data: orders };
+  } catch (error) {
+    console.error("Error fetching PM work orders:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * اشتراك لحظي (onSnapshot) لأوامر PM - نفس نطاق الصلاحيات في fetchPmOrdersApi
+ * بحيث تتحدث الصفحة تلقائياً دون الحاجة لإعادة تحميل.
+ * @returns {Function} دالة إلغاء الاشتراك
+ */
+export function subscribeToPmOrdersApi(callback) {
+  let unsubs = [];
+  let closed = false;
+  (async () => {
+    try {
+      await ensureAuthReady();
+      if (closed) return;
+      const ticketsRef = collection(db, "tickets");
+      const role = getCurrentRole();
+      const myUid = localStorage.getItem("userId") || "";
+      const myName = localStorage.getItem("name") || "";
+      const pm = where("maintenanceType", "==", "PM");
+      const queries = [];
+      if (hasFullDataAccess(role)) {
+        queries.push(query(ticketsRef, pm));
+      } else {
+        if (myUid) {
+          queries.push(
+            query(ticketsRef, pm, where("reportedByUid", "==", myUid)),
+            query(ticketsRef, pm, where("assignedToUid", "==", myUid))
+          );
+        }
+        if (myName) {
+          queries.push(
+            query(ticketsRef, pm, where("reportedBy", "==", myName)),
+            query(ticketsRef, pm, where("assignedTo", "==", myName))
+          );
+        }
+      }
+      if (!queries.length) {
+        callback({ status: "error", message: "Missing user identity for scoped PM query" });
+        return;
+      }
+      const buckets = queries.map(() => null);
+      const emit = () => {
+        if (closed || buckets.some(b => b === null)) return;
+        const merged = new Map();
+        buckets.forEach(list => list.forEach(t => merged.set(t.id, t)));
+        const orders = Array.from(merged.values());
+        orders.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+        callback({ status: "success", data: orders });
+      };
+      queries.forEach((q, idx) => {
+        unsubs.push(onSnapshot(
+          q,
+          (snapshot) => {
+            const list = [];
+            snapshot.forEach(d => list.push({ id: d.id, ...d.data() }));
+            buckets[idx] = list;
+            emit();
+          },
+          (error) => {
+            console.error("Error in subscribeToPmOrdersApi:", error);
+            if (!closed) callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
+          }
+        ));
+      });
+    } catch (error) {
+      console.error("Error subscribing to PM work orders:", error);
+      if (!closed) callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
+    }
+  })();
+  return () => {
+    closed = true;
+    unsubs.forEach(u => { try { u(); } catch (_) {} });
+    unsubs = [];
+  };
+}
+
+const PM_TASK_STAGES = ["assigned", "in_progress"];
+const PM_CLOSED_STATUSES = ["completed", "completed_partial"];
+// قواعد الأمان تسمح بتعديل مهام PM فقط لبلاغ "مُسند" أو "قيد التنفيذ"
+function pmTaskStageError(data) {
+  return PM_TASK_STAGES.includes(data?.status)
+    ? null
+    : "يجب إسناد أمر PM لفني وبدء التنفيذ (حالة البلاغ: مُسند / قيد التنفيذ) قبل تنفيذ المهام";
+}
+
+// ------------------------------------------------------------
+// مزامنة حالة بلاغ PM مع الإسناد من شاشة التخطيط.
+// قاعدة تخطيط PM (firestore.rules) لا تسمح بتغيير status، بينما قاعدة
+// تنفيذ المهام تتطلب status = assigned/in_progress - فكان الأمر المُخطَّط
+// لفني يبقى "pending" للأبد وتظل مهامه مقفلة (بانتظار الإسناد). هنا
+// ننقل الحالة بنفس مسارات دورة حياة البلاغ المعتمدة (assign / reassign /
+// release) بعد حفظ التخطيط.
+// ------------------------------------------------------------
+async function transitionPmTicketAfterPlanning(ticketId, before, { assignedTo, assignedToUid }) {
+  const fromStatus = String(before?.status || "").trim().toLowerCase();
+  const role = getCurrentRole();
+  const canLog = isAdminRole(role) || isManagerRole(role);
+  const prevUid = before?.assignedToUid || "";
+
+  if (assignedToUid) {
+    if (fromStatus === "pending") {
+      const data = stampUpdate({ status: "assigned", assignedTo, assignedToUid });
+      if (canLog) {
+        await updateTicketWithLog(ticketId, data, {
+          action: "assign",
+          fromStatus: "pending",
+          toStatus: "assigned",
+          note: `تم إسناد أمر PM إلى ${assignedTo}`
+        });
+      } else {
+        await updateDoc(doc(db, "tickets", ticketId), data);
+      }
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: "تم إسناد أمر صيانة وقائية (PM) جديد إليك",
+        ticketId
+      });
+      return;
+    }
+    if (["assigned", "in_progress"].includes(fromStatus) && prevUid !== assignedToUid && canLog) {
+      await updateTicketWithLog(ticketId, stampUpdate({ status: "assigned", assignedTo, assignedToUid }), {
+        action: "reassign",
+        fromStatus,
+        toStatus: "assigned",
+        note: `إعادة إسناد أمر PM من "${before?.assignedTo || "غير محدد"}" إلى "${assignedTo}"`
+      });
+      createNotification(assignedToUid, {
+        type: "assigned",
+        message: "تم إسناد أمر صيانة وقائية (PM) إليك (إعادة إسناد)",
+        ticketId
+      });
+      if (prevUid && prevUid !== assignedToUid) {
+        createNotification(prevUid, {
+          type: "declined",
+          message: `تم سحب أمر PM منك وإعادة إسناده إلى ${assignedTo}`,
+          ticketId
+        });
+      }
+    }
+  }
+}
+
+export async function updatePmOrderApi(ticketId, changes) {
+  // "completed" لا يُضبط يدوياً من التخطيط: الإنهاء يتم من شاشة التنفيذ
+  // (إنهاء الأمر) كي تُحسب المهام المنفذة والمتبقية ويُسجَّل المنفِّذ والوقت
+  const allowedStatuses = ["unplanned", "planned", "in_progress", "deferred"];
+  if (changes?.pmStatus === "completed") {
+    return { status: "error", message: "إنهاء أمر PM يتم من زر «تنفيذ» ثم «إنهاء الأمر» لتُسجَّل المهام والمنفِّذ" };
+  }
+  if (!allowedStatuses.includes(changes?.pmStatus)) {
+    return { status: "error", message: "حالة أمر PM غير صالحة" };
+  }
+
+  if (!hasFullDataAccess(getCurrentRole())) {
+    return { status: "error", message: "ليست لديك صلاحية تخطيط أوامر الصيانة الوقائية" };
+  }
+  const plannedDateRaw = String(changes.plannedDate || "").trim();
+  if (plannedDateRaw && Number.isNaN(new Date(plannedDateRaw).getTime())) {
+    return { status: "error", message: "موعد التنفيذ غير صالح" };
+  }
+
+  try {
+    const assignedTo = String(changes.assignedTo || "").trim();
+    const assignedToUid = String(changes.assignedToUid || "").trim();
+    if (!!assignedTo !== !!assignedToUid) {
+      return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
+    }
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const snap = await getDoc(ticketRef);
+    if (!snap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+    const before = snap.data();
+    if (before.maintenanceType !== "PM") {
+      return { status: "error", message: "هذا البلاغ ليس أمر PM" };
+    }
+    if (PM_CLOSED_STATUSES.includes(before.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - استخدم «إعادة جدولة» لإعادة فتحه" };
+    }
+
+    const fromStatus = String(before.status || "").trim().toLowerCase();
+    const role = getCurrentRole();
+    const isMgr = isAdminRole(role) || isManagerRole(role);
+
+    // إلغاء إسناد أمر مُسند/قيد التنفيذ: يعيده لقائمة الانتظار (مثل اعتذار الفني)
+    // حتى لا يبقى assigned بلا مُسنَد إليه فتتجمد مهامه
+    if (!assignedToUid && ["assigned", "in_progress"].includes(fromStatus)) {
+      if (!isMgr) {
+        return { status: "error", message: "إلغاء إسناد أمر مُسند أو قيد التنفيذ متاح للمدير فقط" };
+      }
+      await updateTicketWithLog(ticketId, stampUpdate({
+        status: "pending",
+        assignedTo: null,
+        assignedToUid: null
+      }), {
+        action: "release",
+        fromStatus,
+        toStatus: "pending",
+        note: "إلغاء إسناد أمر PM من شاشة التخطيط"
+      });
+      if (before.assignedToUid) {
+        createNotification(before.assignedToUid, {
+          type: "declined",
+          message: "تم سحب أمر PM منك وإلغاء إسناده",
+          ticketId
+        });
+      }
+    }
+
+    await updateDoc(ticketRef, stampUpdate({
+      line: String(changes.line || "").trim(),
+      machine: String(changes.machine || "").trim(),
+      location: String(changes.location || "").trim(),
+      priority: String(changes.priority || "").trim(),
+      plannedDate: plannedDateRaw || null,
+      pmStatus: changes.pmStatus,
+      assignedTo: assignedTo || null,
+      assignedToUid: assignedToUid || null,
+      maintenanceNotes: String(changes.maintenanceNotes || "").trim(),
+      delayReason: String(changes.delayReason || "").trim(),
+      downtimeRequired: changes.downtimeRequired === true
+    }));
+
+    try {
+      await transitionPmTicketAfterPlanning(ticketId, before, { assignedTo, assignedToUid });
+    } catch (transitionError) {
+      console.error("PM planning saved but ticket status transition failed:", transitionError);
+      return {
+        status: "success",
+        warning: `تم حفظ التخطيط لكن تعذر تحديث حالة الإسناد: ${transitionError?.message || ""}`
+      };
+    }
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error updating PM work order:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * تحديد/إلغاء "توقف الخط مطلوب" لأمر PM أو أكثر (تحديث حقل واحد فقط)
+ */
+export async function setPmDowntimeApi(ticketIds, value) {
+  if (!hasFullDataAccess(getCurrentRole())) {
+    return { status: "error", message: "ليست لديك صلاحية تعديل توقف الخط" };
+  }
+  const ids = [...new Set((ticketIds || []).filter(Boolean))];
+  if (!ids.length) return { status: "error", message: "لم يتم تحديد أوامر" };
+  const results = await Promise.allSettled(
+    ids.map(id => updateDoc(doc(db, "tickets", id), stampUpdate({ downtimeRequired: value === true })))
+  );
+  const failed = results.filter(r => r.status === "rejected").length;
+  if (failed === ids.length) {
+    return { status: "error", message: results[0].reason?.message || "حدث خطأ غير متوقع" };
+  }
+  return { status: "success", data: { updated: ids.length - failed, failed } };
+}
+
+// ============================================================
+// PM Task Execution - إدارة مهام أمر PM
+// ============================================================
+
+/**
+ * تهيئة مهام PM من نموذج PM أو قائمة افتراضية
+ * تُستدعى عند تحويل البلاغ لـ PM أو عند أول تخطيط
+ */
+export async function initializePmTasksApi(ticketId, tasks = null) {
+  const allowedStatuses = ["unplanned", "planned", "in_progress"];
+
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+
+    const currentData = ticketSnap.data();
+    const pmStatus = currentData.pmStatus || "unplanned";
+
+    if (!allowedStatuses.includes(pmStatus)) {
+      return { status: "error", message: "لا يمكن تهيئة المهام في الحالة الحالية" };
+    }
+
+    // المهام الموجودة لا تُستبدل
+    if (Array.isArray(currentData.pmTasks) && currentData.pmTasks.length > 0) {
+      return { status: "success", message: "المهام مهيأة بالفعل", data: currentData.pmTasks };
+    }
+
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
+    // مهام افتراضية: المهمة الأصلية رقم (1) فقط بدون إضافة المهام (2 و3 و4) تلقائياً
+    const origDesc = (currentData.description || "").trim() || "صيانة وقائية دورية";
+    const defaultTasks = tasks || [
+      { id: "task_1", description: origDesc }
+    ];
+
+    const pmTasks = defaultTasks.map((task, index) => ({
+      id: task.id || `task_${index + 1}`,
+      description: task.description,
+      status: "pending", // pending, done, not_done
+      reason: null,
+      completedAt: null,
+      completedBy: null,
+      completedByUid: null
+    }));
+
+    await updateDoc(ticketRef, stampUpdate({
+      pmTasks,
+      pmStatus: pmStatus === "unplanned" ? "planned" : pmStatus
+    }));
+
+    return { status: "success", data: pmTasks };
+
+  } catch (error) {
+    console.error("Error initializing PM tasks:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * إضافة مهمة PM جديدة يدوياً
+ */
+export async function addPmTaskApi(ticketId, description) {
+  const clean = String(description || "").trim();
+  if (!clean) return { status: "error", message: "وصف المهمة مطلوب" };
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) return { status: "error", message: "أمر PM غير موجود" };
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - لا يمكن إضافة مهام" };
+    }
+    const currentTasks = Array.isArray(currentData.pmTasks) ? [...currentData.pmTasks] : [];
+    const newTask = {
+      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      description: clean,
+      status: "pending",
+      reason: null,
+      completedAt: null,
+      completedBy: null,
+      completedByUid: null
+    };
+    const pmTasks = [...currentTasks, newTask];
+    await updateDoc(ticketRef, stampUpdate({ pmTasks }));
+    return { status: "success", data: newTask };
+  } catch (error) {
+    console.error("Error adding PM task:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * حذف مهمة PM محددة
+ */
+export async function deletePmTaskApi(ticketId, taskId) {
+  if (!taskId) return { status: "error", message: "معرف المهمة مطلوب" };
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+    if (!ticketSnap.exists()) return { status: "error", message: "أمر PM غير موجود" };
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - لا يمكن حذف مهام" };
+    }
+    const currentTasks = Array.isArray(currentData.pmTasks) ? currentData.pmTasks : [];
+    const pmTasks = currentTasks.filter(t => t.id !== taskId);
+    await updateDoc(ticketRef, stampUpdate({ pmTasks }));
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error deleting PM task:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * تحديث مهمة PM واحدة (تم التنفيذ / لم يتم التنفيذ)
+ */
+export async function updatePmTaskApi(ticketId, taskId, { status, reason = null }) {
+  if (!["pending", "done", "not_done"].includes(status)) {
+    return { status: "error", message: "حالة مهمة غير صالحة" };
+  }
+
+  const cleanReason = String(reason || "").trim();
+  if (status === "not_done" && !cleanReason) {
+    return { status: "error", message: "سبب عدم التنفيذ مطلوب" };
+  }
+
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
+    const currentPmStatus = currentData.pmStatus || "unplanned";
+    if (PM_CLOSED_STATUSES.includes(currentPmStatus)) {
+      return { status: "error", message: "الأمر منتهٍ - أعد جدولته أولاً لتعديل المهام" };
+    }
+
+    const pmTasks = (currentData.pmTasks || []).map(t => ({ ...t }));
+    const taskIndex = pmTasks.findIndex(t => t.id === taskId);
+
+    if (taskIndex === -1) {
+      return { status: "error", message: "المهمة غير موجودة" };
+    }
+
+    const isPending = status === "pending";
+    const myUid = localStorage.getItem("userId") || "";
+    pmTasks[taskIndex] = {
+      ...pmTasks[taskIndex],
+      status,
+      reason: status === "not_done" ? cleanReason : null,
+      completedAt: isPending ? null : new Date().toISOString(),
+      completedBy: isPending ? null : (localStorage.getItem("name") || ""),
+      completedByUid: isPending ? null : (localStorage.getItem("userId") || "")
+    };
+
+    const changes = { pmTasks };
+    // أول تنفيذ فعلي ينقل الأمر تلقائياً إلى "قيد التنفيذ"
+    if (!isPending && ["unplanned", "planned"].includes(currentPmStatus)) {
+      changes.pmStatus = "in_progress";
+    }
+
+    await updateDoc(ticketRef, stampUpdate(changes));
+
+    // أول تنفيذ فعلي لمهمة على أمر "مُسند" ينقل البلاغ إلى "قيد التنفيذ"
+    // (نفس مسار بدء التنفيذ: الفني المُسند أو الأدمن فقط حسب القواعد).
+    // محاولة مساعدة فقط - فشلها لا يُبطل حفظ المهمة.
+    if (
+      !isPending &&
+      String(currentData.status || "").trim().toLowerCase() === "assigned" &&
+      (isAdminRole(getCurrentRole()) || (!!myUid && currentData.assignedToUid === myUid))
+    ) {
+      try {
+        await updateTicketWithLog(ticketId, stampUpdate({ status: "in_progress" }), {
+          action: "start",
+          fromStatus: "assigned",
+          toStatus: "in_progress",
+          note: "بدء تلقائي عند أول تنفيذ لمهمة PM"
+        });
+      } catch (startError) {
+        console.warn("Could not auto-start PM ticket:", startError);
+      }
+    }
+
+    return { status: "success", data: pmTasks[taskIndex] };
+
+  } catch (error) {
+    console.error("Error updating PM task:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * إنهاء أمر PM مع حساب المهام المنفذة/غير المنفذة
+ * إذا بقيت مهام غير منفذة -> حالة "completed_partial" (مكتمل جزئياً)
+ * المهام غير المنفذة تُحفظ كـ pending لإعادة الجدولة
+ */
+export async function completePmOrderApi(ticketId) {
+  try {
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+
+    const currentData = ticketSnap.data();
+    const stageError = pmTaskStageError(currentData);
+    if (stageError) return { status: "error", message: stageError };
+
+    if (PM_CLOSED_STATUSES.includes(currentData.pmStatus)) {
+      return { status: "error", message: "هذا الأمر منتهٍ بالفعل" };
+    }
+
+    const pmTasks = currentData.pmTasks || [];
+
+    if (pmTasks.length === 0) {
+      return { status: "error", message: "لا توجد مهام محددة لهذا الأمر" };
+    }
+
+    const nowIso = new Date().toISOString();
+    const myUid = localStorage.getItem("userId") || "";
+    const myName = localStorage.getItem("name") || "";
+
+    // المهام المعلقة تُعتبر "لم يتم تنفيذها" تلقائياً عند الإنهاء
+    const updatedTasks = pmTasks.map(t => t.status === "done" || t.status === "not_done"
+      ? t
+      : {
+          ...t,
+          status: "not_done",
+          reason: "لم يتم التنفيذ عند الإنهاء",
+          completedAt: nowIso,
+          completedBy: myName,
+          completedByUid: myUid
+        });
+
+    const doneTasks = updatedTasks.filter(t => t.status === "done");
+    const notDoneTasks = updatedTasks.filter(t => t.status === "not_done");
+    const isPartial = notDoneTasks.length > 0;
+    const newPmStatus = isPartial ? "completed_partial" : "completed";
+
+    // ملاحظة: لا نغيّر status البلاغ نفسه - قاعدة الأمان الخاصة بمهام PM
+    // لا تسمح بتغييره (الإغلاق الفعلي يتم عبر مسار البلاغات المعتاد)
+    await updateDoc(ticketRef, stampUpdate({
+      pmStatus: newPmStatus,
+      pmTasks: updatedTasks,
+      completedAt: nowIso,
+      completedBy: myName,
+      completedByUid: myUid,
+      completedTasksCount: doneTasks.length,
+      totalTasksCount: updatedTasks.length,
+      pendingTasksCount: notDoneTasks.length,
+      hasRemainingTasks: isPartial,
+      remainingTasks: notDoneTasks.map(t => ({ id: t.id, description: t.description || "", reason: t.reason || "" }))
+    }));
+
+    return {
+      status: "success",
+      data: {
+        pmStatus: newPmStatus,
+        doneCount: doneTasks.length,
+        notDoneCount: notDoneTasks.length,
+        isPartial
+      }
+    };
+
+  } catch (error) {
+    console.error("Error completing PM order:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * إنشاء أمر عمل/بلاغ جديد من المهام المتبقية
+ * يربط الأمر الجديد بالأمر الأصلي
+ */
+export async function createFollowupFromRemainingTasksApi(ticketId, { title, description }) {
+  try {
+    // ربط أمر المتابعة بالأمر الأصلي (followupTicketId) تسمح به القواعد للمدير
+    // والأدمن فقط - كان المهندس ينشئ بلاغاً ثم يفشل الربط فيبقى بلاغاً يتيماً
+    if (!(isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole()))) {
+      return { status: "error", message: "ليست لديك صلاحية إنشاء أوامر متابعة" };
+    }
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM الأصلي غير موجود" };
+    }
+
+    const currentData = ticketSnap.data();
+    if (currentData.followupTicketId) {
+      return { status: "error", message: "تم إنشاء أمر متابعة لهذا الأمر مسبقاً" };
+    }
+
+    const remainingTasks = currentData.remainingTasks || [];
+    if (!remainingTasks.length) {
+      return { status: "error", message: "لا توجد مهام متبقية لتحويلها" };
+    }
+
+    const myName = localStorage.getItem("name") || "";
+    const myUid = localStorage.getItem("userId") || "";
+    const sourceRef = currentData.issueId || ticketId;
+    const cleanTitle = String(title || "").trim();
+
+    // بلاغ جديد (Pending) عبر المسار المعتمد؛ قواعد الإنشاء تمنع الإسناد المسبق
+    const result = await saveIssueApi({
+      // معرّف حتمي: إعادة المحاولة بعد فشل ربط followupTicketId تعيد نفس
+      // البلاغ (saveIssueApi يكتشفه) بدل إنشاء أمر متابعة مكرر
+      issueId: `PMF-${ticketId}`,
+      line: currentData.line || "",
+      machine: currentData.machine || "",
+      location: currentData.location || "",
+      priority: currentData.priority || "Medium",
+      category: "PM Follow-up",
+      maintenanceType: "CM",
+      description: String(description || "").trim() || `متابعة مهام PM غير المنفذة من الأمر ${sourceRef}`,
+      maintenanceNotes: `مهام متبقية من PM ${sourceRef}: ${remainingTasks.map(t => t.description).join("، ")}`,
+      ...(cleanTitle && { followupTitle: cleanTitle }),
+      linkedPmTicketId: ticketId,
+      reportedBy: myName,
+      reportedByUid: myUid,
+      reporter: {
+        name: myName,
+        job: localStorage.getItem("job") || "",
+        department: localStorage.getItem("department") || "",
+        shift: localStorage.getItem("shift") || ""
+      },
+      status: "pending",
+      createdAt: new Date().toISOString()
+    }, { skipOfflineQueue: true });
+
+    if (result.status === "success" && result.id) {
+      await updateDoc(ticketRef, stampUpdate({ followupTicketId: result.id }));
+      return { status: "success", data: { followupTicketId: result.id, unifiedNumber: result.unifiedNumber || "" } };
+    }
+
+    return result.status === "success"
+      ? { status: "error", message: "تعذر الحصول على رقم أمر المتابعة" }
+      : result;
+
+  } catch (error) {
+    console.error("Error creating followup from remaining tasks:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
+}
+
+/**
+ * إعادة جدولة المهام المتبقية (تحديث موعد التنفيذ)
+ */
+export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, assignedToUid, maintenanceNotes }) {
+  try {
+    if (!hasFullDataAccess(getCurrentRole())) {
+      return { status: "error", message: "ليست لديك صلاحية إعادة جدولة أوامر PM" };
+    }
+
+    const ticketRef = doc(db, "tickets", ticketId);
+    const ticketSnap = await getDoc(ticketRef);
+
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "أمر PM غير موجود" };
+    }
+
+    if (ticketSnap.data().maintenanceType !== "PM") {
+      return { status: "error", message: "هذا البلاغ ليس أمر PM" };
+    }
+
+    if (ticketSnap.data().pmStatus === "completed") {
+      return { status: "error", message: "لا يمكن إعادة جدولة أمر مكتمل بالكامل" };
+    }
+
+    const plannedDateRaw = String(plannedDate || "").trim();
+    if (plannedDateRaw && Number.isNaN(new Date(plannedDateRaw).getTime())) {
+      return { status: "error", message: "موعد التنفيذ غير صالح" };
+    }
+
+    const cleanAssignedTo = String(assignedTo || "").trim();
+    const cleanAssignedToUid = String(assignedToUid || "").trim();
+    if (!!cleanAssignedTo !== !!cleanAssignedToUid) {
+      return { status: "error", message: "بيانات الفني المسند إليه غير مكتملة" };
+    }
+
+    if (!plannedDateRaw) {
+      return { status: "error", message: "موعد التنفيذ الجديد مطلوب لإعادة الجدولة" };
+    }
+
+    const before = ticketSnap.data();
+    const fromStatus = String(before.status || "").trim().toLowerCase();
+    const role = getCurrentRole();
+    const isMgr = isAdminRole(role) || isManagerRole(role);
+    if (!cleanAssignedToUid && ["assigned", "in_progress"].includes(fromStatus)) {
+      if (!isMgr) {
+        return { status: "error", message: "إلغاء إسناد أمر مُسند أو قيد التنفيذ متاح للمدير فقط" };
+      }
+      await updateTicketWithLog(ticketId, stampUpdate({
+        status: "pending",
+        assignedTo: null,
+        assignedToUid: null
+      }), {
+        action: "release",
+        fromStatus,
+        toStatus: "pending",
+        note: "إلغاء إسناد أمر PM عند إعادة الجدولة"
+      });
+    }
+
+    await updateDoc(ticketRef, stampUpdate({
+      pmStatus: "planned",
+      plannedDate: plannedDateRaw || null,
+      assignedTo: cleanAssignedTo || null,
+      assignedToUid: cleanAssignedToUid || null,
+      ...(maintenanceNotes !== undefined && { maintenanceNotes: String(maintenanceNotes || "").trim() })
+    }));
+
+    try {
+      await transitionPmTicketAfterPlanning(ticketId, before, {
+        assignedTo: cleanAssignedTo,
+        assignedToUid: cleanAssignedToUid
+      });
+    } catch (transitionError) {
+      console.error("PM reschedule saved but ticket status transition failed:", transitionError);
+      return {
+        status: "success",
+        warning: `تمت إعادة الجدولة لكن تعذر تحديث حالة الإسناد: ${transitionError?.message || ""}`
+      };
+    }
+
+    return { status: "success" };
+
+  } catch (error) {
+    console.error("Error rescheduling PM tasks:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1641,7 +2519,7 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
     return { status: "success" };
   } catch (error) {
     console.error("Error reassigning ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1672,7 +2550,7 @@ export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}
     return { status: "success" };
   } catch (error) {
     console.error("Error starting ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1818,7 +2696,7 @@ export async function resolveTicketApi(
     return { status: "success" };
   } catch (error) {
     console.error("Error resolving ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1859,7 +2737,7 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
     return { status: "success" };
   } catch (error) {
     console.error("Error closing ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1931,7 +2809,7 @@ export async function bulkCloseTicketsApi(ticketIds) {
     };
   } catch (error) {
     console.error("Error bulk closing tickets:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -1960,7 +2838,7 @@ export async function rejectTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error rejecting ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2011,7 +2889,7 @@ export async function reopenTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error reopening ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2083,7 +2961,7 @@ export async function releaseTicketsOfUserApi(userId, userName = "") {
     return { status: "success", released: targets.length };
   } catch (error) {
     console.error("Error releasing tickets of unavailable user:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2128,7 +3006,7 @@ export async function escalateOverdueTicketsApi(overdueTickets = []) {
     return { status: "success", escalated: count };
   } catch (error) {
     console.warn("escalateOverdueTicketsApi failed:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -2174,7 +3052,7 @@ export async function declineTicketApi(ticketId, reason) {
     return { status: "success" };
   } catch (error) {
     console.error("Error declining ticket:", error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 

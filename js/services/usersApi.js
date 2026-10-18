@@ -44,16 +44,16 @@ import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissio
 // الموافقة تعرض الدور الناتج. دلوقتي الأدمن بيختار الدور صراحةً عند
 // القبول (updateUserStatusApi تحت بتطلبه)، والوظيفة بتُستخدم فقط
 // كاقتراح مبدئي في الواجهة للأدوار غير الحساسة (suggestRoleFromJob).
-export const APPROVAL_ROLES = ["technician", "operator", "engineer", "supervisor", "manager", "admin"];
+export const APPROVAL_ROLES = ["technician", "operator", "engineer", "maintainer", "supervisor", "manager", "admin"];
 
 // الأدوار اللي لازم يتحدد لها قسم ماكينات (backend/frontend) عند القبول:
 // قواعد machineErrors/pmRecords/machineChecklists وقوائم الماكينات بتعتمد
 // عليه، ومن غيره المستخدم مايقدرش يبلّغ أو يمسح QR (بند C3).
-export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "supervisor"];
+export const ROLES_REQUIRING_MACHINE_DEPARTMENT = ["technician", "operator", "engineer", "maintainer", "supervisor"];
 
 const JOB_SUGGESTED_ROLE = {
   technician: "technician",
-  maintainer: "technician",
+  maintainer: "maintainer",
   operator: "operator"
 };
 
@@ -119,7 +119,7 @@ export async function countPendingUsersApi() {
 //   ٣) invalidateUsersCache() بتتنادى بعد أي عملية تعديل فعلية
 //      (قبول/رفض/تغيير دور/حذف) عشان أول تحديث للشاشة بعد أي
 //      إجراء يعرض البيانات الفعلية فوراً بدل الكاش القديم.
-const USERS_CACHE_TTL_MS = 60 * 1000; // دقيقة واحدة
+const USERS_CACHE_TTL_MS = 15 * 1000; // 15 ثانية - مزامنة أسرع للصلاحيات
 const USERS_SAFETY_LIMIT = 1000; // سقف أمان مؤقت - راجع الملاحظة فوق
 let usersCache = null; // { data, fetchedAt }
 
@@ -246,7 +246,7 @@ export async function fetchUsers({ forceRefresh = false } = {}) {
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -486,7 +486,7 @@ export async function registerUserApi(userData) {
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -506,14 +506,14 @@ export async function registerUserApi(userData) {
 // دقايق قليلة. التخزين هنا لمدة الجلسة بس (متغير Module-level، بيتصفر
 // تلقائياً بإعادة تحميل الصفحة) - مفيش أي بيانات حساسة بتتخزن غير
 // اللي أصلاً بترجع من نفس الدالة
-const TECHNICIANS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+const TECHNICIANS_CACHE_TTL_MS = 30 * 1000; // 30 ثانية
 let techniciansCache = null; // { data, fetchedAt }
 
 // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): نفس فكرة الكاش
 // فوق بالظبط لكن لقائمة المدراء/الأدمن - تُستخدم في saveIssueApi
 // (ticketsApi.js) عشان نبعت إشعار لكل مدير/أدمن نشط فور تسجيل بلاغ
 // عطل جديد، بدل ما يفضل معتمد على فتحهم اليدوي للوحة البلاغات
-const MANAGERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 دقائق
+const MANAGERS_CACHE_TTL_MS = 30 * 1000; // 30 ثانية
 let managersAndAdminsCache = null; // { data, fetchedAt }
 
 /**
@@ -574,7 +574,7 @@ export async function fetchManagersAndAdminsApi({ forceRefresh = false } = {}) {
 
     console.error("Error fetching managers/admins:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -602,7 +602,7 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
     const q =
       query(
         collection(db, "users"),
-        where("role", "in", ["technician", "engineer"])
+        where("role", "in", ["technician", "engineer", "maintainer"])
       );
 
     const querySnapshot =
@@ -635,7 +635,7 @@ export async function fetchTechniciansApi({ forceRefresh = false } = {}) {
 
     console.error("Error fetching technicians:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -791,7 +791,7 @@ export async function updatePermissionsApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -925,7 +925,7 @@ export async function fetchCurrentUserProfileApi(forceRefresh = false) {
     return { status: "success", user: userObj };
   } catch (error) {
     console.error("Error fetching current user profile from Firestore:", error);
-    return { status: "error", message: error.message, user: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", user: null };
   }
 }
 
@@ -966,7 +966,7 @@ export async function updateUserMachineDepartmentApi(userId, machineDepartment) 
 
     console.error("Error updating user machine department:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -1052,7 +1052,7 @@ export async function updateUserStatusApi(
 
       updateData.permissions =
         role === "admin"
-          ? "all"
+          ? ALL_PERMISSIONS.join(",")
           : (requestedPerms || DEFAULT_USER_PERMISSIONS);
 
       updateData.approvedAt =
@@ -1134,7 +1134,7 @@ export async function updateUserStatusApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 
@@ -1240,7 +1240,7 @@ export async function deleteUserApi(userId) {
       status: "error",
 
       message:
-        error.message ||
+        error?.message ||
         "فشل حذف المستخدم"
 
     };

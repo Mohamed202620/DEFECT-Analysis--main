@@ -161,7 +161,7 @@ export async function getTechnicianProfile(customUserId = null) {
         };
       }
     } catch (err) {
-      console.warn("[Attendance] Fetching Firestore profile skipped (offline/cached):", err.message);
+      console.warn("[Attendance] Fetching Firestore profile skipped (offline/cached):", err?.message ?? err);
     }
   }
 

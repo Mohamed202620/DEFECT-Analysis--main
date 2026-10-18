@@ -447,6 +447,19 @@
   <!-- Error Handlers & SW -->
   <script>
     // Test 16: رسالة الخطأ كانت بتتحط في innerHTML بدون تهريب
+    // استخراج رسالة نصية من أي قيمة خطأ (Error أو نص أو كائن أو undefined)
+    // بدون أي قراءة .message من قيمة غير معرّفة
+    window.describeError = function (err, fallback) {
+      try {
+        if (err == null) return fallback || '';
+        if (typeof err === 'string') return err;
+        if (typeof err.message === 'string' && err.message) return err.message;
+        return String(err);
+      } catch (_) {
+        return fallback || '';
+      }
+    };
+
     function escapeErrHtml(v) {
       return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -469,14 +482,13 @@
     }
 
     window.addEventListener("error", function (e) {
-      console.error("Application Error:", e.error || e.message);
-      showFatalError(e.message || String(e.error));
+      console.error("Application Error:", (e && (e.error || e.message)));
+      showFatalError((e && e.message) || window.describeError(e && e.error));
     });
 
     window.addEventListener("unhandledrejection", function (e) {
-      console.error("Promise Error:", e.reason);
-      var reasonMsg = e.reason && (e.reason.message || String(e.reason));
-      showFatalError(reasonMsg);
+      console.error("Promise Error:", e && e.reason);
+      showFatalError(window.describeError(e && e.reason));
     });
 
     if ('serviceWorker' in navigator) {
@@ -545,6 +557,50 @@
     import { navigateTo, currentPage, render } from './js/router.js';
     import { auth, ensureAuthReady } from './js/config.js';
     import { ensureUserAndMachinesLoaded } from './js/machines.js';
+
+    // Global error handler to prevent black screen
+    function safeErrorText(err, fallback) {
+      try {
+        if (err == null) return fallback;
+        if (typeof err === 'string') return err || fallback;
+        if (typeof err.message === 'string' && err.message) return err.message;
+        return String(err) || fallback;
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    window.addEventListener('error', (event) => {
+      console.error('Global error:', event?.error || event?.message);
+      showErrorFallback(safeErrorText(event?.error, event?.message || 'Unknown error'));
+    });
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled rejection:', event?.reason);
+      showErrorFallback(safeErrorText(event?.reason, 'Unhandled promise rejection'));
+    });
+
+    function showErrorFallback(message) {
+      const appDiv = document.getElementById("app");
+      // خطأ ثانوي بعد نجاح رسم صفحة (مثل بانر أو إشعار) لا يجب أن يمسح
+      // الصفحة المعروضة؛ شاشة "تعذر تحميل التطبيق" تظهر فقط لو #app فارغ
+      if (appDiv && !appDiv.innerHTML.trim() && !appDiv.querySelector('.error-fallback')) {
+        appDiv.innerHTML = `
+        <div class="error-fallback min-h-screen flex items-center justify-center p-4 text-center bg-[#0F172A] font-mono" dir="rtl">
+            <div class="bg-red-950/80 border border-red-500 text-red-200 p-5 rounded-2xl max-w-md w-full shadow-2xl">
+                <h3 class="text-base font-bold text-red-400 mb-2">
+                    ⚠️ تعذر تحميل التطبيق
+                </h3>
+                <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
+                    ${String(message).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}
+                </p>
+                <button onclick="location.reload()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white mt-3">
+                    إعادة تحميل الصفحة
+                </button>
+            </div>
+        </div>
+        `;
+      }
+    }
 
     async function initApp() {
       // بناء الهيدر فور تحميل الصفحة

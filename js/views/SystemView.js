@@ -23,7 +23,7 @@ const can = (permission) => {
       .map(p => p.trim().toLowerCase())
       .filter(Boolean);
 
-  return permissions.includes("all") || permissions.includes("admin") || permissions.includes(String(permission || "").toLowerCase());
+  return permissions.includes(String(permission || "").toLowerCase());
 };
 
 // ============================================================

@@ -19,9 +19,29 @@ import { initBrowserNotifications } from './pushNotifications.js';
 const BANNER_ID = "notifPermissionBanner";
 const DISMISSED_KEY = "notifPermissionBannerDismissed";
 
+// نصوص احتياطية: مفتاح الترجمة "notifPermission" غير معرّف في config.js،
+// وكانت t() ترجع undefined فيرمي renderNotificationPermissionBanner()
+// الخطأ "Cannot read properties of undefined (reading 'message')" بعد أول
+// رسم لصفحة الرئيسية، فيظهر "تعذر تحميل التطبيق". النصوص هنا تضمن عمل
+// البانر دائماً، وأي نص معرّف في config.js مستقبلاً يتقدّم عليها.
+const DEFAULT_TEXTS = {
+  ar: {
+    message: "فعّل إشعارات المتصفح لتصلك تنبيهات البلاغات والمهام فور حدوثها.",
+    enableBtn: "تفعيل"
+  },
+  en: {
+    message: "Enable browser notifications to get ticket and task alerts instantly.",
+    enableBtn: "Enable"
+  }
+};
+
 function t() {
-  const currentLang = window.currentLang || "ar";
-  return (translations[currentLang] || translations.ar).notifPermission;
+  const lang = window.currentLang === "en" ? "en" : "ar";
+  const configured = (translations?.[lang] || translations?.ar)?.notifPermission;
+  return {
+    ...DEFAULT_TEXTS[lang],
+    ...(configured && typeof configured === "object" ? configured : {})
+  };
 }
 
 function isSupported() {
@@ -47,6 +67,15 @@ function removeBanner() {
  * شرط من فوق مش متحقق)
  */
 export function renderNotificationPermissionBanner() {
+  // البانر ميزة ثانوية: أي خطأ فيه يجب ألا يُسقط التطبيق أو يخفي الصفحة
+  try {
+    renderNotificationPermissionBannerUnsafe();
+  } catch (error) {
+    console.warn("[NotificationBanner] تعذّر عرض البانر:", error);
+  }
+}
+
+function renderNotificationPermissionBannerUnsafe() {
 
   if (!shouldShow()) {
     removeBanner();

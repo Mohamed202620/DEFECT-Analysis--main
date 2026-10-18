@@ -9,7 +9,7 @@ import { uploadBase64Image } from "./imageUpload.js";
 
 import {
   collection,
-  addDoc
+  doc
 } from "../providers/backend/index.js";
 
 
@@ -43,6 +43,7 @@ export async function saveDefectApi(
 
   try {
 
+
     // فصل حقول الصور Base64 عن باقي البيانات
     const {
       image1,
@@ -63,14 +64,17 @@ export async function saveDefectApi(
         uploadBase64Image(image3, `${defectId}_3`)
       ]);
 
-    const docRef =
-      await addDoc(
-        collection(db, "defects"),
+    // الرقم الموحد (DF-001...) يُحجز ويُكتب مع السجل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "defects"));
+    const { unifiedNumber } = await commitWithSequence("defects", (batch, number) => batch.set(
+        docRef,
         {
 
           ...restPayload,
 
           defectId,
+          unifiedNumber: number, // الرقم الموحد الجديد: DF-001
 
           ...(image1Url && { image1Url }),
           ...(image2Url && { image2Url }),
@@ -80,7 +84,7 @@ export async function saveDefectApi(
             new Date().toISOString()
 
         }
-      );
+      ));
 
 
     return {
@@ -89,7 +93,8 @@ export async function saveDefectApi(
         "success",
 
       id:
-        docRef.id
+        docRef.id,
+      unifiedNumber
 
     };
 
@@ -108,7 +113,7 @@ export async function saveDefectApi(
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 

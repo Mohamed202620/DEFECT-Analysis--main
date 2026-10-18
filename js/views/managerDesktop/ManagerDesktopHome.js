@@ -4,8 +4,7 @@
 // بشبكة 12 عموداً متكاملة للشاشات الكبيرة (>= 1280px)
 // ============================================================
 
-import { fetchDashboardSnapshotApi } from '../../services/api.js';
-import { fetchPmRecordCountApi } from '../../services/pmApi.js';
+import { fetchDashboardSnapshotApi, fetchPmOrdersApi } from '../../services/api.js';
 import { fetchUsers } from '../../services/usersApi.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
@@ -13,6 +12,7 @@ import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate, STATUS_LABELS } from
 import { computeMTTR, computeTopMachines, computeTechnicianPerformance } from '../../statistics.js';
 import { exportToExcel } from '../../services/exportUtility.js';
 import { escapeHtml } from "../../utils/escapeHtml.js";
+import { displayRecordNumber } from "../../utils/recordNumber.js";
 import { escapeJsArg } from "../../utils/escapeHtml.js"; // MGR-DESKTOP
 
 let paretoChartInstance = null;
@@ -57,6 +57,14 @@ export function renderManagerDesktopHomeHtml() {
           class="px-3 py-2 text-xs font-bold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
           <span id="mgrRefreshSpinner">🔄</span>
           <span>${isEn ? 'Refresh' : 'تحديث'}</span>
+        </button>
+
+        <button
+          type="button"
+          onclick="window.navigateTo('pmOrders')"
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+          <span>🗓️</span>
+          <span>${isEn ? 'PM Work Orders' : 'أوامر PM وتوقف الخط'}</span>
         </button>
 
         <button
@@ -145,7 +153,7 @@ export function renderManagerDesktopHomeHtml() {
       </div>
 
       <!-- كارت: نسبة إنجاز الصيانة الوقائية PM -->
-      <div onclick="window.navigateTo('pm')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
+      <div onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'PM Compliance' : 'إنجاز الصيانة الوقائية PM'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">📋</span>
@@ -158,7 +166,7 @@ export function renderManagerDesktopHomeHtml() {
         </div>
         <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
           <span>✅</span>
-          <span id="mgrKpiPmCounts">${isEn ? 'Records this month' : 'سجلات هذا الشهر'}</span>
+          <span id="mgrKpiPmCounts">${isEn ? 'PM orders this month' : 'أوامر PM هذا الشهر'}</span>
         </div>
       </div>
 
@@ -393,18 +401,30 @@ async function _initManagerDesktopHomeData() {
     // جلب التذاكر وسجلات الـ PM والمستخدمين بالتوازي
     const [ticketsRes, pmCountRes, usersRes] = await Promise.all([
       fetchDashboardSnapshotApi({ role, myUid, myName }),
-      fetchPmRecordCountApi(),
+      fetchPmOrdersApi(),
       fetchUsers().catch(() => [])
     ]);
 
     const snapshot = (ticketsRes && ticketsRes.status === 'success') ? ticketsRes.data : null;
     const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
     const totalCount = snapshot ? snapshot.total : tickets.length;
-    const pmRecordCount = pmCountRes?.status === 'success' && Number.isFinite(pmCountRes.count)
-      ? pmCountRes.count
-      : null;
-    if (pmRecordCount === null) {
-      console.warn("[ManagerDesktop] PM record count is unavailable:", pmCountRes?.message || "Unknown error");
+    // كارت PM: أوامر PM المخططة هذا الشهر (نفس بيانات صفحة أوامر PM)
+    let pmMonthTotal = null;
+    let pmMonthDone = 0;
+    if (pmCountRes?.status === 'success' && Array.isArray(pmCountRes.data)) {
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      pmMonthTotal = 0;
+      pmCountRes.data.forEach(order => {
+        const raw = String(order.plannedDate || '').trim();
+        if (!raw) return;
+        const d = /^\d{4}-\d{2}/.test(raw) ? raw.slice(0, 7) : '';
+        if (d !== monthKey) return;
+        pmMonthTotal++;
+        if (order.pmStatus === 'completed') pmMonthDone++;
+      });
+    } else {
+      console.warn("[ManagerDesktop] PM orders are unavailable:", pmCountRes?.message || "Unknown error");
     }
     // إصلاح: fetchUsers() بترجع { status, data } مش مصفوفة مباشرة، فكان الشرط
     // القديم (Array.isArray(usersRes)) دايماً false وقائمة المستخدمين فاضية: لا
@@ -470,7 +490,7 @@ async function _initManagerDesktopHomeData() {
     // إصلاح: النسبة كانت صيغة مخترعة (الافتراض إن فيه 1 أو 3 مهام متأخرة بحسب openCount)
     // وبترجّع 85% ثابتة عند غياب البيانات. مفيش جدول PM مخطط في النظام يتحسب منه
     // التزام حقيقي، فبنعرض '--' ونكتفي بالعدد الفعلي من السجلات (mgrKpiPmCounts)
-    const pmComplianceRate = null;
+    const pmComplianceRate = pmMonthTotal ? Math.round((pmMonthDone / pmMonthTotal) * 100) : null;
 
     // تحديث قيم الـ KPIs في الـ DOM
     const setTxt = (id, val) => {
@@ -483,7 +503,7 @@ async function _initManagerDesktopHomeData() {
     setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
     setTxt("mgrKpiMtbf", `${mtbfHours} h`);
     setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
-    setTxt("mgrKpiPmCounts", `${pmRecordCount ?? '--'} ${isEn ? 'completed PM tasks' : 'مهمة صيانة منفذة'}`);
+    setTxt("mgrKpiPmCounts", pmMonthTotal === null ? '--' : `${pmMonthDone}/${pmMonthTotal} ${isEn ? 'PM orders this month' : 'أمر PM هذا الشهر'}`);
     setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
 
     // إشارة الـ Overdue
@@ -850,7 +870,7 @@ function renderTechnicianWorkload(tickets, users, isEn) {
   // جمع الفنيين والمهندسين من قائمة المستخدمين
   users.forEach(u => {
     const r = String(u.role || '').toLowerCase();
-    if (r === 'technician' || r === 'engineer' || r === 'فني' || r === 'مهندس') {
+    if (r === 'technician' || r === 'engineer' || r === 'maintainer' || r === 'فني' || r === 'مهندس') {
       const name = String(u.name || '').trim();
       if (name) {
         workload[name] = { active: 0, resolved: 0, total: 0 };
@@ -954,7 +974,7 @@ window.exportManagerExecutiveSummary = async function() {
       const st = String(t.status || 'pending').toLowerCase().trim();
       const created = parseTicketDate(t);
       return [
-        t.issueId || t.id || '',
+        displayRecordNumber(t, ''),
         t.line || '',
         t.machine || '',
         t.priority || (isEn ? 'Normal' : 'عادية'),

@@ -10,6 +10,7 @@
 import { fetchTicketByIdApi, fetchTicketLogsApi } from '../services/api.js';
 import { getTicketActions } from '../permissions.js';
 import { translations } from '../config.js';
+import { displayRecordNumber } from '../utils/recordNumber.js';
 
 // دعم اللغة (Test 14): كل نصوص المودال كانت ثابتة بالعربي
 const L = (ar, en) => (window.currentLang === "en" ? en : ar);
@@ -265,7 +266,7 @@ export async function openTicketDetailsModal(ticketId) {
 
         <!-- رقم البلاغ + الحالة -->
         <div class="flex items-center justify-between">
-          <span class="text-[11px] font-mono text-gray-400">#${escapeHtml(ticket.issueId || ticket.id || "-")}</span>
+          <span class="text-[11px] font-mono text-amber-400 font-semibold">${escapeHtml(displayRecordNumber(ticket))}</span>
           <span class="text-[11px] px-2 py-1 rounded-full font-bold ${STATUS_BADGE_CLASSES[status] || "bg-gray-500/10 text-gray-400 border border-gray-500/20"}">
             ${statusLabel(status) || ticket.status || "-"}
           </span>
@@ -275,8 +276,10 @@ export async function openTicketDetailsModal(ticketId) {
         <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
           ${infoRowHtml(L("الماكينة", "Machine"), escapeHtml(ticket.machine || ticket.machineName || "-"))}
           ${infoRowHtml(L("الخط", "Line"), escapeHtml(ticket.line || "-"))}
+          ${ticket.unifiedNumber ? infoRowHtml(L("الرقم الموحد", "Unified #"), escapeHtml(displayRecordNumber(ticket))) : ""}
           ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${escapeHtml(priority.label)}</span>`) : ""}
           ${typeLabel ? infoRowHtml(L("نوع البلاغ", "Ticket Type"), escapeHtml(typeLabel)) : ""}
+          ${ticket.maintenanceType ? infoRowHtml(L("مسار الصيانة", "Maintenance Route"), ticket.maintenanceType === "PM" ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM — ${L("صيانة وقائية", "Preventive")}</span>` : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">🔧 CM — ${L("صيانة تصحيحية", "Corrective")}</span>`) : ""}
           ${categoryLabel ? infoRowHtml(L("نوع العطل", "Fault Category"), escapeHtml(categoryLabel)) : ""}
           ${infoRowHtml(L("مكان العطل", "Fault Location"), ticket.location ? escapeHtml(ticket.location) : "")}
           ${infoRowHtml(L("المُبلّغ", "Reported By"), ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}

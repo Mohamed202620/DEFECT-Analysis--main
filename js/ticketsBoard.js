@@ -8,13 +8,13 @@ import { buildPdfStatsCardsHtml } from './branding.js';
 
 import { getCurrentRole, getTicketActions } from './permissions.js';
 import { escapeHtml, escapeJsArg } from './utils/escapeHtml.js';
+import { displayRecordNumber, recordNumberSearchText } from './utils/recordNumber.js';
 import { openActionModal } from './components/ActionModal.js';
 import { openTicketDetailsModal } from './components/TicketDetailsModal.js';
 
 import {
   subscribeToTicketsBoardApi,
   fetchTechniciansApi,
-  assignTicketApi,
   reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
@@ -22,11 +22,11 @@ import {
   bulkCloseTicketsApi,
   reopenTicketApi,
   declineTicketApi,
+  reviewTicketApi,
   fetchMyNotificationsApi,
   countUnreadNotificationsApi,
   markNotificationReadApi,
-  fetchTicketsForReportApi,
-  fetchTicketByIdApi
+  fetchTicketsForReportApi
 } from './services/api.js';
 import { translations } from './config.js';
 // إصلاح (تنظيف/Refactor): STATUS_CLASSES بقت مستوردة من ملف ثوابت
@@ -121,6 +121,7 @@ function ticketCardHtml(ticket) {
             <div class="flex items-center gap-2">
               ${bulkCheckboxHtml}
               <span class="font-black text-sm text-slate-100">${escapeHtml(machineName)}</span>
+              <span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(displayRecordNumber(ticket, ""))}</span>
               ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(ticket.line)}</span>` : ""}
             </div>
             <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
@@ -135,6 +136,7 @@ function ticketCardHtml(ticket) {
           <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
             ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.reportedBy)}</b></span>` : ""}
             ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.assignedTo)}</b></span>` : ""}
+            ${String(ticket.maintenanceType || "").toUpperCase() === "PM" ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM</span>` : ""}
             ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${escapeHtml(ticket.type)}</span>` : ""}
             ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
               ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
@@ -186,32 +188,102 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 const BOARD_CHUNK_SIZE = 20;
 let boardVisibleCount = BOARD_CHUNK_SIZE;
 let boardAllTickets = [];
+let boardSearchTerm = "";
+
+function getFilteredBoardTickets() {
+  let list = Array.isArray(boardAllTickets) ? [...boardAllTickets] : [];
+  if (boardSearchTerm) {
+    const q = boardSearchTerm.trim().toLowerCase();
+    const tr = t();
+    list = list.filter(t => {
+      const isPm = String(t.maintenanceType || '').toUpperCase() === 'PM';
+      const routeStr = isPm ? 'pm صيانة وقائية' : 'cm صيانة تصحيحية';
+      const statusStr = String(t.status || '').toLowerCase();
+      const statusLabel = String(tr.status[statusStr] || statusStr).toLowerCase();
+      const haystack = [
+        t.id, recordNumberSearchText(t), t.machine, t.machineName, t.line, t.description,
+        t.assignedTo, t.reportedBy, t.priority, t.type, t.maintenanceType,
+        routeStr, statusStr, statusLabel, t.mechanicNotes, t.notes
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    });
+  }
+  return list;
+}
+
+window.handleTicketsBoardSearch = function(val) {
+  boardSearchTerm = String(val || "").trim().toLowerCase();
+  const clearBtn = document.getElementById("ticketsBoardSearchClear");
+  if (clearBtn) clearBtn.classList.toggle("hidden", !boardSearchTerm);
+  boardVisibleCount = BOARD_CHUNK_SIZE;
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
+
+window.clearTicketsBoardSearch = function() {
+  boardSearchTerm = "";
+  const input = document.getElementById("ticketsBoardSearchInput");
+  if (input) input.value = "";
+  const clearBtn = document.getElementById("ticketsBoardSearchClear");
+  if (clearBtn) clearBtn.classList.add("hidden");
+  boardVisibleCount = BOARD_CHUNK_SIZE;
+  renderBoardPage("ticketsBoardContainer", t().empty);
+};
 
 function renderBoardPage(containerId, emptyMessage) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
+  const filteredTickets = getFilteredBoardTickets();
+
   if (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible()) { // MGR-DESKTOP
-    renderManagerDesktopTicketsView(containerId, boardAllTickets, emptyMessage); // MGR-DESKTOP
+    renderManagerDesktopTicketsView(containerId, filteredTickets, emptyMessage); // MGR-DESKTOP
     return; // MGR-DESKTOP
   } // MGR-DESKTOP
 
   const tr = t();
 
-  const visibleItems = boardAllTickets.slice(0, boardVisibleCount);
+  // لافتة الفلترة النشطة إذا كان الفلتر قادماً من كروت الرئيسية
+  const isHomeCard = HOME_CARD_STATUSES.includes(currentStatusFilter);
+  const homeCardLabels = {
+    overdue: { ar: "⏰ تصفية نشطة: بلاغات متأخرة", en: "⏰ Filter: Overdue Tickets" },
+    today: { ar: "📅 تصفية نشطة: أعطال اليوم", en: "📅 Filter: Today's Tickets" },
+    open: { ar: "📂 تصفية نشطة: أعطال مفتوحة", en: "📂 Filter: Open Tickets" },
+    fixed: { ar: "✅ تصفية نشطة: تم إصلاحها", en: "✅ Filter: Fixed Tickets" }
+  };
+  const isEnUi = (window.currentLang || "ar") === "en";
+  const activeBannerHtml = isHomeCard ? `
+    <div class="mb-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/40 flex items-center justify-between text-xs">
+      <div class="flex items-center gap-2">
+        <span class="font-bold text-blue-300">
+          ${(homeCardLabels[currentStatusFilter] || {})[isEnUi ? 'en' : 'ar'] || currentStatusFilter}
+        </span>
+        <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-mono font-bold">
+          ${filteredTickets.length}
+        </span>
+      </div>
+      <button
+        type="button"
+        onclick="window.setTicketsStatusFilter('all')"
+        class="text-[11px] font-bold text-blue-400 hover:text-white underline cursor-pointer">
+        ${isEnUi ? 'Show All Tickets' : 'إلغاء التصفية وعرض الكل'}
+      </button>
+    </div>
+  ` : "";
+
+  const visibleItems = filteredTickets.slice(0, boardVisibleCount);
   const listHtml = visibleItems.length
     ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${visibleItems.map(ticketCardHtml).join("")}</div>`
-    : `<div class="text-center text-gray-500 text-xs py-8">${escapeHtml(emptyMessage)}</div>`;
+    : `<div class="text-center text-gray-500 text-xs py-8">${escapeHtml(boardSearchTerm ? (isEnUi ? 'No tickets matched your search' : 'لا توجد بلاغات تطابق بحثك الحالي') : emptyMessage)}</div>`;
 
-  const loaderHtml = boardVisibleCount < boardAllTickets.length 
+  const loaderHtml = boardVisibleCount < filteredTickets.length 
     ? `<div id="infiniteScrollTarget" class="py-4 text-center text-gray-500 text-[11px] animate-pulse">
-         جاري تحميل المزيد... ( ${boardVisibleCount} من ${boardAllTickets.length} )
+         جاري تحميل المزيد... ( ${boardVisibleCount} من ${filteredTickets.length} )
        </div>` 
     : ``;
 
-  container.innerHTML = listHtml + loaderHtml;
+  container.innerHTML = activeBannerHtml + listHtml + loaderHtml;
 
-  if (boardVisibleCount < boardAllTickets.length) {
+  if (boardVisibleCount < filteredTickets.length) {
     setTimeout(() => {
       const target = document.getElementById('infiniteScrollTarget');
       if (target) {
@@ -283,9 +355,7 @@ let selectedTicketIds = new Set();
 window.selectedTicketIds = selectedTicketIds; // MGR-DESKTOP
 
 function isBulkActionsRole(role) {
-  // إصلاح: "supervisor" بيتعامل كمدير في firestore.rules (isManagerRole) لكنه كان
-  // مستبعد هنا، فمفيش إغلاق/إسناد جماعي ليه رغم إن القواعد بتسمح
-  return role === "admin" || role === "manager" || role === "supervisor";
+  return role === "admin" || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer";
 }
 
 function renderBulkSelectToggle() {
@@ -615,48 +685,56 @@ window.handleTicketAction = async function (ticketId, action) {
     return;
   }
 
-  if (action === "assign") {
+  // بلاغ مصنّف PM: أمر الصيانة الوقائية هو نفس مستند البلاغ ويُخطَّط من
+  // صفحة أوامر PM (لا إسناد إجباري ولا إعادة تصنيف من لوحة البلاغات)
+  if (action === "open_pm_orders") {
+    if (typeof window.navigateTo === "function") window.navigateTo("pmOrders");
+    return;
+  }
 
-    const techResult = await fetchTechniciansApi();
-    const technicians = techResult.status === "success" ? techResult.data : [];
+  if (action === "classify_pm") {
+    const isEnUi = (window.currentLang || "ar") === "en";
+    const confirmed = confirm(
+      isEnUi
+        ? "Are you sure you want to reclassify this ticket to Preventive Maintenance (PM)? It will appear in PM Work Orders."
+        : "هل تريد تحويل هذا البلاغ إلى مسار الصيانة الوقائية (PM)؟ سينتقل البلاغ إلى قائمة أوامر PM."
+    );
+    if (!confirmed) return;
 
-    if (!technicians.length) {
-      alert(tr.noTechnicians);
+    const declineRes = await declineTicketApi(ticketId, "تحويل إلى مسار الصيانة الوقائية PM");
+    if (declineRes && declineRes.status !== "success" && declineRes.status !== "queued") {
+      alert((isEnUi ? "Could not prepare ticket for PM route: " : "تعذر تجهيز البلاغ لمسار PM: ") + (declineRes?.message || ""));
       return;
     }
 
-    // إصلاح (Workflow - تصنيف البلاغ): المُبلّغ ممكن يسجّل "ملاحظة" (Observation)،
-    // لكن نافذة الإسناد كانت بتعرض Breakdown/PM/Other بس والأول مختار افتراضياً،
-    // فأي ملاحظة كانت بتتحول لعطل مفاجئ بمجرد الضغط على "إسناد". دلوقتي بنقرأ نوع
-    // التذكرة الحالي ونعرضه مختار، مع إضافة خيار Observation.
-    let currentTicketType = "";
-    try {
-      const cur = await fetchTicketByIdApi(ticketId);
-      currentTicketType = cur?.data?.type || "";
-    } catch (_) { /* لو فشل الجلب نكمل بالافتراضي */ }
+    result = await reviewTicketApi(ticketId, { maintenanceType: "PM" });
+  } else if (action === "review") {
+
+    const techResult = await fetchTechniciansApi();
+    const technicians = techResult.status === "success" ? techResult.data : [];
     const isEnUi = (window.currentLang || "ar") === "en";
 
     const values = await openActionModal({
-      title: tr.assignTitle,
-      submitLabel: tr.assignSubmit,
+      title: isEnUi ? "Review and classify ticket" : "مراجعة وتصنيف البلاغ",
+      submitLabel: isEnUi ? "Save classification" : "حفظ التصنيف",
       fields: [
         {
-          id: "type",
-          label: tr.typeLabel,
+          id: "maintenanceType",
+          label: isEnUi ? "Maintenance route" : "مسار الصيانة",
           type: "select",
-          defaultValue: currentTicketType,
           options: [
-            { value: "Breakdown", label: tr.typeBreakdown },
-            { value: "PM", label: tr.typePM },
-            { value: "Observation", label: tr.typeObservation || (isEnUi ? "Observation" : "ملاحظة (Observation)") },
-            { value: "Other", label: tr.typeOther }
+            { value: "CM", label: isEnUi ? "CM — Corrective Maintenance" : "CM — صيانة تصحيحية" },
+            { value: "PM", label: isEnUi ? "PM — Preventive Maintenance" : "PM — صيانة وقائية" }
           ]
         },
         {
           id: "assignedTo",
-          label: tr.assignToLabel,
+          label: isEnUi ? "Technician (required for CM only — PM is planned from PM orders)" : "الفني (مطلوب لـ CM فقط — أوامر PM تُسنَد من صفحة أوامر PM)",
           type: "select",
-          options: technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
+          options: [
+            { value: "", label: isEnUi ? "Unassigned" : "غير مسند" },
+            ...technicians.map(tech => ({ value: tech.id, label: `${tech.name} (${tech.role})` }))
+          ]
         }
       ]
     });
@@ -664,11 +742,15 @@ window.handleTicketAction = async function (ticketId, action) {
     if (!values) return;
 
     const pickedTech = technicians.find(tech => tech.id === values.assignedTo);
-    if (!pickedTech || !pickedTech.name) return;
-    const assignedToUid = pickedTech.id;
-    const assignedTo = pickedTech.name;
-
-    result = await assignTicketApi(ticketId, { type: values.type, assignedTo, assignedToUid });
+    if (values.maintenanceType === "CM" && !pickedTech) {
+      alert(isEnUi ? "A technician is required for CM assignment." : "إسناد بلاغ CM يتطلب اختيار فني.");
+      return;
+    }
+    result = await reviewTicketApi(ticketId, {
+      maintenanceType: values.maintenanceType,
+      assignedTo: pickedTech?.name || "",
+      assignedToUid: pickedTech?.id || ""
+    });
 
   } else if (action === "reassign") {
 
@@ -988,7 +1070,7 @@ function buildReportTicketBlockHtml(ticket, imageDataUrls) {
   return `
     <div style="border:1px solid #cbd5e1; border-radius:10px; padding:14px; margin-bottom:14px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — #${escapeReportHtml(ticket.issueId || ticket.id)}</span>
+        <span style="font-weight:bold; font-size:13px; color:#0f172a;">${escapeReportHtml(machineName)} — ${escapeReportHtml(displayRecordNumber(ticket))}</span>
         <span style="font-size:11px; padding:2px 10px; border-radius:10px; background:#e2e8f0; color:#334155;">
           ${escapeReportHtml(tr.status[status] || ticket.status || "-")}
         </span>

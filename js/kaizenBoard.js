@@ -33,6 +33,7 @@ import {
   fetchTechniciansApi
 } from './services/api.js';
 import { escapeHtml, escapeJsArg } from "./utils/escapeHtml.js";
+import { displayRecordNumber } from "./utils/recordNumber.js";
 
 // ============================================================
 // حالات الكايزن - المرحلة النهائية للـWorkflow (راجع
@@ -150,6 +151,7 @@ function suggestionCardHtml(suggestion) {
       <div class="space-y-2.5">
         <div class="flex justify-between items-center gap-2">
           <span class="font-bold text-sm text-gray-100">${escapeHtml(suggestion.title || "-")}</span>
+          ${suggestion.unifiedNumber ? `<span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(displayRecordNumber(suggestion))}</span>` : ""}
           <span class="text-[10px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
             ${KAIZEN_STATUS_LABELS[status] || status}
           </span>

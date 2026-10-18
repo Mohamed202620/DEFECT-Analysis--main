@@ -111,7 +111,7 @@ export async function fetchMachineTypesApi(filterDept = null) {
 
     console.error("Error fetching machine types:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -192,7 +192,7 @@ export async function addMachineTypeApi(key, units = [], department = "backend",
 
     console.error("Error adding machine type:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -286,7 +286,7 @@ export async function updateMachineTypeApi(machineTypeId, key, units = [], depar
 
     console.error("Error updating machine type:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -328,7 +328,7 @@ export async function setMachineTypeActiveApi(machineTypeId, active) {
 
     console.error("Error toggling machine type active state:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -357,7 +357,7 @@ export async function deleteMachineTypeApi(machineTypeId) {
 
     console.error("Error deleting machine type:", error);
 
-    return { status: "error", message: error.message || "فشل حذف نوع الماكينة" };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" || "فشل حذف نوع الماكينة" };
 
   }
 
@@ -398,7 +398,7 @@ export async function seedDefaultMachineTypesApi(defaultTypes) {
 
     console.error("Error seeding default machine types:", error);
 
-    return { status: "error", message: error.message, added: 0 };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", added: 0 };
 
   }
 

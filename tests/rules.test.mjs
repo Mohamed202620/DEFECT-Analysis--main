@@ -10,6 +10,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   getDoc,
@@ -208,6 +209,64 @@ test("a manager assigns a ticket and appends a matching, actor-bound history ent
     logData("manager", "assign", "pending", "assigned")
   );
   await assertSucceeds(batch.commit());
+});
+
+test("a manager classifies a ticket as unassigned PM and authorized reviewers can plan it", async () => {
+  await seed("tickets/pm-source", ticket({ issueId: "IS-PM-1" }));
+  const managerDb = dbFor("manager");
+  await assertSucceeds(updateDoc(doc(managerDb, "tickets/pm-source"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    assignedTo: null,
+    assignedToUid: null,
+    reviewedBy: users.manager.name,
+    reviewedByUid: "manager",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.manager.name
+  }));
+  await assertSucceeds(updateDoc(doc(managerDb, "tickets/pm-source"), {
+    pmStatus: "planned",
+    plannedDate: null,
+    line: "Line 1",
+    machine: "Backend Press 01",
+    updatedAt: "2026-10-12T10:05:00.000Z",
+    updatedBy: users.manager.name
+  }));
+
+  await assertFails(updateDoc(doc(dbFor("technician"), "tickets/pm-source"), {
+    pmStatus: "completed",
+    updatedAt: "2026-10-12T10:10:00.000Z",
+    updatedBy: users.technician.name
+  }));
+});
+
+test("an engineer can classify PM, but cannot classify corrective work without assignment", async () => {
+  await seed("tickets/engineer-pm", ticket());
+  await assertSucceeds(updateDoc(doc(dbFor("engineer"), "tickets/engineer-pm"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    assignedTo: null,
+    assignedToUid: null,
+    reviewedBy: users.engineer.name,
+    reviewedByUid: "engineer",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.engineer.name
+  }));
+
+  await seed("tickets/cm-without-assignee", ticket());
+  await assertFails(updateDoc(doc(dbFor("engineer"), "tickets/cm-without-assignee"), {
+    status: "assigned",
+    maintenanceType: "CM",
+    reviewedBy: users.engineer.name,
+    reviewedByUid: "engineer",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    assignedTo: null,
+    assignedToUid: null,
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.engineer.name
+  }));
 });
 
 test("an attacker cannot append a ticket log or forge an actor for another user's ticket", async () => {
@@ -562,5 +621,119 @@ test("QR image scan resolves a catalog machine and submits a permitted checklist
     department: "backend",
     items: [],
     createdAt: "2026-10-11T09:00:01.000Z"
+  }));
+});
+
+test("pm plans: a technician can record an execution on a plan but cannot edit or delete the plan definition", async () => {
+  const planPath = "pmPlans/plan_line1_backend_press_01";
+  await seed(planPath, {
+    line: "Line 1",
+    machine: "Backend Press 01",
+    frequency: "monthly",
+    tasks: [{ id: "task_1", text: "Check oil", order: 1 }],
+    nextDueDate: "2026-10-01",
+    executionCount: 0,
+    updatedAt: "before"
+  });
+  const technicianDb = dbFor("technician");
+  const execution = (overrides = {}) => ({
+    executionId: "ex_1",
+    executedAt: "2026-10-12T10:00:00.000Z",
+    executedBy: users.technician.name,
+    executedByUid: "technician",
+    result: "completed",
+    ...overrides
+  });
+
+  await assertFails(updateDoc(doc(technicianDb, planPath), { tasks: [], updatedAt: "now", updatedBy: users.technician.name }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution({ executedByUid: "manager" }),
+    nextDueDate: "2026-11-12",
+    executionCount: 1,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution(),
+    nextDueDate: "2026-11-12",
+    executionCount: 5,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertSucceeds(updateDoc(doc(technicianDb, planPath), {
+    lastExecution: execution(),
+    nextDueDate: "2026-11-12",
+    executionCount: 1,
+    updatedAt: "now",
+    updatedBy: users.technician.name
+  }));
+  await assertFails(deleteDoc(doc(technicianDb, planPath)));
+  await assertSucceeds(deleteDoc(doc(dbFor("admin"), planPath)));
+});
+
+test("pm executions: a user can only log an execution as themselves with a valid result", async () => {
+  const technicianDb = dbFor("technician");
+  const base = { planId: "plan_line1_backend_press_01", machine: "Backend Press 01", executedByUid: "technician", result: "completed" };
+  await assertSucceeds(setDoc(doc(technicianDb, "pmExecutions/ex_ok"), base));
+  await assertFails(setDoc(doc(technicianDb, "pmExecutions/ex_spoof"), { ...base, executedByUid: "manager" }));
+  await assertFails(setDoc(doc(technicianDb, "pmExecutions/ex_bad_result"), { ...base, result: "weird" }));
+  await assertFails(updateDoc(doc(technicianDb, "pmExecutions/ex_ok"), { notes: "edited" }));
+  await assertSucceeds(updateDoc(doc(dbFor("manager"), "pmExecutions/ex_ok"), { notes: "reviewed" }));
+});
+
+test("counters: sequence starts at 1, increments by exactly 1 (compare-and-swap) and is bound to its prefix", async () => {
+  const userDb = dbFor("technician");
+  const counter = (current, prefix = "BR") => ({ current, prefix, updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "technician" });
+
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(5)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(1, "KZ")));
+  await assertFails(setDoc(doc(userDb, "counters/random"), counter(1)));
+  await assertSucceeds(setDoc(doc(userDb, "counters/tickets"), counter(1)));
+
+  // رقمان متزامنان على نفس القيمة: يُقبل الأول فقط (الثاني يُرفض كاملاً)
+  await assertSucceeds(setDoc(doc(userDb, "counters/tickets"), counter(2)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(2)));
+  await assertFails(setDoc(doc(userDb, "counters/tickets"), counter(5)));
+  await assertFails(deleteDoc(doc(dbFor("admin"), "counters/tickets")));
+});
+
+test("counters: a ticket and its counter are written atomically and a lost race rejects the whole batch", async () => {
+  const userDb = dbFor("reporter");
+  const counter = current => ({ current, prefix: "BR", updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "reporter" });
+  const newTicket = number => ticket({ createdAtServer: serverTimestamp(), unifiedNumber: number });
+
+  const first = writeBatch(userDb);
+  first.set(doc(userDb, "counters/tickets"), counter(1));
+  first.set(doc(userDb, "tickets/seq-a"), newTicket("BR-001"));
+  await assertSucceeds(first.commit());
+
+  const stale = writeBatch(userDb);
+  stale.set(doc(userDb, "counters/tickets"), counter(1));
+  stale.set(doc(userDb, "tickets/seq-b"), newTicket("BR-001"));
+  await assertFails(stale.commit());
+  assert.equal((await getDoc(doc(dbFor("admin"), "tickets/seq-b"))).exists(), false);
+});
+
+test("counters: only an active admin can reset a counter to zero", async () => {
+  await seed("counters/tickets", { current: 7, prefix: "BR", updatedAt: "x", updatedBy: "admin" });
+  const reset = { current: 0, prefix: "BR", updatedAt: "2026-10-12T10:00:00.000Z", updatedBy: "admin" };
+  await assertFails(setDoc(doc(dbFor("manager"), "counters/tickets"), reset));
+  await assertFails(setDoc(doc(dbFor("admin"), "counters/tickets"), { ...reset, current: 3 }));
+  await assertFails(setDoc(doc(dbFor("admin"), "counters/tickets"), { ...reset, prefix: "KZ" }));
+  await assertSucceeds(setDoc(doc(dbFor("admin"), "counters/tickets"), reset));
+  await assertSucceeds(setDoc(doc(dbFor("technician"), "counters/tickets"), { ...reset, current: 1, updatedBy: "technician" }));
+});
+
+test("a ticket already classified as PM cannot be classified (and renumbered) again", async () => {
+  await seed("tickets/pm-twice", ticket({ maintenanceType: "PM", pmStatus: "unplanned", unifiedNumber: "PM-001" }));
+  await assertFails(updateDoc(doc(dbFor("manager"), "tickets/pm-twice"), {
+    maintenanceType: "PM",
+    pmStatus: "unplanned",
+    unifiedNumber: "PM-002",
+    reviewedBy: users.manager.name,
+    reviewedByUid: "manager",
+    reviewedAt: "2026-10-12T10:00:00.000Z",
+    updatedAt: "2026-10-12T10:00:00.000Z",
+    updatedBy: users.manager.name
   }));
 });

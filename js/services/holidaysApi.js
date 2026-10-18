@@ -84,7 +84,7 @@ export async function fetchOfficialHolidaysApi({ forceRefresh = false } = {}) {
 
     console.error("Error fetching official holidays:", error);
 
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
 
   }
 
@@ -126,7 +126,7 @@ export async function addOfficialHolidayApi(dateStr, label) {
 
     console.error("Error adding official holiday:", error);
 
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
 
   }
 
@@ -158,7 +158,7 @@ export async function deleteOfficialHolidayApi(holidayId) {
 
     console.error("Error deleting official holiday:", error);
 
-    return { status: "error", message: error.message || "فشل حذف الإجازة" };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" || "فشل حذف الإجازة" };
 
   }
 

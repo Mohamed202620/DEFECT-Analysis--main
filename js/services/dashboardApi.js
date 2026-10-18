@@ -74,7 +74,7 @@ export async function fetchDashboardDataApi() {
         "error",
 
       message:
-        error.message
+        error?.message || "خطأ غير معروف"
 
     };
 

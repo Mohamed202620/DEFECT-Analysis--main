@@ -89,6 +89,16 @@ service cloud.firestore {
       return isActive() && (myRole() == "manager" || myRole() == "supervisor");
     }
 
+    // دور "Maintainer" - فني صيانة متقدم (مش مدير، مش أدمن)
+    // بيقدر يشوف كل البيانات في قسمه زي المهندس، بس من غير صلاحيات إدارية
+    function isMaintainerRole() {
+      return isActive() && myRole() == "maintainer";
+    }
+
+    function isMaintenanceReviewer() {
+      return isAdmin() || isManagerRole() || (isActive() && (myRole() == "engineer" || myRole() == "maintainer"));
+    }
+
     // وصول كامل (admin / manager+supervisor / engineer) - كانت بعض
     // القواعد بتكتب ["admin","manager","engineer"] وبتسيب supervisor
     // بره بينما الواجهة (hasFullDataAccess) بتعامله كمدير
@@ -101,6 +111,15 @@ service cloud.firestore {
     function ticketAssigneeActive() {
       return request.resource.data.get("assignedToUid", null) == null
           || get(/databases/$(database)/documents/users/$(request.resource.data.assignedToUid)).data.status == "active";
+    }
+
+    // إسناد CM/إعادة الإسناد: لازم فني فعلي ونشط (ticketAssigneeActive تسمح
+    // بقيمة null لأن تخطيط PM يجوز أن يبقى بلا فني، فلا تصلح وحدها هنا -
+    // كانت تسمح بتحويل بلاغ إلى assigned بلا مُسنَد إليه)
+    function ticketAssigneeRequiredActive() {
+      return request.resource.data.get("assignedToUid", null) is string
+          && request.resource.data.get("assignedTo", null) is string
+          && get(/databases/$(database)/documents/users/$(request.resource.data.assignedToUid)).data.status == "active";
     }
 
     // أمان (H5): isSelfResolved ما بقاش قيمة بيحددها العميل - لازم تساوي
@@ -118,7 +137,7 @@ service cloud.firestore {
     }
 
     function isFullAccessRole() {
-      return isAdmin() || isManagerRole() || (isActive() && myRole() == "engineer");
+      return isAdmin() || isManagerRole() || isMaintainerRole() || (isActive() && myRole() == "engineer");
     }
 
     function requestReferencesMachineInDepartment() {
@@ -347,7 +366,7 @@ service cloud.firestore {
       // بيشترط isActive(). الترحيل من النظام القديم بقى عبر Cloud Function.
       allow list: if isActive()
                   && (isAdmin() || isManagerRole()
-                      || resource.data.role in ["technician", "engineer", "admin", "manager", "supervisor"]);
+                      || resource.data.role in ["technician", "engineer", "maintainer", "admin", "manager", "supervisor"]);
 
       // تعديل: صاحب الحساب يعدّل بياناته الشخصية بس - ممنوع يغيّر
       // role/status/permissions/machineDepartment. تغيير الدور/الحالة/
@@ -406,20 +425,73 @@ service cloud.firestore {
                         || request.resource.data.get("assignedToUid", null) == null);
 
       // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
-      allow update: if isActive() && (isAdmin() || isManagerRole())
-                    && resource.data.status == "pending"
+      // ملاحظة أداء: الشروط الرخيصة (الحالة) قبل isMaintenanceReviewer() لأن كل
+      // استدعاء له يقرأ مستند المستخدم، وقواعد update كلها تُقيَّم بالترتيب ضمن
+      // حدّ 1000 تعبير للطلب - تجاوزه كان يُسقط بدء الفني للعمل (STEP 3)
+      allow update: if resource.data.status == "pending"
                     && request.resource.data.status == "assigned"
+                    && isMaintenanceReviewer()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "type", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                         ["status", "type", "maintenanceType", "reviewedBy", "reviewedByUid", "reviewedAt",
+                          "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+                    && ticketAssigneeRequiredActive()
+                    && ticketReporterUnchanged();
+
+      // تصنيف البلاغ إلى PM لا ينشئ مستنداً جديداً ولا يتطلب إسناداً.
+      // الرقم الموحد PM-xxx يُمنح مرة واحدة: لا إعادة تصنيف لبلاغ مصنّف PM بالفعل
+      // (يمنع استهلاك رقمين أو استبدال رقم أمر بآخر عند التصنيف المتزامن).
+      allow update: if resource.data.status == "pending"
+                    && request.resource.data.status == "pending"
+                    && request.resource.data.get("maintenanceType", null) == "PM"
+                    && resource.data.get("maintenanceType", null) != "PM"
+                    && isMaintenanceReviewer()
+                    && request.resource.data.get("assignedToUid", null) == null
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["maintenanceType", "pmStatus", "assignedTo", "assignedToUid",
+                          "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy",
+                          "unifiedNumber", "originalUnifiedNumber"])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["unifiedNumber"])
+                        || (request.resource.data.unifiedNumber is string
+                            && request.resource.data.unifiedNumber.matches("^PM-[A-Z0-9]+$")))
+                    && request.resource.data.reviewedByUid == request.auth.uid
+                    && ticketReporterUnchanged();
+
+      // تخطيط أمر PM على مستند البلاغ المرتبط، مع إمكانية إبقاء الموعد
+      // والفني فارغين. لا يغيّر ذلك حالة البلاغ التصحيحية.
+      allow update: if resource.data.get("maintenanceType", null) == "PM"
+                    && request.resource.data.get("maintenanceType", null) == "PM"
+                    && request.resource.data.status == resource.data.status
+                    && isMaintenanceReviewer()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["line", "machine", "location", "priority", "plannedDate", "pmStatus",
+                          "assignedTo", "assignedToUid", "maintenanceNotes", "delayReason",
+                          "downtimeRequired", "updatedAt", "updatedBy"])
+                    && request.resource.data.pmStatus in ["unplanned", "planned", "in_progress", "completed", "deferred"]
                     && ticketAssigneeActive()
+                    && ticketReporterUnchanged();
+
+      // STEP PM-Tasks: تحديث مهام أمر PM (pmTasks) - الفني المُسند إليه أو أدمن/مدير
+      // يُسمح بتحديث: pmTasks، pmStatus، completedAt، completedBy، completedByUid،
+      // completedTasksCount، totalTasksCount، pendingTasksCount، hasRemainingTasks، remainingTasks
+      // الحالة المطلوبة: PM order يكون in_progress أو assigned
+      allow update: if resource.data.get("maintenanceType", null) == "PM"
+                    && resource.data.status in ["assigned", "in_progress"]
+                    && request.resource.data.status == resource.data.status
+                    && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         "pmTasks", "pmStatus", "completedAt", "completedBy", "completedByUid",
+                         "completedTasksCount", "totalTasksCount", "pendingTasksCount",
+                         "hasRemainingTasks", "remainingTasks", "updatedAt", "updatedBy",
+                         "followupTicketId"
+                       ])
                     && ticketReporterUnchanged();
 
       // STEP 2b - (assigned | in_progress | reopened) -> pending: اعتذار الفني المُسند إليه وإعادة العطل لقائمة الانتظار
       // (reopened أُضيفت: الواجهة - getTicketActions في permissions.js -
       // بتعرض زر "اعتذار" للفني على تذكرة reopened لكن القاعدة كانت بترفضه)
-      allow update: if isActive()
-                    && resource.data.status in ["assigned", "in_progress", "reopened"]
+      allow update: if resource.data.status in ["assigned", "in_progress", "reopened"]
                     && request.resource.data.status == "pending"
+                    && isActive()
                     && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
                          ["status", "assignedTo", "assignedToUid", "declineReason", "declinedBy", "declinedAt", "updatedAt", "updatedBy"])
@@ -475,12 +547,12 @@ service cloud.firestore {
 
       // STEP 6 - إعادة الإسناد (reassignTicketApi): مدير/أدمن فقط، على
       // تذكرة مفتوحة (assigned | in_progress | reopened) وترجع assigned
-      allow update: if isActive() && (isAdmin() || isManagerRole())
-                    && resource.data.status in ["assigned", "in_progress", "reopened"]
+      allow update: if resource.data.status in ["assigned", "in_progress", "reopened"]
                     && request.resource.data.status == "assigned"
+                    && isActive() && (isAdmin() || isManagerRole())
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
                          ["status", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
-                    && ticketAssigneeActive()
+                    && ticketAssigneeRequiredActive()
                     && ticketReporterUnchanged();
 
       // STEP 7 - إضافة ملاحظة تسليم وردية (appendShiftNoteToTicketApi من
@@ -810,8 +882,9 @@ service cloud.firestore {
                     && request.resource.data.keys().hasOnly([
                          "errorCode", "errorMessage", "machine", "line", "cause", "solution",
                          "steps", "createdBy", "department", "machineTypeId", "machineUnit",
-                         "imageUrl", "status", "createdAt"
+                         "imageUrl", "status", "createdAt", "unifiedNumber"
                        ])
+                    && request.resource.data.get("unifiedNumber", "ME-0") is string
                     && request.resource.data.errorCode is string
                     && request.resource.data.errorCode.size() > 0
                     && request.resource.data.errorCode.size() <= 256
@@ -834,7 +907,7 @@ service cloud.firestore {
                     && request.resource.data.createdBy is map
                     && request.resource.data.createdBy.keys().hasOnly(["name", "phone", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update: if isActive() && (isAdmin() || isManagerRole())
                     && resource.data.status == "pending_review"
@@ -865,7 +938,7 @@ service cloud.firestore {
                     && request.resource.data.scannedBy is map
                     && request.resource.data.scannedBy.keys().hasOnly(["name", "job"])
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       // سجل تكرار تلقائي فقط (Append-Only) - بلا تعديل أو حذف، بنفس
       // مبدأ /tickets/{ticketId}/logs فوق
@@ -877,7 +950,7 @@ service cloud.firestore {
       allow create: if isActive()
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }
@@ -898,7 +971,7 @@ service cloud.firestore {
                     && request.resource.data.type in ["am", "5s"]
                     && request.resource.data.department in ["backend", "frontend"]
                     && (isFullAccessRole()
-                        || request.resource.data.department == myProfile().machineDepartment)
+                        || (myProfile().machineDepartment != null && myProfile().machineDepartment != "" && request.resource.data.department == myProfile().machineDepartment))
                     && requestReferencesMachineInDepartment();
       allow update, delete: if isAdmin();
     }
@@ -942,6 +1015,91 @@ service cloud.firestore {
     match /daily_tips/{tipId} {
       allow read: if isActive();
       allow create, update, delete: if isActive() && (isAdmin() || isManagerRole());
+    }
+
+    // ==========================================================
+    // pmPlans - خطط الصيانة الوقائية الدورية لكل ماكينة
+    // ==========================================================
+    match /pmPlans/{planId} {
+      allow read: if isActive();
+      allow create: if isActive()
+                    && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      allow update: if isActive()
+                    && (isFullAccessRole() || isMaintenanceReviewer() || isAdmin() || isManagerRole());
+      // تسجيل التنفيذ الفعلي (savePmExecutionApi) يقوم به الفني أيضاً: كان
+      // سجل pmExecutions يُنشأ بنجاح ثم يفشل تحديث الخطة (permission-denied)
+      // لغير أدوار الإدارة فلا يتقدم موعد الصيانة ويتكرر السجل عند إعادة
+      // المحاولة. مسموح هنا بحقول التنفيذ فقط، ونسبتها لصاحب الطلب نفسه،
+      // وبزيادة العدّاد بواحد فقط (لا تعديل لمهام الخطة ولا دوريتها).
+      allow update: if isActive()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastExecution"])
+                        || request.resource.data.lastExecution.executedByUid == request.auth.uid)
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastDeferral"])
+                        || request.resource.data.lastDeferral.executedByUid == request.auth.uid)
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["executionCount"])
+                        || request.resource.data.executionCount == resource.data.get("executionCount", 0) + 1);
+      allow delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // pmExecutions - سجلات التنفيذ الفعلي لخطط PM الدورية
+    // ==========================================================
+    match /pmExecutions/{executionId} {
+      allow read: if isActive();
+      // السجل ينسب للمستخدم الحالي فقط وبنتيجة صالحة (لا انتحال منفِّذ آخر)
+      allow create: if isActive()
+                    && request.resource.data.get("executedByUid", "") == request.auth.uid
+                    && request.resource.data.get("planId", null) is string
+                    && request.resource.data.get("result", "") in ["completed", "completed_partial", "deferred"];
+      allow update, delete: if isAdmin() || isManagerRole();
+    }
+
+    // ==========================================================
+    // counters - عدادات الترقيم الموحد (BR-001 / KZ-001 / PM-001 ...)
+    // لكل نوع سجل عدّاد مستقل بمعرّف ثابت. الحجز يتم من العميل مباشرة (خطة Spark
+    // المجانية بدون Cloud Functions) عبر writeBatch يضم تحديث العدّاد وكتابة السجل
+    // معاً. القاعدة هنا هي الـ Compare-And-Swap:
+    //   - الإنشاء الأول يبدأ من 1 فقط، والتحديث +1 فقط من القيمة الحالية على السيرفر؛
+    //     فإذا حجز مستخدمان نفس الرقم معاً تنجح دفعة واحدة وتُرفض الأخرى كاملة
+    //     (لا تكرار) ثم تعيد المحاولة بالرقم التالي (لا فجوات).
+    //   - المعرّف مرتبط بالبادئة الصحيحة (لا عدّادات عشوائية).
+    //   - إعادة الضبط إلى 0 (قبل الإطلاق الرسمي فقط) للأدمن النشط حصراً؛
+    //     والتحقق من خلو السجلات يتم في resetSequenceCountersForLaunch (sequenceApi.js).
+    //   - لا حذف نهائياً.
+    // ==========================================================
+    function counterPrefixMatches(counterId, prefix) {
+      return (counterId == "tickets" && prefix == "BR")
+          || (counterId == "suggestions" && prefix == "KZ")
+          || (counterId == "pmOrders" && prefix == "PM")
+          || (counterId == "defects" && prefix == "DF")
+          || (counterId == "machineErrors" && prefix == "ME")
+          || (counterId == "checklists" && prefix == "CL")
+          || (counterId == "pmRecords" && prefix == "PR");
+    }
+
+    match /counters/{counterId} {
+      allow read: if isActive();
+      // إنشاء عداد جديد: يبدأ من 1 ويكون له بادئة تطابق معرّفه
+      allow create: if isActive()
+        && request.resource.data.current is int
+        && request.resource.data.current == 1
+        && counterPrefixMatches(counterId, request.resource.data.prefix)
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      // تحديث عداد موجود: زيادة current بـ 1 فقط، وعدم تغيير البادئة
+      allow update: if isActive()
+        && request.resource.data.current is int
+        && request.resource.data.current == resource.data.current + 1
+        && request.resource.data.prefix == resource.data.prefix
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      // إعادة الضبط إلى الصفر قبل الإطلاق الرسمي: أدمن نشط فقط، ولا تغيير للبادئة
+      allow update: if isAdmin()
+        && request.resource.data.current is int
+        && request.resource.data.current == 0
+        && request.resource.data.prefix == resource.data.prefix
+        && request.resource.data.keys().hasOnly(["current", "prefix", "updatedAt", "updatedBy"]);
+      allow delete: if false;
     }
 
     // ==========================================================

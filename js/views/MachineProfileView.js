@@ -155,6 +155,10 @@ export const MachineProfileView = () => {
       <button onclick="window.reportMachineDefect()" class="p-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] font-bold text-xs text-white transition-all text-center ${canRun ? 'col-span-2' : ''}">
         ${tr.addDefect}
       </button>
+      <button onclick="window.openPmOrdersWithFilter && window.openPmOrdersWithFilter({ machine: '${escapeJsArg(machine)}', line: '${escapeJsArg(line)}' })" class="p-2.5 rounded-xl bg-blue-950/40 hover:bg-blue-900/40 border border-blue-500/40 active:scale-[0.98] font-bold text-xs text-blue-300 transition-all text-center col-span-2 flex items-center justify-center gap-1.5">
+        <span>🗓️</span>
+        <span>${isEn ? 'View PM Work Orders for this Machine' : 'أوامر الصيانة الوقائية (PM) لهذه الماكينة'}</span>
+      </button>
     </div>
 
     ${canManageChecklists ? `
@@ -354,7 +358,7 @@ window.loadMachineProfileData = async function () {
 
   // Update Status Badge
   if (statusBadge) {
-    if (activeTickets.some(t => t.type === 'Breakdown')) {
+    if (activeTickets.some(t => String(t.type || '').toLowerCase() === 'breakdown' || String(t.type || '').includes('عطل'))) {
       statusBadge.className = 'inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30';
       statusBadge.innerHTML = `🔴 ${tr.statusDown}`;
     } else if (activeTickets.length > 0) {

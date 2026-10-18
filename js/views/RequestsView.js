@@ -42,7 +42,7 @@ let usersCache = [];
 // قائمة الصلاحيات الموحدة في التطبيق
 // ======================================
 
-const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "technician", "operator"];
+const KNOWN_ROLES = ["admin", "manager", "supervisor", "engineer", "maintainer", "technician", "operator"];
 
 const PERMISSIONS = [
 
@@ -189,6 +189,10 @@ return `
 
             <option value="engineer">
                 👨‍💻 Engineer
+            </option>
+
+            <option value="maintainer">
+                🔧 Maintainer
             </option>
 
             <option value="technician">
@@ -360,10 +364,7 @@ function renderUsers(users) {
             const suggestedRole =
                 KNOWN_ROLES.includes(user.role) ? "" : suggestRoleFromJob(user.job);
 
-
-            const hasAll =
-                perms.includes("all") || protectedAdmin;
-
+            const hasAll = protectedAdmin;
 
             const checked =
                 permission =>
@@ -508,6 +509,14 @@ function renderUsers(users) {
                         </option>
 
                         <option
+                            value="maintainer"
+                            ${user.role === "maintainer" ? "selected" : ""}>
+
+                            Maintainer
+
+                        </option>
+
+                        <option
                             value="technician"
                             ${(KNOWN_ROLES.includes(user.role) ? user.role : suggestedRole) === "technician" ? "selected" : ""}>
 
@@ -619,41 +628,6 @@ function renderUsers(users) {
 
 
                     </div>
-
-                </div>
-
-
-                <!-- كل الصلاحيات -->
-
-                <div>
-
-                    <label
-                        class="
-                        flex
-                        items-center
-                        gap-2
-                        bg-blue-500/10
-                        border
-                        border-blue-500/20
-                        rounded-lg
-                        p-2
-                        ">
-
-                        <input
-                            type="checkbox"
-                            class="perm-${escapeHtml(user.id)}"
-                            value="all"
-                            ${hasAll ? "checked" : ""}
-                            ${protectedAdmin ? "disabled" : ""}>
-
-                        <span
-                            class="text-xs font-bold text-blue-400">
-
-                            ⭐ كل الصلاحيات
-
-                        </span>
-
-                    </label>
 
                 </div>
 
@@ -908,9 +882,6 @@ async function(id) {
         });
 
     if (isAdminRole(role)) {
-        if (!permissions.includes("all")) {
-            permissions.unshift("all");
-        }
         ALL_PERMISSIONS.forEach(p => {
             if (!permissions.includes(p)) permissions.push(p);
         });

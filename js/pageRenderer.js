@@ -21,7 +21,7 @@ function t() {
 import { LoginView } from './views/loginView.js';
 import { RegisterView } from './views/registerView.js';
 import { HomeView } from './views/homeView.js';
-import { PMView } from './views/pmView.js';
+import { PmOrdersView } from './views/PmOrdersView.js';
 import { ReportView } from './views/reportView.js';
 import { ReportsView } from './views/reportsView.js';
 import { SuggestionView } from './views/suggestionView.js';
@@ -109,11 +109,14 @@ case 'suggestions':
     : unauthorizedPage("suggestions");  
 
 
-case 'pm':  
+case 'pmOrders':
 
-  return hasPermission("pm")  
-    ? PMView()  
-    : unauthorizedPage("pm");  
+  return hasPermission("pm")
+    ? PageView(
+        (window.currentLang || "ar") === "en" ? "PM Work Orders" : "أوامر الصيانة الوقائية",
+        PmOrdersView()
+      )
+    : unauthorizedPage("pm");
 
 
 case 'tickets':  
@@ -141,7 +144,29 @@ case 'tickets':
               </button>
             </div>
 
+            <!-- شريط البحث المباشر في البلاغات -->
+            <div id="ticketsSearchContainer" class="relative">
+              <input
+                type="text"
+                id="ticketsBoardSearchInput"
+                oninput="window.handleTicketsBoardSearch(this.value)"
+                placeholder="${window.currentLang === 'en' ? 'Search by ticket ID, asset, technician, or issue...' : 'بحث برقم البلاغ، الماكينة، الفني، العطل...'}"
+                class="w-full p-2.5 rtl:pr-9 ltr:pl-9 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
+              <span class="absolute top-3 rtl:right-3 ltr:left-3 text-gray-400 text-xs pointer-events-none">🔍</span>
+              <button
+                type="button"
+                id="ticketsBoardSearchClear"
+                onclick="window.clearTicketsBoardSearch()"
+                class="hidden absolute top-2.5 rtl:left-2.5 ltr:right-2.5 text-gray-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer">
+                ✕
+              </button>
+            </div>
+
             <div id="notifPanel" class="hidden bg-[#1E293B] border border-gray-800 rounded-xl p-2 max-h-64 overflow-y-auto"></div>
+
+            <!-- حاوية شريط التحديد والإجراءات الجماعية -->
+            <div id="bulkSelectToggleContainer"></div>
+            <div id="bulkActionsBar"></div>
 
             <button
               id="monthlyReportBtn"
@@ -355,7 +380,9 @@ case 'machines':
 
 case 'system':  
 
-  return SystemView();  
+  return (hasPermission("users") || hasPermission("requests") || hasPermission("machines") || hasPermission("settings"))
+    ? SystemView()
+    : unauthorizedPage("system");  
 
 
 case 'dailyTipsSettings':

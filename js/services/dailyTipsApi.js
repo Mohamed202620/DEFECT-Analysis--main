@@ -92,7 +92,7 @@ export async function fetchCustomTipsApi({ forceRefresh = false } = {}) {
     saveLocalCustomTips(tips);
     return { status: "success", data: tips };
   } catch (error) {
-    console.warn("Falling back to local custom tips storage due to:", error.message);
+    console.warn("Falling back to local custom tips storage due to:", error?.message);
     const localTips = getLocalCustomTips();
     customTipsCache = localTips;
     return { status: "success", data: localTips, isOffline: true };
@@ -136,7 +136,7 @@ export async function addCustomTipApi(tipData) {
     return { status: "success", message: "تمت إضافة المعلومة الجديدة بنجاح", data: newTip };
   } catch (error) {
     console.error("Error adding custom tip:", error);
-    return { status: "error", message: error.message || "حدث خطأ أثناء إضافة المعلومة." };
+    return { status: "error", message: error?.message || "حدث خطأ أثناء إضافة المعلومة." };
   }
 }
 
@@ -165,6 +165,6 @@ export async function deleteCustomTipApi(tipId) {
     return { status: "success", message: "تم حذف المعلومة بنجاح" };
   } catch (error) {
     console.error("Error deleting custom tip:", error);
-    return { status: "error", message: error.message || "فشل حذف المعلومة" };
+    return { status: "error", message: error?.message || "فشل حذف المعلومة" };
   }
 }

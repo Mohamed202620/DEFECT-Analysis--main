@@ -65,6 +65,15 @@ export function isManagerRole(role) {
 
 window.isManagerRole = isManagerRole;
 
+// دور "Maintainer" - فني صيانة متقدم (مش مدير، مش أدمن)
+// بيقدر يشوف كل البيانات في قسمه زي المهندس، بس من غير صلاحيات إدارية
+export function isMaintainerRole(role) {
+  const r = String(role || "").trim().toLowerCase();
+  return r === "maintainer";
+}
+
+window.isMaintainerRole = isMaintainerRole;
+
 // ============================================================
 // قراءة/تحديث الحالة
 // ============================================================
@@ -134,16 +143,6 @@ export function hasPermission(permission) {
     .map(p => p.trim().toLowerCase())
     .filter(Boolean);
 
-  // all أو admin = جميع الصلاحيات
-  if (
-    storedPerms.includes("all") ||
-    storedPerms.includes("admin") ||
-    currentPermissions.includes("all") ||
-    currentPermissions.includes("admin")
-  ) {
-    return true;
-  }
-
   return storedPerms.includes(perm) || currentPermissions.includes(perm);
 }
 
@@ -158,10 +157,10 @@ window.can = hasPermission;
 export function hasFullDataAccess(role = getCurrentRole()) {
   const r = String(role || getCurrentRole()).trim().toLowerCase();
   return (
-    hasPermission("all") ||
     isAdminRole(r) ||
     isManagerRole(r) ||
-    r === "engineer"
+    r === "engineer" ||
+    r === "maintainer"
   );
 }
 
@@ -202,9 +201,21 @@ export function getTicketActions(ticket) {
   switch (status) {
 
     case "pending":
-      // تصنيف وإسناد البلاغ للمدير أو الأدمن
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "assign", label: ta().assign });
+      // تصنيف وإسناد البلاغ للمدير أو الأدمن. البلاغ المصنّف PM انتقل فعلاً
+      // لقائمة أوامر الصيانة الوقائية: لا يُعاد تصنيفه من هنا (كان الزر
+      // يظهر مجدداً ويسمح بتحويله CM بالخطأ) - يظهر بدله اختصار لأمر PM.
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({
+            key: "review",
+            label: (window.currentLang || "ar") === "en" ? "Classify CM / PM" : "تصنيف البلاغ CM / PM"
+          });
+        }
       }
       // إمكانية إصلاح العطل ذاتياً بواسطة صاحب البلاغ
       if (isReporter) {
@@ -222,11 +233,19 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      // إصلاح (Workflow - إعادة إسناد): المعالج handleTicketAction("reassign") موجود
-      // في ticketsBoard.js والترجمة ta().reassign موجودة، لكن الزر ماكانش بيتولّد
-      // أبداً من هنا، فمفيش طريقة في الموبايل لنقل تذكرة من فني غايب لفني تاني
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          actions.push({
+            key: "classify_pm",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"
+          });
+        }
       }
       break;
 
@@ -240,8 +259,19 @@ export function getTicketActions(ticket) {
       if (isReporter && !isAssignee) {
         actions.push({ key: "self_resolve", label: ta().selfResolve || "🛠️ إصلاح ذاتي" });
       }
-      if (isManagerRole(role) || isAdmin) {
-        actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+      if (isManagerRole(role) || isAdmin || role === "engineer" || role === "maintainer") {
+        if (ticket.maintenanceType === "PM") {
+          actions.push({
+            key: "open_pm_orders",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
+          });
+        } else {
+          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          actions.push({
+            key: "classify_pm",
+            label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"
+          });
+        }
       }
       break;
 

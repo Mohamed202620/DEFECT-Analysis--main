@@ -50,6 +50,7 @@ export {
   fetchResolvedTicketsApi,
   subscribeToTicketsBoardApi,
   assignTicketApi,
+  reviewTicketApi,
   reassignTicketApi,
   startTicketApi,
   resolveTicketApi,
@@ -59,6 +60,17 @@ export {
   declineTicketApi,
   fetchTicketLogsApi,
   fetchTicketByIdApi,
+  fetchPmOrdersApi,
+  subscribeToPmOrdersApi,
+  updatePmOrderApi,
+  setPmDowntimeApi,
+  initializePmTasksApi,
+  addPmTaskApi,
+  deletePmTaskApi,
+  updatePmTaskApi,
+  completePmOrderApi,
+  createFollowupFromRemainingTasksApi,
+  reschedulePmTasksApi,
   fetchActiveTicketForMachineApi,
   appendShiftNoteToTicketApi,
   fetchTicketsForReportApi,
@@ -85,7 +97,22 @@ export {
   fetchMachineErrorLogsSinceApi
 } from "./machineErrorsApi.js";
 
-export { savePmApi, fetchPmRecordsApi, fetchPmRecordsForSearchApi } from "./pmApi.js";
+export {
+  savePmApi,
+  fetchPmRecordsApi,
+  fetchPmRecordsForSearchApi,
+  PM_FREQUENCIES,
+  getFrequencyLabel,
+  calculateNextDueDate,
+  calculateDueStatus,
+  buildPlanDocId,
+  fetchPmPlansApi,
+  subscribeToPmPlansApi,
+  savePmPlanApi,
+  deletePmPlanApi,
+  savePmExecutionApi,
+  fetchPmExecutionsApi
+} from "./pmApi.js";
 
 export {
   saveSuggestionApi,
@@ -118,5 +145,4 @@ export {
   deleteMachineTypeApi,
   seedDefaultMachineTypesApi
 } from "./machinesApi.js";
-
 

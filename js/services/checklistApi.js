@@ -16,7 +16,7 @@ import { uploadBase64Images } from "./imageUpload.js";
 
 import {
   collection,
-  addDoc,
+  doc,
   getDocs,
   query,
   where,
@@ -34,6 +34,7 @@ export const CHECKLIST_TYPE_5S = "5s";
  */
 async function saveChecklistRecord(type, payload) {
   try {
+
     const department =
       getDepartmentForMachineValue(payload?.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
@@ -63,19 +64,23 @@ async function saveChecklistRecord(type, payload) {
       }
     }
 
-    const docRef = await addDoc(collection(db, "machineChecklists"), {
+    // الرقم الموحد (CL-001...) يُحجز ويُكتب مع السجل في دفعة ذرّية واحدة
+    const { commitWithSequence } = await import("./sequenceApi.js");
+    const docRef = doc(collection(db, "machineChecklists"));
+    const { unifiedNumber } = await commitWithSequence("checklists", (batch, number) => batch.set(docRef, {
       ...payload,
       ...machineReference,
       items: itemsWithUploadedPhotos,
       type,
       department,
+      unifiedNumber: number, // الرقم الموحد الجديد: CL-001
       createdAt: new Date().toISOString()
-    });
+    }));
 
-    return { status: "success", id: docRef.id };
+    return { status: "success", id: docRef.id, unifiedNumber };
   } catch (error) {
     console.error(`Error saving ${type} checklist record:`, error);
-    return { status: "error", message: error.message };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
   }
 }
 
@@ -109,7 +114,7 @@ export async function fetchLatestChecklistApi(machine, type) {
     return { status: "success", data: latest };
   } catch (error) {
     console.error(`Error fetching latest ${type} checklist:`, error);
-    return { status: "error", message: error.message, data: null };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: null };
   }
 }
 
@@ -139,6 +144,6 @@ export async function fetchChecklistHistoryApi(machine, type, maxCount = 10) {
     return { status: "success", data: records };
   } catch (error) {
     console.error(`Error fetching ${type} checklist history:`, error);
-    return { status: "error", message: error.message, data: [] };
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع", data: [] };
   }
 }
