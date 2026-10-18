@@ -11,6 +11,8 @@ const PORT = 3000;
 app.get('/api/config.js', (req, res) => {
   res.type('application/javascript');
   const config = {
+    // dev | production. الخادم المحلي يعمل كـ dev افتراضياً (لا رجوع لإعدادات الإنتاج؛ راجع js/firebaseEnv.js)
+    APP_ENV: process.env.APP_ENV || 'dev',
     FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
     FIREBASE_APP_ID: process.env.FIREBASE_APP_ID || '',
     FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN || '',

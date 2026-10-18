@@ -61,12 +61,27 @@
 
 تم إعداد Workflowين للنشر التلقائي:
 
-- الدفع إلى فرع `dev` ينشر إلى موقع Hosting المنفصل `my-dev-2026.web.app` داخل مشروع Firebase الحالي `maintenance-defect-system`.
-- الدفع إلى فرع `main` ينشر إلى `maintenance-defect-system.web.app`.
+- الدفع إلى فرع `dev` ينشر إلى موقع Hosting الخاص بمشروع Firebase المنفصل `dev-test-37e8a` (target `dev` في `.firebaserc`) ويتصل بـ Worker التطوير `https://maintenance-backend-dev.mom379339.workers.dev` فقط.
+- الدفع إلى فرع `main` ينشر إلى `maintenance-defect-system.web.app` (مشروع الإنتاج) كما كان، دون أي تغيير.
 
-الموقعان منفصلان على مستوى Hosting فقط؛ تسجيل الدخول وFirestore وCloudflare Worker مشتركة مع المشروع الحالي. لذلك أي اختبار يكتب أو يحذف بيانات من موقع `dev` يؤثر في بيانات المشروع الفعلية. استخدم حسابات وبيانات اختبار معتمدة، ولا تنفذ اختبارات تدميرية. يتطلب النشر Secret GitHub الحالي `FIREBASE_SERVICE_ACCOUNT` التابع للمشروع `maintenance-defect-system`، وفحص النشر يتحقق من ارتباط حساب الخدمة بهذا المشروع. لا يلزم إنشاء Firebase project أو Worker جديد أو إضافة متغيرات `FIREBASE_DEV_*`.
+بيئة dev معزولة عن الإنتاج: Firestore وAuthentication وHosting والـ Worker كلها تابعة لـ `dev-test-37e8a`. اختيار البيئة يتم في `js/firebaseEnv.js`؛ إذا كانت إعدادات dev ناقصة أو تشير لمشروع/Worker الإنتاج يتوقف التطبيق برسالة واضحة ولا يتصل بالإنتاج إطلاقًا (لا يوجد fallback). خادم التطوير المحلي (`server.js` / `vite`) يعمل كـ dev افتراضيًا ويحتاج متغيرات `FIREBASE_*` الخاصة بمشروع dev (راجع `.env.example`)؛ ولتشغيله على الإنتاج صراحةً استخدم `APP_ENV=production`.
 
-للنشر اليدوي من نسخة محلية موثوقة، استخدم `npm run deploy:dev`؛ ينشر Hosting target `dev` فقط ولا ينشر Firestore rules أو indexes أو Cloud Functions. حافظ على قواعد الإنتاج دون تغيير، واستخدم اختبارات Emulator (`npm run test:rules`) قبل أي تغييرات على القواعد.
+### نشر dev (GitHub Actions)
+
+يستخدم Workflow الـ dev (`.github/workflows/firebase-hosting-dev.yml`) بيانات dev فقط، ولا يستخدم `FIREBASE_SERVICE_ACCOUNT` الخاص بالإنتاج. المطلوب في GitHub → Settings → Secrets and variables → Actions:
+
+| الاسم | النوع | القيمة |
+| --- | --- | --- |
+| `FIREBASE_DEV_PROJECT_ID` | Secret أو Variable | `dev-test-37e8a` |
+| `FIREBASE_DEV_SERVICE_ACCOUNT` | Secret | JSON حساب خدمة تابع لمشروع `dev-test-37e8a` (صلاحية Firebase Hosting Admin على الأقل) |
+| `FIREBASE_DEV_API_KEY` | Secret أو Variable | apiKey لتطبيق Web المسجّل في مشروع dev (من Firebase Console) |
+| `FIREBASE_DEV_APP_ID` | Secret أو Variable | appId لتطبيق Web نفسه |
+| `FIREBASE_DEV_MESSAGING_SENDER_ID` | Secret أو Variable | messagingSenderId لمشروع dev |
+| `FIREBASE_DEV_STORAGE_BUCKET` | اختياري | افتراضيًا `dev-test-37e8a.firebasestorage.app`؛ اضبطه إن كان الـ bucket الفعلي `.appspot.com` |
+
+قبل النشر يتحقق الـ Workflow من: (1) أن معرّف المشروع هو `dev-test-37e8a` وأن حساب الخدمة تابع له (وليس للإنتاج)، (2) أن `/health` في Worker التطوير يعيد `development` ومشروع `dev-test-37e8a` وموقع Hosting نفسه، (3) أن موقع Hosting المستهدف موجود فعلًا داخل مشروع dev (`firebase hosting:sites:list`)، ثم ينشر مع توليد `api/config.js` الخاص بـ dev أثناء التشغيل فقط (الملف المحفوظ في المستودع لا يتغير).
+
+للنشر اليدوي من نسخة محلية موثوقة، عيّن متغيرات `FIREBASE_DEV_*` أعلاه (بدون السر) واستخدم `npm run deploy:dev`؛ ينشر Hosting target `dev` على `dev-test-37e8a` فقط. لنشر قواعد Firestore وindexes على dev استخدم `npm run deploy:dev:rules` (مشروع dev صريح). لا يوجد Workflow ينشر القواعد أو Functions تلقائيًا لأي بيئة؛ واختبر القواعد بـ Emulator (`npm run test:rules`) قبل أي تغيير.
 
 المشروع بيتواصل مباشرة من المتصفح مع Firestore (بدون باك-إند وسيط)، لكنه **بيستخدم Firebase Authentication حقيقي** (Email/Password، عبر تحويل رقم الهاتف لإيميل داخلي - راجع `js/auth/login.js` و`phoneToAuthEmail` في `config.js`)، والحسابات القديمة (نظام الدخول المخصص القديم) بتترحّل تلقائياً لحساب Auth حقيقي عند أول تسجيل دخول ليها بعد هذا التحديث. بناءً عليه، **`firestore.rules` فعلاً بتقدر تفرّق بين مستخدم عادي وأدمن/مدير** عن طريق قراءة مستند `users/{uid}` الخاص بالمستخدم المسجّل دخوله فعليًا (`request.auth.uid`) والتحقق من حقل `role` فيه - راجع الدوال المساعدة `myProfile()`/`myRole()`/`isActive()` في أول `firestore.rules`. ⚠️ *(تحديث: نسخة سابقة من هذا القسم كانت بتقول إن مفيش Firebase Authentication حقيقي وإن الـ Rules مقدرش تفرّق بين الأدوار - ده لم يكن يعكس الكود الفعلي بشكل دقيق، وتم تصحيحه هنا)*.
 
