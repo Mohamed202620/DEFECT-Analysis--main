@@ -262,6 +262,7 @@ await t("تنزيل Admin مع وجود آخر ينجح ويكتب الحقول 
   assert.deepEqual(Object.keys(p.f).sort(), ["permissions", "role", "updatedAt", "updatedBy"]);
   assert.equal(store.get("users/admin2").role.stringValue, "manager"); assert.ok(p.url.includes("currentDocument.exists=true"));
 });
+await t("maintainer role is accepted", async () => { assert.notEqual((await call("updateUserRoleAccount", { userId: "tech1", role: "maintainer" }, "admin1")).status, 400); });
 await t("دور غير معروف يُرفض", async () => { assert.equal((await call("updateUserRoleAccount", { userId: "tech1", role: "root" }, "admin1")).status, 400); });
 
 console.log("رفع الصور");
