@@ -1,0 +1,263 @@
+diff -ruN -x node_modules p/DEFECT-Analysis--main-dev/.github/workflows/deploy-cloudflare-worker-dev.yml w/.github/workflows/deploy-cloudflare-worker-dev.yml
+--- p/DEFECT-Analysis--main-dev/.github/workflows/deploy-cloudflare-worker-dev.yml	2026-10-19 15:08:57.000000000 +0000
++++ w/.github/workflows/deploy-cloudflare-worker-dev.yml	2026-10-19 18:19:18.708878051 +0000
+@@ -7,6 +7,7 @@
+     paths:
+       - "cloudflare-worker/worker.mjs"
+       - ".github/workflows/deploy-cloudflare-worker-dev.yml"
++      - "wrangler.jsonc"
+   workflow_dispatch:
+ 
+ permissions:
+@@ -29,4 +30,12 @@
+         with:
+           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+-          command: deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
++          # --keep-vars: never wipe the Text variables set in the dashboard (secrets are kept anyway)
++          command: deploy --keep-vars
++
++      - name: Verify dev Worker is healthy and bound to the dev project
++        run: |
++          body="$(curl -fsS --retry 5 --retry-delay 3 https://maintenance-backend-dev.mom379339.workers.dev/health)"
++          echo "$body"
++          echo "$body" | grep -q '"environment":"development"'
++          echo "$body" | grep -q '"projectId":"dev-test-37e8a"'
+diff -ruN -x node_modules p/DEFECT-Analysis--main-dev/cloudflare-worker/worker.mjs w/cloudflare-worker/worker.mjs
+--- p/DEFECT-Analysis--main-dev/cloudflare-worker/worker.mjs	2026-10-19 15:08:57.000000000 +0000
++++ w/cloudflare-worker/worker.mjs	2026-10-19 18:19:26.777724737 +0000
+@@ -23,6 +23,11 @@
+ //   FIREBASE_PROJECT_ID   (Text)    Firebase project for this Worker only
+ //   FIREBASE_HOSTING_SITE (Text)    Hosting site served by this Worker
+ //   ALLOWED_ORIGINS       (Text)    Exact HTTPS origins, comma-separated
++//   FIREBASE_API_KEY      (Text)    Web API key (only for migrateLegacyAccount)
++//   VAPID_PUBLIC_KEY      (Secret)  Web Push: 65-byte P-256 public key, base64url (87 chars)
++//   VAPID_PRIVATE_KEY     (Secret)  Web Push: 32-byte private scalar "d", base64url (43 chars)
++//   VAPID_SUBJECT         (Text, optional) mailto:you@example.com or https://site
++//   (VAPID pair must come from ONE run of scripts/generate-vapid-keys.mjs; use a different pair per Worker)
+ // ============================================================
+ 
+ const PRODUCTION_FIREBASE_PROJECT_ID = "maintenance-defect-system";
+@@ -520,27 +525,75 @@
+   return pushConcat(header, cipher);
+ }
+ 
++// Secrets pasted in dashboards often carry quotes / spaces / newlines: normalise them.
++const cleanSecret = (v) => String(v == null ? "" : v).trim().replace(/^["'\s]+|["'\s]+$/g, "");
++const vapidPublic = (env) => cleanSecret(env.VAPID_PUBLIC_KEY);
++const vapidPrivate = (env) => cleanSecret(env.VAPID_PRIVATE_KEY);
++
++// Checks the *format* of the pair synchronously and says exactly what is wrong.
++function assertVapidFormat(env) {
++  let pub, d;
++  try { pub = pushB64uDecode(vapidPublic(env)); } catch (_) { pub = new Uint8Array(0); }
++  try { d = pushB64uDecode(vapidPrivate(env)); } catch (_) { d = new Uint8Array(0); }
++  if (pub.length !== 65 || pub[0] !== 4) {
++    throw new Error("VAPID_PUBLIC_KEY must be a 65-byte uncompressed P-256 key in base64url (87 chars)");
++  }
++  if (d.length !== 32) {
++    throw new Error("VAPID_PRIVATE_KEY must be the raw 32-byte private scalar in base64url (43 chars) - not PEM/PKCS8");
++  }
++  return { pub, d };
++}
++
++// CryptoKey is created once per isolate (importKey is the expensive part on the free 10ms CPU plan).
++let vapidKeyCache = { id: "", key: null };
++const vapidJwtCache = new Map(); // audience -> { jwt, exp }
++
++async function getVapidSigningKey(env) {
++  const { pub, d } = assertVapidFormat(env);
++  const id = `${vapidPublic(env)}|${vapidPrivate(env)}`;
++  if (vapidKeyCache.key && vapidKeyCache.id === id) return vapidKeyCache.key;
++  try {
++    const key = await crypto.subtle.importKey(
++      "jwk",
++      { kty: "EC", crv: "P-256", x: pushB64uEncode(pub.slice(1, 33)), y: pushB64uEncode(pub.slice(33, 65)), d: pushB64uEncode(d), ext: true },
++      { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]
++    );
++    vapidKeyCache = { id, key };
++    vapidJwtCache.clear();
++    return key;
++  } catch (e) {
++    // DataError here almost always means the public and private key are not the same pair.
++    throw new Error("VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY are not a matching P-256 pair (" + (e && e.name) + ")");
++  }
++}
++
+ export async function buildVapidAuthorization(env, endpoint) {
+-  const pub = pushB64uDecode(env.VAPID_PUBLIC_KEY);
+-  if (pub.length !== 65) throw new Error("bad VAPID public key");
+-  const key = await crypto.subtle.importKey(
+-    "jwk",
+-    { kty: "EC", crv: "P-256", x: pushB64uEncode(pub.slice(1, 33)), y: pushB64uEncode(pub.slice(33, 65)), d: env.VAPID_PRIVATE_KEY, ext: true },
+-    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]
+-  );
++  const key = await getVapidSigningKey(env);
++  const aud = new URL(endpoint).origin;
++  const now = Math.floor(Date.now() / 1000);
++  const cached = vapidJwtCache.get(aud);
++  if (cached && cached.exp - now > 3600) return `vapid t=${cached.jwt}, k=${vapidPublic(env)}`;
++
++  let sub = cleanSecret(env.VAPID_SUBJECT);
++  if (!/^(mailto:|https:\/\/)/i.test(sub)) sub = `https://${cleanSecret(env.FIREBASE_HOSTING_SITE) || "example"}.web.app`;
++  const exp = now + 12 * 3600; // push services reject > 24h
+   const head = pushB64uEncode(pushEnc.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+-  const claims = pushB64uEncode(pushEnc.encode(JSON.stringify({
+-    aud: new URL(endpoint).origin,
+-    exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+-    sub: env.VAPID_SUBJECT || `https://${env.FIREBASE_HOSTING_SITE}.web.app`
+-  })));
++  const claims = pushB64uEncode(pushEnc.encode(JSON.stringify({ aud, exp, sub })));
++  // WebCrypto ECDSA already returns the raw r||s (64 bytes) form that JWT ES256 requires.
+   const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, pushEnc.encode(`${head}.${claims}`)));
+-  return `vapid t=${head}.${claims}.${pushB64uEncode(sig)}, k=${env.VAPID_PUBLIC_KEY}`;
++  const jwt = `${head}.${claims}.${pushB64uEncode(sig)}`;
++  vapidJwtCache.set(aud, { jwt, exp });
++  return `vapid t=${jwt}, k=${vapidPublic(env)}`;
+ }
+ 
+-const pushConfigured = (env) => Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
++const pushConfigured = (env) => Boolean(vapidPublic(env) && vapidPrivate(env));
+ const requirePushConfigured = (env) => {
+-  if (!pushConfigured(env)) throw new HttpError(503, "UNAVAILABLE", "Push notifications are not configured.");
++  if (!pushConfigured(env)) throw new HttpError(503, "UNAVAILABLE", "Push notifications are not configured (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).");
++  try { assertVapidFormat(env); }
++  catch (e) {
++    console.error("push config invalid:", e && e.message);
++    throw new HttpError(500, "INTERNAL", "إعداد مفاتيح VAPID غير صحيح: " + (e && e.message));
++  }
+ };
+ async function pushSubscriptionId(endpoint) {
+   const d = await crypto.subtle.digest("SHA-256", pushEnc.encode(String(endpoint)));
+@@ -557,7 +610,7 @@
+   async getPushConfig(data, caller, env) {
+     requirePushConfigured(env);
+     await requireActiveCaller(env, caller);
+-    return { publicKey: env.VAPID_PUBLIC_KEY };
++    return { publicKey: vapidPublic(env) };
+   },
+ 
+   async registerPushSubscription(data, caller, env) {
+@@ -619,6 +672,7 @@
+       suggestionId: strField(n.suggestionId)
+     }));
+     let sent = 0;
++    const failures = [];
+     for (const sub of subs) {
+       const endpoint = strField(sub.fields.endpoint);
+       if (!isAllowedPushEndpoint(endpoint)) continue;
+@@ -636,14 +690,21 @@
+           body
+         });
+         if (res.ok) sent++;
+-        else if (res.status === 404 || res.status === 410) {
+-          await fsCommit(env, [{ delete: docName(env, `pushSubscriptions/${sub.id}`) }]).catch(() => {});
++        else {
++          // 400/401/403 = VAPID key mismatch with the key the browser subscribed with; 404/410 = dead subscription.
++          const detail = (await res.text().catch(() => "")).slice(0, 200);
++          console.error("push rejected", res.status, new URL(endpoint).hostname, detail);
++          failures.push(res.status);
++          if (res.status === 404 || res.status === 410) {
++            await fsCommit(env, [{ delete: docName(env, `pushSubscriptions/${sub.id}`) }]).catch(() => {});
++          }
+         }
+       } catch (e) {
+-        console.error("push send failed", e && e.message);
++        console.error("push send failed", e && e.name, e && e.message);
++        failures.push("error");
+       }
+     }
+-    return { sent };
++    return failures.length ? { sent, failed: failures.length, statuses: failures } : { sent };
+   },
+ 
+   // تسجيل كود الموظف مجزّأً (مرة واحدة لكل حساب). بيتنادى وقت إنشاء الحساب بتوكن الحساب الجديد.
+@@ -901,9 +962,8 @@
+     throw new HttpError(500, "INTERNAL", "إعداد Worker التطوير يجب أن يستخدم مشروع وموقع dev منفصلين.");
+   }
+ 
+-  if (!env.FIREBASE_API_KEY || !env.IMGBB_API_KEY) {
+-    throw new HttpError(500, "INTERNAL", "إعداد Worker غير مكتمل (FIREBASE_API_KEY أو IMGBB_API_KEY).");
+-  }
++  // FIREBASE_API_KEY (legacy migration) and IMGBB_API_KEY (uploads) are checked by the
++  // feature that needs them, so a missing one no longer breaks push / password reset.
+ 
+   const serviceAccount = parseServiceAccount(env);
+   const configuredOrigins = String(env.ALLOWED_ORIGINS || "")
+@@ -958,6 +1018,8 @@
+   async fetch(request, env) {
+     let cors = {};
+     try {
++      // CORS first: otherwise a config error is shown by the browser as an opaque CORS failure.
++      cors = corsHeaders(request, String(env.ALLOWED_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean));
+       const workerConfig = validateWorkerEnvironment(env);
+       cors = corsHeaders(request, workerConfig.allowedOrigins);
+       const path = new URL(request.url).pathname.replace(/^\/+|\/+$/g, "");
+diff -ruN -x node_modules p/DEFECT-Analysis--main-dev/js/pushSubscription.js w/js/pushSubscription.js
+--- p/DEFECT-Analysis--main-dev/js/pushSubscription.js	2026-10-19 15:08:57.000000000 +0000
++++ w/js/pushSubscription.js	2026-10-19 18:19:18.694791141 +0000
+@@ -14,6 +14,13 @@
+   return out;
+ }
+ 
++function sameKey(buf, u8) {
++  const a = buf ? new Uint8Array(buf) : new Uint8Array(0);
++  if (a.length !== u8.length) return false;
++  for (let i = 0; i < a.length; i++) if (a[i] !== u8[i]) return false;
++  return true;
++}
++
+ export function isPushSupported() {
+   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
+ }
+@@ -31,10 +38,18 @@
+     if (sub) {
+       const [endpoint, ts] = String(localStorage.getItem(regKey) || "").split("|");
+       if (endpoint === sub.endpoint && Date.now() - Number(ts || 0) < REG_TTL_MS) return true;
+-    } else {
+-      const cfg = await callCloudFunction("getPushConfig", {});
+-      if (!cfg || !cfg.publicKey) return false;
+-      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(cfg.publicKey) });
++    }
++    const cfg = await callCloudFunction("getPushConfig", {});
++    if (!cfg || !cfg.publicKey) return false;
++    const serverKey = b64uToU8(cfg.publicKey);
++    // A subscription made with another VAPID key (rotated key, dev<->prod Worker) is rejected
++    // by the push service with 403 forever: drop it and subscribe again with the current key.
++    if (sub && !sameKey(sub.options && sub.options.applicationServerKey, serverKey)) {
++      await sub.unsubscribe().catch(() => {});
++      sub = null;
++    }
++    if (!sub) {
++      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey });
+     }
+     await callCloudFunction("registerPushSubscription", { subscription: sub.toJSON() });
+     localStorage.setItem(regKey, `${sub.endpoint}|${Date.now()}`);
+diff -ruN -x node_modules p/DEFECT-Analysis--main-dev/wrangler.jsonc w/wrangler.jsonc
+--- p/DEFECT-Analysis--main-dev/wrangler.jsonc	2026-10-19 15:08:57.000000000 +0000
++++ w/wrangler.jsonc	2026-10-19 18:19:18.698870790 +0000
+@@ -1,12 +1,18 @@
+ {
+   "$schema": "node_modules/wrangler/config-schema.json",
+   "name": "maintenance-backend-dev",
++  "main": "cloudflare-worker/worker.mjs",
+   "compatibility_date": "2026-10-12",
+-  "observability": {
+-    "enabled": true
+-  },
+-  "assets": {
+-    "directory": "dist",
+-    "not_found_handling": "single-page-application"
++  "workers_dev": true,
++  // Variables/secrets are managed in the Cloudflare dashboard. Without this, every
++  // `wrangler deploy` DELETES the dashboard Text variables (FIREBASE_ENV, ALLOWED_ORIGINS, ...).
++  "keep_vars": true,
++  "observability": { "enabled": true },
++  "env": {
++    "production": {
++      "name": "odd-sun-fab8",
++      "keep_vars": true,
++      "observability": { "enabled": true }
++    }
+   }
+ }
