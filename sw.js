@@ -184,6 +184,21 @@ self.addEventListener('fetch', (e) => {
 // على تبويب مفتوح بالفعل للتطبيق (Focus) بدل ما يفتح تبويب جديد
 // دايماً - ولو مفيش تبويب مفتوح، بيفتح واحد جديد على الصفحة الرئيسية
 // ============================================================
+// Web Push (works with the app closed). Same tag as the in-app notification => no duplicates.
+const PUSH_ICONS = { assigned: '🛠️', resolved: '✅', closed: '✔️', rejected: '❌', under_review: '👀', revision_requested: '✏️', in_progress: '⚙️', implemented: '🎉' };
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = {}; }
+  const icon = PUSH_ICONS[d.type] || '🔔';
+  e.waitUntil(self.registration.showNotification(`${icon} نظام إدارة الصيانة`, {
+    body: d.message || '',
+    icon: './assets/icons/icon-192.png',
+    badge: './assets/icons/icon-192.png',
+    tag: d.notificationId || 'maint-push',
+    data: { notificationId: d.notificationId || '', ticketId: d.ticketId || '', suggestionId: d.suggestionId || '' }
+  }));
+});
+
 self.addEventListener('notificationclick', (e) => {
 
   e.notification.close();
