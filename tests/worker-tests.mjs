@@ -1,7 +1,7 @@
 // اختبارات الـ Worker بدون شبكة: Firestore/Identity/ImgBB مُحاكاة في الذاكرة، وتوكنات Firebase حقيقية التوقيع (RSA).
 // التشغيل: node tests/worker-tests.mjs
 import assert from "node:assert/strict";
-import worker, { normalizePhone, phoneVariants, normalizeCode } from "../cloudflare-worker/worker.mjs";
+import worker, { normalizePhone, phoneVariants, normalizeCode, encryptWebPushPayload, buildVapidAuthorization, isAllowedPushEndpoint } from "../cloudflare-worker/worker.mjs";
 
 const PID = "maintenance-defect-system";
 const DOMAIN = "maintenance-defect-system.local";
@@ -460,6 +460,55 @@ await t("حساب مرفوض (rejected) أو بدون كود مسجل لا يم�
 await t("لا يوجد أي رد يكشف الكود أو الهاش", async () => {
   await setupVictim(); const r = await reset1(PHONE, "WRONG");
   assert.ok(!JSON.stringify(r.body).match(/codeHash|salt|7788/));
+});
+
+// ---------- Web Push ----------
+await t("push: allowed endpoints only (no SSRF)", async () => {
+  assert.ok(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"));
+  assert.ok(isAllowedPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/abc"));
+  assert.ok(isAllowedPushEndpoint("https://web.push.apple.com/abc"));
+  assert.ok(!isAllowedPushEndpoint("http://fcm.googleapis.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://evil.example.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://fcm.googleapis.com.evil.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://169.254.169.254/x"));
+});
+await t("push: payload encrypts (aes128gcm) and decrypts round-trip", async () => {
+  const ua = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey("raw", ua.publicKey));
+  const authSecret = crypto.getRandomValues(new Uint8Array(16));
+  const msg = new TextEncoder().encode(JSON.stringify({ message: "تم إسناد بلاغ جديد", notificationId: "abc123" }));
+  const body = await encryptWebPushPayload(msg, b64u(uaPub), b64u(authSecret));
+  const salt = body.slice(0, 16);
+  assert.equal(new DataView(body.buffer, body.byteOffset).getUint32(16), 4096);
+  assert.equal(body[20], 65);
+  const asPub = body.slice(21, 86);
+  const cipher = body.slice(86);
+  const hk = async (s, ikm, info, n) => new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: s, info }, await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), n * 8));
+  const e = new TextEncoder();
+  const cat = (...a) => Uint8Array.from(a.flatMap((x) => [...x]));
+  const asKey = await crypto.subtle.importKey("raw", asPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: asKey }, ua.privateKey, 256));
+  const ikm = await hk(authSecret, ecdh, cat(e.encode("WebPush: info\0"), uaPub, asPub), 32);
+  const cek = await hk(salt, ikm, e.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hk(salt, ikm, e.encode("Content-Encoding: nonce\0"), 12);
+  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["decrypt"]), cipher));
+  assert.equal(plain[plain.length - 1], 2);
+  assert.deepEqual(plain.slice(0, -1), msg);
+});
+await t("push: VAPID header carries a valid ES256 signature", async () => {
+  const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const pubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+  const d = (await crypto.subtle.exportKey("jwk", kp.privateKey)).d;
+  const vEnv = { VAPID_PUBLIC_KEY: b64u(pubRaw), VAPID_PRIVATE_KEY: d, FIREBASE_HOSTING_SITE: "x" };
+  const h = await buildVapidAuthorization(vEnv, "https://fcm.googleapis.com/fcm/send/abc");
+  const m = h.match(/^vapid t=([\w-]+)\.([\w-]+)\.([\w-]+), k=([\w-]+)$/);
+  assert.ok(m); assert.equal(m[4], vEnv.VAPID_PUBLIC_KEY);
+  assert.equal(JSON.parse(Buffer.from(m[2], "base64url")).aud, "https://fcm.googleapis.com");
+  assert.ok(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, kp.publicKey, Buffer.from(m[3], "base64url"), new TextEncoder().encode(`${m[1]}.${m[2]}`)));
+});
+await t("push: unconfigured worker answers 503 and nothing else breaks", async () => {
+  assert.equal((await call("getPushConfig", {}, "admin1")).status, 503);
+  assert.equal((await call("sendPushNotification", { notificationId: "abcdefghij12" }, "admin1")).status, 503);
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
