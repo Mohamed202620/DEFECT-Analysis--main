@@ -543,7 +543,7 @@ const handlers = {
   async updateUserRoleAccount(data, caller, env) {
     const { userId, role, permissions } = data || {};
     if (!userId || typeof userId !== "string" || userId.length > 128) throw new HttpError(400, "INVALID_ARGUMENT", "معرف المستخدم غير صالح.");
-    if (!role || typeof role !== "string" || !["admin", "manager", "supervisor", "engineer", "technician", "operator"].includes(role)) {
+    if (!role || typeof role !== "string" || !["admin", "manager", "supervisor", "engineer", "maintainer", "technician", "operator"].includes(role)) {
       throw new HttpError(400, "INVALID_ARGUMENT", "الدور الجديد غير صالح.");
     }
     const me = await requireActiveAdmin(env, caller);
