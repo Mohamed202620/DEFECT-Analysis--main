@@ -6,7 +6,6 @@ on:
       - dev
     paths:
       - "cloudflare-worker/worker.mjs"
-      - "cloudflare-worker/wrangler.toml"
       - ".github/workflows/deploy-cloudflare-worker-dev.yml"
   workflow_dispatch:
 
@@ -30,20 +29,22 @@ jobs:
         with:
           node-version: 24
 
-      - name: Verify Worker targets dev only
+      - name: Verify Worker has runtime environment protections
         shell: bash
         run: |
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const source = readFileSync("cloudflare-worker/worker.mjs", "utf8");
           const checks = [
-            ['dev project ID', /dev-test-37e8a/],
-            ['development environment guard', /development/],
-            ['production project ID must not be the configured dev target', /dev-test-37e8a/],
+            ["runtime environment validation", /function validateWorkerEnvironment\s*\(/],
+            ["production project guard", /PRODUCTION_FIREBASE_PROJECT_ID/],
+            ["development mode guard", /FIREBASE_ENV\s*===\s*"development"/],
+            ["development origin guard", /PRODUCTION_ORIGINS/],
+            ["health endpoint", /path === "health"/],
           ];
           for (const [label, pattern] of checks) {
             if (!pattern.test(source)) {
-              console.error(`Worker dev safety check failed: ${label}`);
+              console.error(`Worker safety check failed: ${label}`);
               process.exit(1);
             }
           }
