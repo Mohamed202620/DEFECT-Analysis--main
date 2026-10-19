@@ -7,6 +7,7 @@ on:
     paths:
       - "cloudflare-worker/worker.mjs"
       - ".github/workflows/deploy-cloudflare-worker-dev.yml"
+      - "wrangler.jsonc"
   workflow_dispatch:
 
 permissions:
@@ -29,4 +30,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
+          # --keep-vars: never wipe the Text variables set in the dashboard (secrets are kept anyway)
+          command: deploy --keep-vars
+
+      - name: Verify dev Worker is healthy and bound to the dev project
+        run: |
+          body="$(curl -fsS --retry 5 --retry-delay 3 https://maintenance-backend-dev.mom379339.workers.dev/health)"
+          echo "$body"
+          echo "$body" | grep -q '"environment":"development"'
+          echo "$body" | grep -q '"projectId":"dev-test-37e8a"'
