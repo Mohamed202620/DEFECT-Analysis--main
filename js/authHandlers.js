@@ -17,6 +17,7 @@ import { navigateTo } from './renderCore.js';
 import { setCurrentRole, setCurrentPermissions, isAdminRole } from './permissions.js';
 import { DEBUG, translations, ALL_PERMISSIONS } from './config.js';
 import { auth, signOut } from './providers/backend/index.js';
+import { unregisterPushSubscription } from './pushSubscription.js';
 import { extractUserDepartment } from './utils/departmentUtils.js';
 import { clearUserAndMachinesCache, ensureUserAndMachinesLoaded } from './machines.js';
 import { clearCurrentUserProfileCache } from './services/usersApi.js';
@@ -673,6 +674,7 @@ async function () {
 
 // إضافة (إشعارات المتصفح): إلغاء الاشتراك اللحظي قبل مسح بيانات
 // الجلسة - عشان مايفضلش اشتراك شغال باسم مستخدم سجّل خروجه فعلاً
+try { await unregisterPushSubscription(); } catch (_) { /* best effort */ }
 if (typeof window.stopBrowserNotifications === "function") {
   window.stopBrowserNotifications();
 }
