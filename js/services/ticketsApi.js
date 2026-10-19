@@ -1419,8 +1419,13 @@ export async function fetchMyNotificationsApi(uid) {
     return { status: "success", data: live.all.slice(0, 30) };
   }
   try {
-    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
-    const querySnapshot = await getDocs(q);
+    let querySnapshot;
+    try {
+      querySnapshot = await getDocs(query(collection(db, "notifications"), where("forUid", "==", uid), orderBy("createdAt", "desc"), limit(100)));
+    } catch (e) {
+      if (e?.code !== "failed-precondition") throw e;
+      querySnapshot = await getDocs(query(collection(db, "notifications"), where("forUid", "==", uid)));
+    }
     const notifications = [];
     querySnapshot.forEach(docSnap => {
       notifications.push({ id: docSnap.id, ...docSnap.data() });
@@ -1473,43 +1478,59 @@ export async function countUnreadNotificationsApi(uid) {
 // اشتراك لحظي (Realtime) في إشعارات المستخدم - يُستخدم لتحديث
 // الجرس والقائمة المنبثقة تلقائياً بدون إعادة تحميل
 export function subscribeToMyNotificationsApi(uid, callback) {
-  try {
-    const q = query(collection(db, "notifications"), where("forUid", "==", uid));
-    // includeMetadataChanges: لازم عشان نعرف لحظة تأكيد السيرفر للقطة (fromCache→false)
-    // حتى لو البيانات نفسها ماتغيّرتش عن الكاش المحلي
-    return onSnapshot(
-      q,
-      { includeMetadataChanges: true },
-      (querySnapshot) => {
-        const notifications = [];
-        querySnapshot.forEach(docSnap => {
-          notifications.push({ id: docSnap.id, ...docSnap.data() });
-        });
-        notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
-        liveNotifications = {
-          uid,
-          all: notifications,
-          unread: notifications.filter(n => !n.read).length,
-          serverConfirmed: !querySnapshot.metadata.fromCache
-        };
-        callback({ status: "success", data: notifications.slice(0, 30) });
-      },
-      (error) => {
-        liveNotifications = null;
-        const fallback = emptyResultOnMissingIndex(error, "subscribeToMyNotificationsApi");
-        if (fallback) {
-          callback(fallback);
-          return;
+  const NOTIF_LIMIT = 100;
+  let unsub = () => {};
+  let stopped = false;
+  const handleSnap = (querySnapshot) => {
+    const notifications = [];
+    querySnapshot.forEach(docSnap => {
+      notifications.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    notifications.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    liveNotifications = {
+      uid,
+      all: notifications,
+      unread: notifications.filter(n => !n.read).length,
+      serverConfirmed: !querySnapshot.metadata.fromCache
+    };
+    callback({ status: "success", data: notifications.slice(0, 30) });
+  };
+  const start = (useLimit) => {
+    try {
+      const base = collection(db, "notifications");
+      const q = useLimit
+        ? query(base, where("forUid", "==", uid), orderBy("createdAt", "desc"), limit(NOTIF_LIMIT))
+        : query(base, where("forUid", "==", uid));
+      unsub = onSnapshot(
+        q,
+        { includeMetadataChanges: true },
+        handleSnap,
+        (error) => {
+          liveNotifications = null;
+          // Index not deployed yet: fall back to the legacy unlimited query so notifications keep working.
+          if (useLimit && !stopped && error?.code === "failed-precondition") {
+            start(false);
+            return;
+          }
+          const fallback = emptyResultOnMissingIndex(error, "subscribeToMyNotificationsApi");
+          if (fallback) {
+            callback(fallback);
+            return;
+          }
+          console.error("Error subscribing to notifications:", error);
+          callback({ status: "error", message: error?.message || "Failed to load notifications" });
         }
-        console.error("Error subscribing to notifications:", error);
-        callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
-      }
-    );
-  } catch (error) {
-    console.error("Error subscribing to notifications:", error);
-    callback({ status: "error", message: error?.message || "حدث خطأ غير متوقع" });
-    return () => {};
-  }
+      );
+    } catch (error) {
+      console.error("Error subscribing to notifications:", error);
+      callback({ status: "error", message: error?.message || "Failed to load notifications" });
+    }
+  };
+  start(true);
+  return () => {
+    stopped = true;
+    try { unsub(); } catch (_) { /* ignore */ }
+  };
 }
 
 export async function markNotificationReadApi(notificationId) {
