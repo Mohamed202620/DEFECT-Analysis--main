@@ -330,7 +330,7 @@ function renderTableRows(allTickets) {
 
         <!-- الفني المكلف -->
         <td class="py-2.5 px-3 text-gray-600 dark:text-gray-300 font-medium">
-          ${t.assignedTo ? `👷 ${t.assignedTo}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+          ${t.assignedTo ? `👷 ${escapeHtml(t.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
         </td>
 
         <!-- الوقت -->
@@ -484,7 +484,7 @@ function renderSidePreview(ticket) {
         <span class="text-[10px] text-gray-400 block">${isEn ? 'Assigned Technician' : 'الفني المكلف'}</span>
         <div class="flex items-center justify-between mt-0.5">
           <span class="font-bold text-gray-800 dark:text-gray-200">
-            ${ticket.assignedTo ? `👷 ${ticket.assignedTo}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+            ${ticket.assignedTo ? `👷 ${escapeHtml(ticket.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
           </span>
           ${['pending', 'assigned', 'in_progress', 'reopened'].includes(String(ticket.status || '').trim().toLowerCase()) ? `
           <button
