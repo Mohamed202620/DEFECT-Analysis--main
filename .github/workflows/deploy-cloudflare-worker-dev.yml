@@ -22,13 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-
+        uses: actions/checkout@v4
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@v4
         with:
           node-version: 24
-
       - name: Verify Worker has runtime environment protections
         shell: bash
         run: |
@@ -49,31 +47,35 @@ jobs:
             }
           }
           NODE
-
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare-worker/worker.mjs
-
-      - name: Normalize Cloudflare credentials without printing them
+      - name: Validate Cloudflare credentials without printing them
         shell: bash
         env:
           CF_API_TOKEN_RAW: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_ID_RAW: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           node --input-type=module <<'NODE'
-          import { appendFileSync } from "node:fs";
           const token = String(process.env.CF_API_TOKEN_RAW || "").trim();
           const accountId = String(process.env.CF_ACCOUNT_ID_RAW || "").trim();
           if (!token || !accountId) {
-            console.error("Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID GitHub Actions secret.");
+            console.error("Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID secret.");
             process.exit(1);
           }
           if (/[\\r\\n]/.test(token) || /[\\r\\n]/.test(accountId)) {
-            console.error("Cloudflare credentials still contain line breaks after trimming.");
+            console.error("Cloudflare credential contains an embedded line break. Recreate the GitHub secret as a single line.");
             process.exit(1);
           }
-          appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN_CLEAN=${token}\nCLOUDFLARE_ACCOUNT_ID_CLEAN=${accountId}\n`, { mode: 0o600 });
+          if (!/^[a-f0-9]{32}$/i.test(accountId)) {
+            console.error("CLOUDFLARE_ACCOUNT_ID must be the 32-character Cloudflare Account ID.");
+            process.exit(1);
+          }
+          if (/^Bearer\s/i.test(token) || /[\s"'<>]/.test(token)) {
+            console.error("CLOUDFLARE_API_TOKEN format is invalid. Store only the raw token, without Bearer prefix, quotes, or whitespace.");
+            process.exit(1);
+          }
+          appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN_CLEAN=${token}\nCLOUDFLARE_ACCOUNT_ID_CLEAN=${accountId}\n`);
           NODE
-
       - name: Deploy dev Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN_CLEAN }}
