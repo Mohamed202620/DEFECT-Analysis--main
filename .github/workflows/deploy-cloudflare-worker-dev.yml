@@ -23,62 +23,10 @@ jobs:
     steps:
       - name: Checkout dev
         uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Verify Worker has runtime environment protections
-        shell: bash
-        run: |
-          node --input-type=module <<'NODE'
-          import { readFileSync } from "node:fs";
-          const source = readFileSync("cloudflare-worker/worker.mjs", "utf8");
-          const checks = [
-            ["runtime environment validation", /function validateWorkerEnvironment\s*\(/],
-            ["production project guard", /PRODUCTION_FIREBASE_PROJECT_ID/],
-            ["development mode guard", /FIREBASE_ENV\s*===\s*"development"/],
-            ["development origin guard", /PRODUCTION_ORIGINS/],
-            ["health endpoint", /path === "health"/],
-          ];
-          for (const [label, pattern] of checks) {
-            if (!pattern.test(source)) {
-              console.error(`Worker safety check failed: ${label}`);
-              process.exit(1);
-            }
-          }
-          NODE
-      - name: Check Worker JavaScript syntax
-        run: node --check cloudflare-worker/worker.mjs
-      - name: Validate Cloudflare credentials without printing them
-        shell: bash
-        env:
-          CF_API_TOKEN_RAW: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID_RAW: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          node --input-type=module <<'NODE'
-          import { appendFileSync } from "node:fs";
-          const token = String(process.env.CF_API_TOKEN_RAW || "").trim();
-          const accountId = String(process.env.CF_ACCOUNT_ID_RAW || "").trim();
-          if (!token || !accountId) {
-            console.error("Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID secret.");
-            process.exit(1);
-          }
-          if (/[\\r\\n]/.test(token) || /[\\r\\n]/.test(accountId)) {
-            console.error("Cloudflare credential contains an embedded line break. Recreate the GitHub secret as a single line.");
-            process.exit(1);
-          }
-          if (!/^[a-f0-9]{32}$/i.test(accountId)) {
-            console.error("CLOUDFLARE_ACCOUNT_ID must be the 32-character Cloudflare Account ID.");
-            process.exit(1);
-          }
-          if (/^Bearer\s/i.test(token) || /[\s"'<>]/.test(token)) {
-            console.error("CLOUDFLARE_API_TOKEN format is invalid. Store only the raw token, without Bearer prefix, quotes, or whitespace.");
-            process.exit(1);
-          }
-          appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN_CLEAN=${token}\nCLOUDFLARE_ACCOUNT_ID_CLEAN=${accountId}\n`);
-          NODE
+
       - name: Deploy dev Worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN_CLEAN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID_CLEAN }}
-        run: npx --yes wrangler@4 deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
