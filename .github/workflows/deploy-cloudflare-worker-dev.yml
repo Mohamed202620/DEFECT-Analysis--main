@@ -56,6 +56,7 @@ jobs:
           CF_ACCOUNT_ID_RAW: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
           const token = String(process.env.CF_API_TOKEN_RAW || "").trim();
           const accountId = String(process.env.CF_ACCOUNT_ID_RAW || "").trim();
           if (!token || !accountId) {
