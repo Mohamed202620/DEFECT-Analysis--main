@@ -14,6 +14,13 @@ function b64uToU8(str) {
   return out;
 }
 
+function sameKey(buf, u8) {
+  const a = buf ? new Uint8Array(buf) : new Uint8Array(0);
+  if (a.length !== u8.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== u8[i]) return false;
+  return true;
+}
+
 export function isPushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && typeof Notification !== "undefined";
 }
@@ -31,10 +38,18 @@ export async function ensurePushSubscription() {
     if (sub) {
       const [endpoint, ts] = String(localStorage.getItem(regKey) || "").split("|");
       if (endpoint === sub.endpoint && Date.now() - Number(ts || 0) < REG_TTL_MS) return true;
-    } else {
-      const cfg = await callCloudFunction("getPushConfig", {});
-      if (!cfg || !cfg.publicKey) return false;
-      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToU8(cfg.publicKey) });
+    }
+    const cfg = await callCloudFunction("getPushConfig", {});
+    if (!cfg || !cfg.publicKey) return false;
+    const serverKey = b64uToU8(cfg.publicKey);
+    // A subscription made with another VAPID key (rotated key, dev<->prod Worker) is rejected
+    // by the push service with 403 forever: drop it and subscribe again with the current key.
+    if (sub && !sameKey(sub.options && sub.options.applicationServerKey, serverKey)) {
+      await sub.unsubscribe().catch(() => {});
+      sub = null;
+    }
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: serverKey });
     }
     await callCloudFunction("registerPushSubscription", { subscription: sub.toJSON() });
     localStorage.setItem(regKey, `${sub.endpoint}|${Date.now()}`);
