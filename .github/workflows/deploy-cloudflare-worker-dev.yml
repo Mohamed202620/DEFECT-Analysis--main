@@ -53,9 +53,29 @@ jobs:
       - name: Check Worker JavaScript syntax
         run: node --check cloudflare-worker/worker.mjs
 
+      - name: Normalize Cloudflare credentials without printing them
+        shell: bash
+        env:
+          CF_API_TOKEN_RAW: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID_RAW: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from "node:fs";
+          const token = String(process.env.CF_API_TOKEN_RAW || "").trim();
+          const accountId = String(process.env.CF_ACCOUNT_ID_RAW || "").trim();
+          if (!token || !accountId) {
+            console.error("Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID GitHub Actions secret.");
+            process.exit(1);
+          }
+          if (/[\\r\\n]/.test(token) || /[\\r\\n]/.test(accountId)) {
+            console.error("Cloudflare credentials still contain line breaks after trimming.");
+            process.exit(1);
+          }
+          appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN_CLEAN=${token}\nCLOUDFLARE_ACCOUNT_ID_CLEAN=${accountId}\n`, { mode: 0o600 });
+          NODE
+
       - name: Deploy dev Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ env.CLOUDFLARE_API_TOKEN_CLEAN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ env.CLOUDFLARE_ACCOUNT_ID_CLEAN }}
+        run: npx --yes wrangler@4 deploy cloudflare-worker/worker.mjs --name maintenance-backend-dev --compatibility-date 2026-10-19
