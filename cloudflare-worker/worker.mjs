@@ -458,8 +458,194 @@ const waitText = (ms) => {
   return h <= 1 ? "بعد ساعة تقريبًا" : `بعد ${h} ساعة تقريبًا`;
 };
 
+// ---------------------------------------------------------------------------
+// Web Push (VAPID + RFC 8291 aes128gcm). Works on the free Cloudflare plan.
+// Requires secrets VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY (optional VAPID_SUBJECT).
+// Without them the push endpoints answer 503 and nothing else is affected.
+// ---------------------------------------------------------------------------
+const PUSH_HOST_SUFFIXES = ["fcm.googleapis.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com"];
+const pushEnc = new TextEncoder();
+
+function pushB64uDecode(str) {
+  const clean = String(str || "").replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(clean.padEnd(Math.ceil(clean.length / 4) * 4, "="));
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function pushB64uEncode(bytes) {
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const pushConcat = (...parts) => {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+};
+async function pushHkdf(salt, ikm, info, length) {
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, length * 8));
+}
+
+export function isAllowedPushEndpoint(endpoint) {
+  try {
+    const u = new URL(String(endpoint || ""));
+    if (u.protocol !== "https:" || u.username || u.password || String(endpoint).length > 1000) return false;
+    return PUSH_HOST_SUFFIXES.some((h) => u.hostname === h || u.hostname.endsWith("." + h));
+  } catch (_) { return false; }
+}
+
+export async function encryptWebPushPayload(plaintext, p256dhB64u, authB64u) {
+  const uaPublic = pushB64uDecode(p256dhB64u);
+  const authSecret = pushB64uDecode(authB64u);
+  if (uaPublic.length !== 65 || uaPublic[0] !== 4 || authSecret.length !== 16) throw new Error("bad subscription keys");
+  if (plaintext.length > 3000) throw new Error("payload too large");
+  const as = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey("raw", as.publicKey));
+  const uaKey = await crypto.subtle.importKey("raw", uaPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, as.privateKey, 256));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const ikm = await pushHkdf(authSecret, ecdh, pushConcat(pushEnc.encode("WebPush: info\0"), uaPublic, asPublic), 32);
+  const cek = await pushHkdf(salt, ikm, pushEnc.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await pushHkdf(salt, ikm, pushEnc.encode("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aes, pushConcat(plaintext, new Uint8Array([2]))));
+  const header = new Uint8Array(21 + 65);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096);
+  header[20] = 65;
+  header.set(asPublic, 21);
+  return pushConcat(header, cipher);
+}
+
+export async function buildVapidAuthorization(env, endpoint) {
+  const pub = pushB64uDecode(env.VAPID_PUBLIC_KEY);
+  if (pub.length !== 65) throw new Error("bad VAPID public key");
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    { kty: "EC", crv: "P-256", x: pushB64uEncode(pub.slice(1, 33)), y: pushB64uEncode(pub.slice(33, 65)), d: env.VAPID_PRIVATE_KEY, ext: true },
+    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]
+  );
+  const head = pushB64uEncode(pushEnc.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const claims = pushB64uEncode(pushEnc.encode(JSON.stringify({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + 12 * 3600,
+    sub: env.VAPID_SUBJECT || `https://${env.FIREBASE_HOSTING_SITE}.web.app`
+  })));
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, pushEnc.encode(`${head}.${claims}`)));
+  return `vapid t=${head}.${claims}.${pushB64uEncode(sig)}, k=${env.VAPID_PUBLIC_KEY}`;
+}
+
+const pushConfigured = (env) => Boolean(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
+const requirePushConfigured = (env) => {
+  if (!pushConfigured(env)) throw new HttpError(503, "UNAVAILABLE", "Push notifications are not configured.");
+};
+async function pushSubscriptionId(endpoint) {
+  const d = await crypto.subtle.digest("SHA-256", pushEnc.encode(String(endpoint)));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function requireActiveCaller(env, uid) {
+  const u = await getUserDoc(env, uid);
+  if (!u || u.status !== "active") throw new HttpError(403, "PERMISSION_DENIED", "Account is not active.");
+  return u;
+}
+
 // ---------- المعالجات ----------
 const handlers = {
+  async getPushConfig(data, caller, env) {
+    requirePushConfigured(env);
+    await requireActiveCaller(env, caller);
+    return { publicKey: env.VAPID_PUBLIC_KEY };
+  },
+
+  async registerPushSubscription(data, caller, env) {
+    requirePushConfigured(env);
+    await requireActiveCaller(env, caller);
+    const sub = data?.subscription;
+    const p256dh = String(sub?.keys?.p256dh || "");
+    const auth = String(sub?.keys?.auth || "");
+    if (!isAllowedPushEndpoint(sub?.endpoint) || p256dh.length < 80 || p256dh.length > 100 || auth.length < 20 || auth.length > 30) {
+      throw new HttpError(400, "INVALID_ARGUMENT", "Invalid push subscription.");
+    }
+    const id = await pushSubscriptionId(sub.endpoint);
+    await fsCommit(env, [{ update: { name: docName(env, `pushSubscriptions/${id}`), fields: {
+      uid: { stringValue: caller },
+      endpoint: { stringValue: sub.endpoint },
+      p256dh: { stringValue: p256dh },
+      auth: { stringValue: auth },
+      updatedAt: { stringValue: new Date().toISOString() }
+    } } }]);
+    return { ok: true };
+  },
+
+  async unregisterPushSubscription(data, caller, env) {
+    if (!isAllowedPushEndpoint(data?.endpoint)) throw new HttpError(400, "INVALID_ARGUMENT", "Invalid endpoint.");
+    const id = await pushSubscriptionId(data.endpoint);
+    const f = await fsGetFields(env, `pushSubscriptions/${id}`);
+    if (f && strField(f.uid) === caller) {
+      await fsCommit(env, [{ delete: docName(env, `pushSubscriptions/${id}`) }]);
+    }
+    return { ok: true };
+  },
+
+  async sendPushNotification(data, caller, env) {
+    requirePushConfigured(env);
+    await requireActiveCaller(env, caller);
+    const notificationId = String(data?.notificationId || "");
+    if (!/^[A-Za-z0-9]{10,40}$/.test(notificationId)) throw new HttpError(400, "INVALID_ARGUMENT", "Invalid notification id.");
+    const path = `notifications/${notificationId}`;
+    const n = await fsGetFields(env, path);
+    if (!n) throw new HttpError(404, "NOT_FOUND", "Notification not found.");
+    const forUid = strField(n.forUid);
+    // Only the creator of a notification can trigger its push, once, to its own recipient.
+    if (strField(n.createdByUid) !== caller || !forUid || forUid === caller || n.pushedAt) return { sent: 0 };
+    await fsCommit(env, [{
+      update: { name: docName(env, path), fields: { pushedAt: { stringValue: new Date().toISOString() } } },
+      updateMask: { fieldPaths: ["pushedAt"] },
+      currentDocument: { exists: true }
+    }]);
+    const subs = await fsRunQuery(env, {
+      from: [{ collectionId: "pushSubscriptions" }],
+      where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: forUid } } },
+      limit: 5
+    });
+    const payload = pushEnc.encode(JSON.stringify({
+      type: strField(n.type),
+      message: strField(n.message).slice(0, 500),
+      notificationId,
+      ticketId: strField(n.ticketId),
+      suggestionId: strField(n.suggestionId)
+    }));
+    let sent = 0;
+    for (const sub of subs) {
+      const endpoint = strField(sub.fields.endpoint);
+      if (!isAllowedPushEndpoint(endpoint)) continue;
+      try {
+        const body = await encryptWebPushPayload(payload, strField(sub.fields.p256dh), strField(sub.fields.auth));
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Encoding": "aes128gcm",
+            "Content-Type": "application/octet-stream",
+            TTL: "86400",
+            Urgency: "high",
+            Authorization: await buildVapidAuthorization(env, endpoint)
+          },
+          body
+        });
+        if (res.ok) sent++;
+        else if (res.status === 404 || res.status === 410) {
+          await fsCommit(env, [{ delete: docName(env, `pushSubscriptions/${sub.id}`) }]).catch(() => {});
+        }
+      } catch (e) {
+        console.error("push send failed", e && e.message);
+      }
+    }
+    return { sent };
+  },
+
   // تسجيل كود الموظف مجزّأً (مرة واحدة لكل حساب). بيتنادى وقت إنشاء الحساب بتوكن الحساب الجديد.
   async registerEmployeeCode(data, caller, env) {
     const code = normalizeCode(data?.code);
