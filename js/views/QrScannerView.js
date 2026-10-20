@@ -105,7 +105,7 @@ export const QrScannerView = () => {
     <div class="flex items-center justify-between mb-4">
       <button onclick="window.goBack('home')" class="bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm min-h-[38px] cursor-pointer">
         <span class="text-amber-400 font-black">${isEn ? '←' : '→'}</span>
-        <span>${isEn ? 'Back Home' : 'رجوع للرئيسية'}</span>
+        <span>${isEn ? 'Back' : 'رجوع'}</span>
       </button>
 
       ${canManageMachines ? `

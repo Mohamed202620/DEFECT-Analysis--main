@@ -229,7 +229,7 @@ export const ChecklistBuilderView = () => {
         <div class="text-4xl">🔒</div>
         <h2 class="text-lg font-bold text-red-400">${isEn ? 'Access Denied' : 'غير مصرح بالدخول'}</h2>
         <p class="text-xs text-gray-400">${isEn ? 'Only Managers and Admins can access the Checklist Editor.' : 'محرر بنود الفحص مخصص للمديرين ورؤساء الأقسام والأدمن فقط.'}</p>
-        <button onclick="window.goBack('home')" class="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-bold">${isEn ? 'Back Home' : 'رجوع للرئيسية'}</button>
+        <button onclick="window.goBack('home')" class="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-bold">${isEn ? 'Back' : 'رجوع'}</button>
       </div>
     `;
   }
