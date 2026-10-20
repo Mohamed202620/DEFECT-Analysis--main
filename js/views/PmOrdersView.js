@@ -931,16 +931,16 @@ function renderPmOrders() {
     </div>
   `;
   const tabsNavHtml = `
-    <div class="mb-3 grid grid-cols-3 gap-1.5" dir="${isEn() ? "ltr" : "rtl"}">
+    <div class="mb-3 grid grid-cols-1 sm:grid-cols-3 gap-2" dir="${isEn() ? "ltr" : "rtl"}">
       <button
         type="button"
         id="tabBtnPlans"
         onclick="window.switchPmTab('plans')"
-        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
       >
         <span>📋</span>
         <span>${label("خطط PM الدورية للماكينات", "Periodic PM Plans")}</span>
-        <span class="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmPlans.length}</span>
+        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmPlans.length}</span>
         ${overduePlansCount ? `<span class="rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white animate-pulse">${overduePlansCount} ${label("مستحق", "due")}</span>` : ""}
       </button>
 
@@ -948,22 +948,22 @@ function renderPmOrders() {
         type="button"
         id="tabBtnDowntime"
         onclick="window.switchPmTab('downtime')"
-        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
       >
         <span>⚡</span>
         <span>${label("استخراج PM عند توقف الخط", "Line Stoppage Quick PM")}</span>
-        <span class="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-200">${label("ميداني سريع", "Quick Field")}</span>
+        
       </button>
 
       <button
         type="button"
         id="tabBtnAssigned"
         onclick="window.switchPmTab('assigned')"
-        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
       >
         <span>🛠️</span>
         <span>${label("أوامر PM المسندة من الأعطال", "Assigned PM Work Orders")}</span>
-        <span class="rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmOrders.length}</span>
+        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmOrders.length}</span>
         ${assignedOpenCount ? `<span class="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[9px] text-blue-200">${assignedOpenCount} ${label("مفتوح", "open")}</span>` : ""}
       </button>
     </div>
