@@ -1334,7 +1334,7 @@ window.openPmOrderTasksFromQr = async function(refId) {
   // انتظر وصول البيانات الحديثة، ثم افتح الخطة أو أمر PM المطابق فقط.
   // لا نترك المستخدم على قائمة PM العامة إذا لم ينجح فتح السجل.
   const tryOpen = (attempts = 0) => {
-    const plan = pmPlans.find(item => item.id === ref || String(item.id) === ref);
+    const plan = pmPlans.find(item => item.id === ref) || pmPlans.find(item => String(item.id) === ref);
     if (plan) {
       if (typeof window.openRecordPmExecutionModal === "function") {
         window.openRecordPmExecutionModal(plan.id);
