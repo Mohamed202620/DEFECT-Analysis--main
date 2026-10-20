@@ -416,9 +416,9 @@ function renderPlanCard(plan) {
           type="button"
           onclick="window.printMachinePmPlanCard('${escapeJsArg(plan.id)}')"
           title="${label("طباعة كارت PM للمعدة", "Print PM Card")}"
-          class="py-1.5 px-2.5 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-bold text-[11px] transition"
+          class="min-h-10 py-2 px-3 rounded-lg border border-slate-500 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition inline-flex items-center justify-center gap-1.5"
         >
-          🖨️
+          <span>🖨️</span><span>${label("طباعة", "Print")}</span>
         </button>
 
         ${canPlanPmOrders() ? `
@@ -426,9 +426,9 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.openAddEditPlanModal('${escapeJsArg(plan.id)}')"
             title="${label("تعديل الخطة والمهام", "Edit Plan & Tasks")}"
-            class="py-1.5 px-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition"
+            class="min-h-10 py-2 px-3 rounded-lg border border-blue-400/60 bg-blue-700 hover:bg-blue-600 text-white font-bold text-xs transition inline-flex items-center justify-center gap-1.5"
           >
-            ✏️
+            <span>✏️</span><span>${label("تعديل", "Edit")}</span>
           </button>
         ` : ""}
 
@@ -436,9 +436,9 @@ function renderPlanCard(plan) {
           type="button"
           onclick="window.openPmExecutionsHistoryModal('${escapeJsArg(plan.id)}')"
           title="${label("سجل التنفيذات السابقة", "Execution History")}"
-          class="py-1.5 px-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-bold text-[11px] transition"
+          class="min-h-10 py-2 px-3 rounded-lg border border-gray-500 bg-gray-700 hover:bg-gray-600 text-white font-bold text-xs transition inline-flex items-center justify-center gap-1.5"
         >
-          📜
+          <span>📜</span><span>${label("السجل", "History")}</span>
         </button>
 
         ${isAdminRole() ? `
@@ -446,9 +446,9 @@ function renderPlanCard(plan) {
             type="button"
             onclick="window.deletePmPlan('${escapeJsArg(plan.id)}')"
             title="${label("حذف الخطة", "Delete Plan")}"
-            class="py-1.5 px-2 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:border-red-500 hover:text-red-300 text-[11px] transition"
+            class="min-h-10 py-2 px-3 rounded-lg border border-rose-500/50 bg-rose-950/40 text-rose-200 hover:bg-rose-900/60 font-bold text-xs transition inline-flex items-center justify-center gap-1.5"
           >
-            🗑️
+            <span>🗑️</span><span>${label("حذف", "Delete")}</span>
           </button>
         ` : ""}
       </div>
@@ -521,7 +521,7 @@ function renderPeriodicPlansTabHtml() {
           <button
             type="button"
             onclick="window.openAddEditPlanModal()"
-            class="ms-auto flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs py-2 px-3.5 rounded-lg transition shadow-md shadow-blue-500/20"
+            class="ms-auto min-h-11 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white font-bold text-sm py-3 px-4 rounded-xl border border-blue-400/50 transition shadow-lg shadow-blue-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
           >
             <span>➕</span>
             <span>${label("إضافة خطة PM جديدة", "Add New PM Plan")}</span>
@@ -943,12 +943,12 @@ function renderPmOrders() {
   const assignedOpenCount = pmOrders.filter(isOpenOrder).length;
 
   const tabsNavHtml = `
-    <div class="mb-4 flex flex-wrap items-center gap-2 border-b border-gray-800 pb-3" dir="${isEn() ? "ltr" : "rtl"}">
+    <div class="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-gray-800 pb-3" dir="${isEn() ? "ltr" : "rtl"}">
       <button
         type="button"
         id="tabBtnPlans"
         onclick="window.switchPmTab('plans')"
-        class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${activePmTab === 'plans' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700'}"
+        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
       >
         <span>📋</span>
         <span>${label("خطط PM الدورية للماكينات", "Periodic PM Plans")}</span>
@@ -960,7 +960,7 @@ function renderPmOrders() {
         type="button"
         id="tabBtnDowntime"
         onclick="window.switchPmTab('downtime')"
-        class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${activePmTab === 'downtime' ? 'bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700'}"
+        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
       >
         <span>⚡</span>
         <span>${label("استخراج PM عند توقف الخط", "Line Stoppage Quick PM")}</span>
@@ -971,7 +971,7 @@ function renderPmOrders() {
         type="button"
         id="tabBtnAssigned"
         onclick="window.switchPmTab('assigned')"
-        class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${activePmTab === 'assigned' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-gray-800/80 text-gray-300 hover:bg-gray-700'}"
+        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
       >
         <span>🛠️</span>
         <span>${label("أوامر PM المسندة من الأعطال", "Assigned PM Work Orders")}</span>
