@@ -8,7 +8,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     // زي ما كانت بالظبط (backTarget الافتراضي = "home")
     const backArrow = isEn ? "←" : "→";
     const backLabel = {
-        home: isEn ? "Back Home" : "رجوع للرئيسية",
+        home: isEn ? "Back" : "رجوع",
         homeShort: isEn ? "Back" : "رجوع",
         system: isEn ? "Back" : "رجوع"
     }[backTarget] || (isEn ? "Back" : "رجوع");
