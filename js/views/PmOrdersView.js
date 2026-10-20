@@ -47,6 +47,7 @@ let plansStatusFilter = "";
 
 let downtimeSelectedLine = "Line 1";
 let downtimeSelectedMachine = "";
+let downtimePendingType = ""; // نوع ماكينة مختار لم يُختر رقمه بعد (منتقي نوع ← رقم)
 
 // أخطاء الاشتراك اللحظي (صلاحيات/شبكة/فهرس): كانت تُتجاهل فتبقى الصفحة فارغة
 // أو معلّقة على "جاري التحميل" دون أي تفسير للمستخدم
@@ -72,6 +73,34 @@ function getAllAvailableMachines(lineFilter = "") {
     console.warn("Could not get machine entries:", err);
     return [];
   }
+}
+
+// منتقي الماكينة بنفس أسلوب باقي التطبيق (نوع الماكينة ثم الرقم): نفس معرّفات
+// buildMachineDropdownHtml (baseId + Type/Unit + حقل مخفي يحمل القيمة الكاملة)
+// ونفس دوالّه المشتركة (__onMachineTypeChange / __onMachineUnitChange)، لكن
+// قائمة الأنواع مقيّدة بالخط المختار وبكل الأقسام كما كان في شاشة PM. القيمة
+// الكاملة "النوع الرقم" هي نفس اسم الماكينة المخزّن في الخطط والأوامر.
+function pmMachinePickerHtml(baseId, line, selectedValue, { pendingType = "", onChange = "", typeClass = "", unitClass = "" } = {}) {
+  const e = escapeHtml;
+  const items = getAllAvailableMachines(line);
+  const types = [];
+  items.forEach(m => { if (!types.includes(m.key)) types.push(m.key); });
+  const selected = items.find(m => m.name === selectedValue) || null;
+  const selType = selected ? selected.key : (types.includes(pendingType) ? pendingType : "");
+  const selUnit = selected ? selected.unit : "";
+  const units = selType ? items.filter(m => m.key === selType && m.unit).map(m => m.unit) : [];
+  const showUnit = units.length > 0;
+  const onChangeAttr = onChange ? ` onchange="${onChange}"` : "";
+  return `
+    <select id="${e(baseId)}Type" class="${typeClass}" onchange="window.__onMachineTypeChange('${escapeJsArg(baseId)}')">
+      <option value="" disabled ${selType ? "" : "selected"}>${label("اختر نوع الماكينة...", "Select machine type...")}</option>
+      ${types.map(key => `<option value="${e(key)}" ${key === selType ? "selected" : ""}>${e(key)}</option>`).join("")}
+    </select>
+    <select id="${e(baseId)}Unit" class="${unitClass} ${showUnit ? "" : "hidden"}" onchange="window.__onMachineUnitChange('${escapeJsArg(baseId)}')">
+      ${showUnit ? `<option value="" disabled ${selUnit ? "" : "selected"}>${label("اختر الرقم...", "Select number...")}</option>${units.map(u => `<option value="${e(u)}" ${u === selUnit ? "selected" : ""}>${e(u)}</option>`).join("")}` : ""}
+    </select>
+    <input type="hidden" id="${e(baseId)}" value="${e(selected ? selected.name : "")}"${onChangeAttr}>
+  `;
 }
 
 function preparePlanAsCard(plan) {
@@ -313,11 +342,14 @@ window.switchPmTab = function(tabName) {
 window.selectDowntimeLine = function(line) {
   downtimeSelectedLine = line;
   downtimeSelectedMachine = "";
+  downtimePendingType = "";
   renderPmOrders();
 };
 
-window.selectDowntimeMachine = function(machine) {
-  downtimeSelectedMachine = machine;
+// machine فارغة + pendingType = تم اختيار النوع فقط وبانتظار اختيار الرقم
+window.selectDowntimeMachine = function(machine, pendingType = "") {
+  downtimeSelectedMachine = machine || "";
+  downtimePendingType = machine ? "" : String(pendingType || "");
   renderPmOrders();
 };
 
@@ -441,7 +473,7 @@ function renderPlanCard(plan) {
           <span>📜</span><span>${label("السجل", "History")}</span>
         </button>
 
-        ${isAdminRole() ? `
+        ${isAdminRole(getCurrentRole()) ? `
           <button
             type="button"
             onclick="window.deletePmPlan('${escapeJsArg(plan.id)}')"
@@ -545,11 +577,12 @@ function renderLineDowntimeTabHtml() {
   const lineMachines = getAllAvailableMachines(line);
 
   // إذا لم تكن الماكينة المختارة ضمن ماكينات هذا الخط، اختر أول ماكينة
-  if ((!downtimeSelectedMachine || !lineMachines.some(m => m.name === downtimeSelectedMachine)) && lineMachines.length) {
+  // (إلا لو المستخدم اختار نوعاً وبانتظار رقمه - لا نقفز فوق اختياره)
+  if (!downtimePendingType && (!downtimeSelectedMachine || !lineMachines.some(m => m.name === downtimeSelectedMachine)) && lineMachines.length) {
     downtimeSelectedMachine = lineMachines[0].name;
   }
 
-  const selectedMachine = downtimeSelectedMachine || (lineMachines[0]?.name || "");
+  const selectedMachine = downtimePendingType ? "" : (downtimeSelectedMachine || (lineMachines[0]?.name || ""));
   const plan = pmPlans.find(p => p.machine === selectedMachine && (!p.line || normalizeLine(p.line) === normalizeLine(line)));
 
   // أوامر PM المسندة من الأعطال المفتوحة لنفس الخط والماكينة
@@ -603,17 +636,12 @@ function renderLineDowntimeTabHtml() {
           <span>${label("اختر الماكينة / المعدة:", "Select Equipment / Machine:")}</span>
         </div>
         <div>
-          <select
-            id="downtimeMachineSelect"
-            onchange="window.selectDowntimeMachine(this.value)"
-            class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white font-bold text-xs sm:text-sm focus:outline-none focus:border-amber-500 transition shadow-inner"
-          >
-            ${lineMachines.map(m => `
-              <option value="${e(m.name)}" ${m.name === selectedMachine ? "selected" : ""}>
-                ⚙️ ${e(m.name)} (${m.department === "frontend" ? "Front-End" : "Back-End"})
-              </option>
-            `).join("")}
-          </select>
+          ${pmMachinePickerHtml("downtimeMachine", line, selectedMachine, {
+            pendingType: downtimePendingType,
+            onChange: "window.selectDowntimeMachine(this.value, document.getElementById('downtimeMachineType')?.value || '')",
+            typeClass: "w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white font-bold text-xs sm:text-sm focus:outline-none focus:border-amber-500 transition shadow-inner",
+            unitClass: "w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white font-bold text-xs sm:text-sm focus:outline-none focus:border-amber-500 transition shadow-inner mt-2"
+          })}
         </div>
       </div>
 
@@ -724,14 +752,14 @@ function renderLineDowntimeTabHtml() {
                     <span>Excel</span>
                   </button>
 
-                  <button
+                  ${canRecordPmExecution() ? `<button
                     type="button"
                     onclick="window.openRecordPmExecutionModal('${escapeJsArg(plan.id)}')"
                     class="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 col-span-2 sm:col-span-1"
                   >
                     <span>✅</span>
                     <span>${label("تسجيل التنفيذ الفعلي", "Record Run")}</span>
-                  </button>
+                  </button>` : ""}
                 </div>
               </div>
             ` : `
@@ -758,7 +786,7 @@ function renderLineDowntimeTabHtml() {
             <div class="text-[11px] text-gray-400 bg-[#0F172A]/70 p-3 rounded-xl border border-gray-800 flex items-center gap-2">
               <span class="text-base text-blue-400 shrink-0">ℹ️</span>
               <span>
-                ${label("تنبيه إجرائي: طباعة أو تصدير كارت PM لا يعتبر تنفيذاً للصيانة. يتم تسجيل التنفيذ وتحديث موعد الصيانة القادم حصراً عند الضغط على «تسجيل نتيجة التنفيذ الفعلي» وحفظ نتيجة التنفيذ.", "Procedure notice: Printing or exporting PM card does not count as execution. Execution is recorded and next due date is updated only upon clicking 'Record Run' and submitting actual results.")}
+                ${label("تنبيه إجرائي: طباعة أو تصدير كارت PM لا يعتبر تنفيذاً للصيانة. يتم تسجيل التنفيذ وتحديث موعد الصيانة القادم حصراً عند الضغط على «تسجيل التنفيذ الفعلي» وحفظ نتيجة التنفيذ.", "Procedure notice: Printing or exporting PM card does not count as execution. Execution is recorded and next due date is updated only upon clicking 'Record Run' and submitting actual results.")}
               </span>
             </div>
           </div>
@@ -831,7 +859,11 @@ function renderLineDowntimeTabHtml() {
             </div>
           </div>
         </div>
-      ` : ""}
+      ` : `
+        <div class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-gray-400">
+          ${lineMachines.length ? label("اختر الماكينة ورقمها لعرض خطة PM وأوامرها.", "Select the machine and its number to view its PM plan and orders.") : label("لا توجد ماكينات مسجلة لهذا الخط.", "No machines registered for this line.")}
+        </div>
+      `}
     </div>
   `;
 }
@@ -1372,6 +1404,7 @@ window.openPmOrdersWithFilter = function(presetFilters = {}) {
     plansLineFilter = line;
     downtimeSelectedLine = line || downtimeSelectedLine || "Line 1";
     downtimeSelectedMachine = rest.machine || "";
+    downtimePendingType = "";
   }
   if (typeof window.navigateTo === "function") {
     window.navigateTo("pmOrders");
@@ -2053,6 +2086,7 @@ function syncPlanStateFromDom() {
   if (!state.isEdit) {
     state.line = val("#editPlanLine") ?? state.line;
     state.machine = val("#editPlanMachine") ?? state.machine;
+    state.machineType = val("#editPlanMachineType") ?? state.machineType;
   }
   state.frequency = val("#editPlanFreq") ?? state.frequency;
   const cd = parseInt(val("#editPlanCustomDays"), 10);
@@ -2124,8 +2158,6 @@ function renderPlanEditModal() {
     document.body.appendChild(overlay);
   }
 
-  const availableMachines = getAllAvailableMachines(state.line);
-
   overlay.innerHTML = `
     <div dir="${isEn() ? "ltr" : "rtl"}" class="w-full max-w-xl max-h-[92vh] overflow-y-auto rounded-2xl border border-gray-700 bg-[#1E293B] p-4 sm:p-6 shadow-2xl text-white space-y-4">
       <div class="flex items-center justify-between border-b border-gray-700 pb-3">
@@ -2152,14 +2184,11 @@ function renderPlanEditModal() {
           ${state.isEdit ? `
             <input type="text" disabled value="${e(state.machine)}" class="w-full p-2.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 font-bold" />
           ` : `
-            <select id="editPlanMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 font-bold">
-              <option value="">${label("اختر الماكينة...", "Select machine...")}</option>
-              ${availableMachines.map(m => `
-                <option value="${e(m.name)}" ${m.name === state.machine ? "selected" : ""}>
-                  ${e(m.name)} (${m.department === "frontend" ? "Front-End" : "Back-End"})
-                </option>
-              `).join("")}
-            </select>
+            ${pmMachinePickerHtml("editPlanMachine", state.line, state.machine, {
+              pendingType: state.machineType || "",
+              typeClass: "w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 font-bold",
+              unitClass: "w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 font-bold mt-2"
+            })}
           `}
         </div>
 
@@ -2304,8 +2333,12 @@ function renderPlanEditModal() {
     lineEl.addEventListener("change", ev => {
       syncPlanStateFromDom();
       state.line = ev.target.value;
-      if (state.machine && !getAllAvailableMachines(state.line).some(m => m.name === state.machine)) {
+      const lineItems = getAllAvailableMachines(state.line);
+      if (state.machine && !lineItems.some(m => m.name === state.machine)) {
         state.machine = "";
+      }
+      if (state.machineType && !lineItems.some(m => m.key === state.machineType)) {
+        state.machineType = "";
       }
       renderPlanEditModal();
     });
