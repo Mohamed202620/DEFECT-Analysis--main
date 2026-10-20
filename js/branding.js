@@ -149,6 +149,13 @@ export function renderHeader() {
   const initial = (name.trim().charAt(0) || "M").toUpperCase();
   const welcomeWord = t.welcome || (isEn ? "Welcome," : "مرحباً،");
 
+  // صف الترحيب + زر اللغة (AR/EN) يظهروا في الشاشة الرئيسية فقط.
+  // قبل تسجيل الدخول (login/register) بنسيب زر اللغة ظاهر لأن شاشة
+  // الدخول مفيهاش زر لغة تاني، فلو اتشال المستخدم مش هيعرف يغيّر اللغة.
+  const activeHash = (window.location.hash || "").replace(/^#\/?/, "").split(/[?&]/)[0];
+  const headerPage = activeHash || "home";
+  const showUserRow = !isLoggedIn || headerPage === "home";
+
   // نفس بالظبط سلسلة الاحتياطيات المستخدمة فعلاً في زرار 🔔
   // بالشريط السفلي (BottomNav.js) عشان الجرس هنا يفتح نفس نافذة
   // الإشعارات الحقيقية بالظبط
@@ -256,7 +263,8 @@ export function renderHeader() {
 
         </div>
 
-        <!-- السطر الثاني: المستخدم واضح في جهة | زر اللغة في الجهة المقابلة -->
+        ${showUserRow ? `
+        <!-- السطر الثاني: المستخدم واضح في جهة | زر اللغة في الجهة المقابلة (الرئيسية فقط) -->
         <div class="app-header-row-bottom flex items-center justify-between md:justify-end gap-2.5 min-w-0 md:flex-1 md:gap-4">
 
           <!-- المستخدم واضح وكامل -->
@@ -281,6 +289,7 @@ export function renderHeader() {
           </div>
 
         </div>
+        ` : ""}
 
       </div>
     </header>
