@@ -948,7 +948,7 @@ function renderPmOrders() {
         type="button"
         id="tabBtnDowntime"
         onclick="window.switchPmTab('downtime')"
-        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
       >
         <span>⚡</span>
         <span>${label("استخراج PM عند توقف الخط", "Line Stoppage Quick PM")}</span>
@@ -959,7 +959,7 @@ function renderPmOrders() {
         type="button"
         id="tabBtnAssigned"
         onclick="window.switchPmTab('assigned')"
-        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
       >
         <span>🛠️</span>
         <span>${label("أوامر PM المسندة من الأعطال", "Assigned PM Work Orders")}</span>
