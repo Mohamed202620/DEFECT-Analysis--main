@@ -8,7 +8,8 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     // زي ما كانت بالظبط (backTarget الافتراضي = "home")
     const backArrow = isEn ? "←" : "→";
     const backLabel = {
-        home: isEn ? "Back Home" : "رجوع للرئيسية",
+        home: isEn ? "Back" : "رجوع",
+        homeShort: isEn ? "Back" : "رجوع",
         system: isEn ? "Back" : "رجوع"
     }[backTarget] || (isEn ? "Back" : "رجوع");
 
@@ -17,16 +18,14 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
         <!-- زر الرجوع -->
         <button
             type="button"
-            onclick="window.goBack('${backTarget}')"
+            onclick="window.goBack('${backTarget === "homeShort" ? "home" : backTarget}')"
             class="mb-4 bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm min-h-[38px] cursor-pointer">
             <span class="text-amber-400 font-black">${backArrow}</span>
             <span>${backLabel}</span>
         </button>
 
-        <!-- عنوان الصفحة -->
-        <h2 class="text-lg font-bold mb-5 text-blue-400 border-b border-gray-800 pb-2">
-            ${title}
-        </h2>
+        <!-- عنوان الصفحة: يُخفى عندما يكون العنوان فارغًا -->
+        ${title ? `<h2 class="text-lg font-bold mb-5 text-blue-400 border-b border-gray-800 pb-2">${title}</h2>` : ""}
 
         <!-- محتوى الصفحة الديناميكي -->
         <div class="animate-fade-in">
