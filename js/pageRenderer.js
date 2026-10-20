@@ -113,8 +113,10 @@ case 'pmOrders':
 
   return hasPermission("pm")
     ? PageView(
-        (window.currentLang || "ar") === "en" ? "PM Work Orders" : "أوامر الصيانة الوقائية",
-        PmOrdersView()
+        "",
+        PmOrdersView(),
+        window.currentLang || "ar",
+        "homeShort"
       )
     : unauthorizedPage("pm");
 
