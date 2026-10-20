@@ -1,5 +1,4 @@
 import { openActionModal } from "../components/ActionModal.js";
-import { goBack } from "../renderCore.js";
 import { fetchTechniciansApi } from "../services/usersApi.js";
 import { exportToExcel, exportToPdf } from "../services/exportUtility.js";
 import {
@@ -1340,18 +1339,17 @@ window.setPmDowntimeSelected = async function(value) {
 };
 
 export const PmOrdersView = () => `
-  <section class="app-page space-y-2 p-2 pb-24 text-white sm:p-4" dir="${isEn() ? "ltr" : "rtl"}">
-    <div class="flex justify-start">
-      <button type="button" onclick="window.__pmGoBack()" class="inline-flex min-h-9 items-center gap-2 rounded-lg border border-gray-700 bg-[#0F172A] px-3 py-1.5 text-xs font-bold text-gray-200 hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
-        <span aria-hidden="true">${isEn() ? "←" : "→"}</span>
-        <span>${label("رجوع", "Back")}</span>
-      </button>
+  <section class="app-page space-y-3 p-3 pb-24 text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
+    <div>
+      <h2 class="flex items-center gap-2 text-lg font-black text-blue-400">
+        <span>🗓️</span>
+        <span>${label("أوامر الصيانة الوقائية (PM)", "Preventive Maintenance Orders (PM)")}</span>
+      </h2>
+      <p class="mt-1 text-xs text-gray-400">${label("تخطيط وتنفيذ أوامر PM وطباعة كروت الفنيين وتصدير أوامر توقف الخط.", "Plan and execute PM orders, print technician cards and export line-downtime orders.")}</p>
     </div>
-    <div id="pmOrdersContainer" aria-live="polite" class="rounded-xl border border-gray-800 bg-[#1E293B] p-3 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>
+    <div id="pmOrdersContainer" aria-live="polite" class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>
   </section>
 `;
-
-window.__pmGoBack = function() { goBack("home"); };
 
 window.clearPmFilterDate = function(key) {
   if (key === "from") filters.from = "";
