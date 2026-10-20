@@ -1302,34 +1302,68 @@ window.printPmCards = function() {
   openPmCards(selected.length ? selected : filtered);
 };
 
-// مسح QR لكارت أمر PM من الكاميرا لفتح نافذة التنفيذ مباشرة
+// مسح QR لكارت PM: حدّث البيانات أولاً ثم افتح السجل المطابق فقط
 window.openPmOrderTasksFromQr = async function(refId) {
-  if (!refId) return;
-  const ref = String(refId).trim();
+  const ref = String(refId || "").trim();
+  if (!ref) {
+    alert(label("رمز QR لا يحتوي على معرّف PM.", "The QR code has no PM identifier."));
+    return;
+  }
+
   if (typeof window.navigateTo === "function") {
     window.navigateTo("pmOrders");
   }
-  if (typeof window.loadPmOrdersBoard === "function" && (!pmOrders.length || !pmPlans.length)) {
-    await window.loadPmOrdersBoard();
+
+  // انتظر ظهور شاشة PM قبل إعادة إنشاء الاشتراكات؛ لا تعتمد على مصفوفات
+  // قديمة أو غير مكتملة من زيارة سابقة للشاشة.
+  let boardAttempts = 0;
+  while (!document.getElementById("pmOrdersContainer") && boardAttempts < 30) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    boardAttempts += 1;
   }
-  // الرمز قد يخص أمر PM (معرّف البلاغ/الرقم الموحد) أو بطاقة خطة مطبوعة
-  // (معرّف الخطة) - الأخيرة كانت تنتهي بـ "غير موجود"
+
+  if (!document.getElementById("pmOrdersContainer")) {
+    alert(label("تعذر فتح شاشة الصيانة الوقائية. أعد المحاولة.", "Could not open the PM screen. Please try again."));
+    return;
+  }
+
+  if (typeof window.loadPmOrdersBoard === "function") {
+    await window.loadPmOrdersBoard(true);
+  }
+
+  // انتظر وصول البيانات الحديثة، ثم افتح الخطة أو أمر PM المطابق فقط.
+  // لا نترك المستخدم على قائمة PM العامة إذا لم ينجح فتح السجل.
   const tryOpen = (attempts = 0) => {
-    const plan = pmPlans.find(item => item.id === ref);
+    const plan = pmPlans.find(item => String(item.id) === ref);
     if (plan) {
-      window.openRecordPmExecutionModal(plan.id);
+      if (typeof window.openRecordPmExecutionModal === "function") {
+        window.openRecordPmExecutionModal(plan.id);
+      }
       return;
     }
-    const order = pmOrders.find(item => item.id === ref || item.unifiedNumber === ref || displayRecordNumber(item) === ref);
+
+    const order = pmOrders.find(item =>
+      String(item.id) === ref ||
+      String(item.unifiedNumber || "") === ref ||
+      String(displayRecordNumber(item) || "") === ref
+    );
     if (order && typeof window.executePmTasks === "function") {
       window.executePmTasks(order.id);
-    } else if (attempts < 40) {
-      setTimeout(() => tryOpen(attempts + 1), 250);
-    } else {
-      alert(label("تعذر العثور على أمر أو خطة PM مطابقة للرمز.", "No PM order or plan matches this code."));
+      return;
     }
+
+    if (attempts < 50 && !pmOrdersLoadError && !pmPlansLoadError) {
+      setTimeout(() => tryOpen(attempts + 1), 200);
+      return;
+    }
+
+    const loadError = pmOrdersLoadError || pmPlansLoadError;
+    alert(loadError
+      ? label("تعذر تحميل بيانات PM: ", "Could not load PM data: ") + loadError
+      : label("لم يتم العثور على كارت PM المطابق للرمز. تأكد من أن QR مطبوع من الكارت الصحيح.", "No PM card matches this QR code. Verify that the code was printed from the correct card."));
   };
-  setTimeout(() => tryOpen(), 100);
+
+  tryOpen();
 };
 
 // ============================================================
