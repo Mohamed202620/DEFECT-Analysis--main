@@ -474,26 +474,6 @@ function renderPeriodicPlansTabHtml() {
 
   return `
     <div class="space-y-4">
-      <!-- شريط الإحصائيات السريعة -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div class="bg-[#0F172A] border border-gray-700/80 rounded-xl p-3 text-center">
-          <div class="text-[11px] text-gray-400 font-bold">${label("إجمالي خطط الماكينات", "Total Machine Plans")}</div>
-          <div class="text-xl font-black text-blue-400 mt-1">${totalPlans}</div>
-        </div>
-        <div class="bg-[#0F172A] border border-red-500/30 rounded-xl p-3 text-center">
-          <div class="text-[11px] text-red-300 font-bold">${label("مستحق الآن / متأخر", "Due Now / Overdue")}</div>
-          <div class="text-xl font-black text-red-400 mt-1">${overdueCount}</div>
-        </div>
-        <div class="bg-[#0F172A] border border-emerald-500/30 rounded-xl p-3 text-center">
-          <div class="text-[11px] text-emerald-300 font-bold">${label("ساري ومجدول", "Scheduled / Up-to-date")}</div>
-          <div class="text-xl font-black text-emerald-400 mt-1">${upcomingCount}</div>
-        </div>
-        <div class="bg-[#0F172A] border border-amber-500/30 rounded-xl p-3 text-center">
-          <div class="text-[11px] text-amber-300 font-bold">${label("بانتظار أول تنفيذ", "Pending First Run")}</div>
-          <div class="text-xl font-black text-amber-400 mt-1">${pendingFirst}</div>
-        </div>
-      </div>
-
       <!-- شريط البحث والفلاتر + زر إضافة خطة -->
       <div class="flex flex-wrap items-center gap-2 bg-[#1E293B] p-3 rounded-xl border border-gray-800">
         <input
@@ -580,13 +560,13 @@ function renderLineDowntimeTabHtml() {
   return `
     <div class="space-y-4">
       <!-- لافتة توجيه العمل الميداني السريع -->
-      <div class="bg-gradient-to-r from-amber-950/70 via-[#1E293B] to-[#0F172A] border border-amber-500/40 rounded-2xl p-4 text-xs text-amber-200 flex items-start gap-3 shadow-lg">
-        <span class="text-2xl shrink-0">⚡</span>
+      <div class="bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-2 text-[10px] text-amber-200 flex items-start gap-2">
+        <span class="text-base shrink-0">⚡</span>
         <div class="space-y-1">
-          <div class="font-bold text-sm text-amber-300">
+          <div class="font-bold text-xs text-amber-300">
             ${label("استخراج PM الميداني السريع عند توقف الخط", "Quick Field PM Extraction on Line Stoppage")}
           </div>
-          <p class="text-gray-300 leading-relaxed text-[11px]">
+          <p class="text-gray-300 leading-snug text-[10px]">
             ${label("اختر خط الإنتاج ثم المعدة لعرض خطة الصيانة الوقائية وبطاقة العمل وتصديرها أو طباعتها فوراً، واستعراض أوامر الأعطال المسندة لنفس المعدة لتنفيذها أثناء التوقف.", "Select the line and machine to instantly view the PM plan, print or export the work card (PDF/Excel), and review open assigned PM breakdown orders to execute during downtime.")}
           </p>
         </div>
@@ -942,13 +922,21 @@ function renderPmOrders() {
   const overduePlansCount = pmPlans.filter(p => getPlanDueBucket(p) === "due").length;
   const assignedOpenCount = pmOrders.filter(isOpenOrder).length;
 
+  const pmDashboardHtml = `
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" dir="${isEn() ? "ltr" : "rtl"}">
+      <div class="rounded-xl border border-blue-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-gray-400 font-semibold">${label("إجمالي الخطط", "Total Plans")}</div><div class="text-lg leading-tight font-black text-blue-400 mt-1">${pmPlans.length}</div></div>
+      <div class="rounded-xl border border-red-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-red-300 font-semibold">${label("مستحق / متأخر", "Due / Overdue")}</div><div class="text-lg leading-tight font-black text-red-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "due").length}</div></div>
+      <div class="rounded-xl border border-emerald-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-emerald-300 font-semibold">${label("ساري ومجدول", "Scheduled")}</div><div class="text-lg leading-tight font-black text-emerald-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "upcoming").length}</div></div>
+      <div class="rounded-xl border border-amber-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-amber-300 font-semibold">${label("بانتظار التنفيذ", "Awaiting First Run")}</div><div class="text-lg leading-tight font-black text-amber-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "never").length}</div></div>
+    </div>
+  `;
   const tabsNavHtml = `
-    <div class="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-2 border-b border-gray-800 pb-3" dir="${isEn() ? "ltr" : "rtl"}">
+    <div class="mb-3 grid grid-cols-3 gap-1.5" dir="${isEn() ? "ltr" : "rtl"}">
       <button
         type="button"
         id="tabBtnPlans"
         onclick="window.switchPmTab('plans')"
-        class="min-h-12 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex flex-col sm:flex-row items-center justify-center gap-1 rounded-xl border-2 px-1.5 py-2 text-[11px] sm:text-xs font-bold leading-tight text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
       >
         <span>📋</span>
         <span>${label("خطط PM الدورية للماكينات", "Periodic PM Plans")}</span>
@@ -1000,6 +988,7 @@ function renderPmOrders() {
 
   container.innerHTML = `
     <div class="text-start" dir="${isEn() ? "ltr" : "rtl"}">
+      ${pmDashboardHtml}
       ${tabsNavHtml}
       ${errorBanner}
       ${contentHtml}
