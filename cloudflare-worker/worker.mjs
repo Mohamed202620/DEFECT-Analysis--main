@@ -772,7 +772,7 @@ export default {
   async fetch(request, env) {
     let cors = {};
     try {
-      const path = new URL(request.url).pathname.replace(/^\\/+|\\/+$/g, "");
+      const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
 
       // Health is a lightweight liveness/config check: never parse or expose secrets here.
       if (request.method === "GET" && path === "health") {
