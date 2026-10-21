@@ -387,7 +387,9 @@ service cloud.firestore {
                         request.auth.uid == userId
                         && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
                              "phone", "approvedBy", "approvedAt", "approvedByUid",
-                             "migratedFromId", "migratedAt", "password", "passwordHash", "salt", "code"
+                             "migratedFromId", "migratedAt", "password", "passwordHash", "salt", "code",
+                             "leaveBalance", "shift", "shiftColor", "shiftStartDate", "shiftStart", "shiftEnd",
+                             "job", "department", "name"
                            ])
                         && request.resource.data.role == resource.data.role
                         && request.resource.data.status == resource.data.status
