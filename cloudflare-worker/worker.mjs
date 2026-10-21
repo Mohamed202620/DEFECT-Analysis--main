@@ -919,17 +919,57 @@ async function resetPasswordWithEmployeeCode(data, request, env) {
 }
 
 // ---------- CORS + التوجيه ----------
+// Secrets pasted in dashboards often arrive wrapped in quotes, double-encoded or base64-encoded,
+// and the private key may carry literal "\\n" sequences. Decode all of these without ever
+// throwing, logging or returning the raw value: the result is used only for validation/signing.
+function decodeServiceAccount(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const parseJson = (text) => {
+    const parsed = JSON.parse(text);
+    if (typeof parsed !== "string") return parsed;
+    try { return JSON.parse(parsed); } catch { return parsed; }
+  };
+  const candidate = raw.trim();
+  const wrapped = /^(['"])([\s\S]*)\1$/.exec(candidate);
+  const attempts = wrapped ? [candidate, wrapped[2].trim()] : [candidate];
+  let account = null;
+  for (const attempt of attempts) {
+    try { account = parseJson(attempt); break; } catch { /* try next form */ }
+  }
+  if (!account || typeof account === "string") {
+    const base64 = (wrapped ? wrapped[2] : candidate).replace(/\s/g, "");
+    if (/^[A-Za-z0-9+/]*={0,2}$/.test(base64) && base64.length % 4 !== 1) {
+      try { account = parseJson(new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)))); } catch { account = null; }
+    }
+  }
+  if (!account || typeof account !== "object" || Array.isArray(account)) return null;
+  if (typeof account.private_key === "string") {
+    account = {
+      ...account,
+      private_key: account.private_key.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\\r/g, "\n")
+    };
+  }
+  return account;
+}
+
+// Single source of truth for "is this service account usable for this project?".
+// Used by both the /health diagnostics and the runtime signer, so they can never disagree.
+function isServiceAccountForProject(account, projectId) {
+  return Boolean(account)
+    && account.type === "service_account"
+    && Boolean(projectId)
+    && account.project_id === projectId
+    && typeof account.client_email === "string"
+    && account.client_email.endsWith(`@${projectId}.iam.gserviceaccount.com`)
+    && typeof account.private_key === "string"
+    && account.private_key.includes("-----BEGIN PRIVATE KEY-----")
+    && account.private_key.includes("-----END PRIVATE KEY-----");
+}
+
 function parseServiceAccount(env) {
-  let serviceAccount;
-  try { serviceAccount = JSON.parse(env.SERVICE_ACCOUNT_JSON); }
-  catch { throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (SERVICE_ACCOUNT_JSON)."); }
-  if (
-    serviceAccount.type !== "service_account" ||
-    serviceAccount.project_id !== env.FIREBASE_PROJECT_ID ||
-    typeof serviceAccount.client_email !== "string" ||
-    !serviceAccount.client_email.endsWith(`@${env.FIREBASE_PROJECT_ID}.iam.gserviceaccount.com`) ||
-    typeof serviceAccount.private_key !== "string"
-  ) {
+  const serviceAccount = decodeServiceAccount(env.SERVICE_ACCOUNT_JSON);
+  if (!serviceAccount) throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (SERVICE_ACCOUNT_JSON).");
+  if (!isServiceAccountForProject(serviceAccount, env.FIREBASE_PROJECT_ID)) {
     throw new HttpError(500, "INTERNAL", "حساب خدمة Worker يجب أن يخص مشروع Firebase المحدد.");
   }
   return serviceAccount;
@@ -1019,59 +1059,52 @@ export default {
     let cors = {};
     try {
       const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
-      // Public health response must contain diagnostics only. Never serialize secrets or parsed credentials.
+      // Public health response: safe booleans + non-secret identifiers only.
+      // Never serialize, log or echo SERVICE_ACCOUNT_JSON, private keys or any parsed credential.
       if (request.method === "GET" && path === "health") {
-        const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
-        const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
-        const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
+        const text = (value) => (typeof value === "string" ? value.trim() : "");
+        // Echo identifiers only when they look like identifiers, so a mis-pasted secret in a plain
+        // variable can never be reflected to the public.
+        const safeId = (value) => (/^[a-z0-9][a-z0-9-]{0,62}$/.test(value) ? value : null);
+        const environment = text(env?.FIREBASE_ENV);
+        const projectId = text(env?.FIREBASE_PROJECT_ID);
+        const hostingSite = text(env?.FIREBASE_HOSTING_SITE);
         const rawServiceAccount = typeof env?.SERVICE_ACCOUNT_JSON === "string" ? env.SERVICE_ACCOUNT_JSON : "";
-        let serviceAccountValid = false;
-        if (rawServiceAccount && projectId) {
-          try {
-            const account = JSON.parse(rawServiceAccount);
-            serviceAccountValid = account !== null
-              && account.type === "service_account"
-              && account.project_id === projectId
-              && typeof account.client_email === "string"
-              && account.client_email.endsWith(`@${projectId}.iam.gserviceaccount.com`)
-              && typeof account.private_key === "string"
-              && account.private_key.includes("-----BEGIN PRIVATE KEY-----");
-          } catch {
-            serviceAccountValid = false;
-          }
-        }
-        const origins = typeof env?.ALLOWED_ORIGINS === "string"
-          ? env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)
-          : [];
+        const origins = text(env?.ALLOWED_ORIGINS).split(",").map((value) => value.trim()).filter(Boolean);
         const hostingOrigin = hostingSite ? `https://${hostingSite}.web.app` : "";
-        const identityValid = environment === "production"
-          && projectId === PRODUCTION_FIREBASE_PROJECT_ID
-          && hostingSite === PRODUCTION_HOSTING_SITE;
-        const allowedOriginsValid = origins.length > 0
-          && origins.includes(hostingOrigin)
-          && origins.every((origin) => {
-            try { const parsed = new URL(origin); return parsed.protocol === "https:" && parsed.origin === origin; }
-            catch { return false; }
-          });
-        const ok = identityValid && serviceAccountValid && allowedOriginsValid;
+
+        const diagnostics = {
+          environmentPresent: Boolean(environment),
+          environmentValid: environment === "production",
+          projectIdPresent: Boolean(projectId),
+          projectIdValid: projectId === PRODUCTION_FIREBASE_PROJECT_ID,
+          hostingSitePresent: Boolean(hostingSite),
+          hostingSiteValid: hostingSite === PRODUCTION_HOSTING_SITE,
+          serviceAccountConfigured: Boolean(rawServiceAccount.trim()),
+          serviceAccountJsonValid: isServiceAccountForProject(decodeServiceAccount(rawServiceAccount), projectId),
+          allowedOriginsPresent: origins.length > 0,
+          allowedOriginsValid: origins.length > 0
+            && origins.includes(hostingOrigin)
+            && origins.every((origin) => {
+              try { const parsed = new URL(origin); return parsed.protocol === "https:" && parsed.origin === origin; }
+              catch { return false; }
+            })
+        };
+        // Root status is derived from the very same flags that are returned, so it is true
+        // exactly when every individual check is true.
+        const ok = diagnostics.environmentValid
+          && diagnostics.projectIdValid
+          && diagnostics.hostingSiteValid
+          && diagnostics.serviceAccountConfigured
+          && diagnostics.serviceAccountJsonValid
+          && diagnostics.allowedOriginsValid;
         cors = corsHeaders(request, origins);
         return json({
           ok,
-          environment: environment || null,
-          projectId: projectId || null,
-          hostingSite: hostingSite || null,
-          diagnostics: {
-            environmentPresent: Boolean(environment),
-            environmentValid: environment === "production",
-            projectIdPresent: Boolean(projectId),
-            projectIdValid: projectId === PRODUCTION_FIREBASE_PROJECT_ID,
-            hostingSitePresent: Boolean(hostingSite),
-            hostingSiteValid: hostingSite === PRODUCTION_HOSTING_SITE,
-            serviceAccountConfigured: Boolean(rawServiceAccount),
-            serviceAccountJsonValid: serviceAccountValid,
-            allowedOriginsPresent: origins.length > 0,
-            allowedOriginsValid
-          }
+          environment: safeId(environment),
+          projectId: safeId(projectId),
+          hostingSite: safeId(hostingSite),
+          diagnostics
         }, 200, cors);
       }
 
