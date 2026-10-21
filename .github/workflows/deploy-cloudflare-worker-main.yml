@@ -34,8 +34,30 @@ jobs:
 
       - name: Verify production Worker health and project
         run: |
+          # Never print the response body: a misconfigured/old Worker must not leak secrets into Actions logs.
           body="$(curl -fsS --retry 5 --retry-delay 3 https://odd-sun-fab8.mom379339.workers.dev/health)"
-          echo "$body"
-          echo "$body" | grep -q '"environment":"production"'
-          echo "$body" | grep -q '"projectId":"maintenance-defect-system"'
-          echo "$body" | grep -q '"hostingSite":"maintenance-defect-system"'
+          printf '%s' "$body" | node -e '
+            let raw = "";
+            process.stdin.setEncoding("utf8");
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              let data;
+              try { data = JSON.parse(raw); } catch { console.error("Health check returned invalid JSON (body suppressed)."); process.exit(1); }
+              const valid = data && data.environment === "production"
+                && data.projectId === "maintenance-defect-system"
+                && data.hostingSite === "maintenance-defect-system"
+                && data.ok === true
+                && data.diagnostics && data.diagnostics.serviceAccountConfigured === true
+                && data.diagnostics.serviceAccountJsonValid === true;
+              if (!valid) {
+                console.error("Production health check failed. Safe diagnostics:", JSON.stringify({
+                  ok: data?.ok,
+                  environment: data?.environment,
+                  projectId: data?.projectId,
+                  hostingSite: data?.hostingSite,
+                  diagnostics: data?.diagnostics
+                }));
+                process.exit(1);
+              }
+            });
+          '
