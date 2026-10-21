@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "odd-sun-fab8",
+  "main": "cloudflare-worker/worker.mjs",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "keep_vars": true,
+  "observability": {
+    "enabled": true
+  }
+}
