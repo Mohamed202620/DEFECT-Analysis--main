@@ -168,7 +168,15 @@ await t("health + CORS لنطاق مسموح فقط", async () => {
     ok: true,
     environment: "production",
     projectId: PID,
-    hostingSite: PID
+    hostingSite: PID,
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: true,
+      allowedOriginsPresent: true
+    }
   });
   assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
@@ -191,43 +199,100 @@ await t("Worker dev requires a separate project and Hosting origin", async () =>
   const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
   assert.equal(ready.status, 200);
   assert.deepEqual(await ready.json(), {
-    ok: true,
+    ok: false,
     environment: "development",
     projectId: "dev-sandbox-2026",
-    hostingSite: "dev-sandbox-2026"
+    hostingSite: "dev-sandbox-2026",
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: true,
+      allowedOriginsPresent: true
+    }
   });
 
   const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
     ...devEnv,
     ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
   });
-  assert.equal(productionOrigin.status, 500);
+  assert.equal(productionOrigin.status, 200);
+  assert.deepEqual(await productionOrigin.json(), {
+    ok: false,
+    environment: "development",
+    projectId: "dev-sandbox-2026",
+    hostingSite: "dev-sandbox-2026",
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: true,
+      allowedOriginsPresent: true
+    }
+  });
 });
 await t("incomplete or mixed Worker project configuration fails closed", async () => {
   const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
     ALLOWED_ORIGINS: ""
   });
-  assert.equal(noOrigins.status, 500);
+  assert.equal(noOrigins.status, 200);
+  assert.deepEqual(await noOrigins.json(), {
+    ok: false,
+    environment: "production",
+    projectId: PID,
+    hostingSite: PID,
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: true,
+      allowedOriginsPresent: false
+    }
+  });
 
   const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
     SERVICE_ACCOUNT_JSON: "{invalid-secret-json"
   });
-  // Health must not parse credentials or fail because a secret is malformed.
   assert.equal(mixedProject.status, 200);
   assert.deepEqual(await mixedProject.json(), {
-    ok: true,
+    ok: false,
     environment: "production",
     projectId: PID,
-    hostingSite: PID
+    hostingSite: PID,
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: false,
+      allowedOriginsPresent: true
+    }
   });
 
   const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
     FIREBASE_ENV: "development"
   });
-  assert.equal(devOnProduction.status, 500);
+  assert.equal(devOnProduction.status, 200);
+  assert.deepEqual(await devOnProduction.json(), {
+    ok: false,
+    environment: "development",
+    projectId: PID,
+    hostingSite: PID,
+    diagnostics: {
+      environmentPresent: true,
+      projectIdPresent: true,
+      hostingSitePresent: true,
+      serviceAccountSecretPresent: true,
+      serviceAccountJsonValid: true,
+      allowedOriginsPresent: true
+    }
+  });
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
