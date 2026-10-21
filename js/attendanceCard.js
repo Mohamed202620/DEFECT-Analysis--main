@@ -1607,26 +1607,12 @@ export async function exportMonthlySalaryPDF(options = {}) {
 }
 
 /**
- * فحص ما إذا كان الشهر الحالي مختلفاً عن last_pdf_export
- * وتوليد ملف الـ PDF تلقائياً في حال الاختلاف وعند تسجيل الدخول فقط
+ * التصدير التلقائي لملف PDF معطّل عمداً.
+ * تنزيل تقارير الحضور والمرتبات يتم فقط بطلب صريح من المستخدم عبر زر التصدير.
+ * تم الإبقاء على الدالة للتوافق مع أي استدعاءات قديمة.
  */
 export function checkAndAutoExportMonthlyPDF() {
-  try {
-    if (typeof localStorage === "undefined") return;
-    const isLoggedIn = localStorage.getItem("phone") || localStorage.getItem("userId");
-    if (!isLoggedIn) return;
-
-    const now = new Date();
-    const currentMonth = String(now.getMonth() + 1);
-    const currentYear = String(now.getFullYear());
-    const lastExport = localStorage.getItem("last_pdf_export");
-
-    if (lastExport !== currentMonth && lastExport !== `${currentMonth}-${currentYear}`) {
-      exportMonthlySalaryPDF({ skipPinCheck: true, isAuto: true });
-    }
-  } catch (e) {
-    console.error("[AttendanceCard] فشل فحص التصدير التلقائي لـ PDF:", e);
-  }
+  return false;
 }
 
 export const generateSalaryPDF = exportMonthlySalaryPDF;
@@ -1843,9 +1829,6 @@ function maskMoney(value, unlocked) {
 }
 
 export function renderAttendanceCard(customProfile = null) {
-  // فحص ما إذا كان هناك حاجة للتصدير التلقائي لـ PDF عند تحميل كارت الحضور
-  checkAndAutoExportMonthlyPDF();
-
   const userId = customProfile?.userId || localStorage.getItem("userId") || "local_user";
   const name = customProfile?.name || localStorage.getItem("name") || "أحمد محمد";
   const job = customProfile?.job || localStorage.getItem("job") || "فني صيانة";
@@ -2136,18 +2119,7 @@ if (typeof window !== "undefined") {
   window.generateSalaryPDF = exportMonthlySalaryPDF;
   window.checkAndAutoExportMonthlyPDF = checkAndAutoExportMonthlyPDF;
 
-  // فحص التصدير التلقائي لـ PDF عند تحميل الصفحة / السكريبت
-  try {
-    if (typeof document !== "undefined" && document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => {
-        checkAndAutoExportMonthlyPDF();
-      });
-    } else {
-      checkAndAutoExportMonthlyPDF();
-    }
-  } catch (e) {
-    checkAndAutoExportMonthlyPDF();
-  }
+  // التصدير التلقائي لملفات PDF معطّل؛ التصدير يدوي فقط من أزرار التقرير.
 
   // تحميل مبدئي غير معطِّل للإعدادات (Pattern/قواعد الإضافي) عشان
   // أول رسم للكارت (متزامن) يستخدم أحدث كاش متاح بمجرد اكتماله -
