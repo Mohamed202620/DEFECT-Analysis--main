@@ -25,6 +25,7 @@
 // الوضع الحالي، مش بديل كامل لـ Push الحقيقي.
 // ============================================================
 
+import { ensurePushSubscription } from './pushSubscription.js';
 import { subscribeToMyNotificationsApi, markNotificationReadApi, clearLiveNotificationsCache } from './services/api.js';
 
 const SEEN_IDS_KEY_PREFIX = "pushNotif_seenIds_";
@@ -151,6 +152,8 @@ export function initBrowserNotifications() {
     }
   });
 
+  // Web Push for when the app is closed (best effort, no-op if unsupported/not configured)
+  ensurePushSubscription();
 }
 
 /**
