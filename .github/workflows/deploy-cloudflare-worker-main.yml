@@ -30,8 +30,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Explicitly target the production Worker; preserve dashboard variables.
-          command: deploy --keep-vars --name odd-sun-fab8
+          command: deploy cloudflare-worker/worker.mjs --keep-vars --name odd-sun-fab8
 
       - name: Verify production Worker health and project
         run: |
