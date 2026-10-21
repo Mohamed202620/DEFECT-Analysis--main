@@ -30,7 +30,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy cloudflare-worker/worker.mjs --keep-vars --name odd-sun-fab8
+          command: deploy cloudflare-worker/worker.mjs --keep-vars --name odd-sun-fab8 --compatibility-date 2026-10-12
 
       - name: Verify production Worker health and project
         run: |
