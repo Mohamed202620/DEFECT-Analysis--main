@@ -774,20 +774,41 @@ export default {
     try {
       const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
 
-      // Health is a lightweight liveness/config check: never parse or expose secrets here.
+      // Health validates public deployment settings only. Never parse service-account
+      // JSON, initialize Firebase credentials, or include secrets in the response.
       if (request.method === "GET" && path === "health") {
         const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
         const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
         const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
-        const configured = environment === "production"
-          && projectId === PRODUCTION_FIREBASE_PROJECT_ID
-          && hostingSite === PRODUCTION_HOSTING_SITE;
+        const origins = typeof env?.ALLOWED_ORIGINS === "string"
+          ? env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)
+          : [];
+        let configured = /^(development|production)$/.test(environment)
+          && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)
+          && /^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/.test(hostingSite)
+          && origins.length > 0
+          && origins.every((origin) => {
+            try { const parsed = new URL(origin); return parsed.protocol === "https:" && parsed.origin === origin; }
+            catch { return false; }
+          })
+          && origins.includes(`https://${hostingSite}.web.app`);
+        if (environment === "production") {
+          configured = configured && projectId === PRODUCTION_FIREBASE_PROJECT_ID
+            && hostingSite === PRODUCTION_HOSTING_SITE;
+        } else {
+          configured = configured && projectId !== PRODUCTION_FIREBASE_PROJECT_ID
+            && hostingSite !== PRODUCTION_HOSTING_SITE
+            && hostingSite !== "my-dev-2026"
+            && !origins.some((origin) => PRODUCTION_ORIGINS.includes(origin));
+        }
+        const origin = request.headers.get("Origin") || "";
+        const healthCors = origins.includes(origin) ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {};
         return json({
           ok: configured,
           environment: environment || "unknown",
           projectId: projectId || null,
           hostingSite: hostingSite || null
-        }, configured ? 200 : 503, {});
+        }, configured ? 200 : 500, healthCors);
       }
 
       const workerConfig = validateWorkerEnvironment(env);
