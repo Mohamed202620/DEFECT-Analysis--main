@@ -161,6 +161,19 @@ const secretOf = (uid) => store.get(`userSecrets/${uid}`);
 
 console.log("المصادقة");
 baseSetup();
+const allOk = {
+  allowedOriginsPresent: true, allowedOriginsValid: true,
+  environmentPresent: true, environmentValid: true,
+  hostingSitePresent: true, hostingSiteValid: true,
+  projectIdPresent: true, projectIdValid: true,
+  serviceAccountConfigured: true, serviceAccountJsonValid: true
+};
+// Any non-health request validates the full configuration and must fail closed (500) when it is wrong.
+const apiStatus = async (e) => (await worker.fetch(new Request("https://w.example/deleteUserAccount", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Origin: ORIGIN },
+  body: JSON.stringify({ data: { userId: "x" } })
+}), e)).status;
 await t("health + CORS لنطاق مسموح فقط", async () => {
   const r = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: ORIGIN } }), env);
   assert.equal(r.status, 200);
@@ -168,7 +181,8 @@ await t("health + CORS لنطاق مسموح فقط", async () => {
     ok: true,
     environment: "production",
     projectId: PID,
-    hostingSite: PID
+    hostingSite: PID,
+    diagnostics: allOk
   });
   assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
@@ -188,29 +202,30 @@ await t("Worker dev requires a separate project and Hosting origin", async () =>
       private_key: saPem
     })
   };
+  // /health is a public diagnostic: it reports the state (200) but is only ok:true for the production Worker.
   const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
   assert.equal(ready.status, 200);
   assert.deepEqual(await ready.json(), {
-    ok: true,
+    ok: false,
     environment: "development",
     projectId: "dev-sandbox-2026",
-    hostingSite: "dev-sandbox-2026"
+    hostingSite: "dev-sandbox-2026",
+    diagnostics: { ...allOk, environmentValid: false, projectIdValid: false, hostingSiteValid: false }
   });
-
-  const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
-    ...devEnv,
-    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
-  });
-  assert.equal(productionOrigin.status, 500);
+  // A valid dev configuration still serves API requests (not a config error).
+  assert.notEqual(await apiStatus(devEnv), 500);
+  // Production origin mixed into the dev Worker fails closed on API requests.
+  assert.equal(await apiStatus({ ...devEnv, ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app" }), 500);
 });
 await t("incomplete or mixed Worker project configuration fails closed", async () => {
-  const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
-    ...env,
-    ALLOWED_ORIGINS: ""
-  });
-  assert.equal(noOrigins.status, 500);
+  const noOrigins = await worker.fetch(new Request("https://w.example/health"), { ...env, ALLOWED_ORIGINS: "" });
+  assert.equal(noOrigins.status, 200);
+  const noOriginsBody = await noOrigins.json();
+  assert.equal(noOriginsBody.ok, false);
+  assert.equal(noOriginsBody.diagnostics.allowedOriginsValid, false);
+  assert.equal(await apiStatus({ ...env, ALLOWED_ORIGINS: "" }), 500);
 
-  const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
+  const mixedEnv = {
     ...env,
     SERVICE_ACCOUNT_JSON: JSON.stringify({
       type: "service_account",
@@ -218,14 +233,18 @@ await t("incomplete or mixed Worker project configuration fails closed", async (
       client_email: "sa@another-project.iam.gserviceaccount.com",
       private_key: saPem
     })
-  });
-  assert.equal(mixedProject.status, 500);
+  };
+  const mixed = await (await worker.fetch(new Request("https://w.example/health"), mixedEnv)).json();
+  assert.equal(mixed.ok, false);
+  assert.equal(mixed.diagnostics.serviceAccountJsonValid, false);
+  assert.equal(await apiStatus(mixedEnv), 500);
 
-  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
-    ...env,
-    FIREBASE_ENV: "development"
-  });
-  assert.equal(devOnProduction.status, 500);
+  const devOnProduction = await (await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: "development" })).json();
+  assert.equal(devOnProduction.ok, false);
+  assert.equal(devOnProduction.diagnostics.environmentValid, false);
+  assert.equal(await apiStatus({ ...env, FIREBASE_ENV: "development" }), 500);
+  // The public response never leaks the credential.
+  assert.ok(!JSON.stringify(mixed).includes("BEGIN PRIVATE KEY"));
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
