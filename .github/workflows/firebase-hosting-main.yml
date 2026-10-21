@@ -8,6 +8,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Requires the GitHub Environment "production" (Settings > Environments) with required
+    # reviewers, so the deploy credential is released only after manual approval.
+    environment: production
     permissions:
       contents: read
 
