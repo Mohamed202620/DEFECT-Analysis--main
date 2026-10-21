@@ -772,12 +772,28 @@ export default {
   async fetch(request, env) {
     let cors = {};
     try {
+      const path = new URL(request.url).pathname.replace(/^\\/+|\\/+$/g, "");
+
+      // Health is a lightweight liveness/config check: never parse or expose secrets here.
+      if (request.method === "GET" && path === "health") {
+        const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
+        const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
+        const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
+        const configured = environment === "production"
+          && projectId === PRODUCTION_FIREBASE_PROJECT_ID
+          && hostingSite === PRODUCTION_HOSTING_SITE;
+        return json({
+          ok: configured,
+          environment: environment || "unknown",
+          projectId: projectId || null,
+          hostingSite: hostingSite || null
+        }, configured ? 200 : 503, {});
+      }
+
       const workerConfig = validateWorkerEnvironment(env);
       cors = corsHeaders(request, workerConfig.allowedOrigins);
-      const path = new URL(request.url).pathname.replace(/^\/+|\/+$/g, "");
-
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-      if (request.method === "GET" && (path === "" || path === "health")) {
+      if (request.method === "GET" && path === "") {
         return json({
           ok: true,
           environment: workerConfig.environment,
