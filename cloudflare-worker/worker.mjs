@@ -1018,14 +1018,53 @@ export default {
   async fetch(request, env) {
     let cors = {};
     try {
-      // CORS first: otherwise a config error is shown by the browser as an opaque CORS failure.
-      cors = corsHeaders(request, String(env.ALLOWED_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean));
+      const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
+      // Health is independent of strict startup validation and never exposes secret values.
+      if (request.method === "GET" && path === "health") {
+        const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
+        const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
+        const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
+        const rawServiceAccount = typeof env?.SERVICE_ACCOUNT_JSON === "string" ? env.SERVICE_ACCOUNT_JSON : "";
+        let serviceAccountValid = false;
+        if (rawServiceAccount) {
+          try {
+            const account = JSON.parse(rawServiceAccount);
+            serviceAccountValid = account?.type === "service_account"
+              && typeof account?.client_email === "string"
+              && account.client_email.endsWith(`@${projectId}.iam.gserviceaccount.com`)
+              && typeof account?.private_key === "string"
+              && account.project_id === projectId;
+          } catch { serviceAccountValid = false; }
+        }
+        const origins = typeof env?.ALLOWED_ORIGINS === "string"
+          ? env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)
+          : [];
+        const identityValid = environment === "production"
+          && projectId === PRODUCTION_FIREBASE_PROJECT_ID
+          && hostingSite === PRODUCTION_HOSTING_SITE;
+        cors = corsHeaders(request, origins);
+        return json({
+          ok: identityValid && serviceAccountValid && origins.length > 0,
+          environment: environment || null,
+          projectId: projectId || null,
+          hostingSite: hostingSite || null,
+          diagnostics: {
+            environmentPresent: Boolean(environment),
+            projectIdPresent: Boolean(projectId),
+            hostingSitePresent: Boolean(hostingSite),
+            serviceAccountSecretPresent: Boolean(rawServiceAccount),
+            serviceAccountJsonValid: serviceAccountValid,
+            allowedOriginsPresent: origins.length > 0
+          }
+        }, 200, cors);
+      }
+
+      // Validate full application configuration only for application/API requests.
+      cors = corsHeaders(request, String(env?.ALLOWED_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean));
       const workerConfig = validateWorkerEnvironment(env);
       cors = corsHeaders(request, workerConfig.allowedOrigins);
-      const path = new URL(request.url).pathname.replace(/^\/+|\/+$/g, "");
-
       if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-      if (request.method === "GET" && (path === "" || path === "health")) {
+      if (request.method === "GET" && path === "") {
         return json({
           ok: true,
           environment: workerConfig.environment,
