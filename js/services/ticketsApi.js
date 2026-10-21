@@ -45,7 +45,8 @@ import {
   limit,
   onSnapshot,
   writeBatch,
-  getCountFromServer
+  getCountFromServer,
+  callCloudFunction
 } from "../providers/backend/index.js";
 
 // ============================================================
@@ -1340,10 +1341,22 @@ async function notifyShiftUpdate(ticketId, ticket, update) {
   }
 }
 
+let pushSendBackoffUntil = 0;
+// Best-effort Web Push (app-closed alerts). Never throws, never blocks the workflow.
+function triggerPushForNotification(notificationId, forUid) {
+  try {
+    if (!notificationId || forUid === localStorage.getItem("userId")) return;
+    if (navigator.onLine === false || Date.now() < pushSendBackoffUntil) return;
+    callCloudFunction("sendPushNotification", { notificationId }).catch(() => {
+      pushSendBackoffUntil = Date.now() + 10 * 60 * 1000;
+    });
+  } catch (_) { /* ignore */ }
+}
+
 async function createNotification(forUid, { type, message, ticketId }) {
   if (!forUid) return;
   try {
-    await addDoc(collection(db, "notifications"), {
+    const notifRef = await addDoc(collection(db, "notifications"), {
       forUid,
       type,
       // الحد 500 حرف مطابق لقاعدة Firestore (notifications.create)
@@ -1353,6 +1366,7 @@ async function createNotification(forUid, { type, message, ticketId }) {
       createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
     });
+    triggerPushForNotification(notifRef && notifRef.id, forUid);
   } catch (error) {
     console.error("Error creating notification:", error);
   }
