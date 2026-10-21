@@ -273,6 +273,16 @@ await t("incomplete or mixed Worker project configuration fails closed", async (
   assert.ok(!junkRaw.includes("AIzaSy"), "non-identifier value echoed");
   assert.equal(JSON.parse(junkRaw).ok, false);
 });
+await t("health: FIREBASE_ENV بعلامات اقتباس أو حروف كبيرة يُقبل، وقيمة غير معروفة تُرفض", async () => {
+  for (const v of ['"production"', "'production'", "Production", " production "]) {
+    const r = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: v });
+    assert.deepEqual(await r.json(), healthBody(true, "production", PID, PID), `FIREBASE_ENV=${v}`);
+  }
+  const bad = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: "staging" });
+  assert.equal((await bad.json()).ok, false);
+  const api = await call("deleteUserAccount", { userId: "x" }, "");
+  assert.equal(api.status, 401);
+});
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
   const fake = await crypto.subtle.generateKey(algo, true, ["sign", "verify"]);
