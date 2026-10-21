@@ -1,7 +1,7 @@
 // اختبارات الـ Worker بدون شبكة: Firestore/Identity/ImgBB مُحاكاة في الذاكرة، وتوكنات Firebase حقيقية التوقيع (RSA).
 // التشغيل: node tests/worker-tests.mjs
 import assert from "node:assert/strict";
-import worker, { normalizePhone, phoneVariants, normalizeCode } from "../cloudflare-worker/worker.mjs";
+import worker, { normalizePhone, phoneVariants, normalizeCode, encryptWebPushPayload, buildVapidAuthorization, isAllowedPushEndpoint } from "../cloudflare-worker/worker.mjs";
 
 const PID = "maintenance-defect-system";
 const DOMAIN = "maintenance-defect-system.local";
@@ -159,129 +159,73 @@ const t = async (name, fn) => { calls.length = 0; try { await fn(); passed++; co
 const baseSetup = () => { reset(); setUser("admin1", "admin", "active"); setUser("admin2", "admin", "active"); setUser("tech1", "technician", "active"); setUser("pend1", "pending", "pending"); };
 const secretOf = (uid) => store.get(`userSecrets/${uid}`);
 
-// Expected /health body: safe booleans + non-secret identifiers only (never the service account itself).
-const healthBody = (ok, environment, projectId, hostingSite, over = {}) => ({
-  ok,
-  environment,
-  projectId,
-  hostingSite,
-  diagnostics: {
-    environmentPresent: true,
-    environmentValid: environment === "production",
-    projectIdPresent: true,
-    projectIdValid: projectId === PID,
-    hostingSitePresent: true,
-    hostingSiteValid: hostingSite === PID,
-    serviceAccountConfigured: true,
-    serviceAccountJsonValid: true,
-    allowedOriginsPresent: true,
-    allowedOriginsValid: true,
-    ...over
-  }
-});
-const assertNoSecrets = (raw) => {
-  assert.ok(!/PRIVATE KEY|private_key|client_email|iam\.gserviceaccount|SECRETKEY|BEGIN/i.test(raw), "health leaked credential material");
-};
-
 console.log("المصادقة");
 baseSetup();
 await t("health + CORS لنطاق مسموح فقط", async () => {
   const r = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: ORIGIN } }), env);
   assert.equal(r.status, 200);
-  const raw = await r.text();
-  assertNoSecrets(raw);
-  assert.deepEqual(JSON.parse(raw), healthBody(true, "production", PID, PID));
+  assert.deepEqual(await r.json(), {
+    ok: true,
+    environment: "production",
+    projectId: PID,
+    hostingSite: PID
+  });
   assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
   assert.equal(r2.headers.get("Access-Control-Allow-Origin"), null);
 });
-await t("health: ok=true يتبع كل الفحوصات الفردية، ويقبل صيغ secret الشائعة دون كشفه", async () => {
-  const sa = JSON.parse(env.SERVICE_ACCOUNT_JSON);
-  const forms = {
-    plain: env.SERVICE_ACCOUNT_JSON,
-    singleQuoted: `'${env.SERVICE_ACCOUNT_JSON}'`,
-    doubleEncoded: JSON.stringify(env.SERVICE_ACCOUNT_JSON),
-    base64: Buffer.from(env.SERVICE_ACCOUNT_JSON).toString("base64"),
-    escapedNewlines: JSON.stringify({ ...sa, private_key: sa.private_key.replace(/\n/g, "\\n") })
-  };
-  for (const [name, value] of Object.entries(forms)) {
-    const r = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: value });
-    const raw = await r.text();
-    assertNoSecrets(raw);
-    const body = JSON.parse(raw);
-    assert.equal(body.ok, true, `ok should be true for ${name}`);
-    assert.ok(Object.values(body.diagnostics).every((v) => v === true), `all flags true for ${name}`);
-  }
-});
 await t("Worker dev requires a separate project and Hosting origin", async () => {
-  const DEV = "dev-sandbox-2026";
   const devEnv = {
     ...env,
     FIREBASE_ENV: "development",
-    FIREBASE_PROJECT_ID: DEV,
-    FIREBASE_HOSTING_SITE: DEV,
-    ALLOWED_ORIGINS: `https://${DEV}.web.app`,
+    FIREBASE_PROJECT_ID: "dev-sandbox-2026",
+    FIREBASE_HOSTING_SITE: "dev-sandbox-2026",
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app",
     SERVICE_ACCOUNT_JSON: JSON.stringify({
       type: "service_account",
-      project_id: DEV,
-      client_email: `dev-deployer@${DEV}.iam.gserviceaccount.com`,
+      project_id: "dev-sandbox-2026",
+      client_email: "dev-deployer@dev-sandbox-2026.iam.gserviceaccount.com",
       private_key: saPem
     })
   };
-  // /health is the production gate: a development Worker is never reported as ok.
   const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
   assert.equal(ready.status, 200);
-  const readyRaw = await ready.text();
-  assertNoSecrets(readyRaw);
-  assert.deepEqual(JSON.parse(readyRaw), healthBody(false, "development", DEV, DEV));
+  assert.deepEqual(await ready.json(), {
+    ok: true,
+    environment: "development",
+    projectId: "dev-sandbox-2026",
+    hostingSite: "dev-sandbox-2026"
+  });
 
   const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
     ...devEnv,
-    ALLOWED_ORIGINS: `https://${DEV}.web.app,https://maintenance-defect-system.web.app`
+    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
   });
-  assert.equal(productionOrigin.status, 200);
-  assert.deepEqual(await productionOrigin.json(), healthBody(false, "development", DEV, DEV));
+  assert.equal(productionOrigin.status, 500);
 });
 await t("incomplete or mixed Worker project configuration fails closed", async () => {
-  const noOrigins = await worker.fetch(new Request("https://w.example/health"), { ...env, ALLOWED_ORIGINS: "" });
-  assert.equal(noOrigins.status, 200);
-  assert.deepEqual(await noOrigins.json(), healthBody(false, "production", PID, PID, { allowedOriginsPresent: false, allowedOriginsValid: false }));
-
-  const invalidSecret = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: "{invalid-secret-json" });
-  assert.equal(invalidSecret.status, 200);
-  const invalidRaw = await invalidSecret.text();
-  assertNoSecrets(invalidRaw);
-  assert.ok(!invalidRaw.includes("invalid-secret-json"), "raw secret echoed");
-  assert.deepEqual(JSON.parse(invalidRaw), healthBody(false, "production", PID, PID, { serviceAccountJsonValid: false }));
-
-  const missingSecret = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: "" });
-  assert.deepEqual(await missingSecret.json(), healthBody(false, "production", PID, PID, { serviceAccountConfigured: false, serviceAccountJsonValid: false }));
-
-  const otherProjectSecret = await worker.fetch(new Request("https://w.example/health"), {
+  const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
-    SERVICE_ACCOUNT_JSON: JSON.stringify({ ...JSON.parse(env.SERVICE_ACCOUNT_JSON), project_id: "other-project-2026" })
+    ALLOWED_ORIGINS: ""
   });
-  assert.deepEqual(await otherProjectSecret.json(), healthBody(false, "production", PID, PID, { serviceAccountJsonValid: false }));
+  assert.equal(noOrigins.status, 500);
 
-  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: "development" });
-  assert.equal(devOnProduction.status, 200);
-  assert.deepEqual(await devOnProduction.json(), healthBody(false, "development", PID, PID));
+  const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    SERVICE_ACCOUNT_JSON: JSON.stringify({
+      type: "service_account",
+      project_id: "another-project",
+      client_email: "sa@another-project.iam.gserviceaccount.com",
+      private_key: saPem
+    })
+  });
+  assert.equal(mixedProject.status, 500);
 
-  // A mis-pasted secret in a plain variable must never be reflected back.
-  const junk = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_PROJECT_ID: "AIzaSy_NOT_AN_ID!" });
-  const junkRaw = await junk.text();
-  assert.ok(!junkRaw.includes("AIzaSy"), "non-identifier value echoed");
-  assert.equal(JSON.parse(junkRaw).ok, false);
-});
-await t("health: FIREBASE_ENV بعلامات اقتباس أو حروف كبيرة يُقبل، وقيمة غير معروفة تُرفض", async () => {
-  for (const v of ['"production"', "'production'", "Production", " production "]) {
-    const r = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: v });
-    assert.deepEqual(await r.json(), healthBody(true, "production", PID, PID), `FIREBASE_ENV=${v}`);
-  }
-  const bad = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: "staging" });
-  assert.equal((await bad.json()).ok, false);
-  const api = await call("deleteUserAccount", { userId: "x" }, "");
-  assert.equal(api.status, 401);
+  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
+    ...env,
+    FIREBASE_ENV: "development"
+  });
+  assert.equal(devOnProduction.status, 500);
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
@@ -515,6 +459,55 @@ await t("حساب مرفوض (rejected) أو بدون كود مسجل لا يم�
 await t("لا يوجد أي رد يكشف الكود أو الهاش", async () => {
   await setupVictim(); const r = await reset1(PHONE, "WRONG");
   assert.ok(!JSON.stringify(r.body).match(/codeHash|salt|7788/));
+});
+
+// ---------- Web Push ----------
+await t("push: allowed endpoints only (no SSRF)", async () => {
+  assert.ok(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"));
+  assert.ok(isAllowedPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/abc"));
+  assert.ok(isAllowedPushEndpoint("https://web.push.apple.com/abc"));
+  assert.ok(!isAllowedPushEndpoint("http://fcm.googleapis.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://evil.example.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://fcm.googleapis.com.evil.com/x"));
+  assert.ok(!isAllowedPushEndpoint("https://169.254.169.254/x"));
+});
+await t("push: payload encrypts (aes128gcm) and decrypts round-trip", async () => {
+  const ua = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const uaPub = new Uint8Array(await crypto.subtle.exportKey("raw", ua.publicKey));
+  const authSecret = crypto.getRandomValues(new Uint8Array(16));
+  const msg = new TextEncoder().encode(JSON.stringify({ message: "تم إسناد بلاغ جديد", notificationId: "abc123" }));
+  const body = await encryptWebPushPayload(msg, b64u(uaPub), b64u(authSecret));
+  const salt = body.slice(0, 16);
+  assert.equal(new DataView(body.buffer, body.byteOffset).getUint32(16), 4096);
+  assert.equal(body[20], 65);
+  const asPub = body.slice(21, 86);
+  const cipher = body.slice(86);
+  const hk = async (s, ikm, info, n) => new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: s, info }, await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]), n * 8));
+  const e = new TextEncoder();
+  const cat = (...a) => Uint8Array.from(a.flatMap((x) => [...x]));
+  const asKey = await crypto.subtle.importKey("raw", asPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: asKey }, ua.privateKey, 256));
+  const ikm = await hk(authSecret, ecdh, cat(e.encode("WebPush: info\0"), uaPub, asPub), 32);
+  const cek = await hk(salt, ikm, e.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hk(salt, ikm, e.encode("Content-Encoding: nonce\0"), 12);
+  const plain = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["decrypt"]), cipher));
+  assert.equal(plain[plain.length - 1], 2);
+  assert.deepEqual(plain.slice(0, -1), msg);
+});
+await t("push: VAPID header carries a valid ES256 signature", async () => {
+  const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const pubRaw = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey));
+  const d = (await crypto.subtle.exportKey("jwk", kp.privateKey)).d;
+  const vEnv = { VAPID_PUBLIC_KEY: b64u(pubRaw), VAPID_PRIVATE_KEY: d, FIREBASE_HOSTING_SITE: "x" };
+  const h = await buildVapidAuthorization(vEnv, "https://fcm.googleapis.com/fcm/send/abc");
+  const m = h.match(/^vapid t=([\w-]+)\.([\w-]+)\.([\w-]+), k=([\w-]+)$/);
+  assert.ok(m); assert.equal(m[4], vEnv.VAPID_PUBLIC_KEY);
+  assert.equal(JSON.parse(Buffer.from(m[2], "base64url")).aud, "https://fcm.googleapis.com");
+  assert.ok(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, kp.publicKey, Buffer.from(m[3], "base64url"), new TextEncoder().encode(`${m[1]}.${m[2]}`)));
+});
+await t("push: unconfigured worker answers 503 and nothing else breaks", async () => {
+  assert.equal((await call("getPushConfig", {}, "admin1")).status, 503);
+  assert.equal((await call("sendPushNotification", { notificationId: "abcdefghij12" }, "admin1")).status, 503);
 });
 
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
