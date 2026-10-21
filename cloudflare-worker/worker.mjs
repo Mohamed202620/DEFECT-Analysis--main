@@ -1042,9 +1042,11 @@ export default {
         const identityValid = environment === "production"
           && projectId === PRODUCTION_FIREBASE_PROJECT_ID
           && hostingSite === PRODUCTION_HOSTING_SITE;
+        const serviceAccountConfigured = serviceAccountValid;
+        const configured = identityValid && serviceAccountConfigured && origins.length > 0;
         cors = corsHeaders(request, origins);
         return json({
-          ok: identityValid && serviceAccountValid && origins.length > 0,
+          ok: configured,
           environment: environment || null,
           projectId: projectId || null,
           hostingSite: hostingSite || null,
@@ -1052,7 +1054,7 @@ export default {
             environmentPresent: Boolean(environment),
             projectIdPresent: Boolean(projectId),
             hostingSitePresent: Boolean(hostingSite),
-            serviceAccountSecretPresent: Boolean(rawServiceAccount),
+            serviceAccountConfigured,
             serviceAccountJsonValid: serviceAccountValid,
             allowedOriginsPresent: origins.length > 0
           }
