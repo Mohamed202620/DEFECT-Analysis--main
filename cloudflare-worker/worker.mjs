@@ -1019,44 +1019,58 @@ export default {
     let cors = {};
     try {
       const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
-      // Health is independent of strict startup validation and never exposes secret values.
+      // Public health response must contain diagnostics only. Never serialize secrets or parsed credentials.
       if (request.method === "GET" && path === "health") {
         const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
         const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
         const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
         const rawServiceAccount = typeof env?.SERVICE_ACCOUNT_JSON === "string" ? env.SERVICE_ACCOUNT_JSON : "";
         let serviceAccountValid = false;
-        if (rawServiceAccount) {
+        if (rawServiceAccount && projectId) {
           try {
             const account = JSON.parse(rawServiceAccount);
-            serviceAccountValid = account?.type === "service_account"
-              && typeof account?.client_email === "string"
+            serviceAccountValid = account !== null
+              && account.type === "service_account"
+              && account.project_id === projectId
+              && typeof account.client_email === "string"
               && account.client_email.endsWith(`@${projectId}.iam.gserviceaccount.com`)
-              && typeof account?.private_key === "string"
-              && account.project_id === projectId;
-          } catch { serviceAccountValid = false; }
+              && typeof account.private_key === "string"
+              && account.private_key.includes("-----BEGIN PRIVATE KEY-----");
+          } catch {
+            serviceAccountValid = false;
+          }
         }
         const origins = typeof env?.ALLOWED_ORIGINS === "string"
           ? env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)
           : [];
+        const hostingOrigin = hostingSite ? `https://${hostingSite}.web.app` : "";
         const identityValid = environment === "production"
           && projectId === PRODUCTION_FIREBASE_PROJECT_ID
           && hostingSite === PRODUCTION_HOSTING_SITE;
-        const serviceAccountConfigured = serviceAccountValid;
-        const configured = identityValid && serviceAccountConfigured && origins.length > 0;
+        const allowedOriginsValid = origins.length > 0
+          && origins.includes(hostingOrigin)
+          && origins.every((origin) => {
+            try { const parsed = new URL(origin); return parsed.protocol === "https:" && parsed.origin === origin; }
+            catch { return false; }
+          });
+        const ok = identityValid && serviceAccountValid && allowedOriginsValid;
         cors = corsHeaders(request, origins);
         return json({
-          ok: configured,
+          ok,
           environment: environment || null,
           projectId: projectId || null,
           hostingSite: hostingSite || null,
           diagnostics: {
             environmentPresent: Boolean(environment),
+            environmentValid: environment === "production",
             projectIdPresent: Boolean(projectId),
+            projectIdValid: projectId === PRODUCTION_FIREBASE_PROJECT_ID,
             hostingSitePresent: Boolean(hostingSite),
-            serviceAccountConfigured,
+            hostingSiteValid: hostingSite === PRODUCTION_HOSTING_SITE,
+            serviceAccountConfigured: Boolean(rawServiceAccount),
             serviceAccountJsonValid: serviceAccountValid,
-            allowedOriginsPresent: origins.length > 0
+            allowedOriginsPresent: origins.length > 0,
+            allowedOriginsValid
           }
         }, 200, cors);
       }
