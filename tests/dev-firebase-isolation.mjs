@@ -4,10 +4,16 @@ import { PRODUCTION_FIREBASE_CONFIG } from "../js/firebaseDefaults.js";
 import { validateProductionDeploymentConfig } from "../scripts/validate-production-deploy.mjs";
 
 let passed = 0;
+const pending = [];
 const test = (name, fn) => {
-  fn();
-  passed++;
-  console.log("  ✅", name);
+  pending.push(
+    Promise.resolve()
+      .then(fn)
+      .then(() => {
+        passed++;
+        console.log("  ✅", name);
+      })
+  );
 };
 
 console.log("Shared Firebase project for dev Hosting");
@@ -37,8 +43,11 @@ test("dev deploy targets the dev site in the existing project with its authorize
   for (const workflow of [devWorkflow, mainWorkflow]) {
     assert.match(workflow, /FIREBASE_SERVICE_ACCOUNT:\s*\$\{\{\s*secrets\.FIREBASE_SERVICE_ACCOUNT\s*\}\}/);
     assert.match(workflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
-    assert.doesNotMatch(workflow, /^\s{4}environment:/m);
   }
+  // Production Hosting must be gated by the GitHub "production" environment (runbook: approvals §3);
+  // the dev workflow must not use it, so dev pushes never wait on or consume production approval.
+  assert.match(mainWorkflow, /^  deploy:\n(?:.*\n)*?    environment: production$/m);
+  assert.doesNotMatch(devWorkflow, /^\s{4}environment:/m);
 });
 
 test("shared deploy credential must belong to the existing Firebase project", () => {
@@ -95,4 +104,5 @@ test("shared deploy credential must belong to the existing Firebase project", ()
   }
 });
 
+await Promise.all(pending);
 console.log(`Shared Firebase deployment tests: ${passed} passed`);
