@@ -159,140 +159,119 @@ const t = async (name, fn) => { calls.length = 0; try { await fn(); passed++; co
 const baseSetup = () => { reset(); setUser("admin1", "admin", "active"); setUser("admin2", "admin", "active"); setUser("tech1", "technician", "active"); setUser("pend1", "pending", "pending"); };
 const secretOf = (uid) => store.get(`userSecrets/${uid}`);
 
+// Expected /health body: safe booleans + non-secret identifiers only (never the service account itself).
+const healthBody = (ok, environment, projectId, hostingSite, over = {}) => ({
+  ok,
+  environment,
+  projectId,
+  hostingSite,
+  diagnostics: {
+    environmentPresent: true,
+    environmentValid: environment === "production",
+    projectIdPresent: true,
+    projectIdValid: projectId === PID,
+    hostingSitePresent: true,
+    hostingSiteValid: hostingSite === PID,
+    serviceAccountConfigured: true,
+    serviceAccountJsonValid: true,
+    allowedOriginsPresent: true,
+    allowedOriginsValid: true,
+    ...over
+  }
+});
+const assertNoSecrets = (raw) => {
+  assert.ok(!/PRIVATE KEY|private_key|client_email|iam\.gserviceaccount|SECRETKEY|BEGIN/i.test(raw), "health leaked credential material");
+};
+
 console.log("المصادقة");
 baseSetup();
 await t("health + CORS لنطاق مسموح فقط", async () => {
   const r = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: ORIGIN } }), env);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), {
-    ok: true,
-    environment: "production",
-    projectId: PID,
-    hostingSite: PID,
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: true,
-      allowedOriginsPresent: true
-    }
-  });
+  const raw = await r.text();
+  assertNoSecrets(raw);
+  assert.deepEqual(JSON.parse(raw), healthBody(true, "production", PID, PID));
   assert.equal(r.headers.get("Access-Control-Allow-Origin"), ORIGIN);
   const r2 = await worker.fetch(new Request("https://w.example/health", { headers: { Origin: "https://evil.example" } }), env);
   assert.equal(r2.headers.get("Access-Control-Allow-Origin"), null);
 });
+await t("health: ok=true يتبع كل الفحوصات الفردية، ويقبل صيغ secret الشائعة دون كشفه", async () => {
+  const sa = JSON.parse(env.SERVICE_ACCOUNT_JSON);
+  const forms = {
+    plain: env.SERVICE_ACCOUNT_JSON,
+    singleQuoted: `'${env.SERVICE_ACCOUNT_JSON}'`,
+    doubleEncoded: JSON.stringify(env.SERVICE_ACCOUNT_JSON),
+    base64: Buffer.from(env.SERVICE_ACCOUNT_JSON).toString("base64"),
+    escapedNewlines: JSON.stringify({ ...sa, private_key: sa.private_key.replace(/\n/g, "\\n") })
+  };
+  for (const [name, value] of Object.entries(forms)) {
+    const r = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: value });
+    const raw = await r.text();
+    assertNoSecrets(raw);
+    const body = JSON.parse(raw);
+    assert.equal(body.ok, true, `ok should be true for ${name}`);
+    assert.ok(Object.values(body.diagnostics).every((v) => v === true), `all flags true for ${name}`);
+  }
+});
 await t("Worker dev requires a separate project and Hosting origin", async () => {
+  const DEV = "dev-sandbox-2026";
   const devEnv = {
     ...env,
     FIREBASE_ENV: "development",
-    FIREBASE_PROJECT_ID: "dev-sandbox-2026",
-    FIREBASE_HOSTING_SITE: "dev-sandbox-2026",
-    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app",
+    FIREBASE_PROJECT_ID: DEV,
+    FIREBASE_HOSTING_SITE: DEV,
+    ALLOWED_ORIGINS: `https://${DEV}.web.app`,
     SERVICE_ACCOUNT_JSON: JSON.stringify({
       type: "service_account",
-      project_id: "dev-sandbox-2026",
-      client_email: "dev-deployer@dev-sandbox-2026.iam.gserviceaccount.com",
+      project_id: DEV,
+      client_email: `dev-deployer@${DEV}.iam.gserviceaccount.com`,
       private_key: saPem
     })
   };
+  // /health is the production gate: a development Worker is never reported as ok.
   const ready = await worker.fetch(new Request("https://w.example/health"), devEnv);
   assert.equal(ready.status, 200);
-  assert.deepEqual(await ready.json(), {
-    ok: false,
-    environment: "development",
-    projectId: "dev-sandbox-2026",
-    hostingSite: "dev-sandbox-2026",
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: true,
-      allowedOriginsPresent: true
-    }
-  });
+  const readyRaw = await ready.text();
+  assertNoSecrets(readyRaw);
+  assert.deepEqual(JSON.parse(readyRaw), healthBody(false, "development", DEV, DEV));
 
   const productionOrigin = await worker.fetch(new Request("https://w.example/health"), {
     ...devEnv,
-    ALLOWED_ORIGINS: "https://dev-sandbox-2026.web.app,https://maintenance-defect-system.web.app"
+    ALLOWED_ORIGINS: `https://${DEV}.web.app,https://maintenance-defect-system.web.app`
   });
   assert.equal(productionOrigin.status, 200);
-  assert.deepEqual(await productionOrigin.json(), {
-    ok: false,
-    environment: "development",
-    projectId: "dev-sandbox-2026",
-    hostingSite: "dev-sandbox-2026",
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: true,
-      allowedOriginsPresent: true
-    }
-  });
+  assert.deepEqual(await productionOrigin.json(), healthBody(false, "development", DEV, DEV));
 });
 await t("incomplete or mixed Worker project configuration fails closed", async () => {
-  const noOrigins = await worker.fetch(new Request("https://w.example/health"), {
-    ...env,
-    ALLOWED_ORIGINS: ""
-  });
+  const noOrigins = await worker.fetch(new Request("https://w.example/health"), { ...env, ALLOWED_ORIGINS: "" });
   assert.equal(noOrigins.status, 200);
-  assert.deepEqual(await noOrigins.json(), {
-    ok: false,
-    environment: "production",
-    projectId: PID,
-    hostingSite: PID,
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: true,
-      allowedOriginsPresent: false
-    }
-  });
+  assert.deepEqual(await noOrigins.json(), healthBody(false, "production", PID, PID, { allowedOriginsPresent: false, allowedOriginsValid: false }));
 
-  const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
-    ...env,
-    SERVICE_ACCOUNT_JSON: "{invalid-secret-json"
-  });
-  assert.equal(mixedProject.status, 200);
-  assert.deepEqual(await mixedProject.json(), {
-    ok: false,
-    environment: "production",
-    projectId: PID,
-    hostingSite: PID,
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: false,
-      allowedOriginsPresent: true
-    }
-  });
+  const invalidSecret = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: "{invalid-secret-json" });
+  assert.equal(invalidSecret.status, 200);
+  const invalidRaw = await invalidSecret.text();
+  assertNoSecrets(invalidRaw);
+  assert.ok(!invalidRaw.includes("invalid-secret-json"), "raw secret echoed");
+  assert.deepEqual(JSON.parse(invalidRaw), healthBody(false, "production", PID, PID, { serviceAccountJsonValid: false }));
 
-  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
+  const missingSecret = await worker.fetch(new Request("https://w.example/health"), { ...env, SERVICE_ACCOUNT_JSON: "" });
+  assert.deepEqual(await missingSecret.json(), healthBody(false, "production", PID, PID, { serviceAccountConfigured: false, serviceAccountJsonValid: false }));
+
+  const otherProjectSecret = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
-    FIREBASE_ENV: "development"
+    SERVICE_ACCOUNT_JSON: JSON.stringify({ ...JSON.parse(env.SERVICE_ACCOUNT_JSON), project_id: "other-project-2026" })
   });
+  assert.deepEqual(await otherProjectSecret.json(), healthBody(false, "production", PID, PID, { serviceAccountJsonValid: false }));
+
+  const devOnProduction = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_ENV: "development" });
   assert.equal(devOnProduction.status, 200);
-  assert.deepEqual(await devOnProduction.json(), {
-    ok: false,
-    environment: "development",
-    projectId: PID,
-    hostingSite: PID,
-    diagnostics: {
-      environmentPresent: true,
-      projectIdPresent: true,
-      hostingSitePresent: true,
-      serviceAccountSecretPresent: true,
-      serviceAccountJsonValid: true,
-      allowedOriginsPresent: true
-    }
-  });
+  assert.deepEqual(await devOnProduction.json(), healthBody(false, "development", PID, PID));
+
+  // A mis-pasted secret in a plain variable must never be reflected back.
+  const junk = await worker.fetch(new Request("https://w.example/health"), { ...env, FIREBASE_PROJECT_ID: "AIzaSy_NOT_AN_ID!" });
+  const junkRaw = await junk.text();
+  assert.ok(!junkRaw.includes("AIzaSy"), "non-identifier value echoed");
+  assert.equal(JSON.parse(junkRaw).ok, false);
 });
 await t("بدون توكن = 401", async () => { assert.equal((await call("deleteUserAccount", { userId: "x" }, "")).status, 401); });
 await t("توكن موقّع بمفتاح مزيّف = 401", async () => {
