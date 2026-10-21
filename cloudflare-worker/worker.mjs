@@ -774,18 +774,32 @@ export default {
     try {
       const path = new URL(request.url).pathname.split("/").filter(Boolean).join("/");
 
-      // Health checks deployment identity only. CORS configuration is irrelevant to
-      // server-to-server probes; never parse credentials or secrets on this route.
+      // Health validates deployment configuration only; never parse service-account secrets.
       if (request.method === "GET" && path === "health") {
         const environment = typeof env?.FIREBASE_ENV === "string" ? env.FIREBASE_ENV : "";
         const projectId = typeof env?.FIREBASE_PROJECT_ID === "string" ? env.FIREBASE_PROJECT_ID : "";
         const hostingSite = typeof env?.FIREBASE_HOSTING_SITE === "string" ? env.FIREBASE_HOSTING_SITE : "";
-        const configured = environment === "production"
-          && projectId === PRODUCTION_FIREBASE_PROJECT_ID
-          && hostingSite === PRODUCTION_HOSTING_SITE;
         const origins = typeof env?.ALLOWED_ORIGINS === "string"
           ? env.ALLOWED_ORIGINS.split(",").map((value) => value.trim()).filter(Boolean)
           : [];
+        const validOrigins = origins.length > 0 && origins.every((value) => {
+          try { const parsed = new URL(value); return parsed.protocol === "https:" && parsed.origin === value; }
+          catch { return false; }
+        }) && origins.includes(`https://${hostingSite}.web.app`);
+        let configured = /^(development|production)$/.test(environment)
+          && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(projectId)
+          && /^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$/.test(hostingSite)
+          && validOrigins;
+        if (environment === "production") {
+          configured = configured && projectId === PRODUCTION_FIREBASE_PROJECT_ID
+            && hostingSite === PRODUCTION_HOSTING_SITE;
+        } else {
+          configured = configured && projectId !== PRODUCTION_FIREBASE_PROJECT_ID
+            && hostingSite !== PRODUCTION_HOSTING_SITE
+            && hostingSite !== "my-dev-2026"
+            && !origins.includes("https://maintenance-defect-system.web.app")
+            && !origins.includes("https://maintenance-defect-system.firebaseapp.com");
+        }
         const origin = request.headers.get("Origin") || "";
         const healthCors = origins.includes(origin)
           ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" }
