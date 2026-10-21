@@ -919,6 +919,12 @@ async function resetPasswordWithEmployeeCode(data, request, env) {
 }
 
 // ---------- CORS + التوجيه ----------
+// FIREBASE_ENV is a plain dashboard variable: tolerate stray quotes, spaces and letter case
+// ("\"production\"", "Production ") so a cosmetic typo cannot take the whole Worker down.
+// Only the exact values "production" / "development" are ever accepted after normalising.
+const normalizeEnvName = (value) => String(value == null ? "" : value)
+  .trim().replace(/^["'\s]+|["'\s]+$/g, "").toLowerCase();
+
 // Secrets pasted in dashboards often arrive wrapped in quotes, double-encoded or base64-encoded,
 // and the private key may carry literal "\\n" sequences. Decode all of these without ever
 // throwing, logging or returning the raw value: the result is used only for validation/signing.
@@ -976,7 +982,8 @@ function parseServiceAccount(env) {
 }
 
 function validateWorkerEnvironment(env) {
-  if (env.FIREBASE_ENV !== "development" && env.FIREBASE_ENV !== "production") {
+  const environmentName = normalizeEnvName(env.FIREBASE_ENV);
+  if (environmentName !== "development" && environmentName !== "production") {
     throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_ENV).");
   }
 
@@ -990,7 +997,7 @@ function validateWorkerEnvironment(env) {
     throw new HttpError(500, "INTERNAL", "إعداد السيرفر غير مكتمل (FIREBASE_HOSTING_SITE).");
   }
 
-  if (env.FIREBASE_ENV === "production") {
+  if (environmentName === "production") {
     if (projectId !== PRODUCTION_FIREBASE_PROJECT_ID || hostingSite !== PRODUCTION_HOSTING_SITE) {
       throw new HttpError(500, "INTERNAL", "إعداد Worker الإنتاج يجب أن يطابق مشروع وموقع الإنتاج.");
     }
@@ -1030,13 +1037,13 @@ function validateWorkerEnvironment(env) {
     throw new HttpError(500, "INTERNAL", "ALLOWED_ORIGINS يجب أن يتضمن موقع Hosting المطابق لهذا Worker.");
   }
   if (
-    env.FIREBASE_ENV === "development" &&
+    environmentName === "development" &&
     allowedOrigins.some((origin) => PRODUCTION_ORIGINS.includes(origin))
   ) {
     throw new HttpError(500, "INTERNAL", "Worker التطوير لا يسمح بنطاقات Hosting الإنتاجية.");
   }
 
-  return { environment: env.FIREBASE_ENV, projectId, hostingSite, allowedOrigins, serviceAccount };
+  return { environment: environmentName, projectId, hostingSite, allowedOrigins, serviceAccount };
 }
 
 function corsHeaders(request, allowedOrigins) {
@@ -1066,7 +1073,7 @@ export default {
         // Echo identifiers only when they look like identifiers, so a mis-pasted secret in a plain
         // variable can never be reflected to the public.
         const safeId = (value) => (/^[a-z0-9][a-z0-9-]{0,62}$/.test(value) ? value : null);
-        const environment = text(env?.FIREBASE_ENV);
+        const environment = normalizeEnvName(env?.FIREBASE_ENV);
         const projectId = text(env?.FIREBASE_PROJECT_ID);
         const hostingSite = text(env?.FIREBASE_HOSTING_SITE);
         const rawServiceAccount = typeof env?.SERVICE_ACCOUNT_JSON === "string" ? env.SERVICE_ACCOUNT_JSON : "";
