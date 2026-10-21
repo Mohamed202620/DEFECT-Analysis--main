@@ -124,8 +124,8 @@ export function renderManagerDesktopHomeHtml() {
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiMttr" class="text-2xl font-black text-cyan-500">--</div>
-          <span id="mgrKpiMttrTrend" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">
-            ↓ 8% ${isEn ? 'vs last period' : 'عن الفترة السابقة'}
+          <span id="mgrKpiMttrTrend" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
+            --
           </span>
         </div>
         <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
@@ -137,13 +137,13 @@ export function renderManagerDesktopHomeHtml() {
       <!-- كارت: متوسط الزمن بين الأعطال MTBF -->
       <div class="mgr-card p-4 hover:border-indigo-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-          <span class="font-bold">${isEn ? 'MTBF (Reliability)' : 'زمن بين الأعطال MTBF'}</span>
+          <span class="font-bold">${isEn ? 'MTBF (Estimated)' : 'زمن بين الأعطال MTBF (تقديري)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛡️</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiMtbf" class="text-2xl font-black text-indigo-500">--</div>
           <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
-            ↑ ${isEn ? 'Stable' : 'مستقر'}
+            ${isEn ? 'Estimate' : 'تقديري'}
           </span>
         </div>
         <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
@@ -173,7 +173,7 @@ export function renderManagerDesktopHomeHtml() {
       <!-- كارت: إجمالي ساعات التوقف هذا الشهر -->
       <div class="mgr-card p-4 hover:border-purple-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-          <span class="font-bold">${isEn ? 'Downtime (Month)' : 'إجمالي التوقف (هذا الشهر)'}</span>
+          <span class="font-bold">${isEn ? 'Breakdown Hours (30d)' : 'ساعات الأعطال (آخر 30 يوم)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛑</span>
         </div>
         <div class="flex items-baseline justify-between">
@@ -184,7 +184,7 @@ export function renderManagerDesktopHomeHtml() {
         </div>
         <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
           <span>📉</span>
-          <span>${isEn ? 'Cumulative resolution hours' : 'مجموع ساعات توقف الصيانة'}</span>
+          <span>${isEn ? 'Total breakdown ticket hours' : 'مجموع ساعات بلاغات الأعطال'}</span>
         </div>
       </div>
 
@@ -435,6 +435,8 @@ async function _initManagerDesktopHomeData() {
 
     // تخزين مؤقت للتقارير
     cachedDashboardData = { tickets, totalCount, users };
+    // تحليلات الأعطال (MTTR/MTBF/باريتو/الاتجاه/التوقف) تستبعد أوامر الصيانة الوقائية PM
+    const cmTickets = tickets.filter(t => String(t.maintenanceType || '').trim().toUpperCase() !== 'PM');
 
     // 1. حساب الـ KPIs
     let openCount = 0;
@@ -457,14 +459,15 @@ async function _initManagerDesktopHomeData() {
         overdueCount++;
       }
 
-      // حساب ساعات التوقف للتذاكر خلال الـ 30 يوماً الأخيرة
-      const created = parseTicketDate(ticket);
-      if (created && created >= thirtyDaysAgo) {
-        const updated = parseTicketDate(ticket.updatedAt || ticket);
-        if (isClosed && updated && updated > created) {
-          totalDowntimeHours += (updated - created) / (1000 * 60 * 60);
-        } else if (!isClosed) {
-          totalDowntimeHours += (new Date() - created) / (1000 * 60 * 60);
+      // ساعات الأعطال خلال آخر 30 يوماً (CM فقط) - بنفس مرجع أوقات MTTR وبحد أدنى بداية 30 يوم
+      if (String(ticket.maintenanceType || '').trim().toUpperCase() !== 'PM') {
+        const created = parseTicketDate(ticket.createdAtServer) || parseTicketDate(ticket);
+        const end = isClosed
+          ? (parseTicketDate(ticket.resolvedAtServer) || parseTicketDate(ticket.resolvedAt || ticket.updatedAt || ticket))
+          : new Date();
+        if (created && end && end > thirtyDaysAgo) {
+          const startAt = created > thirtyDaysAgo ? created : thirtyDaysAgo;
+          if (end > startAt) totalDowntimeHours += (end - startAt) / (1000 * 60 * 60);
         }
       }
     });
@@ -476,16 +479,16 @@ async function _initManagerDesktopHomeData() {
       overdueCount = snapshot.overdue;
     }
 
-    const mttrData = computeMTTR(tickets);
+    const mttrData = computeMTTR(cmTickets);
     // إصلاح: كان بيرجّع 1.8 ساعة مختلقة لما مفيش بيانات - دلوقتي null ويظهر '--'
     const mttrHours = mttrData.avgHours !== null ? mttrData.avgHours : null;
     
     // MTBF: تقديري مبني على 720 ساعة تشغيل شهرياً مقسومة على عدد الأعطال
-    const monthlyFailures = tickets.filter(t => {
+    const monthlyFailures = cmTickets.filter(t => {
       const d = parseTicketDate(t);
       return d && d >= thirtyDaysAgo;
-    }).length || 1;
-    const mtbfHours = Math.round(720 / monthlyFailures);
+    }).length;
+    const mtbfHours = monthlyFailures > 0 ? Math.round(720 / monthlyFailures) : null;
 
     // إصلاح: النسبة كانت صيغة مخترعة (الافتراض إن فيه 1 أو 3 مهام متأخرة بحسب openCount)
     // وبترجّع 85% ثابتة عند غياب البيانات. مفيش جدول PM مخطط في النظام يتحسب منه
@@ -501,7 +504,8 @@ async function _initManagerDesktopHomeData() {
     setTxt("mgrKpiOpen", openCount);
     setTxt("mgrKpiOverdue", overdueCount);
     setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
-    setTxt("mgrKpiMtbf", `${mtbfHours} h`);
+    setTxt("mgrKpiMtbf", mtbfHours !== null ? `${mtbfHours} h` : '--');
+    setTxt("mgrKpiMttrTrend", mttrData.sampleSize ? `${mttrData.sampleSize} ${isEn ? 'tickets' : 'بلاغ'}` : '--');
     setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
     setTxt("mgrKpiPmCounts", pmMonthTotal === null ? '--' : `${pmMonthDone}/${pmMonthTotal} ${isEn ? 'PM orders this month' : 'أمر PM هذا الشهر'}`);
     setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
@@ -516,10 +520,10 @@ async function _initManagerDesktopHomeData() {
     }
 
     // 2. رسم Pareto لأكثر الماكينات عطلاً
-    renderParetoChart(tickets, isEn);
+    renderParetoChart(cmTickets, isEn);
 
     // 3. رسم اتجاه الأعطال الأسبوعي/الشهري
-    renderTrendChart(tickets, isEn);
+    renderTrendChart(cmTickets, isEn);
 
     // 4. جدول يحتاج قراراً الآن (Decisions Desk)
     renderDecisionsTable(tickets, users, isEn);
@@ -775,24 +779,28 @@ function renderDecisionsTable(tickets, users, isEn) {
       decisions.push({
         id: t.id,
         type: isOverdue ? 'overdue' : 'urgent_ticket',
+        rank: isOverdue ? 0 : 1,
+        ts: Date.parse(t.createdAt) || 0,
         badge: isOverdue ? (isEn ? 'SLA Breach' : 'تأخر SLA') : (isEn ? 'High Priority' : 'أولوية قصوى'),
         badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
-        title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? String(t.description).slice(0, 45) + '...' : (isEn ? 'Breakdown' : 'عطل')}`,
+        title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Breakdown' : 'عطل')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.assignedTo || (isEn ? 'Unassigned' : 'غير معين')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
-        actionBtn: `<button onclick="window.openTicketInModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
+        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
       });
     } else if (String(t.status || '').trim() === 'pending' && !t.assignedTo) {
       // 2. بلاغات جديدة بدون تعيين
       decisions.push({
         id: t.id,
         type: 'unassigned',
+        rank: 3,
+        ts: Date.parse(t.createdAt) || 0,
         badge: isEn ? 'Unassigned' : 'بانتظار الإسناد',
         badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-        title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? String(t.description).slice(0, 45) + '...' : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
+        title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.reportedBy || (isEn ? 'User' : 'مستخدم')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
-        actionBtn: `<button onclick="window.openTicketInModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
+        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
       });
     }
   });
@@ -803,6 +811,8 @@ function renderDecisionsTable(tickets, users, isEn) {
       decisions.push({
         id: u.id,
         type: 'user_request',
+        rank: 2,
+        ts: Date.parse(u.createdAt) || 0,
         badge: isEn ? 'User Request' : 'طلب انضمام',
         badgeClass: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30',
         title: `${u.name || (isEn ? 'New User' : 'مستخدم جديد')} (${u.job || u.role || 'Member'})`,
@@ -812,6 +822,9 @@ function renderDecisionsTable(tickets, users, isEn) {
       });
     }
   });
+
+  // ترتيب: تأخر SLA ثم أولوية قصوى ثم طلبات الانضمام ثم غير المسند - الأقدم أولاً داخل كل فئة
+  decisions.sort((a, b) => (a.rank - b.rank) || ((a.ts || Number.MAX_SAFE_INTEGER) - (b.ts || Number.MAX_SAFE_INTEGER)));
 
   if (countBadge) {
     countBadge.textContent = `${decisions.length} ${isEn ? 'Decisions' : 'قرارات'}`;
@@ -857,7 +870,9 @@ function renderDecisionsTable(tickets, users, isEn) {
         ${item.actionBtn}
       </td>
     </tr>
-  `).join("");
+  `).join("") + (decisions.length > visibleItems.length
+    ? `<tr><td colspan="5" class="py-2.5 px-3 text-center"><button type="button" onclick="window.openTicketsWithFilter('overdue')" class="text-[11px] text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining (${decisions.length - visibleItems.length})` : `عرض المتبقي (${decisions.length - visibleItems.length})`}</button></td></tr>`
+    : "");
 }
 
 // عرض أداء وحمل عمل الفنيين
