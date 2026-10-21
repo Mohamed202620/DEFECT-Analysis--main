@@ -1,0 +1,42 @@
+name: Deploy Cloudflare Worker (main)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "cloudflare-worker/worker.mjs"
+      - ".github/workflows/deploy-cloudflare-worker-main.yml"
+      - "wrangler.jsonc"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-worker-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Deploy production Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Explicitly target the production Worker; preserve dashboard variables.
+          command: deploy --keep-vars --name odd-sun-fab8
+
+      - name: Verify production Worker health and project
+        run: |
+          body="$(curl -fsS --retry 5 --retry-delay 3 https://odd-sun-fab8.mom379339.workers.dev/health)"
+          echo "$body"
+          echo "$body" | grep -q '"environment":"production"'
+          echo "$body" | grep -q '"projectId":"maintenance-defect-system"'
+          echo "$body" | grep -q '"hostingSite":"maintenance-defect-system"'
