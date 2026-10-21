@@ -212,14 +212,16 @@ await t("incomplete or mixed Worker project configuration fails closed", async (
 
   const mixedProject = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
-    SERVICE_ACCOUNT_JSON: JSON.stringify({
-      type: "service_account",
-      project_id: "another-project",
-      client_email: "sa@another-project.iam.gserviceaccount.com",
-      private_key: saPem
-    })
+    SERVICE_ACCOUNT_JSON: "{invalid-secret-json"
   });
-  assert.equal(mixedProject.status, 500);
+  // Health must not parse credentials or fail because a secret is malformed.
+  assert.equal(mixedProject.status, 200);
+  assert.deepEqual(await mixedProject.json(), {
+    ok: true,
+    environment: "production",
+    projectId: PID,
+    hostingSite: PID
+  });
 
   const devOnProduction = await worker.fetch(new Request("https://w.example/health"), {
     ...env,
