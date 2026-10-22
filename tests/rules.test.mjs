@@ -165,6 +165,9 @@ test("technicians can read scoped tickets and active staff can query dashboard t
 test("self-service user updates cannot activate an account or escalate a role", async () => {
   await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { role: "admin" }));
   await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { status: "disabled" }));
+  await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { leaveBalance: 999 }));
+  await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { shift: "green", job: "Supervisor" }));
+  await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { name: "Another Name" }));
   await assertFails(updateDoc(doc(dbFor("pending"), "users/pending"), { status: "active", role: "admin" }));
   await assertFails(updateDoc(doc(dbFor("disabled"), "users/disabled"), { status: "active" }));
 });
