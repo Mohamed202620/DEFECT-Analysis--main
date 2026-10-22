@@ -5,9 +5,6 @@
   "targets": {
     "maintenance-defect-system": {
       "hosting": {
-        "dev": [
-          "my-dev-2026"
-        ],
         "main": [
           "maintenance-defect-system"
         ]
