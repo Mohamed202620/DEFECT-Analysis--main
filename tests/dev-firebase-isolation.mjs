@@ -16,38 +16,29 @@ const test = (name, fn) => {
   );
 };
 
-console.log("Shared Firebase project for dev Hosting");
-test("dev and main Hosting targets are separate sites in the existing project", async () => {
-  const rc = JSON.parse(await readFile(new URL("../.firebaserc", import.meta.url), "utf8"));
-  assert.equal(rc.projects.default, PRODUCTION_FIREBASE_CONFIG.projectId);
-  assert.deepEqual(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.dev, ["my-dev-2026"]);
-  assert.deepEqual(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.main, [
-    PRODUCTION_FIREBASE_CONFIG.projectId
-  ]);
-});
-test("dev deploy targets the dev site in the existing project with its authorized credential", async () => {
-  const [devWorkflow, mainWorkflow] = await Promise.all([
-    readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8"),
+console.log("Production Firebase Hosting isolation");
+test("production configuration contains only the active main Hosting target", async () => {
+  const [rc, firebaseConfig, mainWorkflow] = await Promise.all([
+    readFile(new URL("../.firebaserc", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("../firebase.json", import.meta.url), "utf8").then(JSON.parse),
     readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8")
   ]);
 
-  const mainProjectInputs = [...mainWorkflow.matchAll(/^\s*projectId:\s*(.+)$/gm)].map(([, value]) => value.trim());
-  assert.match(devWorkflow, /projectId:\s*maintenance-defect-system/);
-  assert.match(devWorkflow, /target:\s*dev/);
-  assert.match(devWorkflow, /node scripts\/validate-production-deploy\.mjs/);
-  assert.doesNotMatch(devWorkflow, /FIREBASE_DEV_/);
-  assert.deepEqual(mainProjectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
-  assert.match(mainWorkflow, /Validate production deploy credential project/);
-  assert.match(mainWorkflow, /permissions:\s*\n\s+contents: read/);
+  assert.equal(rc.projects.default, PRODUCTION_FIREBASE_CONFIG.projectId);
+  assert.deepEqual(Object.keys(rc.targets), [PRODUCTION_FIREBASE_CONFIG.projectId]);
+  assert.deepEqual(Object.keys(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting), ["main"]);
+  assert.deepEqual(rc.targets[PRODUCTION_FIREBASE_CONFIG.projectId].hosting.main, [
+    PRODUCTION_FIREBASE_CONFIG.projectId
+  ]);
+  assert.deepEqual(firebaseConfig.hosting.map(({ target }) => target), ["main"]);
 
-  for (const workflow of [devWorkflow, mainWorkflow]) {
-    assert.match(workflow, /FIREBASE_SERVICE_ACCOUNT:\s*\$\{\{\s*secrets\.FIREBASE_SERVICE_ACCOUNT\s*\}\}/);
-    assert.match(workflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
-  }
-  // Production Hosting must be gated by the GitHub "production" environment (runbook: approvals §3);
-  // the dev workflow must not use it, so dev pushes never wait on or consume production approval.
-  assert.match(mainWorkflow, /^  deploy:\n(?:.*\n)*?    environment: production$/m);
-  assert.doesNotMatch(devWorkflow, /^\s{4}environment:/m);
+  const projectInputs = [...mainWorkflow.matchAll(/^\\s*projectId:\\s*(.+)$/gm)].map(([, value]) => value.trim());
+  assert.deepEqual(projectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
+  assert.match(mainWorkflow, /Validate production deploy credential project/);
+  assert.match(mainWorkflow, /permissions:\\s*\\n\\s+contents: read/);
+  assert.match(mainWorkflow, /^  deploy:\\n(?:.*\\n)*?    environment: production$/m);
+  assert.match(mainWorkflow, /target: main/);
+  assert.match(mainWorkflow, /firebaseServiceAccount:\\s*\\$\\{\\{\\s*env\\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\\s*\\}\\}/);
 });
 
 test("shared deploy credential must belong to the existing Firebase project", () => {
