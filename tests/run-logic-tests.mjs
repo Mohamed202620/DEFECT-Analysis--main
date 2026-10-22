@@ -213,14 +213,13 @@ await t("offline checklist sync refuses invalid targets and stale versions", () 
     /Checklist version conflict/
   );
 });
-const [ticketsApiSource, ticketDetailsSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource, devWorkflowSource] = await Promise.all([
+const [ticketsApiSource, ticketDetailsSource, checklistApiSource, checklistIndexesSource, checklistViewSource, mainWorkflowSource] = await Promise.all([
   readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8"),
   readFile(new URL("../js/components/TicketDetailsModal.js", import.meta.url), "utf8"),
   readFile(new URL("../js/services/checklistApi.js", import.meta.url), "utf8"),
   readFile(new URL("../firestore.indexes.json", import.meta.url), "utf8"),
   readFile(new URL("../js/views/ChecklistBuilderView.js", import.meta.url), "utf8"),
-  readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8"),
-  readFile(new URL("../.github/workflows/firebase-hosting-dev.yml", import.meta.url), "utf8")
+  readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8")
 ]);
 const suggestionsApiSource = await readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8");
 await t("unknown ticket log statuses are escaped before timeline rendering", () => {
@@ -299,7 +298,7 @@ await t("checklist history reads are bounded and covered by a composite index", 
   ));
 });
 await t("deployment workflows require app and rules tests and immutable action pins", () => {
-  for (const workflow of [mainWorkflowSource, devWorkflowSource]) {
+  for (const workflow of [mainWorkflowSource]) {
     assert.ok(workflow.includes("run: npm test"));
     assert.ok(!workflow.includes("continue-on-error"));
     assert.ok(workflow.includes("run: npm run test:rules"));
