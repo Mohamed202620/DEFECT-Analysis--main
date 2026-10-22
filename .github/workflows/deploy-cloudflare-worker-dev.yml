@@ -23,7 +23,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout dev
-        uses: actions/checkout@v4
+        # actions/checkout v4 (pinned tag commit)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Node.js
+        # actions/setup-node v4 (pinned tag commit)
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Run Worker tests (mocked, no network or cloud access)
+        run: |
+          node tests/worker-tests.mjs
+          node tests/integration-upload.mjs
+          node tests/client-reset.mjs
 
       - name: Deploy dev Worker
         uses: cloudflare/wrangler-action@v3
