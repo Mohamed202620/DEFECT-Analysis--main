@@ -32,13 +32,13 @@ test("production configuration contains only the active main Hosting target", as
   ]);
   assert.deepEqual(firebaseConfig.hosting.map(({ target }) => target), ["main"]);
 
-  const projectInputs = [...mainWorkflow.matchAll(/^\\s*projectId:\\s*(.+)$/gm)].map(([, value]) => value.trim());
+  const projectInputs = [...mainWorkflow.matchAll(/^\s*projectId:\s*(.+)$/gm)].map(([, value]) => value.trim());
   assert.deepEqual(projectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
   assert.match(mainWorkflow, /Validate production deploy credential project/);
-  assert.match(mainWorkflow, /permissions:\\s*\\n\\s+contents: read/);
-  assert.match(mainWorkflow, /^  deploy:\\n(?:.*\\n)*?    environment: production$/m);
+  assert.match(mainWorkflow, /permissions:\s*\n\s+contents: read/);
+  assert.match(mainWorkflow, /^  deploy:\n(?:.*\n)*?    environment: production$/m);
   assert.match(mainWorkflow, /target: main/);
-  assert.match(mainWorkflow, /firebaseServiceAccount:\\s*\\$\\{\\{\\s*env\\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\\s*\\}\\}/);
+  assert.match(mainWorkflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
 });
 
 test("shared deploy credential must belong to the existing Firebase project", () => {
