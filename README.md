@@ -59,14 +59,9 @@
 
 ## النشر التلقائي عبر GitHub Actions
 
-تم إعداد Workflowين للنشر التلقائي:
+تم إعداد Workflow للنشر التلقائي من فرع `main` إلى `maintenance-defect-system.web.app` فقط، بعد اجتياز الاختبارات وموافقة بيئة GitHub المسماة `production`. بيئة التطوير (dev) تعمل على فرع `dev` بمشروع Firebase وWorker وبيانات منفصلة، ولا يملك `main` أي مسار نشر إليها؛ راجع توثيق فرع `dev`. النشر اليدوي المحلي `npm run deploy` يستهدف موقع `main` بمشروع الإنتاج صراحةً، ولا ينشر Firestore rules أو indexes أو Cloud Functions. يتطلب النشر Secret GitHub الحالي `FIREBASE_SERVICE_ACCOUNT` التابع للمشروع `maintenance-defect-system`، وفحص النشر يتحقق من ارتباط حساب الخدمة بهذا المشروع.
 
-- الدفع إلى فرع `dev` ينشر إلى موقع Hosting المنفصل `my-dev-2026.web.app` داخل مشروع Firebase الحالي `maintenance-defect-system`.
-- الدفع إلى فرع `main` ينشر إلى `maintenance-defect-system.web.app`.
-
-الموقعان منفصلان على مستوى Hosting فقط؛ تسجيل الدخول وFirestore وCloudflare Worker مشتركة مع المشروع الحالي. لذلك أي اختبار يكتب أو يحذف بيانات من موقع `dev` يؤثر في بيانات المشروع الفعلية. استخدم حسابات وبيانات اختبار معتمدة، ولا تنفذ اختبارات تدميرية. يتطلب النشر Secret GitHub الحالي `FIREBASE_SERVICE_ACCOUNT` التابع للمشروع `maintenance-defect-system`، وفحص النشر يتحقق من ارتباط حساب الخدمة بهذا المشروع. لا يلزم إنشاء Firebase project أو Worker جديد أو إضافة متغيرات `FIREBASE_DEV_*`.
-
-للنشر اليدوي من نسخة محلية موثوقة، استخدم `npm run deploy:dev`؛ ينشر Hosting target `dev` فقط ولا ينشر Firestore rules أو indexes أو Cloud Functions. حافظ على قواعد الإنتاج دون تغيير، واستخدم اختبارات Emulator (`npm run test:rules`) قبل أي تغييرات على القواعد.
+حافظ على قواعد الإنتاج دون تغيير، واستخدم اختبارات Emulator (`npm run test:rules`) قبل أي تغييرات على القواعد.
 
 المشروع بيتواصل مباشرة من المتصفح مع Firestore (بدون باك-إند وسيط)، لكنه **بيستخدم Firebase Authentication حقيقي** (Email/Password، عبر تحويل رقم الهاتف لإيميل داخلي - راجع `js/auth/login.js` و`phoneToAuthEmail` في `config.js`)، والحسابات القديمة (نظام الدخول المخصص القديم) بتترحّل تلقائياً لحساب Auth حقيقي عند أول تسجيل دخول ليها بعد هذا التحديث. بناءً عليه، **`firestore.rules` فعلاً بتقدر تفرّق بين مستخدم عادي وأدمن/مدير** عن طريق قراءة مستند `users/{uid}` الخاص بالمستخدم المسجّل دخوله فعليًا (`request.auth.uid`) والتحقق من حقل `role` فيه - راجع الدوال المساعدة `myProfile()`/`myRole()`/`isActive()` في أول `firestore.rules`. ⚠️ *(تحديث: نسخة سابقة من هذا القسم كانت بتقول إن مفيش Firebase Authentication حقيقي وإن الـ Rules مقدرش تفرّق بين الأدوار - ده لم يكن يعكس الكود الفعلي بشكل دقيق، وتم تصحيحه هنا)*.
 

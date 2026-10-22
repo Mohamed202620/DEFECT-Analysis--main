@@ -23,7 +23,7 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 | `FIREBASE_API_KEY` | Text | Firebase project's web API key (used only to create a migrated Auth account) |
 | `SERVICE_ACCOUNT_JSON` | **Secret** | محتوى ملف JSON كاملًا |
 | `IMGBB_API_KEY` | **Secret** | مفتاح ImgBB (ولّد مفتاحًا جديدًا من imgbb.com/api: القديم كان ظاهرًا في الكود) |
-| `ALLOWED_ORIGINS` | Text | نطاقات الموقعين `maintenance-defect-system` و`my-dev-2026` المسموح بها مفصولة بفواصل؛ مطلوب ولا يوجد fallback. |
+| `ALLOWED_ORIGINS` | Text | نطاقات موقع الإنتاج `maintenance-defect-system` (`.web.app` و`.firebaseapp.com`) المسموح بها مفصولة بفواصل، دون أي نطاق dev؛ مطلوب ولا يوجد fallback. |
 
 لـ live Hosting deploy الحالي، حساب GitHub deployer يحتاج `roles/firebasehosting.admin` و`roles/serviceusage.apiKeysViewer` على المشروع. لا تستخدمه لحساب Worker.
 
@@ -64,14 +64,11 @@ firebase deploy --only hosting,firestore:rules,firestore:indexes
 - فحص "آخر Admin" غير ذري (لا transaction): يحدث خلل فقط لو نزّل أدمنان بعضهما في اللحظة نفسها.
 - إن سُرّب `SERVICE_ACCOUNT_JSON` فهو مفتاح Admin كامل: ألغِه من Firebase/Google Cloud وولّد غيره.
 
-## موقع Firebase Hosting لفرع dev
+## موقع dev القديم (متقاعد)
 
-موقع `my-dev-2026.web.app` منفصل عن موقع الإنتاج على مستوى Hosting فقط، لكنه يستخدم مشروع Firebase الحالي نفسه وCloudflare Worker الإنتاجي. لذلك تسجيل الدخول وقراءة/كتابة Firestore من موقع dev تتصل بالبيانات الفعلية؛ استخدم حسابات وبيانات اختبار معتمدة، ولا تنفذ اختبارات تدميرية.
+الموقع القديم `my-dev-2026.web.app` كان يعمل على مشروع الإنتاج نفسه وبياناته، وقد أُوقف مساره. المطلوب في Cloudflare وFirebase (إجراءات يدوية لا يغطيها الكود):
 
-يجب أن يتضمن إعداد `ALLOWED_ORIGINS` في Worker الإنتاج origin التالي حتى تعمل طلبات الواجهة من موقع dev:
+1. إزالة `https://my-dev-2026.web.app` و`https://my-dev-2026.firebaseapp.com` من `ALLOWED_ORIGINS` في Worker الإنتاج.
+2. حذف موقع Hosting `my-dev-2026` من مشروع الإنتاج.
 
-```text
-https://my-dev-2026.web.app
-```
-
-لا تنشئ Worker أو Firebase project منفصلًا لهذا المسار، ولا تغيّر إعدادات `FIREBASE_PROJECT_ID` أو حساب خدمة Worker للإنتاج. نشر فرع `dev` يحدّث موقع Hosting `my-dev-2026` فقط؛ ولا ينشر Worker أو Functions أو Firestore rules/indexes.
+أبقينا `my-dev-2026` في `PRODUCTION_ORIGINS` وفي حارس `hostingSite` عمدًا: يمنعان Worker التطوير من السماح بهذا النطاق أو استخدامه كموقع dev. بيئة dev الفعلية منفصلة وموثقة في فرع `dev`.
