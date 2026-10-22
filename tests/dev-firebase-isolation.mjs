@@ -438,7 +438,8 @@ await test("Workflow الإنتاج لم يتغير: مشروع الإنتاج �
   assert.match(mainWorkflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
   assert.match(mainWorkflow, /permissions:\s*\n\s+contents: read/);
   assert.doesNotMatch(mainWorkflow, /FIREBASE_DEV_|dev-test-37e8a|target:\s*dev\b/);
-  assert.doesNotMatch(mainWorkflow, /^\s{4}environment:/m);
+  // الإنتاج يتطلب موافقة بيئة GitHub باسم production؛ ويظل workflow dev بلا environment.
+  assert.match(mainWorkflow, /^  deploy:\n(?:.*\n)*?    environment: production$/m);
 });
 await test("firebase.json: الهدفان dev وmain موجودان، وكلاهما يخدم الجذر مع rewrite لـ index.html", async () => {
   const fb = JSON.parse(await read("firebase.json"));
@@ -458,7 +459,9 @@ await test("package.json: نشر القواعد على dev بمشروع صريح
     pkg.scripts["deploy:dev:rules"],
     `firebase deploy --only firestore:rules,firestore:indexes --project ${DEV}`
   );
-  assert.equal(pkg.scripts.deploy, "firebase deploy --only hosting");
+  // النشر اليدوي العام صار صريحًا: موقع main وحده وبمشروع الإنتاج، ولا يوجد أمر نشر شامل.
+  assert.equal(pkg.scripts.deploy, `firebase deploy --only hosting:main --project ${PROD}`);
+  assert.equal(pkg.scripts["deploy:all"], undefined);
   assert.equal(pkg.scripts["deploy:rules"], "firebase deploy --only firestore:rules");
   assert.equal(pkg.scripts["test:rules"].includes("demo-defect-rules"), true);
 });
