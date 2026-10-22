@@ -40,7 +40,15 @@
         "assets/icons/app-icon.png",
         "test*",
         "tests/**",
-        "cloudflare-worker/**"
+        "cloudflare-worker/**",
+        "docs/**",
+        "src/**",
+        "**/*.md",
+        "FILES.txt",
+        "package-lock.json",
+        "vite.config.ts",
+        "tsconfig.json",
+        "wrangler.jsonc"
       ],
       "rewrites": [
         {
@@ -141,7 +149,15 @@
         "assets/icons/app-icon.png",
         "test*",
         "tests/**",
-        "cloudflare-worker/**"
+        "cloudflare-worker/**",
+        "docs/**",
+        "src/**",
+        "**/*.md",
+        "FILES.txt",
+        "package-lock.json",
+        "vite.config.ts",
+        "tsconfig.json",
+        "wrangler.jsonc"
       ],
       "rewrites": [
         {
