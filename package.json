@@ -25,9 +25,17 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "firebase": "^13.0.0",
-    "firebase-tools": "^15.33.0",
+    "firebase": "^13.1.0",
+    "firebase-tools": "^15.34.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.4"
+  },
+  "overrides": {
+    "@grpc/grpc-js": ">=1.13.6",
+    "@opentelemetry/core": ">=2.8.0",
+    "basic-ftp": ">=6.2.1",
+    "uuid": ">=11.1.1",
+    "ip-address": ">=10.7.4",
+    "chokidar": "^4.0.0"
   }
 }
