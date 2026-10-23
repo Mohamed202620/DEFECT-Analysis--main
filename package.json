@@ -8,7 +8,6 @@
     "build": "node scripts/build.mjs",
     "lint": "node --check server.js && node scripts/build.mjs",
     "deploy": "firebase deploy --only hosting:main --project maintenance-defect-system",
-    "deploy:dev": "node scripts/deployDev.mjs",
     "deploy:rules": "firebase deploy --only firestore:rules",
     "deploy:functions": "firebase deploy --only functions",
     "test:rules": "firebase emulators:exec --project demo-defect-rules --only firestore \"node --test tests/rules.test.mjs\"",

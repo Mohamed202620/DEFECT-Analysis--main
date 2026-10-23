@@ -34,9 +34,7 @@ const PRODUCTION_FIREBASE_PROJECT_ID = "maintenance-defect-system";
 const PRODUCTION_HOSTING_SITE = "maintenance-defect-system";
 const PRODUCTION_ORIGINS = [
   "https://maintenance-defect-system.web.app",
-  "https://maintenance-defect-system.firebaseapp.com",
-  "https://my-dev-2026.web.app",
-  "https://my-dev-2026.firebaseapp.com"
+  "https://maintenance-defect-system.firebaseapp.com"
 ];
 
 const JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";

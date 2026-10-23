@@ -133,7 +133,7 @@ const env = {
   FIREBASE_HOSTING_SITE: PID,
   FIREBASE_API_KEY: "TEST_PUBLIC_API_KEY",
   IMGBB_API_KEY: "SECRETKEY",
-  ALLOWED_ORIGINS: "https://maintenance-defect-system.web.app,https://maintenance-defect-system.firebaseapp.com,https://my-dev-2026.web.app",
+  ALLOWED_ORIGINS: "https://maintenance-defect-system.web.app,https://maintenance-defect-system.firebaseapp.com",
   SERVICE_ACCOUNT_JSON: JSON.stringify({
     type: "service_account",
     project_id: PID,

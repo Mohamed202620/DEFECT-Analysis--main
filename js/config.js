@@ -59,6 +59,20 @@ export const IMGBB_API_KEY = window.APP_CONFIG?.IMGBB_API_KEY || "";
 // ============================================================
 
 const appConfig = window.APP_CONFIG || {};
+
+// Fail-closed (M4): when running locally without explicit env config
+// (server.js returns empty APP_CONFIG), do NOT silently fall back to
+// production Firebase/Worker. Throw so the missing setup is obvious.
+const isLocalDev = (() => {
+  try {
+    const h = window.location.hostname;
+    return h === "localhost" || h === "127.0.0.1";
+  } catch { return false; }
+})();
+if (isLocalDev && !appConfig.FIREBASE_API_KEY) {
+  throw new Error("Missing FIREBASE_API_KEY: set environment variables for local dev; refusing to fall back to production.");
+}
+
 const firebaseConfig = {
   apiKey: appConfig.FIREBASE_API_KEY || PRODUCTION_FIREBASE_CONFIG.apiKey,
   authDomain: appConfig.FIREBASE_AUTH_DOMAIN || PRODUCTION_FIREBASE_CONFIG.authDomain,
@@ -75,6 +89,9 @@ export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
 // عنوان عام وليس سراً - الأسرار (حساب الخدمة + مفتاح ImgBB) محفوظة داخل
 // الـ Worker فقط (راجع cloudflare-worker/README.md). لو فاضي بنرجع
 // لـ Cloud Functions الأصلية (خطة Blaze).
+if (isLocalDev && !appConfig.BACKEND_WORKER_URL) {
+  throw new Error("Missing BACKEND_WORKER_URL: set environment variables for local dev; refusing to fall back to production.");
+}
 export const BACKEND_WORKER_URL =
   appConfig.BACKEND_WORKER_URL || PRODUCTION_BACKEND_WORKER_URL;
 

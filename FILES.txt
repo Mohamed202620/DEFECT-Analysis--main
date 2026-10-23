@@ -1,4 +1,3 @@
-.github/workflows/firebase-hosting-dev.yml
 .github/workflows/firebase-hosting-main.yml
 cloudflare-worker/README.md
 cloudflare-worker/worker.mjs
