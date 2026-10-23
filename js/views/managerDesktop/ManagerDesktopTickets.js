@@ -50,7 +50,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
             <input
               type="text"
               id="mgrTicketSearchInput"
-              value="${currentTextSearch}"
+              value="${escapeHtml(currentTextSearch)}"
               placeholder="${isEn ? 'Search by machine, line, description, or technician... (Press / to focus)' : 'بحث بالماكينة، الخط، الوصف أو الفني... (اضغط / للتركيز)'}"
               class="w-full ps-9 pe-12 py-2 text-xs rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             />
@@ -309,7 +309,7 @@ function renderTableRows(allTickets) {
         <!-- الأولوية -->
         <td class="py-2.5 px-3 font-semibold">
           <span class="inline-block text-[10px] px-2 py-0.5 rounded-md ${priorityCls}">
-            ${t.priority || (isEn ? 'Normal' : 'عادية')}
+            ${escapeHtml(t.priority || (isEn ? 'Normal' : 'عادية'))}
           </span>
         </td>
 
@@ -330,7 +330,7 @@ function renderTableRows(allTickets) {
 
         <!-- الفني المكلف -->
         <td class="py-2.5 px-3 text-gray-600 dark:text-gray-300 font-medium">
-          ${t.assignedTo ? `👷 ${t.assignedTo}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+          ${t.assignedTo ? `👷 ${escapeHtml(t.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
         </td>
 
         <!-- الوقت -->
@@ -442,7 +442,7 @@ function renderSidePreview(ticket) {
           </span>
         </div>
         <h2 class="text-base font-black text-gray-900 dark:text-white mt-1.5">
-          ${ticket.machine || (isEn ? 'Unspecified Machine' : 'ماكينة غير محددة')}
+          ${escapeHtml(ticket.machine || (isEn ? 'Unspecified Machine' : 'ماكينة غير محددة'))}
         </h2>
         <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
           ${isEn ? 'Ticket' : 'تذكرة'}: #${ticket.id ? ticket.id.slice(0, 8) : '-'}
@@ -464,7 +464,7 @@ function renderSidePreview(ticket) {
         ${isEn ? 'Issue Description' : 'بيان العطل والملاحظات'}
       </span>
       <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 text-xs text-gray-700 dark:text-gray-200 leading-relaxed border border-gray-100 dark:border-gray-800">
-        ${ticket.description || (isEn ? 'No description provided' : 'لا يوجد وصف مسجل')}
+        ${escapeHtml(ticket.description || (isEn ? 'No description provided' : 'لا يوجد وصف مسجل'))}
       </div>
     </div>
 
@@ -484,7 +484,7 @@ function renderSidePreview(ticket) {
         <span class="text-[10px] text-gray-400 block">${isEn ? 'Assigned Technician' : 'الفني المكلف'}</span>
         <div class="flex items-center justify-between mt-0.5">
           <span class="font-bold text-gray-800 dark:text-gray-200">
-            ${ticket.assignedTo ? `👷 ${ticket.assignedTo}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+            ${ticket.assignedTo ? `👷 ${escapeHtml(ticket.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
           </span>
           ${['pending', 'assigned', 'in_progress', 'reopened'].includes(String(ticket.status || '').trim().toLowerCase()) ? `
           <button

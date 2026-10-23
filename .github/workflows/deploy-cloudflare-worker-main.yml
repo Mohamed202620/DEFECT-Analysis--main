@@ -21,6 +21,7 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout main
         # actions/checkout v4 pinned to its release commit
