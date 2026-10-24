@@ -1,0 +1,53 @@
+name: Deploy Firestore Rules and Indexes (manual)
+
+# نشر القواعد والفهارس يدوياً فقط (workflow_dispatch). ملف firebase-hosting-main.yml
+# بينشر Hosting فقط، فتغييرات firestore.rules / firestore.indexes.json ما بتوصلش
+# للإنتاج من غير الـ workflow ده. بيحتاج موافقة بيئة "production" قبل ما يوصل للـ credential.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firestore-rules-main
+  cancel-in-progress: false
+
+jobs:
+  deploy-rules:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+
+      - name: Set up Java for Firebase Emulator
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run Firestore Emulator rules tests (must pass before deploy)
+        run: npm run test:rules
+
+      - name: Validate production deploy credential project
+        run: node scripts/validate-production-deploy.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore rules and indexes
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NORMALIZED" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase deploy --only firestore:rules,firestore:indexes --project maintenance-defect-system --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
