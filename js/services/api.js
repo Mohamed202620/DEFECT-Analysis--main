@@ -12,7 +12,6 @@
 //   usersApi.js          → المستخدمون (جلب/تسجيل/صلاحيات/حالة/حذف)
 //   defectsApi.js        → بلاغات عيوب الإنتاج
 //   ticketsApi.js         → بلاغات الأعطال (Tickets/Issues)
-//   dashboardApi.js       → بيانات لوحة المتابعة
 //   machineErrorsApi.js  → قاعدة معرفة أعطال الماكينات + قاعدة المعرفة
 //   pmApi.js              → الصيانة الوقائية (PM)
 //   suggestionsApi.js    → مقترحات الكايزن
@@ -84,8 +83,6 @@ export {
   syncOfflineTicketsApi,
   syncOfflineTicketActionsApi
 } from "./ticketsApi.js";
-
-export { fetchDashboardDataApi } from "./dashboardApi.js";
 
 export {
   findMachineErrorByCode,
