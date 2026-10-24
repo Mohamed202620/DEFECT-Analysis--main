@@ -33,6 +33,10 @@ Before approval, verify the release artifact and commit, review the Firestore ru
 
 The repository workflows currently trigger on pushes to their named branches. Repository protection and required-environment approvals are GitHub settings, not guaranteed by workflow YAML; an administrator must verify and configure them.
 
+## Publishing Firestore rules and indexes
+
+The Hosting workflow deploys Hosting only. Rules and indexes go out through the manual workflow `Deploy Firestore Rules and Indexes (manual)` (`.github/workflows/deploy-firestore-rules.yml`): run it from `main` after merging any change to `firestore.rules` or `firestore.indexes.json`. It runs the Emulator rules tests first and requires the `production` environment approval. Confirm the effective rules in Firebase Console afterwards.
+
 ## Firebase Hosting rollback
 
 1. Announce an incident and pause further releases. Record the current Hosting release/version, affected site, commit, and incident owner.
