@@ -673,6 +673,25 @@ test("pm plans: a technician can record an execution on a plan but cannot edit o
   await assertSucceeds(deleteDoc(doc(dbFor("admin"), planPath)));
 });
 
+test("pm plans: nextDueDate/executionCount cannot change without an execution record (audit H-1)", async () => {
+  const planPath = "pmPlans/plan_audit_h1";
+  await seed(planPath, { line: "Line 1", machine: "M1", frequency: "monthly", nextDueDate: "2026-10-01", executionCount: 0, updatedAt: "before" });
+  const technicianDb = dbFor("technician");
+  const meta = { updatedAt: "now", updatedBy: users.technician.name };
+  await assertFails(updateDoc(doc(technicianDb, planPath), { nextDueDate: "2030-01-01", ...meta }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), { executionCount: 1, ...meta }));
+  await assertFails(updateDoc(doc(technicianDb, planPath), {
+    lastDeferral: { executionId: "ex_d", executedByUid: "technician", result: "deferred" },
+    nextDueDate: "2030-01-01",
+    ...meta
+  }));
+  await assertSucceeds(updateDoc(doc(technicianDb, planPath), {
+    lastDeferral: { executionId: "ex_d", executedByUid: "technician", result: "deferred" },
+    nextDueDate: "2026-10-01",
+    ...meta
+  }));
+});
+
 test("pm executions: a user can only log an execution as themselves with a valid result", async () => {
   const technicianDb = dbFor("technician");
   const base = { planId: "plan_line1_backend_press_01", machine: "Backend Press 01", executedByUid: "technician", result: "completed" };

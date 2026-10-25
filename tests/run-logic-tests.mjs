@@ -880,7 +880,7 @@ await t("أوامر PM: الإسناد من التخطيط ينقل الحالة
 });
 
 await t("قواعد Firestore: الفني يسجل تنفيذ الخطة بحقول التنفيذ فقط وسجل التنفيذ ينسب لصاحبه", () => {
-  assert.ok(rulesSrc.includes('hasOnly(\n                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])'));
+  assert.ok(rulesSrc.includes('function pmExecutionPatchOk()') && rulesSrc.includes('k.hasOnly(["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])'));
   assert.ok(rulesSrc.includes('request.resource.data.get("executedByUid", "") == request.auth.uid'));
 });
 
