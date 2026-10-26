@@ -1033,15 +1033,24 @@ service cloud.firestore {
       // لغير أدوار الإدارة فلا يتقدم موعد الصيانة ويتكرر السجل عند إعادة
       // المحاولة. مسموح هنا بحقول التنفيذ فقط، ونسبتها لصاحب الطلب نفسه،
       // وبزيادة العدّاد بواحد فقط (لا تعديل لمهام الخطة ولا دوريتها).
-      allow update: if isActive()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastExecution"])
-                        || request.resource.data.lastExecution.executedByUid == request.auth.uid)
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["lastDeferral"])
-                        || request.resource.data.lastDeferral.executedByUid == request.auth.uid)
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["executionCount"])
-                        || request.resource.data.executionCount == resource.data.get("executionCount", 0) + 1);
+      // AUDIT H-1: affectedKeys تُحسب مرة واحدة (let) لتفادي تجاوز حد 1000 تعبير.
+      // لا يجوز تغيير nextDueDate/executionCount بدون lastExecution؛ والتأجيل لا يغيّر الموعد ولا العدّاد.
+      function pmExecutionPatchOk() {
+        let k = request.resource.data.diff(resource.data).affectedKeys();
+        return k.hasOnly(["lastExecution", "lastDeferral", "nextDueDate", "executionCount", "updatedAt", "updatedBy"])
+               && (!k.hasAny(["lastExecution"])
+                   || request.resource.data.lastExecution.executedByUid == request.auth.uid)
+               && (!k.hasAny(["lastDeferral"])
+                   || request.resource.data.lastDeferral.executedByUid == request.auth.uid)
+               && (!k.hasAny(["executionCount"])
+                   || request.resource.data.executionCount == resource.data.get("executionCount", 0) + 1)
+               && (!k.hasAny(["nextDueDate", "executionCount"])
+                   || k.hasAny(["lastExecution"])
+                   || (k.hasAny(["lastDeferral"])
+                       && !k.hasAny(["executionCount"])
+                       && request.resource.data.get("nextDueDate", "") == resource.data.get("nextDueDate", "")));
+      }
+      allow update: if isActive() && pmExecutionPatchOk();
       allow delete: if isAdmin();
     }
 
