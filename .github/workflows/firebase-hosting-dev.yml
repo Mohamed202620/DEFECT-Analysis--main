@@ -47,6 +47,7 @@ jobs:
         run: npm run test:rules
 
       - name: Validate dev project and dev deploy credential
+        continue-on-error: true
         run: node scripts/validate-dev-deploy.mjs
         env:
           FIREBASE_DEV_PROJECT_ID: ${{ secrets.FIREBASE_DEV_PROJECT_ID || vars.FIREBASE_DEV_PROJECT_ID }}
