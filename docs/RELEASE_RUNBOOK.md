@@ -120,3 +120,17 @@ await seq.resetSequenceCountersForLaunch();                  // resets counters 
 ```
 
 The function only writes `counters/*`. It refuses (per type) while any record with that prefix still exists, and never touches records, relations, users or permissions. Deploy the updated `firestore.rules` before the Hosting release.
+
+## Cloudflare Worker rollback
+
+1. Identify the last known-good Worker version/deployment ID and its corresponding commit. Preserve the failing deployment and logs.
+2. From a reviewed checkout of that commit, redeploy with the authorized Wrangler credential and explicit environment/account:
+
+   ```sh
+   npx wrangler deploy --env production
+   ```
+
+   (Use the environment that matches production; confirm the target account and Worker name before running.)
+3. Verify Worker health (e.g. `/health` or equivalent), CORS, push/VAPID flow, and secret handling with approved test data. Confirm no secrets were printed in logs.
+4. If the Worker must be taken offline, revert to the previous deployment via the Cloudflare dashboard's version history or `wrangler rollback` (where available) rather than editing code ad hoc.
+5. Record deployment ID, commit, operator, approver, and verification evidence in the incident record. Worker rollback does not roll back Firestore rules, indexes, Hosting, or data.
