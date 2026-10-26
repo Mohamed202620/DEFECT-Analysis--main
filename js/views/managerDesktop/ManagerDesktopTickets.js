@@ -103,19 +103,19 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
               <button
                 type="button"
                 onclick="window.mgrBulkAssignPrompt()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-4 py-2 text-sm min-h-11 font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
                 👤 ${isEn ? 'Bulk Assign' : 'إسناد جماعي'}
               </button>
               <button
                 type="button"
                 onclick="window.bulkCloseSelectedTickets()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-4 py-2 text-sm min-h-11 font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
                 ✔️ ${isEn ? 'Close Selected' : 'إغلاق المحدد'}
               </button>
               <button
                 type="button"
                 onclick="window.bulkExportSelectedTickets()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-700 hover:bg-gray-600 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-4 py-2 text-sm min-h-11 font-bold rounded-lg bg-gray-700 hover:bg-gray-600 text-white shadow-sm transition active:scale-95 cursor-pointer">
                 📄 ${isEn ? 'Export PDF' : 'تصدير PDF'}
               </button>
               <button
