@@ -52,13 +52,13 @@ export const ReportView = () => {
       <h2 class="text-lg font-bold text-red-400 flex items-center gap-2">
         <span>🚨</span> ${isEn ? 'Log New Breakdown' : 'تسجيل بلاغ عطل جديد'}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-1">
+      <p class="text-xs text-gray-400 mt-1">
         ${isEn ? 'Report an unexpected stop or equipment failure' : 'الإبلاغ عن توقف مفاجئ أو خلل في المعدة'}
       </p>
     </div>
     
     <!-- النموذج -->
-    <form onsubmit="window.handleReportSubmit(event)" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
+    <form onsubmit="window.handleReportSubmit(event)" class="bg-card p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
       ${ReportFormFields(isEn)}
       
       <button type="submit" class="w-full p-3 mt-4 bg-red-600 hover:bg-red-700 active:scale-[0.98] rounded-xl font-bold text-xs text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-500/20">

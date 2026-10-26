@@ -964,9 +964,9 @@ export function renderDailyTipCard(overrideIndex = null) {
         <div>
           <h3 class="text-xs font-black text-amber-400 tracking-wide flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
+            <span class="text-xs font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
           </h3>
-          <span class="text-[10px] text-gray-400 flex items-center gap-1">
+          <span class="text-xs text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
             <span>${escapeHtml(tip.categoryTitle)}</span>
           </span>
@@ -983,7 +983,7 @@ export function renderDailyTipCard(overrideIndex = null) {
           <span>🔄</span>
           <span>${isEn ? 'Next Tip' : 'معلومة أخرى'}</span>
         </button>
-        <div class="text-[9px] font-medium text-amber-400/80 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 hidden sm:flex items-center gap-1">
+        <div class="text-xs font-medium text-amber-400/80 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 hidden sm:flex items-center gap-1">
           <span>⏰</span>
           <span>${isEn ? '12:00 PM' : 'تتجدد 12 ظهراً'}</span>
         </div>
@@ -1002,7 +1002,7 @@ export function renderDailyTipCard(overrideIndex = null) {
     </p>
 
     <!-- شريط سفلي خفيف -->
-    <div class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-gray-400">
+    <div class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-gray-400">
       <span class="flex items-center gap-1 text-gray-400">
         <span>🏭</span>
         <span>${isEn ? 'CMMS Excellence Tip' : 'إرشادات التميز والجودة'}</span>
@@ -1181,12 +1181,12 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <div>
           <div class="text-xs font-black text-amber-400 flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
+            <span class="text-xs font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
             <span id="tipPauseIndicator" class="hidden text-[8.5px] font-bold text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
               ⏸️ ${isEn ? 'Reading paused' : 'المؤقت متوقف للقراءة'}
             </span>
           </div>
-          <div class="text-[10px] text-gray-400 flex items-center gap-1">
+          <div class="text-xs text-gray-400 flex items-center gap-1">
             <span>${icon}</span>
             <span>${escapeHtml(tip.categoryTitle)}</span>
           </div>
@@ -1198,7 +1198,7 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <button
           type="button"
           id="nextDailyTipToastBtn"
-          class="text-amber-300 hover:text-white text-[10px] font-bold px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 rounded-lg transition-all cursor-pointer border border-amber-500/30 flex items-center gap-1"
+          class="text-amber-300 hover:text-white text-xs font-bold px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 rounded-lg transition-all cursor-pointer border border-amber-500/30 flex items-center gap-1"
           title="${isEn ? 'Show next tip' : 'عرض المعلومة التالية'}"
         >
           <span>↻</span>
@@ -1229,7 +1229,7 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
     </div>
 
     <!-- معلومات الشريط السفلي -->
-    <div class="flex items-center justify-between text-[9px] text-slate-400 mb-2">
+    <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
       <span class="flex items-center gap-1 text-amber-400/80">
         <span>⏱️</span>
         <span>${isEn ? 'Stays for 25s (hover to pause)' : 'تبقى 25 ثانية (ثبت المؤشر للقراءة)'}</span>

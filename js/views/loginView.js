@@ -6,15 +6,15 @@ export const LoginView = () => {
   const dir = currentLang === "ar" ? "rtl" : "ltr";
 
   return `
-  <div id="loginScreen" class="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-white" dir="${dir}">
+  <div id="loginScreen" class="min-h-screen bg-surface flex items-center justify-center p-4 text-white" dir="${dir}">
     <form 
       onsubmit="event.preventDefault(); window.doLogin();" 
-      class="w-full max-w-sm bg-[#1E293B] border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-4"
+      class="w-full max-w-sm bg-card border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-4"
     >
       
       <!-- الشعار -->
       <div class="flex justify-center mb-2">
-        <div class="w-20 h-20 bg-[#0F172A] rounded-2xl p-2 border border-gray-700 flex items-center justify-center shadow-inner">
+        <div class="w-20 h-20 bg-surface rounded-2xl p-2 border border-gray-700 flex items-center justify-center shadow-inner">
           <img src="assets/icons/icon-512.png" alt="شعار النظام" class="max-h-full max-w-full object-contain" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1063/1063376.png'"/>
         </div>
       </div>
@@ -31,7 +31,7 @@ export const LoginView = () => {
           autocomplete="tel"
           placeholder="${t.phone}" 
           required
-          class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
+          class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
         />
       </div>
       
@@ -45,7 +45,7 @@ export const LoginView = () => {
             autocomplete="current-password"
             placeholder="${t.password}" 
             required
-            class="w-full p-3 pl-12 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
+            class="w-full p-3 pl-12 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition shadow-sm"
           />
           <button
             type="button"
@@ -95,7 +95,7 @@ export const LoginView = () => {
     </form>
     <!-- Modal استعادة كلمة المرور -->
     <div id="forgotPasswordModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+      <div class="bg-card border border-gray-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <h3 class="text-lg font-bold text-white mb-2">${t.resetPasswordTitle}</h3>
         <p class="text-xs text-gray-400 mb-4">${t.resetPasswordDesc}</p>
         <form onsubmit="event.preventDefault(); window.doForgotPassword();">
@@ -104,14 +104,14 @@ export const LoginView = () => {
             type="tel" 
             placeholder="${t.phone}" 
             required
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3"
+            class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3"
           />
           <input id="forgotCode" type="text" autocomplete="off" placeholder="${t.resetCodeLabel}" required
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
+            class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
           <input id="forgotNewPass" type="password" autocomplete="new-password" minlength="8" placeholder="${t.resetNewPassword}" required
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
+            class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-3" />
           <input id="forgotNewPass2" type="password" autocomplete="new-password" minlength="8" placeholder="${t.resetConfirmPassword}" required
-            class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-4" />
+            class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 text-sm focus:outline-none focus:border-blue-500 transition mb-4" />
           <button 
             id="forgotBtn"
             type="submit" 

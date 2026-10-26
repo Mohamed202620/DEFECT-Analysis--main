@@ -146,13 +146,13 @@ function timelineItemHtml(log) {
         <div class="w-px flex-1 bg-gray-700 my-1"></div>
       </div>
       <div class="pb-4 flex-1">
-        <div class="text-[11px] font-bold text-gray-200">
+        <div class="text-xs font-bold text-gray-200">
           ${statusLabel(log.toStatus) || escapeHtml(log.toStatus || "")}
         </div>
-        <div class="text-[10px] text-gray-500 mt-0.5">
+        <div class="text-xs text-mute mt-0.5">
           ${escapeHtml(log.by || "")} ${log.byRole ? `(${escapeHtml(log.byRole)})` : ""} · ${formatDate(log.at)}
         </div>
-        ${log.note ? `<div class="text-[11px] text-gray-400 mt-1 bg-[#0F172A] rounded-lg p-2 border border-gray-800">${escapeHtml(log.note)}</div>` : ""}
+        ${log.note ? `<div class="text-xs text-gray-400 mt-1 bg-surface rounded-lg p-2 border border-gray-800">${escapeHtml(log.note)}</div>` : ""}
       </div>
     </div>
   `;
@@ -162,7 +162,7 @@ function infoRowHtml(label, value) {
   if (value === null || value === undefined || value === "") return "";
   return `
     <div class="flex justify-between text-xs gap-3">
-      <span class="text-gray-500 shrink-0">${label}</span>
+      <span class="text-mute shrink-0">${label}</span>
       <span class="text-gray-200 font-bold text-left">${value}</span>
     </div>
   `;
@@ -172,7 +172,7 @@ function imagesGridHtml(title, urls) {
   if (!Array.isArray(urls) || !urls.length) return "";
   return `
     <div>
-      <div class="text-[11px] font-bold text-gray-300 mb-2">${title}</div>
+      <div class="text-xs font-bold text-gray-300 mb-2">${title}</div>
       <div class="grid grid-cols-3 gap-2">
         ${urls.map(url => `
           <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
@@ -196,15 +196,15 @@ export async function openTicketDetailsModal(ticketId) {
     "fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4";
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md sm:max-w-xl md:max-w-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+    <div class="bg-card border border-gray-700 rounded-2xl w-full max-w-md sm:max-w-xl md:max-w-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between p-4 pb-3 border-b border-gray-800 shrink-0">
         <h3 class="text-sm font-bold text-blue-400">${L("🔍 تفاصيل البلاغ", "🔍 Ticket Details")}</h3>
         <button id="ticketDetails_close" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>
       </div>
-      <div id="ticketDetails_body" class="p-4 flex-1 overflow-y-auto text-center text-gray-500 text-xs py-8">
+      <div id="ticketDetails_body" class="p-4 flex-1 overflow-y-auto text-center text-mute text-xs py-8">
         ${L("جاري التحميل...", "Loading...")}
       </div>
-      <div id="ticketDetails_footer" class="hidden shrink-0 border-t border-gray-800 p-3 flex flex-wrap gap-2 justify-end bg-[#1E293B]"></div>
+      <div id="ticketDetails_footer" class="hidden shrink-0 border-t border-gray-800 p-3 flex flex-wrap gap-2 justify-end bg-card"></div>
     </div>
   `;
 
@@ -266,20 +266,20 @@ export async function openTicketDetailsModal(ticketId) {
 
         <!-- رقم البلاغ + الحالة -->
         <div class="flex items-center justify-between">
-          <span class="text-[11px] font-mono text-amber-400 font-semibold">${escapeHtml(displayRecordNumber(ticket))}</span>
-          <span class="text-[11px] px-2 py-1 rounded-full font-bold ${STATUS_BADGE_CLASSES[status] || "bg-gray-500/10 text-gray-400 border border-gray-500/20"}">
+          <span class="text-xs font-mono text-amber-400 font-semibold">${escapeHtml(displayRecordNumber(ticket))}</span>
+          <span class="text-xs px-2 py-1 rounded-full font-bold ${STATUS_BADGE_CLASSES[status] || "bg-gray-500/10 text-gray-400 border border-gray-500/20"}">
             ${statusLabel(status) || ticket.status || "-"}
           </span>
         </div>
 
         <!-- بيانات أساسية -->
-        <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
+        <div class="bg-surface border border-gray-800 rounded-xl p-3 space-y-1.5">
           ${infoRowHtml(L("الماكينة", "Machine"), escapeHtml(ticket.machine || ticket.machineName || "-"))}
           ${infoRowHtml(L("الخط", "Line"), escapeHtml(ticket.line || "-"))}
           ${ticket.unifiedNumber ? infoRowHtml(L("الرقم الموحد", "Unified #"), escapeHtml(displayRecordNumber(ticket))) : ""}
-          ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-[10px] ${priority.cls}">${escapeHtml(priority.label)}</span>`) : ""}
+          ${priority ? infoRowHtml(L("درجة الأولوية", "Priority"), `<span class="px-2 py-0.5 rounded-full text-xs ${priority.cls}">${escapeHtml(priority.label)}</span>`) : ""}
           ${typeLabel ? infoRowHtml(L("نوع البلاغ", "Ticket Type"), escapeHtml(typeLabel)) : ""}
-          ${ticket.maintenanceType ? infoRowHtml(L("مسار الصيانة", "Maintenance Route"), ticket.maintenanceType === "PM" ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM — ${L("صيانة وقائية", "Preventive")}</span>` : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">🔧 CM — ${L("صيانة تصحيحية", "Corrective")}</span>`) : ""}
+          ${ticket.maintenanceType ? infoRowHtml(L("مسار الصيانة", "Maintenance Route"), ticket.maintenanceType === "PM" ? `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM — ${L("صيانة وقائية", "Preventive")}</span>` : `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">🔧 CM — ${L("صيانة تصحيحية", "Corrective")}</span>`) : ""}
           ${categoryLabel ? infoRowHtml(L("نوع العطل", "Fault Category"), escapeHtml(categoryLabel)) : ""}
           ${infoRowHtml(L("مكان العطل", "Fault Location"), ticket.location ? escapeHtml(ticket.location) : "")}
           ${infoRowHtml(L("المُبلّغ", "Reported By"), ticket.reportedBy ? escapeHtml(ticket.reportedBy) : "")}
@@ -288,7 +288,7 @@ export async function openTicketDetailsModal(ticketId) {
           ${ticket.updatedAt ? infoRowHtml(L("آخر تحديث", "Last Updated"), formatDate(ticket.updatedAt)) : ""}
           ${ticket.description ? `<div class="text-xs text-gray-400 pt-1.5 border-t border-gray-800 mt-1.5">${escapeHtml(ticket.description)}</div>` : ""}
           ${ticket.suggestion ? `
-            <div class="text-[11px] text-gray-400 bg-[#1E293B] rounded-lg p-2 border border-gray-800 mt-1">
+            <div class="text-xs text-gray-400 bg-card rounded-lg p-2 border border-gray-800 mt-1">
               ${L("💡 اقتراح المُبلّغ:", "💡 Reporter suggestion:")} ${escapeHtml(ticket.suggestion)}
             </div>` : ""}
         </div>
@@ -309,12 +309,12 @@ export async function openTicketDetailsModal(ticketId) {
 
         <!-- الإجراءات المتخذة -->
         ${ticket.mechanicNotes ? `
-          <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5 text-emerald-300">
+          <div class="text-xs bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2.5 text-emerald-300">
             🔧 <span class="font-bold">${L("الإجراء المتخذ (ملاحظات الفني):", "Action taken (technician notes):")}</span>
             <div class="text-emerald-200/90 mt-1">${escapeHtml(ticket.mechanicNotes)}</div>
           </div>` : ""}
         ${ticket.operatorFeedback ? `
-          <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2.5 text-red-300">
+          <div class="text-xs bg-red-500/5 border border-red-500/20 rounded-lg p-2.5 text-red-300">
             ⚠️ <span class="font-bold">${L("ملاحظات المُبلّغ (سبب إعادة الفتح):", "Reporter notes (reason for reopening):")}</span>
             <div class="text-red-200/90 mt-1">${escapeHtml(ticket.operatorFeedback)}</div>
           </div>` : ""}
@@ -325,8 +325,8 @@ export async function openTicketDetailsModal(ticketId) {
 
         <!-- التايملاين -->
         <div>
-          <div class="text-[11px] font-bold text-gray-300 mb-2">${L("🕒 سجل الحالات", "🕒 Status History")}</div>
-          ${logs.length ? logs.map(timelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">${L("لا يوجد سجل بعد.", "No history yet.")}</div>`}
+          <div class="text-xs font-bold text-gray-300 mb-2">${L("🕒 سجل الحالات", "🕒 Status History")}</div>
+          ${logs.length ? logs.map(timelineItemHtml).join("") : `<div class="text-xs text-mute">${L("لا يوجد سجل بعد.", "No history yet.")}</div>`}
         </div>
 
       </div>

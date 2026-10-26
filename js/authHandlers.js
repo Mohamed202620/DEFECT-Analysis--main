@@ -559,7 +559,7 @@ if (!usersList.length) {
     <div  
       class="  
         text-center  
-        text-gray-500  
+        text-mute  
         py-6  
       "  
     >  
@@ -585,7 +585,7 @@ usersList.forEach(
 
       <div  
         class="  
-          bg-[#1E293B]  
+          bg-card  
           rounded-xl  
           p-3  
           mb-3  

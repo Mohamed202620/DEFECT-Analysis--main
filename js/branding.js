@@ -172,19 +172,19 @@ export function renderHeader() {
     ? `
       <div class="app-header-profile flex items-center gap-2 bg-slate-800/80 border border-slate-700/60 rounded-xl px-2 sm:px-2.5 py-1 sm:py-1.5 shadow-sm transition-colors hover:bg-slate-800 min-w-0 max-w-full overflow-hidden" style="display:inline-flex; align-items:center; gap:8px;">
         <div
-          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-[10px] sm:text-xs text-white shadow app-header-avatar"
+          class="w-7 h-7 sm:w-7.5 sm:h-7.5 rounded-full shrink-0 flex items-center justify-center font-black text-xs sm:text-xs text-white shadow app-header-avatar"
           style="width: 28px; min-width: 28px; max-width: 28px; height: 28px; min-height: 28px; max-height: 28px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: linear-gradient(135deg, #f5a623, #2563eb); box-shadow: 0 0 0 2px rgba(15,23,42,0.9), 0 0 8px rgba(245,166,35,0.3);"
         >${escapeBrandHtml(initial)}</div>
         <div class="app-header-profile-copy min-w-0 flex-1 leading-tight overflow-hidden">
           <div class="flex items-center gap-1 min-w-0">
-            <span class="text-[11px] sm:text-[12px] font-bold text-slate-100 truncate">
+            <span class="text-xs sm:text-[12px] font-bold text-slate-100 truncate">
               ${escapeBrandHtml(welcomeWord)} <span class="text-amber-400 font-extrabold">${escapeBrandHtml(name)}</span>
             </span>
             <span class="text-xs shrink-0" aria-hidden="true">👋</span>
           </div>
           <div class="flex items-center gap-1.5 mt-0.5 min-w-0">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-            <span class="text-[9px] sm:text-[10px] font-medium text-slate-300 truncate">
+            <span class="text-xs sm:text-xs font-medium text-slate-300 truncate">
               ${escapeBrandHtml(job)}
             </span>
           </div>
@@ -192,7 +192,7 @@ export function renderHeader() {
       </div>
     `
     : `
-      <div class="text-[10px] sm:text-[11px] font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50 truncate">
+      <div class="text-xs sm:text-xs font-semibold text-slate-300 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50 truncate">
         ${isEn ? "Maintenance Portal" : "بوابة نظام الصيانة"}
       </div>
     `;
@@ -243,7 +243,7 @@ export function renderHeader() {
               🔔
               <span
                 id="headerNotifBadge"
-                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-[8px] font-bold flex items-center justify-center"
+                class="hidden absolute -top-0.5 -end-0.5 min-w-[15px] h-3.5 px-0.5 rounded-full text-white text-xs font-bold flex items-center justify-center"
                 style="background:#ef4444; box-shadow: 0 0 0 2px rgba(15,23,42,0.95), 0 0 6px rgba(239,68,68,0.6);"
               >0</span>
             </button>
@@ -277,13 +277,13 @@ export function renderHeader() {
             <button
               type="button"
               onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-xs sm:text-xs font-bold transition-all duration-200 active:scale-90"
               style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >AR</button>
             <button
               type="button"
               onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[10px] sm:text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-xs sm:text-xs font-bold transition-all duration-200 active:scale-90"
               style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#94a3b8;"}"
             >EN</button>
           </div>

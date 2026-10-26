@@ -76,7 +76,7 @@ window.loadHolidays = async function () {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="text-center text-gray-500 text-xs py-6">جاري تحميل الإجازات الرسمية...</div>
+    <div class="text-center text-mute text-xs py-6">جاري تحميل الإجازات الرسمية...</div>
   `;
 
   const result = await fetchOfficialHolidaysApi();
@@ -92,7 +92,7 @@ window.loadHolidays = async function () {
 
   if (!result.data.length) {
     container.innerHTML = `
-      <div class="text-center text-gray-500 text-xs py-6">
+      <div class="text-center text-mute text-xs py-6">
         لا توجد إجازات رسمية مضافة بعد.
       </div>
     `;
@@ -100,14 +100,14 @@ window.loadHolidays = async function () {
   }
 
   container.innerHTML = result.data.map(h => `
-    <div class="flex items-center justify-between bg-[#1E293B] border border-gray-800 rounded-xl p-3">
+    <div class="flex items-center justify-between bg-card border border-gray-800 rounded-xl p-3">
       <div>
         <div class="text-xs font-bold text-gray-100">${escapeHtml(h.label || "إجازة رسمية")}</div>
-        <div class="text-[10px] text-gray-500 mt-0.5">${formatHolidayDate(h.date)}</div>
+        <div class="text-xs text-mute mt-0.5">${formatHolidayDate(h.date)}</div>
       </div>
       <button
         onclick="window.deleteHoliday('${escapeJsArg(h.id)}', '${escapeJsArg(h.label || "")}')"
-        class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
+        class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
         🗑️ حذف
       </button>
     </div>
@@ -185,12 +185,12 @@ window.loadGoogleHolidaysDropdown = function () {
   if (listContainer) {
     listContainer.innerHTML = holidays.length
       ? holidays.map(h => `
-          <div class="flex items-center justify-between bg-[#0F172A] border border-gray-800 rounded-lg px-2.5 py-1.5 text-[10px]">
+          <div class="flex items-center justify-between bg-surface border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs">
             <span class="text-gray-300">${escapeHtml(h.label)}</span>
-            <span class="text-gray-500 dir-ltr">${h.date}</span>
+            <span class="text-mute dir-ltr">${h.date}</span>
           </div>
         `).join("")
-      : `<div class="text-center text-gray-500 text-[10px] py-3">مفيش بيانات لعرضها بعد</div>`;
+      : `<div class="text-center text-mute text-xs py-3">مفيش بيانات لعرضها بعد</div>`;
   }
 };
 

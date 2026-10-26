@@ -117,7 +117,7 @@ return `
                 <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
                     <span>👥</span> ${escapeHtml(title)}
                 </h2>
-                <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+                <p class="text-xs text-gray-400 mt-0.5 font-medium">
                     ${subtitle}
                 </p>
             </div>
@@ -132,7 +132,7 @@ return `
             id="userSearch"
             oninput="window.searchUsers()"
             placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
-            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner"
+            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-surface border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner"
         >
         <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
     </div>
@@ -145,7 +145,7 @@ return `
         <select
             id="statusFilter"
             onchange="window.filterUsers()"
-            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            class="bg-surface border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="" ${defaultStatusFilter === "" ? "selected" : ""}>
                 كل الحالات
@@ -169,7 +169,7 @@ return `
         <select
             id="roleFilter"
             onchange="window.filterUsers()"
-            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            class="bg-surface border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="">
                 كل الأدوار
@@ -233,7 +233,7 @@ return `
         id="usersContainer"
         class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
-        <div class="col-span-full text-center text-gray-500 py-8">
+        <div class="col-span-full text-center text-mute py-8">
 
             جاري تحميل المستخدمين...
 
@@ -283,7 +283,7 @@ function permissionCheckbox(
 
     <label
         class="flex items-center gap-2
-               bg-[#0F172A]
+               bg-surface
                border border-gray-800
                rounded-lg
                p-2
@@ -297,7 +297,7 @@ function permissionCheckbox(
             ${disabled ? "disabled" : ""}
         >
 
-        <span class="text-[11px]">
+        <span class="text-xs">
             ${escapeHtml(label)}
         </span>
 
@@ -376,7 +376,7 @@ function renderUsers(users) {
 
             <div
                 class="
-                bg-[#1E293B]
+                bg-card
                 rounded-2xl
                 border border-gray-700
                 p-4
@@ -464,7 +464,7 @@ function renderUsers(users) {
                         mt-1
                         rounded-lg
                         p-2
-                        bg-[#0F172A]
+                        bg-surface
                         border
                         border-gray-700
                         text-sm
@@ -559,7 +559,7 @@ function renderUsers(users) {
                         mt-1
                         rounded-lg
                         p-2
-                        bg-[#0F172A]
+                        bg-surface
                         border
                         border-gray-700
                         text-sm

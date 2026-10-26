@@ -156,18 +156,18 @@ function renderNotificationCard(n) {
         <div class="flex-1 min-w-0 pr-1 rtl:pr-1 ltr:pl-1">
           <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
             <div class="flex items-center gap-1.5">
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${conf.theme}">
+              <span class="px-2 py-0.5 rounded-md text-xs font-bold border ${conf.theme}">
                 ${badgeText}
               </span>
               ${isUnread ? `
-                <span class="inline-flex items-center gap-1 text-[10px] font-black text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded-full">
+                <span class="inline-flex items-center gap-1 text-xs font-black text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded-full">
                   <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
                   ${isEn ? "New" : "جديد"}
                 </span>
               ` : ""}
             </div>
 
-            <span class="text-[11px] text-slate-400 font-medium inline-flex items-center gap-1">
+            <span class="text-xs text-slate-400 font-medium inline-flex items-center gap-1">
               <span>🕒</span>
               <span>${timeFormatted}</span>
             </span>
@@ -179,13 +179,13 @@ function renderNotificationCard(n) {
           </p>
 
           <!-- زر/سهم الانتقال للمصدر -->
-          <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800/70 text-[11px]">
+          <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800/70 text-xs">
             <span class="text-blue-400 group-hover:text-blue-300 font-bold flex items-center gap-1 transition-colors">
               <span>${n.ticketId ? (isEn ? "View Ticket Details" : "عرض تفاصيل البلاغ") : (n.suggestionId ? (isEn ? "View Kaizen Idea" : "عرض فكرة الكايزن") : (isEn ? "Details" : "التفاصيل"))}</span>
               <span class="rtl:rotate-180 transition-transform group-hover:translate-x-1">‹</span>
             </span>
 
-            ${n.ticketId ? `<span class="text-[10px] font-mono text-slate-500">#${escapeHtml(n.ticketId)}</span>` : ""}
+            ${n.ticketId ? `<span class="text-xs font-mono text-mute">#${escapeHtml(n.ticketId)}</span>` : ""}
           </div>
         </div>
       </div>
@@ -217,7 +217,7 @@ function renderListHtml(notifications, filter) {
           🔔
         </div>
         <p class="text-sm font-bold text-slate-300">${emptyMsg}</p>
-        <p class="text-xs text-slate-500 max-w-xs leading-relaxed">
+        <p class="text-xs text-mute max-w-xs leading-relaxed">
           ${isEn ? "New ticket updates, assignments, and Kaizen approvals will appear here automatically." : "تحديثات بلاغات الصيانة، الإسنادات، واعتمادات الكايزن ستظهر هنا فور إرسالها."}
         </p>
       </div>
@@ -268,7 +268,7 @@ export function openNotificationsModal() {
     "fixed inset-0 z-[120] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-2 sm:p-4 animate-fade-in";
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-lg sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
+    <div class="bg-card border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-lg sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
       
       <!-- الهيدر الرئيسي -->
       <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/60 shrink-0">
@@ -282,7 +282,7 @@ export function openNotificationsModal() {
                 <h3 class="text-base sm:text-lg font-black text-white">
                   ${isEn ? "Notifications Center" : "مركز الإشعارات والتنبيهات"}
                 </h3>
-                <span id="modalUnreadCountBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                <span id="modalUnreadCountBadge" class="hidden px-2 py-0.5 rounded-full text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
                   0 ${isEn ? "new" : "جديد"}
                 </span>
               </div>
@@ -312,7 +312,7 @@ export function openNotificationsModal() {
               data-tab="all"
               class="notif-tab-btn active px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-blue-600 border-blue-500 text-white shadow-sm">
               ${isEn ? "All" : "الكل"}
-              <span id="tabCountAll" class="mr-1 text-[10px] opacity-80">(0)</span>
+              <span id="tabCountAll" class="mr-1 text-xs opacity-80">(0)</span>
             </button>
 
             <button
@@ -320,7 +320,7 @@ export function openNotificationsModal() {
               data-tab="unread"
               class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-600">
               ${isEn ? "Unread" : "غير المقروءة"}
-              <span id="tabCountUnread" class="mr-1 text-[10px] text-amber-400 font-bold">(0)</span>
+              <span id="tabCountUnread" class="mr-1 text-xs text-amber-400 font-bold">(0)</span>
             </button>
 
             <button
@@ -341,7 +341,7 @@ export function openNotificationsModal() {
           <button
             id="globalNotif_markAll"
             type="button"
-            class="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-500/10 transition active:scale-95 cursor-pointer">
+            class="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-500/10 transition active:scale-95 cursor-pointer">
             <span>✓✓</span>
             <span>${tr.markAll || (isEn ? "Mark all as read" : "تحديد الكل كمقروء")}</span>
           </button>
@@ -358,7 +358,7 @@ export function openNotificationsModal() {
 
       <!-- الفوتر -->
       <div class="p-3 border-t border-slate-800 bg-slate-900/40 text-center shrink-0">
-        <span class="text-[11px] text-slate-400 font-medium">
+        <span class="text-xs text-slate-400 font-medium">
           💡 ${isEn ? "Tap any notification to view full details" : "اضغط على أي إشعار للانتقال مباشرة إلى تفاصيل البلاغ أو المقترح"}
         </span>
       </div>

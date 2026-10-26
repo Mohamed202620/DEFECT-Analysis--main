@@ -63,7 +63,7 @@ function periodMeta(period) {
   return META[period];
 }
 
-const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600';
+const INACTIVE_CLASS = 'bg-surface border-gray-700 text-gray-400 hover:border-gray-600';
 
 function el(id) {
   return document.getElementById(id);
@@ -172,7 +172,7 @@ window.switchStatsPeriod = function (period) {
   document.querySelectorAll('.stats-period-btn').forEach(btn => {
     const isActive = btn.dataset.period === period;
     btn.className =
-      'stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer ' +
+      'stats-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 cursor-pointer ' +
       (isActive ? periodMeta(period).activeClass : INACTIVE_CLASS);
   });
 
@@ -378,42 +378,42 @@ function renderSummary(tickets) {
   box.innerHTML = `
     <!-- إجمالي البلاغات -->
     <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-gray-800 hover:border-indigo-500/50 p-3 rounded-2xl transition-all shadow-sm">
-      <div class="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>${tr.totalTickets}</span>
         <span class="text-xs">📋</span>
       </div>
       <div class="text-xl font-black text-white tracking-tight">${s.total}</div>
-      <div class="text-[9px] text-indigo-400 font-semibold mt-0.5">100% النشاط</div>
+      <div class="text-xs text-indigo-400 font-semibold mt-0.5">100% النشاط</div>
     </div>
 
     <!-- قيد المعالجة -->
     <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-gray-800 hover:border-amber-500/50 p-3 rounded-2xl transition-all shadow-sm">
-      <div class="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>${tr.openTickets}</span>
         <span class="text-xs">⚙️</span>
       </div>
       <div class="text-xl font-black text-amber-400 tracking-tight">${s.open}</div>
-      <div class="text-[9px] text-amber-300/80 font-semibold mt-0.5">${tr.activeWorkload}</div>
+      <div class="text-xs text-amber-300/80 font-semibold mt-0.5">${tr.activeWorkload}</div>
     </div>
 
     <!-- تم إصلاحها -->
     <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-gray-800 hover:border-emerald-500/50 p-3 rounded-2xl transition-all shadow-sm">
-      <div class="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>${tr.resolvedTickets}</span>
         <span class="text-xs">✅</span>
       </div>
       <div class="text-xl font-black text-emerald-400 tracking-tight">${s.closed}</div>
-      <div class="text-[9px] text-emerald-300/80 font-semibold mt-0.5">إغلاق ناجح</div>
+      <div class="text-xs text-emerald-300/80 font-semibold mt-0.5">إغلاق ناجح</div>
     </div>
 
     <!-- نسبة الإنجاز -->
     <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-gray-800 hover:border-blue-500/50 p-3 rounded-2xl transition-all shadow-sm">
-      <div class="flex items-center justify-between text-[10px] text-gray-400 mb-1">
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-1">
         <span>${tr.completionRate}</span>
         <span class="text-xs">🎯</span>
       </div>
       <div class="text-xl font-black text-blue-400 tracking-tight">${s.resolutionRate}%</div>
-      <div class="text-[9px] ${s.resolutionRate >= 70 ? 'text-emerald-400' : 'text-yellow-400'} font-semibold mt-0.5">
+      <div class="text-xs ${s.resolutionRate >= 70 ? 'text-emerald-400' : 'text-yellow-400'} font-semibold mt-0.5">
         ${s.resolutionRate >= 70 ? 'أداء ممتاز' : 'يحتاج متابعة'}
       </div>
     </div>
@@ -626,7 +626,7 @@ function renderLineBreakdown(tickets) {
   const lines = computeLineBreakdown(tickets);
 
   if (!lines.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().noLineData}</div>`;
+    box.innerHTML = `<div class="text-center text-mute text-xs py-4">${t().noLineData}</div>`;
     return;
   }
 
@@ -636,11 +636,11 @@ function renderLineBreakdown(tickets) {
     const pct = Math.round((count / max) * 100);
     return `
       <div>
-        <div class="flex items-center justify-between text-[11px] mb-1">
+        <div class="flex items-center justify-between text-xs mb-1">
           <span class="text-gray-200 font-bold">${escapeHtml(line)}</span>
           <span class="text-indigo-400 font-mono font-bold">${count} عطل</span>
         </div>
-        <div class="w-full h-2.5 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">
+        <div class="w-full h-2.5 bg-surface rounded-full overflow-hidden border border-gray-800">
           <div class="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
         </div>
       </div>
@@ -660,7 +660,7 @@ function renderMttr(tickets) {
   const tr = t();
 
   if (!sampleSize) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${tr.mttrNoData}</div>`;
+    box.innerHTML = `<div class="text-center text-mute text-xs py-4">${tr.mttrNoData}</div>`;
     return;
   }
 
@@ -674,10 +674,10 @@ function renderMttr(tickets) {
     <div class="flex items-center justify-between">
       <div>
         <div class="text-2xl font-black text-cyan-400 tracking-tight">${displayValue}</div>
-        <div class="text-[10px] text-gray-400 mt-0.5">${tr.mttrBasedOn.replace('{n}', sampleSize)}</div>
+        <div class="text-xs text-gray-400 mt-0.5">${tr.mttrBasedOn.replace('{n}', sampleSize)}</div>
       </div>
       <div class="text-right">
-        <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg ${avgHours <= 2 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}">
+        <span class="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg ${avgHours <= 2 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}">
           ${avgHours <= 2 ? '⚡ استجابة سريعة' : '⚠️ استجابة متوسطة'}
         </span>
       </div>
@@ -697,7 +697,7 @@ function renderTechnicianPerformance(tickets) {
   const tr = t();
 
   if (!top.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${tr.noTechData}</div>`;
+    box.innerHTML = `<div class="text-center text-mute text-xs py-4">${tr.noTechData}</div>`;
     return;
   }
 
@@ -707,11 +707,11 @@ function renderTechnicianPerformance(tickets) {
     const pct = Math.round((count / max) * 100);
     return `
       <div>
-        <div class="flex items-center justify-between text-[11px] mb-1">
+        <div class="flex items-center justify-between text-xs mb-1">
           <span class="text-gray-200 font-bold">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '•'} ${tech}</span>
           <span class="text-emerald-400 font-mono font-bold">${count} ${tr.ticketWord}</span>
         </div>
-        <div class="w-full h-2.5 bg-[#0F172A] rounded-full overflow-hidden border border-gray-800">
+        <div class="w-full h-2.5 bg-surface rounded-full overflow-hidden border border-gray-800">
           <div class="h-full bg-gradient-to-r from-emerald-600 to-teal-400 rounded-full transition-all duration-300" style="width: ${pct}%"></div>
         </div>
       </div>

@@ -58,7 +58,7 @@ export const FiveSView = () => {
       <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
+      <div class="bg-card rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
         ${tr.noMachine}
       </div>
     </div>`;
@@ -74,9 +74,9 @@ export const FiveSView = () => {
       <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+      <div class="bg-card rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
         <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
-        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
+        <div class="text-xs text-gray-400">${tr.noPermissionDesc}</div>
       </div>
     </div>`;
   }
@@ -97,23 +97,23 @@ export const FiveSView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-emerald-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
+      <p class="text-xs text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="fiveSForm" onsubmit="window.handleFiveSSubmit(event)" class="space-y-4">
       ${FIVE_S_PILLARS.map(p => `
-        <div class="bg-[#1E293B] p-4 rounded-xl border border-gray-800 space-y-3 shadow-sm">
+        <div class="bg-card p-4 rounded-xl border border-gray-800 space-y-3 shadow-sm">
           <div class="flex justify-between items-start">
             <div>
               <div class="text-sm font-bold text-gray-200">${isEn ? p.en : p.ar}</div>
-              <div class="text-[11px] text-gray-500">${isEn ? p.desc.en : p.desc.ar}</div>
+              <div class="text-xs text-mute">${isEn ? p.desc.en : p.desc.ar}</div>
             </div>
           </div>
 
           <div class="grid grid-cols-5 gap-1.5 pt-1">
             ${[1, 2, 3, 4, 5].map(n => `
               <button type="button" onclick="window.selectFiveSRating('${escapeJsArg(p.id)}', ${n})" id="fsBtn_${escapeHtml(p.id)}_${n}"
-                class="fs-rating-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+                class="fs-rating-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-surface text-gray-300 transition hover:bg-gray-800">
                 ${n}
               </button>
             `).join('')}
@@ -123,17 +123,17 @@ export const FiveSView = () => {
           <div id="fsExtras_${escapeHtml(p.id)}" class="space-y-3 hidden pt-2 border-t border-gray-800">
              <div class="flex items-start gap-2">
                <div class="flex-1 space-y-1">
-                  <label id="fsNoteLabel_${escapeHtml(p.id)}" class="block text-[10px] font-bold text-gray-400">${tr.noteLabel}</label>
-                  <textarea id="fsNote_${escapeHtml(p.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
+                  <label id="fsNoteLabel_${escapeHtml(p.id)}" class="block text-xs font-bold text-gray-400">${tr.noteLabel}</label>
+                  <textarea id="fsNote_${escapeHtml(p.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-surface border border-gray-700 text-xs text-white h-12 resize-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"></textarea>
                </div>
              </div>
              
-             <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
+             <div class="bg-surface rounded-xl border border-gray-800 p-2">
                 ${buildAttachmentPickerHtml(`fsPhoto_${p.id}`, { emptyText: tr.photoEmpty })}
              </div>
 
              <div id="fsTicketBox_${escapeHtml(p.id)}" class="hidden">
-                <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
+                <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
                   <input type="checkbox" id="fsCreateTicket_${escapeHtml(p.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500">
                   <span class="font-medium text-red-300">${tr.createTicket}</span>
                 </label>
@@ -147,10 +147,10 @@ export const FiveSView = () => {
            الإرسال هنا كان معرّض للتغطية الجزئية بشريط السحب السفلي
            على آيفون X فما فوق/أندرويد الحديث - نفس الحل المستخدم
            بالفعل في BottomNav.js/branding.js لهذا الغرض بالضبط. -->
-      <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0F172A] border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-surface border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
          <div class="max-w-md sm:max-w-xl md:max-w-3xl mx-auto flex items-center justify-between">
             <div class="flex flex-col">
-               <span class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">${tr.scoreLabel}</span>
+               <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">${tr.scoreLabel}</span>
                <div class="flex items-baseline gap-2">
                  <span id="fsFloatingScoreText" class="text-2xl font-black text-emerald-400">0/25</span>
                  <span id="fsFloatingPercentText" class="text-sm font-bold text-gray-300">0%</span>
@@ -211,7 +211,7 @@ window.selectFiveSRating = function (pillarId, value) {
     btn.classList.toggle(activeColor, active);
     btn.classList.toggle('text-white', active);
     btn.classList.toggle('border-transparent', active);
-    btn.classList.toggle('bg-[#0F172A]', !active);
+    btn.classList.toggle('bg-surface', !active);
     btn.classList.toggle('text-gray-300', !active);
     
     // Remove other colors if present

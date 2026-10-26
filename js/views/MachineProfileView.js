@@ -74,7 +74,7 @@ export const MachineProfileView = () => {
       <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-gray-800 text-center space-y-4">
+      <div class="bg-card rounded-xl p-6 border border-gray-800 text-center space-y-4">
         <div class="text-sm text-gray-300">${tr.noMachine}</div>
         <button onclick="window.navigateTo('qr')" class="w-full p-3 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition">
           ${tr.scanQr}
@@ -109,9 +109,9 @@ export const MachineProfileView = () => {
       <button onclick="window.goBack('home')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+      <div class="bg-card rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
         <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
-        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
+        <div class="text-xs text-gray-400">${tr.noPermissionDesc}</div>
       </div>
     </div>`;
   }
@@ -127,17 +127,17 @@ export const MachineProfileView = () => {
       ${isEn ? '← Back' : '← رجوع'}
     </button>
 
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 relative">
+    <div class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 relative">
       <div class="text-xs text-gray-400">${tr.title}</div>
       <div class="text-xl font-black text-white">${escapeHtml(machine)}</div>
       <div class="flex flex-wrap items-center gap-1.5 mt-1">
-        <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
+        <span class="inline-block text-xs font-bold px-2 py-1 rounded-full ${department === 'frontend' ? 'bg-purple-500/10 text-purple-300 border border-purple-500/30' : 'bg-sky-500/10 text-sky-300 border border-sky-500/30'}">
           ${tr.department}: ${department ? department.toUpperCase() : '-'}
         </span>
-        <span class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
+        <span class="inline-block text-xs font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
           🏭 ${tr.line}: ${escapeHtml(lineLabel || '-')}
         </span>
-        <span id="machineStatusBadge" class="inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-gray-500/10 text-gray-300 border border-gray-500/30">
+        <span id="machineStatusBadge" class="inline-block text-xs font-bold px-2 py-1 rounded-full bg-gray-500/10 text-gray-300 border border-gray-500/30">
           ⏳ ${tr.loading}
         </span>
       </div>
@@ -162,65 +162,65 @@ export const MachineProfileView = () => {
     </div>
 
     ${canManageChecklists ? `
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-blue-500/30 space-y-2 mb-4">
+    <div class="bg-card rounded-2xl p-4 border border-blue-500/30 space-y-2 mb-4">
       <div class="flex items-center justify-between">
         <div class="text-xs font-bold text-blue-400">🛠️ ${tr.manageAm}</div>
         <div class="flex items-center gap-1.5">
-          <button onclick="window.navigateTo('checklistBuilder')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-[10px] font-bold text-white transition active:scale-95 shadow-sm">
+          <button onclick="window.navigateTo('checklistBuilder')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-bold text-white transition active:scale-95 shadow-sm">
             ${isEn ? 'Open Editor ✏️' : 'محرر البنود ✏️'}
           </button>
-          <button onclick="window.openManageAmModal()" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[10px] font-bold border border-gray-700 transition" title="${isEn ? 'Excel Import' : 'استيراد إكسيل'}">
+          <button onclick="window.openManageAmModal()" class="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold border border-gray-700 transition" title="${isEn ? 'Excel Import' : 'استيراد إكسيل'}">
             📊
           </button>
         </div>
       </div>
-      <div class="text-[10px] text-gray-400">${isEn ? 'Customize AM & 5S checklist items for this specific machine.' : 'تخصيص بنود فحص AM وتقييم 5S لهذه الماكينة وتعديلها مباشرة.'}</div>
+      <div class="text-xs text-gray-400">${isEn ? 'Customize AM & 5S checklist items for this specific machine.' : 'تخصيص بنود فحص AM وتقييم 5S لهذه الماكينة وتعديلها مباشرة.'}</div>
     </div>
     ` : ''}
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-      <div id="machineAmSummary" class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2">
+      <div id="machineAmSummary" class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2">
         <div class="text-xs font-bold text-gray-300">${tr.lastAm}</div>
-        <div class="text-[11px] text-gray-500">${tr.loading}</div>
+        <div class="text-xs text-mute">${tr.loading}</div>
       </div>
-      <div id="machine5sSummary" class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2">
+      <div id="machine5sSummary" class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2">
         <div class="text-xs font-bold text-gray-300">${tr.last5s}</div>
-        <div class="text-[11px] text-gray-500">${tr.loading}</div>
+        <div class="text-xs text-mute">${tr.loading}</div>
       </div>
     </div>
 
-    <div id="machineOverhaulSummary" class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 hidden">
+    <div id="machineOverhaulSummary" class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2 mb-4 hidden">
       <div class="text-xs font-bold text-fuchsia-400">${tr.lastOverhaul}</div>
-      <div id="machineOverhaulContent" class="text-[11px] text-gray-400"></div>
+      <div id="machineOverhaulContent" class="text-xs text-gray-400"></div>
     </div>
 
     ${canSeeHistory ? `
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
+    <div class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
       <div class="text-xs font-bold text-gray-300">${tr.pmRecords}</div>
-      <div id="machinePmBox" class="space-y-1.5 text-[11px] text-gray-400">${tr.loading}</div>
+      <div id="machinePmBox" class="space-y-1.5 text-xs text-gray-400">${tr.loading}</div>
     </div>
 
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
+    <div class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
       <div class="text-xs font-bold text-gray-300">${tr.history}</div>
-      <div id="machineHistoryBox" class="space-y-1.5 text-[11px] text-gray-400">${tr.loading}</div>
+      <div id="machineHistoryBox" class="space-y-1.5 text-xs text-gray-400">${tr.loading}</div>
     </div>` : ''}
 
     ${canPrintQr ? `
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
+    <div class="bg-card rounded-2xl p-4 border border-gray-800 space-y-2 mb-4">
       <button id="machineQrGenBtn" onclick="window.generateMachineQr()" class="w-full p-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 font-bold text-xs text-white transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed">
         ${tr.printQr}
       </button>
       <div id="machineQrPrintBox" class="hidden text-center pt-2">
         <canvas id="machineQrCanvas" class="mx-auto"></canvas>
         <div class="text-xs font-bold text-white mt-2">${resolved.found ? resolved.value : machine}</div>
-        ${lineLabel ? `<div class="text-[10px] font-bold text-gray-300 mt-0.5">🏭 ${escapeHtml(lineLabel)}</div>` : ''}
-        <button onclick="window.print()" class="mt-3 w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-[11px] text-white transition">
+        ${lineLabel ? `<div class="text-xs font-bold text-gray-300 mt-0.5">🏭 ${escapeHtml(lineLabel)}</div>` : ''}
+        <button onclick="window.print()" class="mt-3 w-full p-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-bold text-xs text-white transition">
           🖨️ ${isEn ? 'Print' : 'طباعة'}
         </button>
       </div>
     </div>` : ''}
 
-    <button onclick="window.navigateTo('qr')" class="w-full p-2.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-gray-600 font-bold text-[11px] text-gray-300 transition">
+    <button onclick="window.navigateTo('qr')" class="w-full p-2.5 rounded-lg bg-gray-800 border border-gray-700 hover:border-gray-600 font-bold text-xs text-gray-300 transition">
       ${tr.scanAnother}
     </button>
   </div>
@@ -258,11 +258,11 @@ window.loadMachineProfileData = async function () {
         <span class="text-sm font-bold ${rec.overallResult === 'ok' ? 'text-emerald-400' : 'text-amber-400'}">
           ${rec.overallResult === 'ok' ? tr.ok : tr.issues}
         </span>
-        <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
+        <span class="text-xs text-mute">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
-      <div class="text-[11px] text-gray-400">${tr.completion}: ${rec.completionRate ?? 0}%</div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
-    ` : `<div class="text-xs font-bold text-gray-300">${tr.lastAm}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
+      <div class="text-xs text-gray-400">${tr.completion}: ${rec.completionRate ?? 0}%</div>
+      <div class="text-xs text-mute">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
+    ` : `<div class="text-xs font-bold text-gray-300">${tr.lastAm}</div><div class="text-xs text-mute">${tr.noRecords}</div>`;
   }
 
   if (fiveSBox) {
@@ -271,10 +271,10 @@ window.loadMachineProfileData = async function () {
       <div class="text-xs font-bold text-gray-300">${tr.last5s}</div>
       <div class="flex items-center justify-between">
         <span class="text-lg font-black text-emerald-400">${rec.score ?? 0}%</span>
-        <span class="text-[10px] text-gray-500">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
+        <span class="text-xs text-mute">${new Date(rec.createdAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</span>
       </div>
-      <div class="text-[11px] text-gray-500">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
-    ` : `<div class="text-xs font-bold text-gray-300">${tr.last5s}</div><div class="text-[11px] text-gray-500">${tr.noRecords}</div>`;
+      <div class="text-xs text-mute">${tr.by} ${escapeHtml(rec.createdBy?.name || '-')}</div>
+    ` : `<div class="text-xs font-bold text-gray-300">${tr.last5s}</div><div class="text-xs text-mute">${tr.noRecords}</div>`;
   }
 
   let activeTickets = [];
@@ -307,17 +307,17 @@ window.loadMachineProfileData = async function () {
           <span class="font-bold text-white">${new Date(overhaulRecord.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
           <span>${tr.by} ${escapeHtml(overhaulRecord.reporter?.name || '-')}</span>
         </div>
-        <div class="text-[10px] bg-[#0F172A] p-2 rounded-lg text-gray-300 italic border border-gray-700">${escapeHtml(overhaulRecord.notes || '-')}</div>
+        <div class="text-xs bg-surface p-2 rounded-lg text-gray-300 italic border border-gray-700">${escapeHtml(overhaulRecord.notes || '-')}</div>
       `;
     }
 
     if (pmBox) {
       pmBox.innerHTML = pmRecords.length
         ? pmRecords.slice(0, 3).map(r => `
-          <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between">
+          <div class="bg-surface border border-gray-800 rounded-lg p-2 flex items-center justify-between">
             <span class="font-bold text-fuchsia-300">PM</span>
             <span>${escapeHtml(r.reporter?.name || '-')}</span>
-            <span class="text-gray-500">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
+            <span class="text-mute">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
           </div>
         `).join('')
         : `<div class="text-center py-2">${tr.noRecords}</div>`;
@@ -359,13 +359,13 @@ window.loadMachineProfileData = async function () {
   // Update Status Badge
   if (statusBadge) {
     if (activeTickets.some(t => String(t.type || '').toLowerCase() === 'breakdown' || String(t.type || '').includes('عطل'))) {
-      statusBadge.className = 'inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30';
+      statusBadge.className = 'inline-block text-xs font-bold px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/30';
       statusBadge.innerHTML = `🔴 ${tr.statusDown}`;
     } else if (activeTickets.length > 0) {
-      statusBadge.className = 'inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30';
+      statusBadge.className = 'inline-block text-xs font-bold px-2 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30';
       statusBadge.innerHTML = `🟡 ${tr.statusWarning}`;
     } else {
-      statusBadge.className = 'inline-block text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+      statusBadge.className = 'inline-block text-xs font-bold px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
       statusBadge.innerHTML = `🟢 ${tr.statusRunning}`;
     }
   }
@@ -387,10 +387,10 @@ window.loadMachineProfileData = async function () {
           let color = r.kind === 'AM' ? 'text-blue-300' : (r.kind === '5S' ? 'text-emerald-300' : 'text-red-300');
           let person = r.createdBy?.name || r.reporter?.name || r.reportedBy || '-';
           return `
-          <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between">
+          <div class="bg-surface border border-gray-800 rounded-lg p-2 flex items-center justify-between">
             <span class="font-bold ${color}">${r.kind}</span>
             <span>${person}</span>
-            <span class="text-gray-500">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
+            <span class="text-mute">${new Date(r.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG')}</span>
           </div>
           `;
         }).join('')
@@ -414,8 +414,8 @@ window.openManageAmModal = async function() {
 
   const modalHtml = `
     <div id="manageAmModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-4">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0F172A]">
+      <div class="bg-card border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-surface">
           <h3 class="font-bold text-white text-sm flex items-center gap-2">
             <span>⚙️</span>
             ${isEn ? 'Manage AM Checklist' : 'إدارة فحص AM'} - ${escapeHtml(machine)}
@@ -425,9 +425,9 @@ window.openManageAmModal = async function() {
           </button>
         </div>
         <div class="p-4 overflow-y-auto flex-1 space-y-3" id="amTemplateItemsContainer">
-          <div class="text-center text-xs text-gray-500">${isEn ? 'Loading...' : 'جاري التحميل...'}</div>
+          <div class="text-center text-xs text-mute">${isEn ? 'Loading...' : 'جاري التحميل...'}</div>
         </div>
-        <div class="p-4 border-t border-gray-800 bg-[#0F172A] flex justify-between">
+        <div class="p-4 border-t border-gray-800 bg-surface flex justify-between">
           <button onclick="window.addAmTemplateItem()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold text-white transition">
             + ${isEn ? 'Add Item' : 'إضافة بند'}
           </button>
@@ -471,22 +471,22 @@ window.renderAmTemplateItems = function() {
   const isEn = (window.currentLang || 'ar') === 'en';
   
   if (!window._currentAmTemplateItems || window._currentAmTemplateItems.length === 0) {
-    container.innerHTML = `<div class="text-center text-xs text-gray-500">${isEn ? 'No items in checklist.' : 'لا توجد بنود في الفحص.'}</div>`;
+    container.innerHTML = `<div class="text-center text-xs text-mute">${isEn ? 'No items in checklist.' : 'لا توجد بنود في الفحص.'}</div>`;
     return;
   }
 
   container.innerHTML = window._currentAmTemplateItems.map((item, index) => `
-    <div class="bg-[#0F172A] p-3 rounded-xl border border-gray-800 space-y-2 relative group">
+    <div class="bg-surface p-3 rounded-xl border border-gray-800 space-y-2 relative group">
       <button onclick="window.removeAmTemplateItem(${index})" class="absolute top-2 right-2 text-red-500 hover:text-red-400 p-1 opacity-50 hover:opacity-100 transition" title="${isEn ? 'Delete' : 'حذف'}">
         ✕
       </button>
       <div>
-        <label class="block text-[10px] text-gray-400 mb-1">AR Text</label>
-        <input type="text" value="${item.ar || ''}" onchange="window._currentAmTemplateItems[${index}].ar = this.value" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
+        <label class="block text-xs text-gray-400 mb-1">AR Text</label>
+        <input type="text" value="${item.ar || ''}" onchange="window._currentAmTemplateItems[${index}].ar = this.value" class="w-full p-2 rounded-lg bg-card border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
       </div>
       <div>
-        <label class="block text-[10px] text-gray-400 mb-1">EN Text</label>
-        <input type="text" value="${item.en || ''}" onchange="window._currentAmTemplateItems[${index}].en = this.value" class="w-full p-2 rounded-lg bg-[#1E293B] border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
+        <label class="block text-xs text-gray-400 mb-1">EN Text</label>
+        <input type="text" value="${item.en || ''}" onchange="window._currentAmTemplateItems[${index}].en = this.value" class="w-full p-2 rounded-lg bg-card border border-gray-700 text-xs text-white outline-none focus:border-blue-500">
       </div>
     </div>
   `).join('');

@@ -65,7 +65,7 @@ export const DailyAMView = () => {
       <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
+      <div class="bg-card rounded-xl p-6 border border-gray-800 text-center text-sm text-gray-300">
         ${tr.noMachine}
       </div>
     </div>`;
@@ -81,9 +81,9 @@ export const DailyAMView = () => {
       <button onclick="window.goBack('machineProfile')" class="mb-5 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition">
         ${isEn ? '← Back' : '← رجوع'}
       </button>
-      <div class="bg-[#1E293B] rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
+      <div class="bg-card rounded-xl p-6 border border-amber-500/30 text-center space-y-2">
         <div class="text-sm font-bold text-amber-400">${tr.noPermissionTitle}</div>
-        <div class="text-[11px] text-gray-400">${tr.noPermissionDesc}</div>
+        <div class="text-xs text-gray-400">${tr.noPermissionDesc}</div>
       </div>
     </div>`;
   }
@@ -96,12 +96,12 @@ export const DailyAMView = () => {
 
     <div class="mb-5">
       <h2 class="text-lg font-bold text-blue-400">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
+      <p class="text-xs text-gray-400 mt-1">${escapeHtml(machine)} • ${tr.subtitle}</p>
     </div>
 
     <form id="dailyAmForm" onsubmit="window.handleDailyAmSubmit(event)" class="space-y-4">
       <div id="dailyAmItemsContainer" class="space-y-4">
-        <div class="text-center text-sm text-gray-500 py-6">${isEn ? 'Loading checklist...' : 'جاري تحميل الفحص...'}</div>
+        <div class="text-center text-sm text-mute py-6">${isEn ? 'Loading checklist...' : 'جاري تحميل الفحص...'}</div>
       </div>
 
       <!-- Floating Bottom Bar -->
@@ -109,10 +109,10 @@ export const DailyAMView = () => {
            الإرسال هنا كان معرّض للتغطية الجزئية بشريط السحب السفلي
            على آيفون X فما فوق/أندرويد الحديث - نفس الحل المستخدم
            بالفعل في BottomNav.js/branding.js لهذا الغرض بالضبط. -->
-      <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0F172A] border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 hidden" id="dailyAmBottomBar" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-surface border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 hidden" id="dailyAmBottomBar" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
          <div class="max-w-md sm:max-w-xl md:max-w-3xl mx-auto flex items-center justify-between">
             <div class="flex flex-col">
-               <span class="text-[10px] text-gray-400 font-medium tracking-wider">${tr.progressLabel}</span>
+               <span class="text-xs text-gray-400 font-medium tracking-wider">${tr.progressLabel}</span>
                <div class="flex items-baseline gap-1">
                  <span id="amFloatingProgressText" class="text-xl font-black text-blue-400">0/0</span>
                </div>
@@ -171,10 +171,10 @@ window.initDailyAmView = async function() {
       const labelText = getItemLabel(item);
       const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
       const criticalBadgeHtml = item.critical
-        ? `<span class="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>`
+        ? `<span class="shrink-0 text-xs font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>`
         : '';
       const howToHtml = howToText
-        ? `<div class="text-[11px] text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>`
+        ? `<div class="text-xs text-sky-400 bg-sky-950/30 p-2 rounded-lg border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>`
         : '';
 
       let inputFieldHtml = '';
@@ -182,10 +182,10 @@ window.initDailyAmView = async function() {
         const minText = item.min != null ? `${isEn ? 'Min' : 'الحد الأدنى'}: ${item.min} ` : '';
         const maxText = item.max != null ? `| ${isEn ? 'Max' : 'الحد الأقصى'}: ${item.max}` : '';
         const limitsHtml = (item.min != null || item.max != null)
-          ? `<div class="text-[10px] text-gray-400 font-mono">${escapeHtml(minText)}${escapeHtml(maxText)}</div>`
+          ? `<div class="text-xs text-gray-400 font-mono">${escapeHtml(minText)}${escapeHtml(maxText)}</div>`
           : '';
         inputFieldHtml = `
-          <div class="flex items-center gap-3 bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
+          <div class="flex items-center gap-3 bg-surface p-2 rounded-lg border border-gray-700 w-full sm:w-1/2">
              <input type="number" id="amReading_${escapeHtml(item.id)}" placeholder="${tr.readingLabel}" class="w-full bg-transparent text-sm text-white focus:outline-none" step="any" oninput="window.updateAmProgress()">
              <span class="text-xs text-gray-400 font-bold px-2">${item.unit || ''}</span>
           </div>
@@ -193,7 +193,7 @@ window.initDailyAmView = async function() {
         `;
       } else if (item.type === 'text') {
         inputFieldHtml = `
-          <div class="bg-[#0F172A] p-2 rounded-lg border border-gray-700 w-full">
+          <div class="bg-surface p-2 rounded-lg border border-gray-700 w-full">
              <input type="text" id="amReading_${escapeHtml(item.id)}" placeholder="${isEn ? 'Enter notes/value...' : 'أدخل القيمة أو الملاحظة...'}" class="w-full bg-transparent text-xs text-white focus:outline-none" oninput="window.updateAmProgress()">
           </div>
         `;
@@ -202,7 +202,7 @@ window.initDailyAmView = async function() {
       const attachmentPickerHtml = buildAttachmentPickerHtml('amPhoto_' + item.id, { emptyText: isEn ? 'No photo attached' : 'لا توجد صورة مرفقة' });
 
       return `
-      <div class="bg-[#1E293B] p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${escapeHtml(item.id)}">
+      <div class="bg-card p-4 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-gray-800'} space-y-3 shadow-sm" data-am-item="${escapeHtml(item.id)}">
         <div class="flex items-start justify-between gap-2">
           <div class="text-sm font-bold text-gray-200">${escapeHtml(labelText)}</div>
           ${criticalBadgeHtml}
@@ -212,15 +212,15 @@ window.initDailyAmView = async function() {
 
         <div class="grid grid-cols-3 gap-2 pt-1">
           <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','ok')" id="amBtn_${escapeHtml(item.id)}_ok"
-            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-surface text-gray-300 transition hover:bg-gray-800">
             ${tr.ok}
           </button>
           <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','not_ok')" id="amBtn_${escapeHtml(item.id)}_not_ok"
-            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-surface text-gray-300 transition hover:bg-gray-800">
             ${tr.notOk}
           </button>
           <button type="button" onclick="window.selectAmResult('${escapeJsArg(item.id)}','na')" id="amBtn_${escapeHtml(item.id)}_na"
-            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-[#0F172A] text-gray-300 transition hover:bg-gray-800">
+            class="am-result-btn py-2.5 rounded-lg text-xs font-bold border border-gray-700 bg-surface text-gray-300 transition hover:bg-gray-800">
             ${tr.na}
           </button>
         </div>
@@ -229,16 +229,16 @@ window.initDailyAmView = async function() {
 
         <div id="amNotOkBox_${escapeHtml(item.id)}" class="hidden space-y-3 pt-3 border-t border-gray-800">
           <div class="space-y-1">
-             <label class="block text-[10px] font-bold text-red-400">${tr.noteLabel}</label>
-             <textarea id="amNote_${escapeHtml(item.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
+             <label class="block text-xs font-bold text-red-400">${tr.noteLabel}</label>
+             <textarea id="amNote_${escapeHtml(item.id)}" placeholder="${tr.notePlaceholder}" class="w-full p-2.5 rounded-xl bg-surface border border-gray-700 text-xs text-white h-14 resize-none focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none transition-all"></textarea>
           </div>
 
-          <div class="bg-[#0F172A] rounded-xl border border-gray-800 p-2">
+          <div class="bg-surface rounded-xl border border-gray-800 p-2">
              ${attachmentPickerHtml}
           </div>
 
           <!-- يظهر فوراً زر فرعي "إنشاء بلاغ صيانة" -->
-          <label class="flex items-center gap-2 text-[11px] text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
+          <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer bg-red-950/20 p-2.5 rounded-xl border border-red-900/30 hover:bg-red-950/40 transition-colors">
             <input type="checkbox" id="amCreateTicket_${escapeHtml(item.id)}" class="w-4 h-4 rounded bg-gray-800 border-gray-600 text-red-500 focus:ring-red-500" checked>
             <span class="font-medium text-red-300">${tr.createTicket}</span>
           </label>
@@ -298,7 +298,7 @@ window.selectAmResult = function (itemId, value) {
     btn.classList.toggle('text-white', active);
     btn.classList.toggle('border-transparent', active);
     btn.classList.toggle('text-gray-300', !active);
-    btn.classList.toggle('bg-[#0F172A]', !active);
+    btn.classList.toggle('bg-surface', !active);
   });
 
   const notOkBox = document.getElementById(`amNotOkBox_${itemId}`);

@@ -35,7 +35,7 @@ export const ReportsView = () => {
           <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
             <span>📊</span> ${isEn ? 'Reports & Excel Export' : 'مركز تقارير وتصدير البيانات'}
           </h2>
-          <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+          <p class="text-xs text-gray-400 mt-0.5 font-medium">
             ${isEn ? 'Export official logs with company header and branding' : 'تصدير السجلات الرسمية مع هيدر وشعار الشركة'}
           </p>
         </div>
@@ -51,7 +51,7 @@ export const ReportsView = () => {
         <div class="font-bold text-blue-300">
           ${isEn ? COMPANY_NAME_EN : COMPANY_NAME_AR}
         </div>
-        <div class="text-[10px] text-gray-400 leading-relaxed">
+        <div class="text-xs text-gray-400 leading-relaxed">
           ${isEn 
             ? 'All exported Excel files automatically include the high-resolution company logo, certified ISO standards, timestamps, exporter details, and conditional color badges.' 
             : 'جميع ملفات الإكسيل المُصدّرة تُدرج تلقائياً لوجو الشركة الرسمي بدقة عالية، شهادات الجودة (ISO/FSSC)، بيانات القائم بالتصدير، وتلوين الحالات الذكي.'}
@@ -62,19 +62,19 @@ export const ReportsView = () => {
     <!-- شبكة فلتر التاريخ وبطاقة التصدير الشامل -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
       <!-- فلتر الفترة الزمنية للتصدير -->
-      <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3 flex flex-col justify-between">
+      <div class="bg-card rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3 flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between mb-2">
             <label class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
               <span>🗓️</span> ${isEn ? 'Date Range Filter' : 'نطاق الفترة الزمنية للتصدير'}
             </label>
-            <span class="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-medium">
+            <span class="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-medium">
               ${isEn ? 'Auto Applied' : 'مطبق تلقائياً'}
             </span>
           </div>
 
           <select id="reportDateFilter" onchange="window.handleReportDateFilterChange()"
-            class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            class="w-full p-2.5 rounded-xl bg-surface border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
             <option value="all">${isEn ? 'All Records (Full History)' : 'جميع السجلات (السجل الكامل)'}</option>
             <option value="today">${isEn ? 'Today' : 'اليوم'}</option>
             <option value="last7">${isEn ? 'Last 7 Days' : 'آخر 7 أيام'}</option>
@@ -86,14 +86,14 @@ export const ReportsView = () => {
 
         <div id="reportCustomDatesRow" class="hidden grid grid-cols-2 gap-2 pt-1">
           <div>
-            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
+            <label class="block text-xs text-gray-400 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
             <input id="reportDateFrom" type="date"
-              class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
+              class="w-full p-2 rounded-xl bg-surface border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
           </div>
           <div>
-            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
+            <label class="block text-xs text-gray-400 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
             <input id="reportDateTo" type="date"
-              class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
+              class="w-full p-2 rounded-xl bg-surface border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
           </div>
         </div>
       </div>
@@ -108,7 +108,7 @@ export const ReportsView = () => {
             <h3 class="text-xs font-black text-emerald-300">
               ${isEn ? 'Master Multi-Sheet Operations Report' : 'التقرير الشامل المجمع (متعدد التبويبات)'}
             </h3>
-            <p class="text-[10px] text-gray-400">
+            <p class="text-xs text-gray-400">
               ${isEn ? 'Includes Tickets, PM, and Kaizen in a single structured workbook' : 'يجمع البلاغات والصيانة الوقائية والكايزن في ملف إكسيل واحد ذكي'}
             </p>
           </div>
@@ -133,7 +133,7 @@ export const ReportsView = () => {
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <!-- 1. بلاغات الأعطال -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-card hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center text-base shrink-0">
               🚨
@@ -142,7 +142,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Breakdown Tickets Log' : 'سجل بلاغات الأعطال والتوقفات'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-xs text-gray-400">
                 ${isEn ? 'Machine issues, downtime, technician actions' : 'سجل الأعطال والتوقفات وإجراءات المعالجة'}
               </div>
             </div>
@@ -157,7 +157,7 @@ export const ReportsView = () => {
         </div>
 
         <!-- 2. الصيانة الوقائية -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-card hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center text-base shrink-0">
               🛠️
@@ -166,7 +166,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Preventive Maintenance (PM)' : 'سجل الصيانة الوقائية والتفتيش'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-xs text-gray-400">
                 ${isEn ? 'Routine checks, checklists, spare parts' : 'الفحوصات الدورية وقطع الغيار'}
               </div>
             </div>
@@ -181,7 +181,7 @@ export const ReportsView = () => {
         </div>
 
         <!-- 3. مقترحات كايزن -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-card hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-base shrink-0">
               💡
@@ -190,7 +190,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Kaizen Improvement Log' : 'سجل مقترحات كايزن والتطوير'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-xs text-gray-400">
                 ${isEn ? 'Suggestions, reviews, implementation' : 'أفكار التحسين ومراحل المراجعة والاعتماد'}
               </div>
             </div>
@@ -540,7 +540,7 @@ window.runExcelExport = async function (type) {
         <div class="text-emerald-400 font-bold flex items-center justify-center gap-1.5 mb-1">
           <span>✅</span> <span>${isAr ? 'تم إنشاء التقرير بنجاح وبدء التنزيل!' : 'Report generated and download started!'}</span>
         </div>
-        <div class="text-[10px] text-gray-400">
+        <div class="text-xs text-gray-400">
           ${isAr ? 'إذا طلب المتصفح إذناً، اضغط "سماح" (Allow) لإتمام الحفظ.' : 'If browser prompts for permission, click "Allow".'}
         </div>
       `;

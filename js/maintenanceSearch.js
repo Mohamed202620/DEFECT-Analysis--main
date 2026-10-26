@@ -60,7 +60,7 @@ const TYPE_META = {
   pm: { activeClass: 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300' },
   suggestion: { activeClass: 'bg-amber-500/15 border-amber-500/50 text-amber-300' }
 };
-const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
+const INACTIVE_CLASS = 'bg-surface border-gray-700 text-gray-400';
 
 const PRIORITY_LABELS = { High: "🔴 عالية", Medium: "🟡 متوسطة", Low: "🟢 منخفضة" };
 
@@ -218,7 +218,7 @@ window.handleMaintenanceSearchDateFilterChange = function () {
 export async function initMaintenanceSearchView({ silent = false } = {}) {
   const box = el('mResultsBox');
   if (box && !silent) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-8">جاري تحميل البيانات...</div>`;
+    box.innerHTML = `<div class="text-center text-mute text-xs py-8">جاري تحميل البيانات...</div>`;
   }
 
   const role = getCurrentRole();
@@ -319,7 +319,7 @@ window.switchMaintenanceSearchType = function (type) {
   document.querySelectorAll('.m-type-btn').forEach(btn => {
     const isActive = btn.dataset.type === type;
     btn.className =
-      'm-type-btn py-2 rounded-lg text-[10px] font-bold border transition-all active:scale-95 ' +
+      'm-type-btn py-2 rounded-lg text-xs font-bold border transition-all active:scale-95 ' +
       (isActive ? TYPE_META[type].activeClass : INACTIVE_CLASS);
   });
 
@@ -368,13 +368,13 @@ function suggestionTimelineItemHtml(log) {
         <div class="w-px flex-1 bg-gray-700 my-1"></div>
       </div>
       <div class="pb-4 flex-1">
-        <div class="text-[11px] font-bold text-gray-200">
+        <div class="text-xs font-bold text-gray-200">
           ${SUGGESTION_STATUS_LABELS[log.toStatus] || escapeHtml(log.toStatus)}
         </div>
-        <div class="text-[10px] text-gray-500 mt-0.5">
+        <div class="text-xs text-mute mt-0.5">
           ${escapeHtml(log.by || "")} ${log.byRole ? `(${escapeHtml(log.byRole)})` : ""} · ${formatSuggestionDetailsDate(log.at)}
         </div>
-        ${log.note ? `<div class="text-[11px] text-gray-400 mt-1 bg-[#0F172A] rounded-lg p-2 border border-gray-800">${escapeHtml(log.note)}</div>` : ""}
+        ${log.note ? `<div class="text-xs text-gray-400 mt-1 bg-surface rounded-lg p-2 border border-gray-800">${escapeHtml(log.note)}</div>` : ""}
       </div>
     </div>
   `;
@@ -386,12 +386,12 @@ async function openSuggestionDetailsModal(suggestion) {
     "fixed inset-0 z-[100] bg-black/60 flex items-end sm:items-center justify-center p-4";
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-md p-4 shadow-2xl max-h-[85vh] overflow-y-auto">
+    <div class="bg-card border border-gray-700 rounded-2xl w-full max-w-md p-4 shadow-2xl max-h-[85vh] overflow-y-auto">
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-sm font-bold text-amber-400">💡 تفاصيل مقترح الكايزن</h3>
         <button id="mSuggDetails_close" class="text-gray-400 hover:text-white text-lg leading-none">✕</button>
       </div>
-      <div id="mSuggDetails_body" class="text-center text-gray-500 text-xs py-8">
+      <div id="mSuggDetails_body" class="text-center text-mute text-xs py-8">
         جاري التحميل...
       </div>
     </div>
@@ -417,27 +417,27 @@ async function openSuggestionDetailsModal(suggestion) {
     <div class="space-y-4 text-right">
 
       <!-- بيانات أساسية -->
-      <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-3 space-y-1.5">
+      <div class="bg-surface border border-gray-800 rounded-xl p-3 space-y-1.5">
         <div class="flex justify-between text-xs">
-          <span class="text-gray-500">العنوان</span>
+          <span class="text-mute">العنوان</span>
           <span class="text-gray-200 font-bold">${escapeHtml(suggestion.title || "-")}</span>
         </div>
         <div class="flex justify-between text-xs">
-          <span class="text-gray-500">الحالة</span>
+          <span class="text-mute">الحالة</span>
           <span class="text-amber-300 font-bold">${SUGGESTION_STATUS_LABELS[status] || escapeHtml(status)}</span>
         </div>
         ${suggestion.machine ? `
         <div class="flex justify-between text-xs">
-          <span class="text-gray-500">الماكينة</span>
+          <span class="text-mute">الماكينة</span>
           <span class="text-gray-300">${escapeHtml(suggestion.machine)}</span>
         </div>` : ""}
         <div class="flex justify-between text-xs">
-          <span class="text-gray-500">مقدّم المقترح</span>
+          <span class="text-mute">مقدّم المقترح</span>
           <span class="text-gray-300">${escapeHtml(suggestion.anonymous ? "🕶️ مقترح مجهول" : (suggestion.name || "-"))}</span>
         </div>
         ${suggestion.assignedTo ? `
         <div class="flex justify-between text-xs">
-          <span class="text-gray-500">الفني المسؤول</span>
+          <span class="text-mute">الفني المسؤول</span>
           <span class="text-gray-300">${escapeHtml(suggestion.assignedTo)}</span>
         </div>` : ""}
         ${suggestion.problem ? `<div class="text-xs text-gray-400 pt-1 border-t border-gray-800 mt-1"><b>المشكلة:</b> ${escapeHtml(suggestion.problem)}</div>` : ""}
@@ -449,7 +449,7 @@ async function openSuggestionDetailsModal(suggestion) {
       <!-- صور المقترح -->
       ${suggestionImages.length ? `
         <div>
-          <div class="text-[11px] font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
+          <div class="text-xs font-bold text-gray-300 mb-2">📷 ${suggestionImages.length > 1 ? "صور المقترح" : "صورة المقترح"}</div>
           <div class="grid grid-cols-3 gap-2">
             ${suggestionImages.map(url => `
               <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
@@ -463,7 +463,7 @@ async function openSuggestionDetailsModal(suggestion) {
       <!-- صور التنفيذ -->
       ${implementationImages.length ? `
         <div>
-          <div class="text-[11px] font-bold text-gray-300 mb-2">📷 صور بعد التنفيذ</div>
+          <div class="text-xs font-bold text-gray-300 mb-2">📷 صور بعد التنفيذ</div>
           <div class="grid grid-cols-3 gap-2">
             ${implementationImages.map(url => `
               <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
@@ -476,8 +476,8 @@ async function openSuggestionDetailsModal(suggestion) {
 
       <!-- التايملاين -->
       <div>
-        <div class="text-[11px] font-bold text-gray-300 mb-2">🕒 سجل الحالات</div>
-        ${logs.length ? logs.map(suggestionTimelineItemHtml).join("") : `<div class="text-[11px] text-gray-500">لا يوجد سجل بعد.</div>`}
+        <div class="text-xs font-bold text-gray-300 mb-2">🕒 سجل الحالات</div>
+        ${logs.length ? logs.map(suggestionTimelineItemHtml).join("") : `<div class="text-xs text-mute">لا يوجد سجل بعد.</div>`}
       </div>
 
     </div>
@@ -515,10 +515,10 @@ function renderResults() {
   if (loadError) {
     if (summaryBox) summaryBox.innerHTML = '';
     box.innerHTML = `
-      <div class="text-center text-red-400 text-[11px] py-8 space-y-2">
+      <div class="text-center text-red-400 text-xs py-8 space-y-2">
         <div>⚠️ تعذّر تحميل البيانات - تأكد من الاتصال بالإنترنت.</div>
         <button onclick="window.retryMaintenanceSearchLoad()"
-          class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
+          class="text-xs font-bold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
           إعادة المحاولة
         </button>
       </div>
@@ -615,7 +615,7 @@ function renderResults() {
 
   if (!list.length) {
     box.innerHTML = `
-      <div class="text-center text-gray-500 text-[11px] py-8">
+      <div class="text-center text-mute text-xs py-8">
         لا توجد نتائج مطابقة لبحثك/فلاترك الحالية.
       </div>
     `;
@@ -913,28 +913,28 @@ function ticketResultCard(t) {
   const unifiedNumberDisplay = escapeHtml(displayRecordNumber(t));
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs hover:border-slate-700 transition-colors">
+    <div class="bg-card border border-gray-800 rounded-xl p-3 space-y-2 text-xs hover:border-slate-700 transition-colors">
       <div class="flex justify-between items-center gap-1.5">
         <span class="font-bold text-gray-100 flex items-center gap-1.5 truncate">
           ${isPm 
-            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30">🗓️ PM</span>`
-            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">🚨 CM</span>`}
+            ? `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-teal-500/15 text-teal-300 border border-teal-500/30">🗓️ PM</span>`
+            : `<span class="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">🚨 CM</span>`}
           <span class="truncate">${machineName}</span>
-          ${t.line ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">${escapeHtml(t.line)}</span>` : ''}
+          ${t.line ? `<span class="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">${escapeHtml(t.line)}</span>` : ''}
         </span>
         <div class="flex items-center gap-1 shrink-0">
-          ${isOverdue ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse font-bold">⏰ متأخر</span>` : ''}
-          <span class="text-[10px] px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
+          ${isOverdue ? `<span class="text-xs px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse font-bold">⏰ متأخر</span>` : ''}
+          <span class="text-xs px-2 py-0.5 rounded-full ${STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
             ${STATUS_LABELS[status] || escapeHtml(status) || '-'}
           </span>
         </div>
       </div>
 
-      <div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>
+      <div class="text-xs font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>
 
-      ${t.description ? `<p class="text-[11px] text-gray-400 line-clamp-2">${escapeHtml(t.description)}</p>` : ''}
+      ${t.description ? `<p class="text-xs text-gray-400 line-clamp-2">${escapeHtml(t.description)}</p>` : ''}
 
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
+      <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
         ${t.priority ? `<span>${PRIORITY_LABELS[t.priority] || escapeHtml(t.priority)}</span>` : ''}
         ${t.reportedBy ? `<span>👤 بلّغ: ${escapeHtml(t.reportedBy)}</span>` : ''}
         ${t.assignedTo ? `<span>🛠️ مُسندة: ${escapeHtml(t.assignedTo)}</span>` : ''}
@@ -943,7 +943,7 @@ function ticketResultCard(t) {
 
       <button
         onclick="window.openMaintenanceSearchTicketDetails('${escapeJsArg(t.id)}')"
-        class="w-full text-[11px] font-bold py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
+        class="w-full text-xs font-bold py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 active:scale-95 transition-all">
         🔍 التفاصيل
       </button>
     </div>
@@ -960,22 +960,22 @@ function pmResultCard(p) {
   const unifiedNumberDisplay = p.unifiedNumber ? escapeHtml(displayRecordNumber(p)) : null;
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
+    <div class="bg-card border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
       <div class="flex justify-between items-center">
         <span class="font-bold text-gray-100 flex items-center gap-1.5">
-          <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">📝 صيانة وقائية</span>
+          <span class="text-xs px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">📝 صيانة وقائية</span>
           ${escapeHtml(p.machine || '-')}
         </span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           ✅ ${doneCount}/3 بنود
         </span>
       </div>
 
-      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
+      ${unifiedNumberDisplay ? `<div class="text-xs font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
-      ${p.notes ? `<p class="text-[11px] text-gray-400">${escapeHtml(p.notes)}</p>` : ''}
+      ${p.notes ? `<p class="text-xs text-gray-400">${escapeHtml(p.notes)}</p>` : ''}
 
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
+      <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
         ${p.reporter?.name ? `<span>👤 الفني: ${escapeHtml(p.reporter.name)}</span>` : ''}
         ${p.reporter?.shift ? `<span>🕒 الوردية: ${escapeHtml(p.reporter.shift)}</span>` : ''}
         ${p.createdAt ? `<span>🕓 ${escapeHtml(new Date(p.createdAt).toLocaleDateString((window.currentLang === "en" ? "en-US" : "ar-EG")))}</span>` : ''}
@@ -994,22 +994,22 @@ function suggestionResultCard(s) {
   const unifiedNumberDisplay = s.unifiedNumber ? escapeHtml(displayRecordNumber(s)) : null;
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
+    <div class="bg-card border border-gray-800 rounded-xl p-3 space-y-2 text-xs">
       <div class="flex justify-between items-center">
         <span class="font-bold text-gray-100 flex items-center gap-1.5">
-          <span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">💡 كايزن</span>
+          <span class="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">💡 كايزن</span>
           ${titleText}
         </span>
-        <span class="text-[10px] px-2 py-0.5 rounded-full ${SUGGESTION_STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
+        <span class="text-xs px-2 py-0.5 rounded-full ${SUGGESTION_STATUS_CLASSES[status] || 'bg-gray-500/10 text-gray-400'}">
           ${SUGGESTION_STATUS_LABELS[status] || escapeHtml(status) || '-'}
         </span>
       </div>
 
-      ${unifiedNumberDisplay ? `<div class="text-[10px] font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
+      ${unifiedNumberDisplay ? `<div class="text-xs font-mono text-amber-400 font-semibold">${unifiedNumberDisplay}</div>` : ''}
 
-      ${s.problem ? `<p class="text-[11px] text-gray-400">${escapeHtml(s.problem)}</p>` : ''}
+      ${s.problem ? `<p class="text-xs text-gray-400">${escapeHtml(s.problem)}</p>` : ''}
 
-      <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
+      <div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-mute">
         ${s.machine ? `<span>🏭 ${escapeHtml(s.machine)}</span>` : ''}
         <span>👤 ${escapeHtml(s.anonymous ? 'مجهول' : (s.name || '-'))}</span>
         ${s.assignedTo ? `<span>🔧 الفني: ${escapeHtml(s.assignedTo)}</span>` : ''}
@@ -1018,7 +1018,7 @@ function suggestionResultCard(s) {
 
       <button
         onclick="window.openMaintenanceSearchSuggestionDetails('${escapeJsArg(s.id)}')"
-        class="w-full text-[11px] font-bold py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all">
+        class="w-full text-xs font-bold py-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 active:scale-95 transition-all">
         🔍 التفاصيل
       </button>
     </div>

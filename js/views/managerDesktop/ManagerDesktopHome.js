@@ -37,12 +37,12 @@ export function renderManagerDesktopHomeHtml() {
             <h1 class="text-xl font-black text-gray-900 dark:text-white tracking-tight">
               ${isEn ? 'Executive Operations Command Center' : 'مركز إدارة العمليات التنفيذي'}
             </h1>
-            <span class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+            <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
               ${isEn ? 'Live Desktop Mode' : 'وضع المدير الحي'}
             </span>
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <p class="text-xs text-mute dark:text-gray-400 mt-0.5">
             ${isEn ? 'Real-time telemetry, equipment availability, downtime analysis & decisions' : 'متابعة حية للجاهزية التشغيلية، ومؤشرات الأعطال، والقرارات المعلقة'}
           </p>
         </div>
@@ -54,7 +54,7 @@ export function renderManagerDesktopHomeHtml() {
           type="button"
           onclick="window.refreshManagerDesktopDashboard()"
           title="${isEn ? 'Refresh Data' : 'تحديث البيانات'}"
-          class="px-3 py-2 text-xs font-bold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
+          class="px-3 py-2 text-xs font-bold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-mute dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
           <span id="mgrRefreshSpinner">🔄</span>
           <span>${isEn ? 'Refresh' : 'تحديث'}</span>
         </button>
@@ -82,17 +82,17 @@ export function renderManagerDesktopHomeHtml() {
       
       <!-- كارت: بلاغات مفتوحة -->
       <div onclick="window.navigateTo('tickets')" class="mgr-card p-4 cursor-pointer hover:border-amber-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'Open Tickets' : 'بلاغات قيد الإجراء'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">⚠️</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiOpen" class="text-2xl font-black text-amber-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 flex items-center gap-0.5">
+          <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 flex items-center gap-0.5">
             <span>●</span> ${isEn ? 'Active' : 'نشط'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span class="text-amber-500 font-bold">↗</span>
           <span>${isEn ? 'Requires prompt assignment' : 'تحتاج إسناد ومتابعة فورية'}</span>
         </div>
@@ -100,17 +100,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متأخرة عن SLA -->
       <div onclick="window.openTicketsWithFilter('overdue')" class="mgr-card p-4 cursor-pointer hover:border-red-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'Overdue (SLA)' : 'تجاوزت وقت الاستجابة SLA'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🚨</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiOverdue" class="text-2xl font-black text-red-500">--</div>
-          <span id="mgrKpiOverdueBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">
+          <span id="mgrKpiOverdueBadge" class="text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">
             ${isEn ? 'Critical' : 'حرج'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span class="text-red-500 font-bold">⚠️</span>
           <span>${isEn ? 'Breached SLA threshold' : 'تجاوزت الحد المسموح للإصلاح'}</span>
         </div>
@@ -118,17 +118,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متوسط زمن الإصلاح MTTR -->
       <div class="mgr-card p-4 hover:border-cyan-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'MTTR (Mean Repair Time)' : 'متوسط زمن الإصلاح MTTR'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">⏱️</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiMttr" class="text-2xl font-black text-cyan-500">--</div>
-          <span id="mgrKpiMttrTrend" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
+          <span id="mgrKpiMttrTrend" class="text-xs font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
             --
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span>🎯</span>
           <span>${isEn ? 'Target: < 2.5 hrs' : 'الهدف المعياري: أقل من ساعتين ونصف'}</span>
         </div>
@@ -136,17 +136,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متوسط الزمن بين الأعطال MTBF -->
       <div class="mgr-card p-4 hover:border-indigo-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'MTBF (Estimated)' : 'زمن بين الأعطال MTBF (تقديري)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛡️</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiMtbf" class="text-2xl font-black text-indigo-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+          <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
             ${isEn ? 'Estimate' : 'تقديري'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span>📈</span>
           <span>${isEn ? 'Higher is better' : 'مؤشر موثوقية المعدات والخطوط'}</span>
         </div>
@@ -154,17 +154,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: نسبة إنجاز الصيانة الوقائية PM -->
       <div onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'PM Compliance' : 'إنجاز الصيانة الوقائية PM'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">📋</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiPmRate" class="text-2xl font-black text-emerald-500">--%</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
+          <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
             ${isEn ? 'Compliance' : 'مطابقة'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span>✅</span>
           <span id="mgrKpiPmCounts">${isEn ? 'PM orders this month' : 'أوامر PM هذا الشهر'}</span>
         </div>
@@ -172,17 +172,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: إجمالي ساعات التوقف هذا الشهر -->
       <div class="mgr-card p-4 hover:border-purple-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-mute dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'Breakdown Hours (30d)' : 'ساعات الأعطال (آخر 30 يوم)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛑</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiDowntime" class="text-2xl font-black text-purple-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
+          <span class="text-xs font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
             ${isEn ? 'Total Hrs' : 'ساعة إجمالية'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-xs text-gray-400 mt-2 flex items-center gap-1">
           <span>📉</span>
           <span>${isEn ? 'Total breakdown ticket hours' : 'مجموع ساعات بلاغات الأعطال'}</span>
         </div>
@@ -204,11 +204,11 @@ export function renderManagerDesktopHomeHtml() {
                 <span>📊</span>
                 <span>${isEn ? 'Chronic Machine Defects (Pareto Analysis)' : 'أكثر الماكينات عطلاً (تحليل باريتو)'}</span>
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-mute dark:text-gray-400 mt-0.5">
                 ${isEn ? 'Frequency distribution & 80/20 critical breakdown focus' : 'تكرار الأعطال للتركيز على الماكينات الأكثر تأثيراً'}
               </p>
             </div>
-            <span class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-mono">
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-mute dark:text-gray-300 font-mono">
               Top 6
             </span>
           </div>
@@ -229,15 +229,15 @@ export function renderManagerDesktopHomeHtml() {
                 <span>📈</span>
                 <span>${isEn ? 'Breakdown Inflow & Resolution Trend' : 'اتجاه تدفق البلاغات والإغلاق'}</span>
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-xs text-mute dark:text-gray-400 mt-0.5">
                 ${isEn ? 'Daily comparison of new reports vs resolved' : 'مقارنة يومية بين البلاغات الجديدة وما تم إصلاحه'}
               </p>
             </div>
             <div class="flex items-center gap-1">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-              <span class="text-[10px] text-gray-400 me-2">${isEn ? 'New' : 'جديد'}</span>
+              <span class="text-xs text-gray-400 me-2">${isEn ? 'New' : 'جديد'}</span>
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span class="text-[10px] text-gray-400">${isEn ? 'Fixed' : 'تم إصلاحه'}</span>
+              <span class="text-xs text-gray-400">${isEn ? 'Fixed' : 'تم إصلاحه'}</span>
             </div>
           </div>
 
@@ -262,7 +262,7 @@ export function renderManagerDesktopHomeHtml() {
               <h3 class="text-sm font-bold text-gray-900 dark:text-white">
                 ${isEn ? 'Immediate Decisions Desk' : 'يحتاج قراراً الآن (مركز الموافقات والإسناد)'}
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-mute dark:text-gray-400">
                 ${isEn ? 'Pending unassigned tickets, SLA risks, and new user access requests' : 'بلاغات بانتظار التعيين، أعطال حرجة، وطلبات مستخدمين جديدة بانتظار الاعتماد'}
               </p>
             </div>
@@ -275,7 +275,7 @@ export function renderManagerDesktopHomeHtml() {
         <div class="mgr-table-container border border-gray-200 dark:border-gray-800 rounded-lg">
           <table class="w-full text-start text-xs border-collapse">
             <thead>
-              <tr class="bg-gray-50 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+              <tr class="bg-gray-50 dark:bg-gray-800/80 text-mute dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Type' : 'النوع'}</th>
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Item / Target' : 'العنصر / الهدف'}</th>
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Priority / Department' : 'الأولوية / القسم'}</th>
@@ -309,7 +309,7 @@ export function renderManagerDesktopHomeHtml() {
               <h3 class="text-sm font-bold text-gray-900 dark:text-white">
                 ${isEn ? 'Technician Workload & Performance' : 'أداء الفنيين وحمل العمل المباشر'}
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400">
+              <p class="text-xs text-mute dark:text-gray-400">
                 ${isEn ? 'Active assigned tasks vs resolved' : 'توزيع التذاكر النشطة والإصلاحات المكتملة'}
               </p>
             </div>
@@ -317,7 +317,7 @@ export function renderManagerDesktopHomeHtml() {
           <button
             type="button"
             onclick="window.navigateTo('tickets')"
-            class="text-[11px] text-blue-500 hover:underline font-bold">
+            class="text-xs text-blue-500 hover:underline font-bold">
             ${isEn ? 'View Board' : 'فتح اللوحة'}
           </button>
         </div>
@@ -336,24 +336,24 @@ export function renderManagerDesktopHomeHtml() {
             <span>🏭</span>
             <span>${isEn ? 'Operations Pulse & Shifts' : 'النبض التشغيلي والورديات'}</span>
           </h3>
-          <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+          <span class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
             ${isEn ? 'Online' : 'جاهز'}
           </span>
         </div>
 
         <div class="space-y-2 text-xs">
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Current Shift' : 'الوردية الحالية'}</span>
+            <span class="text-mute dark:text-gray-300 font-medium">${isEn ? 'Current Shift' : 'الوردية الحالية'}</span>
             <span id="mgrCurrentShiftName" class="font-bold text-blue-500 font-mono">--</span>
           </div>
 
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Total Tracked Equipment' : 'إجمالي الماكينات المسجلة'}</span>
+            <span class="text-mute dark:text-gray-300 font-medium">${isEn ? 'Total Tracked Equipment' : 'إجمالي الماكينات المسجلة'}</span>
             <span id="mgrTotalMachinesCount" class="font-bold text-gray-900 dark:text-white font-mono">--</span>
           </div>
 
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Pending Registrations' : 'طلبات تسجيل معلقة'}</span>
+            <span class="text-mute dark:text-gray-300 font-medium">${isEn ? 'Pending Registrations' : 'طلبات تسجيل معلقة'}</span>
             <span id="mgrPendingUsersCount" class="font-bold text-amber-500 font-mono">0</span>
           </div>
         </div>
@@ -514,8 +514,8 @@ async function _initManagerDesktopHomeData() {
     const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
     if (overdueBadge) {
       overdueBadge.className = overdueCount > 0 
-        ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 animate-pulse border border-red-500/40"
-        : "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400";
+        ? "text-xs font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 animate-pulse border border-red-500/40"
+        : "text-xs font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400";
       overdueBadge.textContent = overdueCount > 0 ? (isEn ? 'Action Required' : 'يتطلب تدخلاً') : (isEn ? 'On Track' : 'ضمن الخطة');
     }
 
@@ -786,7 +786,7 @@ function renderDecisionsTable(tickets, users, isEn) {
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Breakdown' : 'عطل')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.assignedTo || (isEn ? 'Unassigned' : 'غير معين')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
-        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
+        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
       });
     } else if (String(t.status || '').trim() === 'pending' && !t.assignedTo) {
       // 2. بلاغات جديدة بدون تعيين
@@ -800,7 +800,7 @@ function renderDecisionsTable(tickets, users, isEn) {
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.reportedBy || (isEn ? 'User' : 'مستخدم')}`,
         time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
-        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
+        actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
       });
     }
   });
@@ -818,7 +818,7 @@ function renderDecisionsTable(tickets, users, isEn) {
         title: `${u.name || (isEn ? 'New User' : 'مستخدم جديد')} (${u.job || u.role || 'Member'})`,
         meta: `${u.phone || ''} • ${u.department || (isEn ? 'Production' : 'الإنتاج')}`,
         time: u.createdAt ? new Date(u.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
-        actionBtn: `<button onclick="window.navigateTo('requests')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Approve' : 'اعتماد'}</button>`
+        actionBtn: `<button onclick="window.navigateTo('requests')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Approve' : 'اعتماد'}</button>`
       });
     }
   });
@@ -835,10 +835,10 @@ function renderDecisionsTable(tickets, users, isEn) {
       <tr>
         <td colspan="5" class="py-8 text-center text-gray-400">
           <div class="text-2xl mb-1">🎉</div>
-          <div class="font-bold text-gray-700 dark:text-gray-300 text-xs">
+          <div class="font-bold text-mute dark:text-gray-300 text-xs">
             ${isEn ? 'All operational decisions are up to date' : 'رائع! لا توجد قرارات أو بلاغات حرجة معلقة الآن'}
           </div>
-          <div class="text-[10px] text-gray-500 mt-0.5">
+          <div class="text-xs text-mute mt-0.5">
             ${isEn ? 'No SLA breaches or unassigned tasks' : 'كافة التذاكر مسندة ولا توجد تجاوزات في أوقات الإصلاح'}
           </div>
         </td>
@@ -853,17 +853,17 @@ function renderDecisionsTable(tickets, users, isEn) {
   tbody.innerHTML = visibleItems.map(item => `
     <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
       <td class="py-2.5 px-3">
-        <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${item.badgeClass}">
+        <span class="inline-block text-xs font-bold px-2 py-0.5 rounded-full ${item.badgeClass}">
           ${item.badge}
         </span>
       </td>
       <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-white max-w-[280px] truncate" title="${escapeHtml(item.title)}">
         ${escapeHtml(item.title)}
       </td>
-      <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400">
+      <td class="py-2.5 px-3 text-mute dark:text-gray-400">
         ${escapeHtml(item.meta)}
       </td>
-      <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+      <td class="py-2.5 px-3 text-mute dark:text-gray-400 font-mono text-xs">
         ${item.time}
       </td>
       <td class="py-2.5 px-3 text-center">
@@ -871,7 +871,7 @@ function renderDecisionsTable(tickets, users, isEn) {
       </td>
     </tr>
   `).join("") + (decisions.length > visibleItems.length
-    ? `<tr><td colspan="5" class="py-2.5 px-3 text-center"><button type="button" onclick="window.openTicketsWithFilter('overdue')" class="text-[11px] text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining (${decisions.length - visibleItems.length})` : `عرض المتبقي (${decisions.length - visibleItems.length})`}</button></td></tr>`
+    ? `<tr><td colspan="5" class="py-2.5 px-3 text-center"><button type="button" onclick="window.openTicketsWithFilter('overdue')" class="text-xs text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining (${decisions.length - visibleItems.length})` : `عرض المتبقي (${decisions.length - visibleItems.length})`}</button></td></tr>`
     : "");
 }
 
@@ -934,12 +934,12 @@ function renderTechnicianWorkload(tickets, users, isEn) {
       <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
         <div class="flex items-center justify-between text-xs mb-1.5">
           <div class="flex items-center gap-1.5">
-            <span class="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-[10px]">
+            <span class="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-xs">
               ${idx + 1}
             </span>
             <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${escapeHtml(name)}</span>
           </div>
-          <div class="flex items-center gap-2 font-mono text-[10px]">
+          <div class="flex items-center gap-2 font-mono text-xs">
             <span class="text-amber-500 font-bold" title="${isEn ? 'Active Workload' : 'مهام جارية'}">⚡ ${data.active}</span>
             <span class="text-emerald-500 font-bold" title="${isEn ? 'Resolved' : 'تم حلها'}">✅ ${data.resolved}</span>
           </div>

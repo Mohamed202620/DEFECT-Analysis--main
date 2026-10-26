@@ -63,7 +63,7 @@ return `
       </h2>
 
       <p class="
-        text-[11px]
+        text-xs
         text-gray-400
         mt-0.5
       ">
@@ -76,7 +76,7 @@ return `
       text-blue-400
       border
       border-blue-500/20
-      text-[10px]
+      text-xs
       px-2.5
       py-1
       rounded-full
@@ -109,7 +109,7 @@ return `
         ${t.usersTitle || (currentLang === 'en' ? 'User Directory' : 'إدارة المستخدمين')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">
         ${t.usersDesc || ''}
       </span>
     </button>
@@ -132,7 +132,7 @@ return `
            أكبر من صفر (راجع loadSystemHubBadges تحت) -->
       <span
         id="pendingRequestsBadge"
-        class="hidden absolute top-2 rtl:right-2.5 ltr:left-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow"
+        class="hidden absolute top-2 rtl:right-2.5 ltr:left-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center leading-none shadow"
       >0</span>
 
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
@@ -143,7 +143,7 @@ return `
         ${t.requestsTitle || (currentLang === 'en' ? 'Join Requests' : 'طلبات الانضمام')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">
         ${t.requestsDesc || ''}
       </span>
     </button>
@@ -168,7 +168,7 @@ return `
         ${t.machinesTitle || (currentLang === 'en' ? 'Machines Register' : 'سجل الماكينات')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">
         ${t.machinesDesc || ''}
       </span>
     </button>
@@ -193,7 +193,7 @@ return `
         ${t.settingsTitle || (currentLang === 'en' ? 'Attendance Calculator Settings' : 'إعدادات حاسبة الحضور')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">
         ${t.settingsDesc || ''}
       </span>
     </button>
@@ -218,7 +218,7 @@ return `
         ${t.dailyTipsTitle || (currentLang === 'en' ? 'Daily Tips Settings' : 'إعدادات معلومة على الماشي')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">
         ${t.dailyTipsDesc || (currentLang === 'en' ? 'Add & manage daily insights' : 'إضافة وإدارة معلومات ومعارف اليوم')}
       </span>
     </button>
@@ -236,7 +236,7 @@ return `
   !can("settings")
   ? `
   <div class="
-    bg-[#1E293B]
+    bg-card
     border
     border-red-500/30
     rounded-xl

@@ -6,15 +6,15 @@ export const RegisterView = () => {
   const dir = currentLang === "ar" ? "rtl" : "ltr";
 
   return `
-<div class="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-white py-8" dir="${dir}">
+<div class="min-h-screen bg-surface flex items-center justify-center p-4 text-white py-8" dir="${dir}">
   <form 
     onsubmit="event.preventDefault(); window.registerUser();" 
-    class="w-full max-w-sm bg-[#1E293B] border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-4"
+    class="w-full max-w-sm bg-card border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-4"
   >
 
     <!-- Logo -->
     <div class="flex justify-center mb-2">
-      <div class="w-20 h-20 bg-[#0F172A] rounded-2xl p-2 border border-gray-700 flex items-center justify-center shadow-inner">
+      <div class="w-20 h-20 bg-surface rounded-2xl p-2 border border-gray-700 flex items-center justify-center shadow-inner">
         <img src="assets/icons/icon-512.png" alt="شعار الشركة" class="max-h-full max-w-full object-contain" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1063/1063376.png'"/>
       </div>
     </div>
@@ -33,7 +33,7 @@ export const RegisterView = () => {
         autocomplete="name"
         placeholder="${t.fullName}"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
       />
     </div>
 
@@ -46,7 +46,7 @@ export const RegisterView = () => {
         autocomplete="tel"
         placeholder="${t.phone}"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
       />
     </div>
 
@@ -56,12 +56,12 @@ export const RegisterView = () => {
       <select
         id="regShift"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectShift}</option>
-        <option value="Green" class="bg-[#0F172A] text-white">Green</option>
-        <option value="Red" class="bg-[#0F172A] text-white">Red</option>
-        <option value="Blue" class="bg-[#0F172A] text-white">Blue</option>
+        <option value="" disabled selected class="bg-surface text-gray-400">${t.selectShift}</option>
+        <option value="Green" class="bg-surface text-white">Green</option>
+        <option value="Red" class="bg-surface text-white">Red</option>
+        <option value="Blue" class="bg-surface text-white">Blue</option>
       </select>
     </div>
 
@@ -75,7 +75,7 @@ export const RegisterView = () => {
           autocomplete="new-password"
           placeholder="${t.password}"
           required
-          class="w-full p-3 pl-12 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
+          class="w-full p-3 pl-12 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
         />
         <button
           type="button"
@@ -103,7 +103,7 @@ export const RegisterView = () => {
           autocomplete="new-password"
           placeholder="${t.confirmPassword}"
           required
-          class="w-full p-3 pl-12 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
+          class="w-full p-3 pl-12 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
         />
         <button
           type="button"
@@ -127,15 +127,15 @@ export const RegisterView = () => {
       <select
         id="regJob"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectJob}</option>
-        <option value="Technician" class="bg-[#0F172A] text-white">Technician</option>
-        <option value="Operator" class="bg-[#0F172A] text-white">Operator</option>
-        <option value="Maintainer" class="bg-[#0F172A] text-white">Maintainer</option>
-        <option value="Group Leader" class="bg-[#0F172A] text-white">Group Leader</option>
-        <option value="Supervisor" class="bg-[#0F172A] text-white">Supervisor</option>
-        <option value="Manager" class="bg-[#0F172A] text-white">Manager</option>
+        <option value="" disabled selected class="bg-surface text-gray-400">${t.selectJob}</option>
+        <option value="Technician" class="bg-surface text-white">Technician</option>
+        <option value="Operator" class="bg-surface text-white">Operator</option>
+        <option value="Maintainer" class="bg-surface text-white">Maintainer</option>
+        <option value="Group Leader" class="bg-surface text-white">Group Leader</option>
+        <option value="Supervisor" class="bg-surface text-white">Supervisor</option>
+        <option value="Manager" class="bg-surface text-white">Manager</option>
       </select>
     </div>
 
@@ -145,12 +145,12 @@ export const RegisterView = () => {
       <select
         id="regDepartment"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectDepartment}</option>
-        <option value="Production" class="bg-[#0F172A] text-white">${t.deptProduction}</option>
-        <option value="Mechanical" class="bg-[#0F172A] text-white">${t.deptMechanical}</option>
-        <option value="Electrical" class="bg-[#0F172A] text-white">${t.deptElectrical}</option>
+        <option value="" disabled selected class="bg-surface text-gray-400">${t.selectDepartment}</option>
+        <option value="Production" class="bg-surface text-white">${t.deptProduction}</option>
+        <option value="Mechanical" class="bg-surface text-white">${t.deptMechanical}</option>
+        <option value="Electrical" class="bg-surface text-white">${t.deptElectrical}</option>
       </select>
     </div>
 
@@ -162,7 +162,7 @@ export const RegisterView = () => {
         type="text"
         placeholder="${t.code}"
         required
-        class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
+        class="w-full p-3 rounded-lg bg-surface border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition text-sm shadow-sm"
       />
     </div>
 

@@ -40,7 +40,7 @@ export const HomeView = () => {
             <span>📊</span>
             <span>${t.statsOverview || (currentLang === 'ar' ? 'ملخص المؤشرات الحية' : 'Live Metrics Overview')}</span>
           </h3>
-          <span class="text-[10px] sm:text-xs text-blue-400 font-medium inline-flex items-center gap-1.5">
+          <span class="text-xs sm:text-xs text-blue-400 font-medium inline-flex items-center gap-1.5">
             <span id="dashboardSyncDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
             <span id="dashboardSyncStatus">${t.dashboardLoading}</span>
           </span>
@@ -55,11 +55,11 @@ export const HomeView = () => {
             onclick="window.openTicketsWithFilter('pending')"
             class="relative text-start dyn-card border border-amber-500/30 hover:border-amber-400/60 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 to-amber-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-xs sm:text-xs font-black text-amber-400/80 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOpen}</span>
+              <span class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOpen}</span>
               <span id="statOpenCount" class="text-xl sm:text-2xl md:text-3xl font-black text-amber-400 leading-none">${stats.open}</span>
-              <span id="criticalBadge" class="hidden mt-1.5 items-center gap-1 text-[8px] sm:text-[9px] font-bold text-red-300 bg-red-500/20 border border-red-500/40 px-1.5 py-0.5 rounded-full w-fit">
+              <span id="criticalBadge" class="hidden mt-1.5 items-center gap-1 text-xs sm:text-xs font-bold text-red-300 bg-red-500/20 border border-red-500/40 px-1.5 py-0.5 rounded-full w-fit">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 <span id="criticalBadgeText">${t.kpiCritical}</span>
               </span>
@@ -77,9 +77,9 @@ export const HomeView = () => {
             onclick="window.openTicketsWithFilter('resolved')"
             class="relative text-start dyn-card border border-emerald-500/30 hover:border-emerald-400/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-xs sm:text-xs font-black text-emerald-400/80 group-hover:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiClosed}</span>
+              <span class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiClosed}</span>
               <span id="statClosedCount" class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-400 leading-none">${stats.closed}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
@@ -95,9 +95,9 @@ export const HomeView = () => {
             onclick="window.openTicketsWithFilter('today')"
             class="relative text-start dyn-card border border-blue-500/30 hover:border-blue-400/60 bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-blue-400/80 group-hover:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-xs sm:text-xs font-black text-blue-400/80 group-hover:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiToday}</span>
+              <span class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiToday}</span>
               <span id="statTodayCount" class="text-xl sm:text-2xl md:text-3xl font-black text-blue-400 leading-none">${stats.today}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
@@ -113,9 +113,9 @@ export const HomeView = () => {
             onclick="window.openTicketsWithFilter('overdue')"
             class="relative text-start dyn-card border border-rose-500/30 hover:border-rose-400/60 bg-gradient-to-br from-rose-500/10 via-rose-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-rose-400/80 group-hover:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-xs sm:text-xs font-black text-rose-400/80 group-hover:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOverdue || (currentLang === 'ar' ? 'متأخرة' : 'Overdue')}</span>
+              <span class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiOverdue || (currentLang === 'ar' ? 'متأخرة' : 'Overdue')}</span>
               <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-400 leading-none">${stats.overdue}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
@@ -131,9 +131,9 @@ export const HomeView = () => {
             onclick="window.openTicketsWithFilter('all')"
             class="relative text-start dyn-card border border-purple-500/30 hover:border-purple-400/60 bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-transparent p-3 sm:p-3.5 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200 active:scale-95 overflow-hidden group col-span-2 sm:col-span-1 lg:col-span-1">
             <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 top-0 bottom-0 w-1 bg-purple-500"></div>
-            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[10px] sm:text-xs font-black text-purple-400/80 group-hover:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
+            <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-xs sm:text-xs font-black text-purple-400/80 group-hover:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
-              <span class="text-[10px] sm:text-[11px] md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiTotal}</span>
+              <span class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 block mb-1 font-medium truncate">${t.kpiTotal}</span>
               <span id="statTotalCount" class="text-xl sm:text-2xl md:text-3xl font-black text-purple-400 leading-none">${stats.total}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
@@ -148,16 +148,16 @@ export const HomeView = () => {
         <!-- كارتات ذكية إضافية: MTTR + أكثر ماكينة عطلاً + أفضل فني -->
         <div class="grid grid-cols-3 gap-2 sm:gap-3 md:gap-3.5">
           <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-cyan-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">⏱️ ${t.mttr}</div>
+            <div class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">⏱️ ${t.mttr}</div>
             <div id="statMttrValue" class="text-xs sm:text-sm md:text-base font-black text-cyan-400">—</div>
           </div>
           <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-purple-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🏭 ${t.topMachine}</div>
-            <div id="statTopMachineName" class="text-[10px] sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
+            <div class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🏭 ${t.topMachine}</div>
+            <div id="statTopMachineName" class="text-xs sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
           </div>
           <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-amber-500/30 transition-colors">
-            <div class="text-[9px] sm:text-[10px] md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🥇 ${t.topTech}</div>
-            <div id="statTopTechName" class="text-[10px] sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
+            <div class="text-xs sm:text-xs md:text-xs dyn-text-muted opacity-75 mb-1 truncate font-medium">🥇 ${t.topTech}</div>
+            <div id="statTopTechName" class="text-xs sm:text-xs md:text-sm font-bold dyn-text-muted truncate">—</div>
           </div>
         </div>
       </div>
@@ -208,7 +208,7 @@ export const HomeView = () => {
                 <span class="truncate">${t.reportIssue}</span>
                 <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
               </div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs text-red-300/80 font-medium truncate">${t.reportIssueDesc}</div>
+              <div class="text-[9.5px] sm:text-xs md:text-xs text-red-300/80 font-medium truncate">${t.reportIssueDesc}</div>
             </div>
             <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
           </button>
@@ -225,7 +225,7 @@ export const HomeView = () => {
             </span>
             <div class="flex-1 min-w-0">
               <div class="font-bold text-xs sm:text-sm dyn-text-muted truncate">${t.kaizenSubmit || 'إرسال مقترح'}</div>
-              <div class="text-[9.5px] sm:text-[10px] md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc || 'مقترح كايزن جديد'}</div>
+              <div class="text-[9.5px] sm:text-xs md:text-xs dyn-text-muted opacity-60 truncate">${t.kaizenSubmitDesc || 'مقترح كايزن جديد'}</div>
             </div>
             <span class="text-amber-400 text-sm sm:text-base font-black shrink-0 rtl:rotate-180 group-hover:scale-125 transition-transform">›</span>
           </button>
@@ -245,11 +245,11 @@ export const HomeView = () => {
               </div>
               <div class="min-w-0">
                 <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${(translations[currentLang] || translations.ar).maintenance.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
-                <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${(translations[currentLang] || translations.ar).maintenance.scannerDesc || ''}</span>
+                <span class="text-[9.5px] sm:text-xs md:text-xs text-gray-400 mt-0.5 block truncate">${(translations[currentLang] || translations.ar).maintenance.scannerDesc || ''}</span>
               </div>
             </div>
             <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <span class="text-[11px] sm:text-xs text-indigo-400 font-bold bg-indigo-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
+              <span class="text-xs sm:text-xs text-indigo-400 font-bold bg-indigo-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
                 ${(translations[currentLang] || translations.ar).maintenance.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
               </span>
               <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
@@ -277,11 +277,11 @@ export const HomeView = () => {
               </div>
               <div class="min-w-0">
                 <span class="font-bold text-xs sm:text-sm dyn-text-muted block truncate">${qrTitle}</span>
-                <span class="text-[9.5px] sm:text-[10px] md:text-xs text-gray-400 mt-0.5 block truncate">${qrDesc}</span>
+                <span class="text-[9.5px] sm:text-xs md:text-xs text-gray-400 mt-0.5 block truncate">${qrDesc}</span>
               </div>
             </div>
             <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <span class="text-[11px] sm:text-xs text-emerald-400 font-bold bg-emerald-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
+              <span class="text-xs sm:text-xs text-emerald-400 font-bold bg-emerald-500/15 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-emerald-500/30 shadow-sm">
                 ${qrBtnLabel}
               </span>
               <span class="text-amber-400 text-base sm:text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
@@ -317,7 +317,7 @@ export const HomeView = () => {
            الموبايل والتابلت والكمبيوتر: أسفل الصفحة بعرض كامل
            ======================================================== -->
       <div class="order-4 md:order-4 md:col-span-12 w-full pt-4 border-t text-center space-y-1.5" style="border-color: var(--app-border);">
-        <p class="text-[10px] sm:text-xs dyn-text-muted opacity-60 font-medium tracking-wide">
+        <p class="text-xs sm:text-xs dyn-text-muted opacity-60 font-medium tracking-wide">
           ${(translations[currentLang] || translations.en).footer}
         </p>
       </div>

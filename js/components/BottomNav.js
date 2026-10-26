@@ -39,7 +39,7 @@ export const BottomNav = (activeTab) => {
 
   return `
     <nav aria-label="Bottom Navigation" class="lg:hidden fixed left-3 right-3 max-w-md md:max-w-xl mx-auto
-                bg-[#0F172A]/95 backdrop-blur-2xl border border-slate-700/60
+                bg-surface/95 backdrop-blur-2xl border border-slate-700/60
                 rounded-2xl flex justify-between items-center p-1.5 px-2 md:py-2 md:px-4
                 shadow-2xl shadow-black/60 z-50 transition-all duration-300"
                 style="bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));">
@@ -56,7 +56,7 @@ export const BottomNav = (activeTab) => {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }">
             <span class="text-base leading-none">${item.icon}</span>
-            <span class="text-[10px] mt-0.5 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
+            <span class="text-xs mt-0.5 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
             ${isActive ? '<span class="absolute -bottom-0.5 w-4 h-0.5 bg-blue-300 rounded-full shadow-sm"></span>' : ''}
           </button>
         `;

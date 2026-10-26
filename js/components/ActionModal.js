@@ -53,9 +53,9 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <label class="block text-xs text-gray-400 mb-1">${escapeHtml(field.label)}</label>
             <select id="modal_${escapeHtml(field.id)}"
-              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white">
+              class="w-full bg-surface border border-gray-700 rounded-lg p-2.5 text-xs text-white">
               ${optionsHtml}
             </select>
           </div>
@@ -65,9 +65,9 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
       if (field.type === "textarea") {
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <label class="block text-xs text-gray-400 mb-1">${escapeHtml(field.label)}</label>
             <textarea id="modal_${escapeHtml(field.id)}" rows="3"
-              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
+              class="w-full bg-surface border border-gray-700 rounded-lg p-2.5 text-xs text-white"
               placeholder="${escapeModalAttr(field.placeholder)}">${escapeModalAttr(field.defaultValue)}</textarea>
           </div>
         `;
@@ -76,9 +76,9 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
       if (field.type === "date") {
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+            <label class="block text-xs text-gray-400 mb-1">${escapeHtml(field.label)}</label>
             <input id="modal_${escapeHtml(field.id)}" type="date"
-              class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
+              class="w-full bg-surface border border-gray-700 rounded-lg p-2.5 text-xs text-white"
               value="${escapeHtml(field.defaultValue || "")}" />
           </div>
         `;
@@ -93,14 +93,14 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
         return `
           <div class="mb-3">
-            <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)} ${isEn ? "(up to 3 images)" : "(حتى 3 صور)"}</label>
+            <label class="block text-xs text-gray-400 mb-1">${escapeHtml(field.label)} ${isEn ? "(up to 3 images)" : "(حتى 3 صور)"}</label>
             ${buildAttachmentPickerHtml(groupId, {
               cameraLabel: isEn ? "📷 Camera" : "📷 التقاط",
               galleryLabel: isEn ? "🖼️ Gallery" : "🖼️ المعرض",
               emptyText: isEn ? "No images attached" : "لا توجد صور مرفقة",
               buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-2",
-              cameraButtonClass: "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2 text-blue-400 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
-              galleryButtonClass: "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2 text-gray-300 font-bold transition active:scale-95 text-[11px] flex items-center justify-center gap-1.5",
+              cameraButtonClass: "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2 text-blue-400 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
+              galleryButtonClass: "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2 text-gray-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
               gridClass: "grid grid-cols-4 gap-1.5 mb-1"
             })}
           </div>
@@ -109,9 +109,9 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
 
       return `
         <div class="mb-3">
-          <label class="block text-[11px] text-gray-400 mb-1">${escapeHtml(field.label)}</label>
+          <label class="block text-xs text-gray-400 mb-1">${escapeHtml(field.label)}</label>
           <input id="modal_${escapeHtml(field.id)}" type="text"
-            class="w-full bg-[#0F172A] border border-gray-700 rounded-lg p-2.5 text-xs text-white"
+            class="w-full bg-surface border border-gray-700 rounded-lg p-2.5 text-xs text-white"
             placeholder="${escapeHtml(field.placeholder || "")}" value="${escapeHtml(field.defaultValue || "")}" />
         </div>
       `;
@@ -119,10 +119,10 @@ export function openActionModal({ title, fields = [], submitLabel = (window.curr
     }).join("");
 
     overlay.innerHTML = `
-      <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm sm:max-w-md p-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="bg-card border border-gray-700 rounded-2xl w-full max-w-sm sm:max-w-md p-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <h3 class="text-sm font-bold text-blue-400 mb-3">${escapeHtml(title)}</h3>
         <div>${fieldsHtml}</div>
-        <div id="modal_error" class="hidden text-[11px] text-red-400 mb-2"></div>
+        <div id="modal_error" class="hidden text-xs text-red-400 mb-2"></div>
         <div class="flex gap-2 mt-2">
           <button id="modal_cancel_btn"
             class="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-2.5 rounded-lg">

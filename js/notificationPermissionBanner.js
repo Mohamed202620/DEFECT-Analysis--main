@@ -88,12 +88,12 @@ function renderNotificationPermissionBannerUnsafe() {
   const el = document.createElement("div");
   el.id = BANNER_ID;
   el.className =
-    "fixed bottom-20 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-lg sm:w-full z-[150] bg-[#1E293B] border border-blue-500/40 rounded-xl p-3 shadow-2xl flex items-center justify-between gap-2";
+    "fixed bottom-20 inset-x-2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:max-w-lg sm:w-full z-[150] bg-card border border-blue-500/40 rounded-xl p-3 shadow-2xl flex items-center justify-between gap-2";
   el.innerHTML = `
-    <span class="text-[11px] text-gray-200 font-bold">${tr.message}</span>
+    <span class="text-xs text-gray-200 font-bold">${tr.message}</span>
     <div class="flex gap-2 shrink-0">
-      <button id="notifPermission_enable" class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white active:scale-95 transition-all">${tr.enableBtn}</button>
-      <button id="notifPermission_dismiss" class="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white active:scale-95 transition-all">✕</button>
+      <button id="notifPermission_enable" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white active:scale-95 transition-all">${tr.enableBtn}</button>
+      <button id="notifPermission_dismiss" class="text-xs font-bold px-2 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-white active:scale-95 transition-all">✕</button>
     </div>
   `;
   document.body.appendChild(el);

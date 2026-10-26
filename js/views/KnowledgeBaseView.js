@@ -24,7 +24,7 @@ export const KnowledgeBaseView = () => {
         <h2 class="text-base font-black text-cyan-400 flex items-center gap-2">
           <span>📚</span> ${t.title || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-xs text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
   </div>
@@ -36,26 +36,26 @@ export const KnowledgeBaseView = () => {
       <input id="kbSearchInput" type="text"
         oninput="window.filterKbView()"
         placeholder="${t.searchPlaceholder || (currentLang === 'en' ? 'Search solutions and breakdowns...' : 'ابحث في الحلول والأعطال السابقة...')}"
-        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-cyan-500 transition shadow-inner">
+        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-surface border border-gray-700 text-white text-xs outline-none focus:border-cyan-500 transition shadow-inner">
       <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
     </div>
 
     <!-- تبويبات الفترة الزمنية (يومي / أسبوعي / شهري / الكل) -->
     <div class="grid grid-cols-4 gap-2" id="kbPeriodTabs">
       <button type="button" id="kbPeriodDay" onclick="window.switchKbPeriod('day')" data-period="day"
-        class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="kb-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.day || (currentLang === 'en' ? 'Day' : 'اليوم')}
       </button>
       <button type="button" id="kbPeriodWeek" onclick="window.switchKbPeriod('week')" data-period="week"
-        class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="kb-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.week || (currentLang === 'en' ? 'Week' : 'الأسبوع')}
       </button>
       <button type="button" id="kbPeriodMonth" onclick="window.switchKbPeriod('month')" data-period="month"
-        class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="kb-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.month || (currentLang === 'en' ? 'Month' : 'الشهر')}
       </button>
       <button type="button" id="kbPeriodAll" onclick="window.switchKbPeriod('all')" data-period="all"
-        class="kb-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="kb-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.all || (currentLang === 'en' ? 'All' : 'الكل')}
       </button>
     </div>

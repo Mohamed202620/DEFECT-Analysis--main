@@ -360,7 +360,7 @@ function renderRows() {
   const suggestions = {};
   scanRows.forEach(row => { suggestions[row.id] = rowSuggestions(row); });
   const ignored = scanIgnored.length
-    ? `<details class="text-[11px] text-gray-500"><summary class="cursor-pointer select-none">${escapeHtml(tr.ignoredTitle.replace('{n}', scanIgnored.length))}</summary>
+    ? `<details class="text-xs text-mute"><summary class="cursor-pointer select-none">${escapeHtml(tr.ignoredTitle.replace('{n}', scanIgnored.length))}</summary>
          <div dir="ltr" class="mt-1 space-y-0.5 text-gray-400">${scanIgnored.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div></details>`
     : '';
   box.innerHTML = renderRowsListHtml(scanRows, tr, suggestions) + ignored;
@@ -518,7 +518,7 @@ function showScannerResultModal(content) {
     ? `<div class="flex items-center justify-between gap-2">
         <button type="button" onclick="window.errRowNavigate(-1)" ${rowIndex === 0 ? 'disabled' : ''}
           class="px-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-xs font-bold text-white disabled:opacity-40">${escapeHtml(tr.previousFault)}</button>
-        <span class="text-[11px] text-indigo-200 font-bold text-center">${escapeHtml(progress)}</span>
+        <span class="text-xs text-indigo-200 font-bold text-center">${escapeHtml(progress)}</span>
         <button type="button" onclick="window.errRowNavigate(1)" ${rowIndex === scanRows.length - 1 ? 'disabled' : ''}
           class="px-3 py-2 rounded-lg bg-indigo-600 border border-indigo-500 text-xs font-bold text-white disabled:opacity-40">${escapeHtml(tr.nextFault)}</button>
       </div>`
@@ -528,11 +528,11 @@ function showScannerResultModal(content) {
     <div class="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5" role="dialog" aria-modal="true" aria-label="${escapeHtml(tr.resultDialogTitle)}">
       <button type="button" tabindex="-1" aria-label="${escapeHtml(tr.closeDetails)}" onclick="window.closeErrorScannerResult()"
         class="absolute inset-0 bg-black/75 backdrop-blur-sm"></button>
-      <section class="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-600 bg-[#0F172A] p-3 sm:p-4 shadow-2xl space-y-3">
+      <section class="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-600 bg-surface p-3 sm:p-4 shadow-2xl space-y-3">
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
             <h3 class="text-sm font-black text-indigo-300">${escapeHtml(tr.resultDialogTitle)}</h3>
-            ${hasActiveRow && scanRows.length === 1 ? `<p class="text-[11px] text-gray-400 mt-1">${escapeHtml(progress)}</p>` : ''}
+            ${hasActiveRow && scanRows.length === 1 ? `<p class="text-xs text-gray-400 mt-1">${escapeHtml(progress)}</p>` : ''}
           </div>
           <button type="button" aria-label="${escapeHtml(tr.closeDetails)}" onclick="window.closeErrorScannerResult()"
             class="shrink-0 w-9 h-9 rounded-xl bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white text-lg font-bold">×</button>
@@ -1094,11 +1094,11 @@ function renderFoundError(data) {
     window.hasPermission('machines');
 
   showScannerResultModal(`
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-lg space-y-3">
+    <div class="bg-card rounded-2xl p-4 border border-emerald-500/30 shadow-lg space-y-3">
 
       <div class="flex items-center justify-between">
         <h3 class="text-base font-bold text-emerald-400">${tr.foundTitle}</h3>
-        <span class="text-[10px] px-2 py-1 rounded-full font-bold ${isPending ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'}">
+        <span class="text-xs px-2 py-1 rounded-full font-bold ${isPending ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'}">
           ${isPending ? tr.pendingReviewStatus : tr.verifiedStatus}
         </span>
       </div>
@@ -1106,33 +1106,33 @@ function renderFoundError(data) {
       ${(() => {
         const selectedMachine = String(window.selectedMachineType || '').trim();
         return selectedMachine && data.machine && data.machine !== selectedMachine
-          ? `<div class="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">⚠️ ${escapeHtml(tr.foundOtherMachine.replace('{machine}', data.machine).replace('{selected}', selectedMachine))}</div>`
+          ? `<div class="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">⚠️ ${escapeHtml(tr.foundOtherMachine.replace('{machine}', data.machine).replace('{selected}', selectedMachine))}</div>`
           : '';
       })()}
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">${tr.errorCodeLabel}</div>
+        <div class="text-gray-400 text-xs">${tr.errorCodeLabel}</div>
         <div class="font-bold text-blue-400">${escapeHtml(data.errorCode || '-')}</div>
       </div>
 
       ${data.machine || data.line ? `
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">${tr.machineLineLabel}</div>
+        <div class="text-gray-400 text-xs">${tr.machineLineLabel}</div>
         <div class="text-gray-100">${escapeHtml(data.machine || '-')} ${data.line ? escapeHtml('· ' + data.line) : ''}</div>
       </div>` : ''}
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">${tr.causeLabel}</div>
+        <div class="text-gray-400 text-xs">${tr.causeLabel}</div>
         <div class="text-gray-100">${escapeHtml(data.cause || tr.notSpecified)}</div>
       </div>
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">${tr.solutionLabel}</div>
+        <div class="text-gray-400 text-xs">${tr.solutionLabel}</div>
         <div class="text-gray-100">${escapeHtml(data.solution || tr.notSpecified)}</div>
       </div>
 
       <div class="text-sm">
-        <div class="text-gray-400 text-[11px]">${tr.stepsLabel}</div>
+        <div class="text-gray-400 text-xs">${tr.stepsLabel}</div>
         <div class="text-gray-100 whitespace-pre-line">${escapeHtml(data.steps || tr.notSpecified)}</div>
       </div>
 
@@ -1166,27 +1166,27 @@ async function loadErrorHistory(code) {
   const tr = t();
   const currentLang = window.currentLang || "ar";
 
-  box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">${tr.loadingHistory}</div>`;
+  box.innerHTML = `<div class="text-center text-mute text-xs py-2">${tr.loadingHistory}</div>`;
 
   const result = await fetchMachineErrorHistoryApi(code);
 
   if (result.status === 'error') {
-    box.innerHTML = `<div class="text-center text-amber-400 text-[11px] py-2">${escapeHtml(tr.historyLoadError)}</div>`;
+    box.innerHTML = `<div class="text-center text-amber-400 text-xs py-2">${escapeHtml(tr.historyLoadError)}</div>`;
     return;
   }
 
   if (!result.data || !result.data.length) {
-    box.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-2">${tr.noHistory}</div>`;
+    box.innerHTML = `<div class="text-center text-mute text-xs py-2">${tr.noHistory}</div>`;
     return;
   }
 
   box.innerHTML = `
-    <div class="text-[11px] font-bold text-gray-400 mb-1">${tr.historyTitle}</div>
+    <div class="text-xs font-bold text-gray-400 mb-1">${tr.historyTitle}</div>
     <div class="space-y-1.5">
       ${result.data.map(log => `
-        <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 text-[11px] text-gray-300 flex items-center justify-between">
+        <div class="bg-surface border border-gray-800 rounded-lg p-2 text-xs text-gray-300 flex items-center justify-between">
           <span>${escapeHtml(log.machine || '-')} ${log.line ? escapeHtml('· ' + log.line) : ''}</span>
-          <span class="text-gray-500">${log.scannedAt ? new Date(log.scannedAt).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : ''}</span>
+          <span class="text-mute">${log.scannedAt ? new Date(log.scannedAt).toLocaleDateString(currentLang === 'ar' ? 'ar-EG' : 'en-US') : ''}</span>
         </div>
       `).join('')}
     </div>
@@ -1205,37 +1205,37 @@ function renderNotFound(code) {
   const tr = t();
 
   showScannerResultModal(`
-    <div class="bg-[#1E293B] rounded-2xl p-4 border border-red-500/30 shadow-lg space-y-3">
+    <div class="bg-card rounded-2xl p-4 border border-red-500/30 shadow-lg space-y-3">
       <h3 class="text-sm font-bold text-red-400">${tr.notFoundTitle}</h3>
-      <p class="text-[11px] text-gray-400">${tr.notFoundDesc}</p>
+      <p class="text-xs text-gray-400">${tr.notFoundDesc}</p>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.lineLabel}</label>
-        <select id="errNewLine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
+        <label class="block mb-1 text-xs font-bold text-gray-300">${tr.lineLabel}</label>
+        <select id="errNewLine" class="w-full p-2.5 rounded-lg bg-surface border border-gray-700 text-white text-xs appearance-none">
           ${buildOptions(LINE_OPTIONS)}
         </select>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.machineLabelOnly}</label>
-        <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs appearance-none">
+        <label class="block mb-1 text-xs font-bold text-gray-300">${tr.machineLabelOnly}</label>
+        <select id="errNewMachine" class="w-full p-2.5 rounded-lg bg-surface border border-gray-700 text-white text-xs appearance-none">
           ${buildOptions(getErrorScannerMachineOptions())}
         </select>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.causeLabel}</label>
-        <textarea id="errNewCause" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
+        <label class="block mb-1 text-xs font-bold text-gray-300">${tr.causeLabel}</label>
+        <textarea id="errNewCause" rows="2" class="w-full p-2.5 rounded-lg bg-surface border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.solutionLabel}</label>
-        <textarea id="errNewSolution" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
+        <label class="block mb-1 text-xs font-bold text-gray-300">${tr.solutionLabel}</label>
+        <textarea id="errNewSolution" rows="2" class="w-full p-2.5 rounded-lg bg-surface border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <div>
-        <label class="block mb-1 text-[11px] font-bold text-gray-300">${tr.stepsLabel}</label>
-        <textarea id="errNewSteps" rows="3" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs resize-none"></textarea>
+        <label class="block mb-1 text-xs font-bold text-gray-300">${tr.stepsLabel}</label>
+        <textarea id="errNewSteps" rows="3" class="w-full p-2.5 rounded-lg bg-surface border border-gray-700 text-white text-xs resize-none"></textarea>
       </div>
 
       <button onclick="window.saveNewMachineError('${escapeJsArg(code)}')" class="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-xs text-white transition active:scale-95">

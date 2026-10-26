@@ -31,7 +31,7 @@ export const StatsView = () => {
             ${t.title || (currentLang === 'en' ? 'Maintenance Dashboard & Analytics' : 'داشبورد الصيانة والتحليلات')}
           </h2>
         </div>
-        <p class="text-[10px] md:text-xs text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-xs md:text-xs text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
 
@@ -43,33 +43,33 @@ export const StatsView = () => {
       aria-label="Refresh Dashboard"
       class="p-2 md:px-3 md:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 text-cyan-400 active:scale-90 transition-all text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm">
       <span>🔄</span>
-      <span class="hidden md:inline text-[11px] text-slate-200">${currentLang === 'ar' ? 'تحديث البيانات' : 'Refresh'}</span>
+      <span class="hidden md:inline text-xs text-slate-200">${currentLang === 'ar' ? 'تحديث البيانات' : 'Refresh'}</span>
     </button>
   </div>
 
   <!-- تبويبات الفترة الزمنية التفاعلية -->
   <div class="grid grid-cols-4 gap-2" id="statsPeriodTabs">
     <button id="statsPeriodDay" data-period="day" onclick="window.switchStatsPeriod('day')"
-      class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
+      class="stats-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 bg-surface border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       🔴 ${t.day || (currentLang === 'en' ? 'Day' : 'اليوم')}
     </button>
     <button id="statsPeriodWeek" data-period="week" onclick="window.switchStatsPeriod('week')"
-      class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-amber-500/15 border-amber-500/50 text-amber-300 shadow-sm cursor-pointer">
+      class="stats-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 bg-amber-500/15 border-amber-500/50 text-amber-300 shadow-sm cursor-pointer">
       🟠 ${t.week || (currentLang === 'en' ? 'Week' : 'الأسبوع')}
     </button>
     <button id="statsPeriodMonth" data-period="month" onclick="window.switchStatsPeriod('month')"
-      class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
+      class="stats-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 bg-surface border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       🟡 ${t.month || (currentLang === 'en' ? 'Month' : 'الشهر')}
     </button>
     <button id="statsPeriodAll" data-period="all" onclick="window.switchStatsPeriod('all')"
-      class="stats-period-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 bg-[#0F172A] border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
+      class="stats-period-btn py-2 rounded-xl text-xs font-black border transition-all duration-150 active:scale-95 bg-surface border-gray-700 text-gray-400 hover:border-gray-600 cursor-pointer">
       📚 ${t.all || (currentLang === 'en' ? 'All' : 'الكل')}
     </button>
   </div>
 
   <!-- بطاقات مؤشرات الأداء الحيوية الأساسية (Top KPIs Grid) -->
   <div id="statsSummaryBox" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
-    <div class="text-center text-gray-500 text-[11px] py-4 col-span-2 sm:col-span-4">${t.loadingStats || (currentLang === 'en' ? 'Analyzing metrics...' : 'جاري تحليل وتحديث مؤشرات الداشبورد...')}</div>
+    <div class="text-center text-mute text-xs py-4 col-span-2 sm:col-span-4">${t.loadingStats || (currentLang === 'en' ? 'Analyzing metrics...' : 'جاري تحليل وتحديث مؤشرات الداشبورد...')}</div>
   </div>
 
   <!-- شبكة الجزء العلوي: اتجاه البلاغات + كفاءة الإغلاق ومؤشر السرعة MTTR جنباً إلى جنب في الشاشات الكبيرة -->
@@ -80,13 +80,13 @@ export const StatsView = () => {
         <span class="text-xs font-black text-gray-200 flex items-center gap-1.5">
           <span>📉</span> ${t.breakdownTrend || (currentLang === 'en' ? 'Ticket Trend & Daily Intake' : 'اتجاه ومعدل البلاغات اليومي')}
         </span>
-        <span id="statsTrendBadge" class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30 font-bold">
+        <span id="statsTrendBadge" class="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30 font-bold">
           --
         </span>
       </div>
       <div style="height: 220px;" class="relative">
         <canvas id="statsTrendChart" class="hidden"></canvas>
-        <div id="statsTrendEmpty" class="hidden text-center text-gray-500 text-[11px] py-16">
+        <div id="statsTrendEmpty" class="hidden text-center text-mute text-xs py-16">
           ${t.noChartData || (currentLang === 'en' ? 'No chart data' : 'لا توجد بيانات كافية')}
         </div>
       </div>
@@ -107,7 +107,7 @@ export const StatsView = () => {
             <div id="statsEfficiencyBar" class="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
           </div>
         </div>
-        <div class="flex items-center justify-between text-[10px] text-gray-400 mt-2 font-medium">
+        <div class="flex items-center justify-between text-xs text-gray-400 mt-2 font-medium">
           <span id="statsEfficiencyResolved">0 تم حلها</span>
           <span id="statsEfficiencyPending">0 قيد العمل</span>
         </div>
@@ -119,12 +119,12 @@ export const StatsView = () => {
           <span class="text-xs font-black text-cyan-300 flex items-center gap-1.5">
             <span>⏱️</span> ${t.mttr || (currentLang === 'en' ? 'MTTR (Mean Time to Repair)' : 'متوسط زمن الإصلاح (MTTR)')}
           </span>
-          <span class="text-[10px] text-cyan-400/80 bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-800/60 font-mono">
+          <span class="text-xs text-cyan-400/80 bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-800/60 font-mono">
             Speed KPI
           </span>
         </div>
         <div id="statsMttrBox">
-          <div class="text-center text-gray-500 text-[11px] py-2">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+          <div class="text-center text-mute text-xs py-2">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
         </div>
       </div>
     </div>
@@ -141,7 +141,7 @@ export const StatsView = () => {
       </div>
       <div style="height: 200px;" class="relative">
         <canvas id="statsMachineChart" class="hidden"></canvas>
-        <div id="statsMachineEmpty" class="hidden text-center text-gray-500 text-[11px] py-12">
+        <div id="statsMachineEmpty" class="hidden text-center text-mute text-xs py-12">
           ${t.noChartData || (currentLang === 'en' ? 'No chart data' : 'لا توجد بيانات')}
         </div>
       </div>
@@ -156,7 +156,7 @@ export const StatsView = () => {
       </div>
       <div style="height: 200px;" class="relative">
         <canvas id="statsPriorityChart" class="hidden"></canvas>
-        <div id="statsPriorityEmpty" class="hidden text-center text-gray-500 text-[11px] py-12">
+        <div id="statsPriorityEmpty" class="hidden text-center text-mute text-xs py-12">
           ${t.noChartData || (currentLang === 'en' ? 'No chart data' : 'لا توجد بيانات')}
         </div>
       </div>
@@ -173,7 +173,7 @@ export const StatsView = () => {
         </span>
       </div>
       <div id="statsLineBreakdown" class="space-y-2.5">
-        <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+        <div class="text-center text-mute text-xs py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
       </div>
     </div>
 
@@ -185,7 +185,7 @@ export const StatsView = () => {
         </span>
       </div>
       <div id="statsTechBox" class="space-y-2.5">
-        <div class="text-center text-gray-500 text-[11px] py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
+        <div class="text-center text-mute text-xs py-4">${common.loading || (currentLang === 'en' ? 'Loading...' : 'جاري التحميل...')}</div>
       </div>
     </div>
   </div>

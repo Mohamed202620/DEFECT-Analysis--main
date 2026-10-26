@@ -50,7 +50,7 @@ export const ErrorScannerView = () => {
         <h2 class="text-base font-black text-indigo-400 flex items-center gap-2">
           <span>🔎</span> ${t.title || (currentLang === 'en' ? 'Machine Error Scanner' : 'فاحص شاشات وأكواد الأعطال')}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-xs text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
   </div>
@@ -67,7 +67,7 @@ export const ErrorScannerView = () => {
       <select id="machineTypeSelect"
         aria-label="${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}"
         onchange="const value = this.value; if(value) { localStorage.setItem('selectedMachineType', value); } else { localStorage.removeItem('selectedMachineType'); } window.selectedMachineType = value; if (window.errRowsReevaluate) window.errRowsReevaluate();"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
+        class="w-full p-3 rounded-xl bg-surface border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner cursor-pointer">
         ${machineOptionsHtml}
       </select>
     </div>
@@ -91,12 +91,12 @@ export const ErrorScannerView = () => {
 
     <!-- معاينة الصورة + مستطيل تحديد سطر العطل (سجل الأعطال فيه أكثر من سطر، والمستخدم يحدد المطلوب) -->
     <div id="errScanCropWrap" class="hidden space-y-2">
-      <div class="text-[11px] text-gray-400 text-center">
+      <div class="text-xs text-gray-400 text-center">
         ${t.cropHint || (currentLang === 'en'
           ? 'Press Analyze all faults, or tap one line (or drag the box) and press Read selected line.'
           : 'اضغط "تحليل كل الأعطال"، أو اضغط على سطر واحد (أو اسحب المستطيل) ثم "قراءة السطر المحدد".')}
       </div>
-      <div id="errScanCropStage" class="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl border border-gray-700 bg-[#0F172A] select-none" style="touch-action:pan-y">
+      <div id="errScanCropStage" class="relative mx-auto w-fit max-w-full overflow-hidden rounded-xl border border-gray-700 bg-surface select-none" style="touch-action:pan-y">
         <img id="errScanPreview" alt="" draggable="false" class="block max-w-full max-h-72 w-auto h-auto"/>
         <div id="errScanCropBox" class="absolute border-2 border-emerald-400 rounded-sm cursor-move"
           style="touch-action:none;left:5%;top:38%;width:90%;height:8%;box-shadow:0 0 0 9999px rgba(0,0,0,.55)">
@@ -118,7 +118,7 @@ export const ErrorScannerView = () => {
       </div>
     </div>
 
-    <div id="errScanStatus" class="text-[11px] text-blue-400 text-center min-h-[16px] font-medium">
+    <div id="errScanStatus" class="text-xs text-blue-400 text-center min-h-[16px] font-medium">
       ${t.readyStatus || ''}
     </div>
 
@@ -126,10 +126,10 @@ export const ErrorScannerView = () => {
     <div id="errScanRows" class="space-y-2"></div>
 
     <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
-    <details id="errScanRawDetails" class="text-[11px] text-gray-400">
+    <details id="errScanRawDetails" class="text-xs text-gray-400">
       <summary class="cursor-pointer select-none font-bold">${t.ocrRawTextTitle || (currentLang === 'en' ? 'Raw OCR text (review only)' : 'النص الخام من الصورة (للمراجعة فقط)')}</summary>
       <textarea id="errScanRaw" rows="4" readonly dir="ltr"
-        class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-gray-300 outline-none text-[11px] resize-none"></textarea>
+        class="mt-2 w-full p-2 rounded-xl bg-surface border border-gray-700 text-gray-300 outline-none text-xs resize-none"></textarea>
     </details>
 
     <!-- كود العطل -->
@@ -139,7 +139,7 @@ export const ErrorScannerView = () => {
       </label>
       <input id="errScanCode" type="text"
         placeholder="${t.errorCodePlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner">
+        class="w-full p-3 rounded-xl bg-surface border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner">
     </div>
 
     <!-- النص/الرسالة المستخرجة -->
@@ -149,7 +149,7 @@ export const ErrorScannerView = () => {
       </label>
       <textarea id="errScanMessage" rows="3"
         placeholder="${t.errorMessagePlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm resize-none shadow-inner"></textarea>
+        class="w-full p-3 rounded-xl bg-surface border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm resize-none shadow-inner"></textarea>
     </div>
 
     <div>
@@ -158,7 +158,7 @@ export const ErrorScannerView = () => {
       </label>
       <input id="errScanManual" type="text"
         placeholder="${t.manualPlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner" />
+        class="w-full p-3 rounded-xl bg-surface border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner" />
     </div>
 
     <button type="button"

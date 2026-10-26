@@ -19,9 +19,9 @@ export const MaintenanceView = () => {
       <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
         <span>🛠️</span> ${t.title || (currentLang === 'en' ? 'Maintenance Center' : 'مركز الصيانة')}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+      <p class="text-xs text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
     </div>
-    <span class="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-2.5 py-1 rounded-full font-black shadow-sm">
+    <span class="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1 rounded-full font-black shadow-sm">
       ${t.badge || (currentLang === 'en' ? 'Live System' : 'نظام حي')}
     </span>
   </div>
@@ -47,7 +47,7 @@ export const MaintenanceView = () => {
         <span>${t.issueTitle || (currentLang === 'en' ? 'Report Breakdown' : 'تسجيل عطل')}</span>
         <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
       </span>
-      <span class="text-[10px] text-red-300/80 mt-1 font-medium line-clamp-1">${t.issueDesc || ''}</span>
+      <span class="text-xs text-red-300/80 mt-1 font-medium line-clamp-1">${t.issueDesc || ''}</span>
     </button>
 
     <!-- متابعة البلاغات (دورة حياة التذكرة) -->
@@ -62,7 +62,7 @@ export const MaintenanceView = () => {
         📋
       </div>
       <span class="font-bold text-xs text-gray-100">${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.ticketsDesc || ''}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${t.ticketsDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -79,7 +79,7 @@ export const MaintenanceView = () => {
         💡
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenDesc || ''}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${t.kaizenDesc || ''}</span>
     </button>
 
     <!-- متابعة الكايزن (مراجعة واعتماد المقترحات) -->
@@ -94,7 +94,7 @@ export const MaintenanceView = () => {
         🏆
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -108,7 +108,7 @@ export const MaintenanceView = () => {
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">🗓️</div>
       <span class="font-bold text-xs text-gray-100">${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
     </button>
     ` : ''}
 
@@ -125,7 +125,7 @@ export const MaintenanceView = () => {
         📚
       </div>
       <span class="font-bold text-xs text-gray-100">${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kbDesc || ''}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${t.kbDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -142,7 +142,7 @@ export const MaintenanceView = () => {
         📊
       </div>
       <span class="font-bold text-xs text-gray-100">${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
+      <span class="text-xs text-gray-400 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -160,7 +160,7 @@ export const MaintenanceView = () => {
         </div>
         <div>
           <span class="font-bold text-xs text-gray-100 block">${t.searchTitle || (currentLang === 'en' ? 'Advanced Search' : 'البحث والفلترة المتقدمة')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.searchDesc || ''}</span>
+          <span class="text-xs text-gray-400 mt-0.5 block">${t.searchDesc || ''}</span>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
@@ -186,7 +186,7 @@ export const MaintenanceView = () => {
         </div>
         <div>
           <span class="font-bold text-xs text-gray-100 block">${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.scannerDesc || ''}</span>
+          <span class="text-xs text-gray-400 mt-0.5 block">${t.scannerDesc || ''}</span>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">

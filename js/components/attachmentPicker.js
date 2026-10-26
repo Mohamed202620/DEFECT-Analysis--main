@@ -143,7 +143,7 @@ function renderAttachmentPreviews(groupId, config = {}) {
         class="attachment-delete-btn absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold transition-transform active:scale-90 shadow">
         ✕
       </button>
-      <span class="absolute bottom-1 left-1 bg-black/60 text-[10px] text-white px-1 rounded">
+      <span class="absolute bottom-1 left-1 bg-black/60 text-xs text-white px-1 rounded">
         #${index + 1}
       </span>
     </div>

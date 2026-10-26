@@ -103,13 +103,13 @@ export const PMView = () => {
       <h2 class="text-lg font-bold text-blue-400 flex items-center gap-2">
         <span>📝</span> ${isEn ? 'Preventive Maintenance (PM)' : 'تسجيل صيانة وقائية (PM)'}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-1">
+      <p class="text-xs text-gray-400 mt-1">
         ${isEn ? 'Routine equipment check and service logs' : 'سجل الفحوصات الدورية وصيانة المعدات'}
       </p>
     </div>
     
     <!-- النموذج -->
-    <form onsubmit="window.handlePMSubmit(event)" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
+    <form onsubmit="window.handlePMSubmit(event)" class="bg-card p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
       ${PMFormFields(isEn)}
       
       <button type="submit" class="w-full p-3 mt-4 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] rounded-xl font-bold text-xs text-white transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">

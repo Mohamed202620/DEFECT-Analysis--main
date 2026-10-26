@@ -491,7 +491,7 @@ export async function ensureMachineCatalogReady(force = false) {
 }
 
 const DEFAULT_SELECT_CLASS =
-  "w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm";
+  "w-full p-3 rounded-lg bg-surface border border-gray-700 text-white outline-none focus:border-blue-500 transition text-sm appearance-none shadow-sm";
 
 /**
  * توليد HTML لـ Dropdown الماكينات مع التحقق الكامل من الصلاحية والقسم

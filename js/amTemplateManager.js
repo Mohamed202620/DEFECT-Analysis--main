@@ -191,15 +191,15 @@ window.openAmBulkImportModal = function() {
 
   const modalHtml = `
     <div id="amBulkImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-3 sm:p-4">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0F172A]">
+      <div class="bg-card border border-gray-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-surface">
           <div class="flex items-center gap-2.5">
             <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">📊</span>
             <div>
               <h3 class="font-black text-white text-sm">
                 ${isEn ? 'Bulk AM Checklists Importer' : 'تغذية قوالب فحص الماكينات (AM) من الإكسيل'}
               </h3>
-              <p class="text-[10px] text-gray-400">
+              <p class="text-xs text-gray-400">
                 ${isEn ? 'Import or update multiple machine checklists instantly via Excel' : 'استيراد وتحديث بنود الفحص لكل ماكينات المصنع دفعة واحدة'}
               </p>
             </div>
@@ -211,12 +211,12 @@ window.openAmBulkImportModal = function() {
 
         <div class="p-4 overflow-y-auto flex-1 space-y-4">
           <!-- كارت تحميل النموذج المرجعي -->
-          <div class="bg-[#0F172A] border border-blue-500/20 rounded-xl p-3 flex items-center justify-between gap-3">
+          <div class="bg-surface border border-blue-500/20 rounded-xl p-3 flex items-center justify-between gap-3">
             <div>
               <div class="text-xs font-bold text-blue-300">
                 ${isEn ? '1. Download standard template' : '1. نزّل النموذج الإرشادي المنظم'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-xs text-gray-400">
                 ${isEn ? 'Fill in inspection items for all machines in one sheet' : 'قالب إكسيل جاهز يحتوي على الأعمدة المطلوبة وأمثلة لبنود المشغل والصيانة'}
               </div>
             </div>
@@ -231,14 +231,14 @@ window.openAmBulkImportModal = function() {
             <label class="block text-xs font-bold text-gray-300">
               ${isEn ? '2. Choose completed Excel file' : '2. اختر ملف الإكسيل بعد ملئه'}
             </label>
-            <input type="file" id="amExcelFileInput" accept=".xlsx, .xls" onchange="window.previewAmExcelFile(this)" class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer bg-[#0F172A] p-2 rounded-xl border border-gray-700">
+            <input type="file" id="amExcelFileInput" accept=".xlsx, .xls" onchange="window.previewAmExcelFile(this)" class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer bg-surface p-2 rounded-xl border border-gray-700">
           </div>
 
           <!-- حاوية المعاينة -->
           <div id="amExcelPreviewContainer" class="space-y-2"></div>
         </div>
 
-        <div class="p-4 border-t border-gray-800 bg-[#0F172A] flex justify-between items-center">
+        <div class="p-4 border-t border-gray-800 bg-surface flex justify-between items-center">
           <button onclick="document.getElementById('amBulkImportModal').remove()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold text-gray-300 transition">
             ${isEn ? 'Cancel' : 'إلغاء'}
           </button>
@@ -273,7 +273,7 @@ window.previewAmExcelFile = async function(inputEl) {
 
   if (previewBox) {
     previewBox.innerHTML = `
-      <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-4 text-center text-xs text-gray-400">
+      <div class="bg-surface border border-gray-800 rounded-xl p-4 text-center text-xs text-gray-400">
         ⏳ ${isEn ? 'Reading and verifying Excel file...' : 'جاري قراءة وفحص ملف الإكسيل...'}
       </div>
     `;
@@ -360,10 +360,10 @@ window.previewAmExcelFile = async function(inputEl) {
 
       diffSummaryHtml = `
         <div class="mt-2 pt-2 border-t border-gray-700/50 space-y-1">
-          <div class="text-[10px] font-bold text-gray-300">📊 ${isEn ? 'Diff Preview vs Existing Templates:' : 'معاينة الفروق مقارنة بالقوالب الحالية:'}</div>
+          <div class="text-xs font-bold text-gray-300">📊 ${isEn ? 'Diff Preview vs Existing Templates:' : 'معاينة الفروق مقارنة بالقوالب الحالية:'}</div>
           <div class="max-h-36 overflow-y-auto space-y-1">
             ${diffResults.map(d => `
-              <div class="bg-[#0F172A]/70 px-2 py-1 rounded text-[10px] flex items-center justify-between">
+              <div class="bg-surface/70 px-2 py-1 rounded text-xs flex items-center justify-between">
                 <span class="font-medium text-white">${escapeHtml(d.machine)}</span>
                 <span class="flex items-center gap-1.5 font-mono">
                   ${d.isNew ? `<span class="text-blue-400 font-bold">${isEn ? 'New Template' : 'قالب جديد'}</span>` : `
@@ -388,9 +388,9 @@ window.previewAmExcelFile = async function(inputEl) {
           </div>
           <div class="max-h-32 overflow-y-auto space-y-1.5 pr-1">
             ${machineNames.map(m => `
-              <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between text-[11px]">
+              <div class="bg-surface border border-gray-800 rounded-lg p-2 flex items-center justify-between text-xs">
                 <span class="font-bold text-white">🏭 ${m}</span>
-                <span class="text-gray-400 font-bold bg-[#1E293B] px-2 py-0.5 rounded-full">${machineMap[m].length} ${isEn ? 'items' : 'بنود'}</span>
+                <span class="text-gray-400 font-bold bg-card px-2 py-0.5 rounded-full">${machineMap[m].length} ${isEn ? 'items' : 'بنود'}</span>
               </div>
             `).join('')}
           </div>

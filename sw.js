@@ -28,6 +28,7 @@ const CORE_ASSETS = [
   './assets/icons/icon-512.png',
   './assets/branding/company-banner.png',
   './css/managerDesktop.css', // MGR-DESKTOP
+  './css/tailwind.css', // Tailwind CLI build
   './js/vendor/jsQR.js' // QR-IMPROVE
 ];
 

@@ -721,7 +721,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
         <span class="text-2xl">📊</span>
         <div>
           <div class="text-sm font-black text-emerald-400">${isEn ? 'Excel Report Ready!' : 'تم تجهيز ملف الإكسيل بنجاح'}</div>
-          <div class="text-[11px] text-gray-300 font-mono font-medium truncate max-w-[240px]">${escapeHtml(filename)}</div>
+          <div class="text-xs text-gray-300 font-mono font-medium truncate max-w-[240px]">${escapeHtml(filename)}</div>
         </div>
       </div>
       <button type="button" onclick="document.getElementById('mscanco-download-toast')?.remove()" class="text-gray-400 hover:text-white text-sm px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg">✕</button>
@@ -736,7 +736,7 @@ function showDownloadSuccessToast(dataOrBlobUrl, blobUrl, filename, isEn) {
       ` : ''}
     </div>
     
-    <div class="text-[10px] text-gray-300 leading-normal text-center bg-slate-800/80 p-2 rounded-xl border border-slate-700/50">
+    <div class="text-xs text-gray-300 leading-normal text-center bg-slate-800/80 p-2 rounded-xl border border-slate-700/50">
       ${isEn 
         ? '💡 Note: If your browser shows a "permission needed" or download prompt, please choose <b>"Allow"</b> or click the green button above.' 
         : '💡 تنبيه: إذا ظهرت رسالة تطلب إذناً من المتصفح، اختر <b>"سماح" (Allow)</b>، أو اضغط الزر الأخضر أعلاه لحفظ الملف فوراً.'}

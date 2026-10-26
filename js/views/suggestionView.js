@@ -106,13 +106,13 @@ export const SuggestionView = () => {
       <h2 class="text-lg font-bold text-amber-400 flex items-center gap-2">
         <span>💡</span> ${isEn ? 'Kaizen & Continuous Improvement' : 'المقترحات والتحسينات (كايزن)'}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-1">
+      <p class="text-xs text-gray-400 mt-1">
         ${isEn ? 'Share your ideas to eliminate waste and improve work environment' : 'شارِك بأفكارك لتقليل الهدر وتطوير بيئة العمل'}
       </p>
     </div>
     
     <!-- نموذج الكايزن -->
-    <form onsubmit="window.handleKaizenSubmit(event)" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
+    <form onsubmit="window.handleKaizenSubmit(event)" class="bg-card p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
       
       <!-- عنوان المقترح -->
       <div>

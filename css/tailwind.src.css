@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --surface: 248 250 252;
+  --card: 255 255 255;
+  --ink: 15 23 42;
+  --mute: 71 85 105;
+}
+.dark {
+  --surface: 15 23 42;
+  --card: 30 41 59;
+  --ink: 243 244 246;
+  --mute: 148 163 184;
+}

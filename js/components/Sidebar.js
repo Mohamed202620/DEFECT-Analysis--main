@@ -222,7 +222,7 @@ export const Sidebar = (activeTab) => {
         ${!isCollapsed ? `
           <div class="flex items-center gap-2 overflow-hidden">
             <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-            <span class="text-[11px] font-bold tracking-wider text-slate-300 uppercase truncate">
+            <span class="text-xs font-bold tracking-wider text-slate-300 uppercase truncate">
               ${isAr ? 'نظام الصيانة والتشغيل' : 'Navigation'}
             </span>
           </div>
@@ -250,7 +250,7 @@ export const Sidebar = (activeTab) => {
         ${groups.map(group => `
           <div class="space-y-1">
             ${!isCollapsed ? `
-              <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-80">
+              <div class="px-2 py-1 text-xs font-bold uppercase tracking-wider text-slate-400 opacity-80">
                 ${escapeHtml(group.title)}
               </div>
             ` : `
@@ -276,7 +276,7 @@ export const Sidebar = (activeTab) => {
                   </span>
                   ${!isCollapsed ? `
                     <span class="truncate flex-1 text-start">${escapeHtml(item.label)}</span>
-                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
+                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-xs font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}
                 </button>
@@ -287,13 +287,13 @@ export const Sidebar = (activeTab) => {
       </div>
 
       <!-- أسفل الشريط الجانبي: حالة الاتصال والنسخة -->
-      <div class="p-2.5 border-t shrink-0 flex items-center justify-between text-[11px] text-slate-400" style="border-color: var(--app-border);">
+      <div class="p-2.5 border-t shrink-0 flex items-center justify-between text-xs text-slate-400" style="border-color: var(--app-border);">
         ${!isCollapsed ? `
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-[10px] font-medium text-slate-300">${isAr ? 'متصل بالسيرفر' : 'Connected'}</span>
+            <span class="text-xs font-medium text-slate-300">${isAr ? 'متصل بالسيرفر' : 'Connected'}</span>
           </div>
-          <span class="text-[10px] font-mono text-slate-400">v2.4</span>
+          <span class="text-xs font-mono text-slate-400">v2.4</span>
         ` : `
           <div class="w-full flex justify-center">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="${isAr ? 'متصل بالسيرفر' : 'Connected'}"></span>
