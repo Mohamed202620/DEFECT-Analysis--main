@@ -694,7 +694,7 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
         today: todaySnap.data().count,
         open: notClosedComplete ? notClosed.filter(t => !isClosedStatus(t.status)).length : null,
         overdue: notClosedComplete ? notClosed.filter(t => isOverdueTicket(t)).length : null,
-        exact: ticketListsComplete
+        exact: ticketListsComplete && recentResolvedSnap.size < DASHBOARD_MAX_DOCS && recentUpdatedSnap.size < DASHBOARD_MAX_DOCS
       }
     };
   } catch (error) {
