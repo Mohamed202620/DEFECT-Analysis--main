@@ -663,7 +663,12 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
       getDocs(query(ticketsRef, where("updatedAt", ">=", recentFromIso), limit(DASHBOARD_MAX_DOCS)))
     ]);
 
-    if (serverOnly && (notClosedSnap.metadata?.fromCache || recentSnap.metadata?.fromCache)) {
+    if (serverOnly && (
+      notClosedSnap.metadata?.fromCache ||
+      recentSnap.metadata?.fromCache ||
+      recentResolvedSnap.metadata?.fromCache ||
+      recentUpdatedSnap.metadata?.fromCache
+    )) {
       const error = new Error("Dashboard ticket data is only available from the local cache");
       error.code = "unavailable";
       throw error;
