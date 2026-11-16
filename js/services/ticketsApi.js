@@ -675,6 +675,8 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
         [...tickets].filter(t => !["closed", "done", "مغلق"].includes(String(t.status || "").trim().toLowerCase())).map(t => [t.id, t])
       ).values()
     );
+    const notClosedComplete = notClosedSnap.size < DASHBOARD_MAX_DOCS;
+    const ticketListsComplete = notClosedComplete && recentSnap.size < DASHBOARD_MAX_DOCS;
 
     return {
       status: "success",
@@ -683,9 +685,9 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
         total: totalSnap.data().count,
         closed: closedSnap.data().count,
         today: todaySnap.data().count,
-        open: notClosed.filter(t => !isClosedStatus(t.status)).length,
-        overdue: notClosed.filter(t => isOverdueTicket(t)).length,
-        exact: true
+        open: notClosedComplete ? notClosed.filter(t => !isClosedStatus(t.status)).length : null,
+        overdue: notClosedComplete ? notClosed.filter(t => isOverdueTicket(t)).length : null,
+        exact: ticketListsComplete
       }
     };
   } catch (error) {
@@ -699,6 +701,7 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
       });
       if (cachedResult.status === "success" && cachedResult.fromCache) {
         const tickets = cachedResult.data;
+        const cachedTicketsComplete = tickets.length < DASHBOARD_MAX_DOCS;
         const startOfToday = new Date();
         startOfToday.setHours(0, 0, 0, 0);
         const openTickets = tickets.filter(ticket => !isClosedStatus(ticket.status));
@@ -712,8 +715,8 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
               const createdAt = new Date(ticket.createdAt);
               return !Number.isNaN(createdAt.getTime()) && createdAt >= startOfToday;
             }).length,
-            open: openTickets.length,
-            overdue: openTickets.filter(ticket => isOverdueTicket(ticket)).length,
+            open: cachedTicketsComplete ? openTickets.length : null,
+            overdue: cachedTicketsComplete ? openTickets.filter(ticket => isOverdueTicket(ticket)).length : null,
             exact: false,
             cached: true
           }
@@ -1757,7 +1760,7 @@ export async function reviewTicketApi(ticketId, { maintenanceType, assignedTo = 
   }
 }
 
-export async function fetchPmOrdersApi() {
+export async function fetchPmOrdersApi({ plannedMonth = "" } = {}) {
   try {
     await ensureAuthReady();
     const ticketsRef = collection(db, "tickets");
@@ -1767,8 +1770,25 @@ export async function fetchPmOrdersApi() {
     const merged = new Map();
 
     if (hasFullDataAccess(role)) {
-      const snapshot = await getDocs(query(ticketsRef, where("maintenanceType", "==", "PM")));
+      const monthMatch = String(plannedMonth).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+      let snapshot;
+      if (monthMatch) {
+        const nextMonth = new Date(Number(monthMatch[1]), Number(monthMatch[2]), 1);
+        const nextMonthStart = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}-01`;
+        snapshot = await getDocs(query(
+          ticketsRef,
+          where("plannedDate", ">=", `${plannedMonth}-01`),
+          where("plannedDate", "<", nextMonthStart)
+        ));
+      } else {
+        snapshot = await getDocs(query(ticketsRef, where("maintenanceType", "==", "PM")));
+      }
       snapshot.forEach(ticketSnap => merged.set(ticketSnap.id, { id: ticketSnap.id, ...ticketSnap.data() }));
+      if (monthMatch) {
+        for (const [id, order] of merged) {
+          if (String(order.maintenanceType || "").trim().toUpperCase() !== "PM") merged.delete(id);
+        }
+      }
     } else {
       // الأدوار غير كاملة الصلاحية ترى أوامر PM التي أبلغت عنها أو أُسندت
       // إليها فقط (بالـ UID والاسم مثل بقية استعلامات البلاغات)

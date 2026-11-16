@@ -25,6 +25,7 @@ export { uploadBase64Image } from "./imageUpload.js";
 
 export {
   fetchUsers,
+  fetchPendingUsersApi,
   registerUserApi,
   updatePermissionsApi,
   updateUserStatusApi,

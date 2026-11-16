@@ -162,6 +162,45 @@ test("technicians can read scoped tickets and active staff can query dashboard t
   )));
 });
 
+test("pending user requests are visible only to managers and administrators", async () => {
+  const pendingUsers = query(collection(dbFor("manager"), "users"), where("status", "==", "pending"));
+  const rolePendingUsers = query(collection(dbFor("supervisor"), "users"), where("role", "==", "pending"));
+
+  assert.equal((await assertSucceeds(getDocs(pendingUsers))).size, 1);
+  assert.equal((await assertSucceeds(getDocs(rolePendingUsers))).size, 1);
+  await assertSucceeds(getDocs(query(collection(dbFor("admin"), "users"), where("status", "==", "pending"))));
+  await assertFails(getDocs(query(collection(dbFor("technician"), "users"), where("status", "==", "pending"))));
+  await assertFails(getDocs(query(collection(dbFor("operator"), "users"), where("role", "==", "pending"))));
+  await assertFails(updateDoc(doc(dbFor("manager"), "users/pending"), { status: "active", role: "technician" }));
+});
+
+test("manager dashboard PM date-range query stays bounded to the requested month", async () => {
+  await seed("tickets/pm-november", ticket({
+    maintenanceType: "PM",
+    plannedDate: "2026-11-15",
+    status: "assigned"
+  }));
+  await seed("tickets/cm-november", ticket({
+    maintenanceType: "CM",
+    plannedDate: "2026-11-20",
+    status: "assigned"
+  }));
+  await seed("tickets/pm-december", ticket({
+    maintenanceType: "PM",
+    plannedDate: "2026-12-01",
+    status: "assigned"
+  }));
+
+  const novemberOrders = query(
+    collection(dbFor("manager"), "tickets"),
+    where("plannedDate", ">=", "2026-11-01"),
+    where("plannedDate", "<", "2026-12-01")
+  );
+  const snapshot = await assertSucceeds(getDocs(novemberOrders));
+  assert.deepEqual(snapshot.docs.map(item => item.id).sort(), ["cm-november", "pm-november"]);
+  assert.deepEqual(snapshot.docs.filter(item => item.data().maintenanceType === "PM").map(item => item.id), ["pm-november"]);
+});
+
 test("self-service user updates cannot activate an account or escalate a role", async () => {
   await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { role: "admin" }));
   await assertFails(updateDoc(doc(dbFor("technician"), "users/technician"), { status: "disabled" }));

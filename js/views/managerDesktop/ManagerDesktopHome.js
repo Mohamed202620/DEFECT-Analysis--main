@@ -4,8 +4,7 @@
 // بشبكة 12 عموداً متكاملة للشاشات الكبيرة (>= 1280px)
 // ============================================================
 
-import { fetchDashboardSnapshotApi, fetchPmOrdersApi } from '../../services/api.js';
-import { fetchUsers } from '../../services/usersApi.js';
+import { fetchDashboardSnapshotApi, fetchPendingUsersApi, fetchPmOrdersApi, fetchTechniciansApi } from '../../services/api.js';
 import { getCurrentRole } from '../../permissions.js';
 import { translations } from '../../config.js';
 import { CLOSED_STATUSES, isOverdueTicket, parseTicketDate, STATUS_LABELS } from '../../ticketStatusConstants.js';
@@ -14,6 +13,7 @@ import { exportToExcel } from '../../services/exportUtility.js';
 import { escapeHtml } from "../../utils/escapeHtml.js";
 import { displayRecordNumber } from "../../utils/recordNumber.js";
 import { escapeJsArg } from "../../utils/escapeHtml.js"; // MGR-DESKTOP
+import { buildManagerTrendSeries } from "../../utils/managerDashboard.js";
 
 let paretoChartInstance = null;
 let trendChartInstance = null;
@@ -37,13 +37,13 @@ export function renderManagerDesktopHomeHtml() {
             <h1 class="text-xl font-black text-gray-900 dark:text-white tracking-tight">
               ${isEn ? 'Executive Operations Command Center' : 'مركز إدارة العمليات التنفيذي'}
             </h1>
-            <span class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+            <span id="mgrDataStatus" role="status" aria-live="polite" class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-              ${isEn ? 'Live Desktop Mode' : 'وضع المدير الحي'}
+              ${isEn ? 'Loading dashboard...' : 'جاري تحميل لوحة المدير...'}
             </span>
           </div>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            ${isEn ? 'Real-time telemetry, equipment availability, downtime analysis & decisions' : 'متابعة حية للجاهزية التشغيلية، ومؤشرات الأعطال، والقرارات المعلقة'}
+            ${isEn ? 'Operations data, equipment availability, downtime analysis & decisions' : 'متابعة الجاهزية التشغيلية، ومؤشرات الأعطال، والقرارات المعلقة'}
           </p>
         </div>
       </div>
@@ -81,7 +81,7 @@ export function renderManagerDesktopHomeHtml() {
     <div class="mgr-kpi-grid">
       
       <!-- كارت: بلاغات مفتوحة -->
-      <div onclick="window.navigateTo('tickets')" class="mgr-card p-4 cursor-pointer hover:border-amber-500/50 group relative overflow-hidden">
+      <button type="button" onclick="window.navigateTo('tickets')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-amber-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'Open Tickets' : 'بلاغات قيد الإجراء'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">⚠️</span>
@@ -96,10 +96,10 @@ export function renderManagerDesktopHomeHtml() {
           <span class="text-amber-500 font-bold">↗</span>
           <span>${isEn ? 'Requires prompt assignment' : 'تحتاج إسناد ومتابعة فورية'}</span>
         </div>
-      </div>
+      </button>
 
       <!-- كارت: متأخرة عن SLA -->
-      <div onclick="window.openTicketsWithFilter('overdue')" class="mgr-card p-4 cursor-pointer hover:border-red-500/50 group relative overflow-hidden">
+      <button type="button" onclick="window.openTicketsWithFilter('overdue')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-red-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'Overdue (SLA)' : 'تجاوزت وقت الاستجابة SLA'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🚨</span>
@@ -114,7 +114,7 @@ export function renderManagerDesktopHomeHtml() {
           <span class="text-red-500 font-bold">⚠️</span>
           <span>${isEn ? 'Breached SLA threshold' : 'تجاوزت الحد المسموح للإصلاح'}</span>
         </div>
-      </div>
+      </button>
 
       <!-- كارت: متوسط زمن الإصلاح MTTR -->
       <div class="mgr-card p-4 hover:border-cyan-500/50 group relative overflow-hidden">
@@ -153,7 +153,7 @@ export function renderManagerDesktopHomeHtml() {
       </div>
 
       <!-- كارت: نسبة إنجاز الصيانة الوقائية PM -->
-      <div onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
+      <button type="button" onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
         <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
           <span class="font-bold">${isEn ? 'PM Compliance' : 'إنجاز الصيانة الوقائية PM'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">📋</span>
@@ -168,7 +168,7 @@ export function renderManagerDesktopHomeHtml() {
           <span>✅</span>
           <span id="mgrKpiPmCounts">${isEn ? 'PM orders this month' : 'أوامر PM هذا الشهر'}</span>
         </div>
-      </div>
+      </button>
 
       <!-- كارت: إجمالي ساعات التوقف هذا الشهر -->
       <div class="mgr-card p-4 hover:border-purple-500/50 group relative overflow-hidden">
@@ -336,7 +336,7 @@ export function renderManagerDesktopHomeHtml() {
             <span>🏭</span>
             <span>${isEn ? 'Operations Pulse & Shifts' : 'النبض التشغيلي والورديات'}</span>
           </h3>
-          <span class="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+          <span id="mgrOperationsStatus" role="status" class="text-[10px] font-bold text-gray-400 bg-gray-500/10 px-2 py-0.5 rounded">
             ${isEn ? 'Online' : 'جاهز'}
           </span>
         </div>
@@ -392,28 +392,35 @@ async function _initManagerDesktopHomeData() {
 
   const spin = document.getElementById("mgrRefreshSpinner");
   if (spin) spin.classList.add("animate-spin");
+  setManagerDataStatus("loading", isEn);
 
   try {
     const role = getCurrentRole();
     const myUid = localStorage.getItem("userId") || "";
     const myName = localStorage.getItem("name") || "";
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     // جلب التذاكر وسجلات الـ PM والمستخدمين بالتوازي
-    const [ticketsRes, pmCountRes, usersRes] = await Promise.all([
+    const [ticketsResult, pmResult, pendingUsersResult, techniciansResult] = await Promise.allSettled([
       fetchDashboardSnapshotApi({ role, myUid, myName }),
-      fetchPmOrdersApi(),
-      fetchUsers().catch(() => [])
+      fetchPmOrdersApi({ plannedMonth: monthKey }),
+      fetchPendingUsersApi(),
+      fetchTechniciansApi()
     ]);
 
+    const ticketsRes = ticketsResult.status === "fulfilled" ? ticketsResult.value : null;
+    const pmCountRes = pmResult.status === "fulfilled" ? pmResult.value : null;
+    const pendingUsersRes = pendingUsersResult.status === "fulfilled" ? pendingUsersResult.value : null;
+    const techniciansRes = techniciansResult.status === "fulfilled" ? techniciansResult.value : null;
     const snapshot = (ticketsRes && ticketsRes.status === 'success') ? ticketsRes.data : null;
-    const tickets = snapshot && Array.isArray(snapshot.tickets) ? snapshot.tickets : [];
+    const ticketsAvailable = !!snapshot && Array.isArray(snapshot.tickets);
+    const tickets = ticketsAvailable ? snapshot.tickets : [];
     const totalCount = snapshot ? snapshot.total : tickets.length;
     // كارت PM: أوامر PM المخططة هذا الشهر (نفس بيانات صفحة أوامر PM)
     let pmMonthTotal = null;
     let pmMonthDone = 0;
     if (pmCountRes?.status === 'success' && Array.isArray(pmCountRes.data)) {
-      const now = new Date();
-      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       pmMonthTotal = 0;
       pmCountRes.data.forEach(order => {
         const raw = String(order.plannedDate || '').trim();
@@ -426,41 +433,56 @@ async function _initManagerDesktopHomeData() {
     } else {
       console.warn("[ManagerDesktop] PM orders are unavailable:", pmCountRes?.message || "Unknown error");
     }
-    // إصلاح: fetchUsers() بترجع { status, data } مش مصفوفة مباشرة، فكان الشرط
-    // القديم (Array.isArray(usersRes)) دايماً false وقائمة المستخدمين فاضية: لا
-    // طلبات انضمام في "يحتاج قراراً" ولا عداد معلّقين ولا فنيين في حمل العمل
-    const users = Array.isArray(usersRes)
-      ? usersRes
-      : (usersRes && usersRes.status === 'success' && Array.isArray(usersRes.data) ? usersRes.data : []);
+    // طلبات الانضمام وقائمة الفنيين تُحمّلان باستعلامات منفصلة ومحددة النطاق.
+    const pendingUsersAvailable = !!pendingUsersRes && pendingUsersRes.status === "success"
+      && Array.isArray(pendingUsersRes.data);
+    const pendingUsers = pendingUsersAvailable ? pendingUsersRes.data : [];
+    const techniciansAvailable = !!techniciansRes && techniciansRes.status === "success"
+      && Array.isArray(techniciansRes.data);
+    const technicians = techniciansAvailable ? techniciansRes.data : [];
 
-    // تخزين مؤقت للتقارير
-    cachedDashboardData = { tickets, totalCount, users };
+    if (ticketsAvailable) {
+      cachedDashboardData = { tickets, totalCount, userId: myUid };
+    } else if (cachedDashboardData?.userId === myUid) {
+      cachedDashboardData = null;
+    }
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    const dashboardIsCached = !!snapshot?.cached || (isOffline && ticketsAvailable);
+    const dashboardIsPartial = !ticketsAvailable || !pendingUsersAvailable || !techniciansAvailable
+      || pmCountRes?.status !== "success" || snapshot?.exact === false;
+    const dataState = dashboardIsCached
+      ? (dashboardIsPartial ? "cachedPartial" : "cached")
+      : (dashboardIsPartial ? "partial" : "live");
+    setManagerDataStatus(dataState, isEn);
+    const operationsStatus = document.getElementById("mgrOperationsStatus");
+    if (operationsStatus) {
+      operationsStatus.textContent = isOffline
+        ? (isEn ? "Offline" : "دون اتصال")
+        : dashboardIsCached
+          ? (isEn ? "Cached data" : "بيانات مخزنة")
+          : (isEn ? "Online" : "متصل");
+      operationsStatus.className = isOffline || dashboardIsCached
+        ? "text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded"
+        : "text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded";
+    }
     // تحليلات الأعطال (MTTR/MTBF/باريتو/الاتجاه/التوقف) تستبعد أوامر الصيانة الوقائية PM
     const cmTickets = tickets.filter(t => String(t.maintenanceType || '').trim().toUpperCase() !== 'PM');
 
-    // 1. حساب الـ KPIs
-    let openCount = 0;
-    let closedCount = 0;
-    let overdueCount = 0;
-    let totalDowntimeHours = 0;
+    const setTxt = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    if (ticketsAvailable) {
+      // 1. حساب الـ KPIs
+      let totalDowntimeHours = 0;
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    tickets.forEach(ticket => {
-      const isClosed = CLOSED_STATUSES.includes(String(ticket.status || '').trim().toLowerCase());
-      if (isClosed) {
-        closedCount++;
-      } else {
-        openCount++;
-      }
+      tickets.forEach(ticket => {
+        const isClosed = CLOSED_STATUSES.includes(String(ticket.status || '').trim().toLowerCase());
+        if (String(ticket.maintenanceType || '').trim().toUpperCase() === 'PM') return;
 
-      if (isOverdueTicket(ticket)) {
-        overdueCount++;
-      }
-
-      // ساعات الأعطال خلال آخر 30 يوماً (CM فقط) - بنفس مرجع أوقات MTTR وبحد أدنى بداية 30 يوم
-      if (String(ticket.maintenanceType || '').trim().toUpperCase() !== 'PM') {
         const created = parseTicketDate(ticket.createdAtServer) || parseTicketDate(ticket);
         const end = isClosed
           ? (parseTicketDate(ticket.resolvedAtServer) || parseTicketDate(ticket.resolvedAt || ticket.updatedAt || ticket))
@@ -469,82 +491,121 @@ async function _initManagerDesktopHomeData() {
           const startAt = created > thirtyDaysAgo ? created : thirtyDaysAgo;
           if (end > startAt) totalDowntimeHours += (end - startAt) / (1000 * 60 * 60);
         }
+      });
+
+      const openCount = Number.isFinite(snapshot.open) ? snapshot.open : null;
+      const overdueCount = Number.isFinite(snapshot.overdue) ? snapshot.overdue : null;
+      const mttrData = computeMTTR(cmTickets);
+      const mttrHours = mttrData.avgHours !== null ? mttrData.avgHours : null;
+      const monthlyFailures = cmTickets.filter(t => {
+        const d = parseTicketDate(t);
+        return d && d >= thirtyDaysAgo;
+      }).length;
+      const machinesList = Array.isArray(window.machinesList) ? window.machinesList : [];
+      const machineHours = machinesList.length * 24 * 30;
+      const mtbfHours = monthlyFailures > 0 && machineHours > 0
+        ? Math.round(machineHours / monthlyFailures)
+        : null;
+      setTxt("mgrKpiOpen", openCount ?? '--');
+      setTxt("mgrKpiOverdue", overdueCount ?? '--');
+      setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
+      setTxt("mgrKpiMtbf", mtbfHours !== null ? `${mtbfHours} h` : '--');
+      setTxt("mgrKpiMttrTrend", mttrData.sampleSize ? `${mttrData.sampleSize} ${isEn ? 'tickets' : 'بلاغ'}` : '--');
+      setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
+
+      const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
+      if (overdueBadge) {
+        overdueBadge.className = overdueCount === null
+          ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-400"
+          : overdueCount > 0
+            ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 animate-pulse border border-red-500/40"
+            : "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400";
+        overdueBadge.textContent = overdueCount === null
+          ? (isEn ? 'Unavailable' : 'غير متاح')
+          : overdueCount > 0
+            ? (isEn ? 'Action Required' : 'يتطلب تدخلاً')
+            : (isEn ? 'On Track' : 'ضمن الخطة');
       }
-    });
 
-    // الأرقام الدقيقة من لقطة السيرفر (بند H4) بدل العد من قائمة جزئية
-    if (snapshot) {
-      openCount = snapshot.open;
-      closedCount = snapshot.closed;
-      overdueCount = snapshot.overdue;
+      renderParetoChart(cmTickets, isEn);
+      renderTrendChart(cmTickets, isEn);
+    } else {
+      ["mgrKpiOpen", "mgrKpiOverdue", "mgrKpiMttr", "mgrKpiMtbf", "mgrKpiDowntime"].forEach(id => setTxt(id, "--"));
+      setTxt("mgrKpiMttrTrend", "--");
+      const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
+      if (overdueBadge) {
+        overdueBadge.className = "text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-400";
+        overdueBadge.textContent = isEn ? "Unavailable" : "غير متاح";
+      }
+      showChartMessage("mgrParetoChart", "mgrParetoEmpty", isEn ? "Data unavailable" : "تعذر تحميل البيانات");
+      showChartMessage("mgrTrendChart", "mgrTrendEmpty", isEn ? "Data unavailable" : "تعذر تحميل البيانات");
     }
 
-    const mttrData = computeMTTR(cmTickets);
-    // إصلاح: كان بيرجّع 1.8 ساعة مختلقة لما مفيش بيانات - دلوقتي null ويظهر '--'
-    const mttrHours = mttrData.avgHours !== null ? mttrData.avgHours : null;
-    
-    // MTBF: تقديري مبني على 720 ساعة تشغيل شهرياً مقسومة على عدد الأعطال
-    const monthlyFailures = cmTickets.filter(t => {
-      const d = parseTicketDate(t);
-      return d && d >= thirtyDaysAgo;
-    }).length;
-    const mtbfHours = monthlyFailures > 0 ? Math.round(720 / monthlyFailures) : null;
-
-    // إصلاح: النسبة كانت صيغة مخترعة (الافتراض إن فيه 1 أو 3 مهام متأخرة بحسب openCount)
-    // وبترجّع 85% ثابتة عند غياب البيانات. مفيش جدول PM مخطط في النظام يتحسب منه
-    // التزام حقيقي، فبنعرض '--' ونكتفي بالعدد الفعلي من السجلات (mgrKpiPmCounts)
-    const pmComplianceRate = pmMonthTotal ? Math.round((pmMonthDone / pmMonthTotal) * 100) : null;
-
-    // تحديث قيم الـ KPIs في الـ DOM
-    const setTxt = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    setTxt("mgrKpiOpen", openCount);
-    setTxt("mgrKpiOverdue", overdueCount);
-    setTxt("mgrKpiMttr", mttrHours !== null ? `${mttrHours.toFixed(1)} h` : '--');
-    setTxt("mgrKpiMtbf", mtbfHours !== null ? `${mtbfHours} h` : '--');
-    setTxt("mgrKpiMttrTrend", mttrData.sampleSize ? `${mttrData.sampleSize} ${isEn ? 'tickets' : 'بلاغ'}` : '--');
-    setTxt("mgrKpiPmRate", pmComplianceRate !== null ? `${pmComplianceRate}%` : '--');
+    setTxt("mgrKpiPmRate", pmMonthTotal === null || !pmMonthTotal ? '--' : `${Math.round((pmMonthDone / pmMonthTotal) * 100)}%`);
     setTxt("mgrKpiPmCounts", pmMonthTotal === null ? '--' : `${pmMonthDone}/${pmMonthTotal} ${isEn ? 'PM orders this month' : 'أمر PM هذا الشهر'}`);
-    setTxt("mgrKpiDowntime", `${totalDowntimeHours.toFixed(1)} h`);
 
-    // إشارة الـ Overdue
-    const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
-    if (overdueBadge) {
-      overdueBadge.className = overdueCount > 0 
-        ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 animate-pulse border border-red-500/40"
-        : "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400";
-      overdueBadge.textContent = overdueCount > 0 ? (isEn ? 'Action Required' : 'يتطلب تدخلاً') : (isEn ? 'On Track' : 'ضمن الخطة');
-    }
-
-    // 2. رسم Pareto لأكثر الماكينات عطلاً
-    renderParetoChart(cmTickets, isEn);
-
-    // 3. رسم اتجاه الأعطال الأسبوعي/الشهري
-    renderTrendChart(cmTickets, isEn);
-
-    // 4. جدول يحتاج قراراً الآن (Decisions Desk)
-    renderDecisionsTable(tickets, users, isEn);
-
-    // 5. قائمة أداء وحمل عمل الفنيين
-    renderTechnicianWorkload(tickets, users, isEn);
+    renderDecisionsTable(tickets, pendingUsers, isEn, { ticketsAvailable, usersAvailable: pendingUsersAvailable });
+    renderTechnicianWorkload(tickets, technicians, isEn, { ticketsAvailable, usersAvailable: techniciansAvailable });
 
     // 6. النبض التشغيلي
-    const pendingUsers = users.filter(u => u.status === 'pending' || u.role === 'pending');
-    setTxt("mgrPendingUsersCount", pendingUsers.length);
+    setTxt("mgrPendingUsersCount", pendingUsersAvailable ? pendingUsers.length : '--');
     
     // عدد الماكينات المسجلة
-    const machinesList = window.machinesList || [];
+    const machinesList = Array.isArray(window.machinesList) ? window.machinesList : [];
     // الوردية: من بيانات المستخدم المحفوظة بدل نص ثابت "Shift A (Green)"
     setTxt("mgrCurrentShiftName", localStorage.getItem('shift') || '--');
     setTxt("mgrTotalMachinesCount", machinesList.length > 0 ? machinesList.length : '--');
 
   } catch (err) {
     console.error("[ManagerDesktop] Error initializing dashboard data:", err);
+    setManagerDataStatus("error", isEn);
+    ["mgrKpiOpen", "mgrKpiOverdue", "mgrKpiMttr", "mgrKpiMtbf", "mgrKpiPmRate", "mgrKpiPmCounts", "mgrKpiDowntime", "mgrPendingUsersCount"].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = "--";
+    });
+    showChartMessage("mgrParetoChart", "mgrParetoEmpty", isEn ? "Data unavailable" : "تعذر تحميل البيانات");
+    showChartMessage("mgrTrendChart", "mgrTrendEmpty", isEn ? "Data unavailable" : "تعذر تحميل البيانات");
+    renderDecisionsTable([], [], isEn, { ticketsAvailable: false, usersAvailable: false });
+    renderTechnicianWorkload([], [], isEn, { ticketsAvailable: false, usersAvailable: false });
   } finally {
     if (spin) spin.classList.remove("animate-spin");
+  }
+}
+
+function setManagerDataStatus(state, isEn) {
+  const status = document.getElementById("mgrDataStatus");
+  if (!status) return;
+  const labels = {
+    loading: isEn ? "Loading dashboard..." : "جاري تحميل لوحة المدير...",
+    live: isEn ? "Live data" : "بيانات مباشرة",
+    cached: isEn ? "Offline / cached data" : "دون اتصال / بيانات مخزنة",
+    cachedPartial: isEn ? "Cached data; some sections unavailable" : "بيانات مخزنة؛ بعض الأقسام غير متاحة",
+    partial: isEn ? "Some data unavailable" : "بعض البيانات غير متاحة",
+    error: isEn ? "Dashboard data unavailable" : "بيانات اللوحة غير متاحة"
+  };
+  status.textContent = labels[state] || labels.error;
+  status.className = state === "live"
+    ? "px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+    : state === "cached" || state === "cachedPartial" || state === "partial" || state === "error"
+      ? "px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
+      : "px-2 py-0.5 text-[11px] font-bold rounded-full bg-gray-500/15 text-gray-400 border border-gray-500/30";
+}
+
+function showChartMessage(canvasId, emptyId, message) {
+  const canvas = document.getElementById(canvasId);
+  const emptyEl = document.getElementById(emptyId);
+  if (canvas) canvas.classList.add("hidden");
+  if (emptyEl) {
+    emptyEl.textContent = message;
+    emptyEl.classList.remove("hidden");
+  }
+  if (canvasId === "mgrParetoChart" && paretoChartInstance) {
+    paretoChartInstance.destroy();
+    paretoChartInstance = null;
+  }
+  if (canvasId === "mgrTrendChart" && trendChartInstance) {
+    trendChartInstance.destroy();
+    trendChartInstance = null;
   }
 }
 
@@ -552,22 +613,23 @@ async function _initManagerDesktopHomeData() {
 function renderParetoChart(tickets, isEn) {
   const canvas = document.getElementById("mgrParetoChart");
   const emptyEl = document.getElementById("mgrParetoEmpty");
-  if (!canvas || typeof Chart === "undefined") return;
+  if (paretoChartInstance) {
+    paretoChartInstance.destroy();
+    paretoChartInstance = null;
+  }
+  if (!canvas || typeof Chart === "undefined") {
+    showChartMessage("mgrParetoChart", "mgrParetoEmpty", isEn ? "Chart unavailable" : "الرسم البياني غير متاح");
+    return;
+  }
 
   const topMachines = computeTopMachines(tickets, 6);
   if (!topMachines.length) {
-    canvas.classList.add("hidden");
-    if (emptyEl) emptyEl.classList.remove("hidden");
+    showChartMessage("mgrParetoChart", "mgrParetoEmpty", isEn ? "No breakdown data" : "لا توجد بيانات أعطال");
     return;
   }
 
   canvas.classList.remove("hidden");
   if (emptyEl) emptyEl.classList.add("hidden");
-
-  if (paretoChartInstance) {
-    paretoChartInstance.destroy();
-    paretoChartInstance = null;
-  }
 
   const labels = topMachines.map(m => m[0]);
   const counts = topMachines.map(m => m[1]);
@@ -664,44 +726,22 @@ function renderParetoChart(tickets, isEn) {
 function renderTrendChart(tickets, isEn) {
   const canvas = document.getElementById("mgrTrendChart");
   const emptyEl = document.getElementById("mgrTrendEmpty");
-  if (!canvas || typeof Chart === "undefined") return;
-
-  const currentLang = window.currentLang || "ar";
-  const days = 10;
-  const map = {};
-  const labels = [];
-
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().split('T')[0];
-    const display = d.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { weekday: 'short', month: 'numeric', day: 'numeric' });
-    map[key] = { label: display, newCount: 0, resolvedCount: 0 };
-    labels.push(key);
+  if (!canvas || typeof Chart === "undefined") {
+    showChartMessage("mgrTrendChart", "mgrTrendEmpty", isEn ? "Chart unavailable" : "الرسم البياني غير متاح");
+    return;
   }
-
-  tickets.forEach(ticket => {
-    const created = parseTicketDate(ticket);
-    if (created) {
-      const k = created.toISOString().split('T')[0];
-      if (map[k]) map[k].newCount++;
-    }
-    const isClosed = CLOSED_STATUSES.includes(String(ticket.status || '').trim().toLowerCase());
-    const updated = parseTicketDate(ticket.updatedAt || ticket);
-    if (isClosed && updated) {
-      const k2 = updated.toISOString().split('T')[0];
-      if (map[k2]) map[k2].resolvedCount++;
-    }
-  });
-
-  const chartLabels = labels.map(k => map[k].label);
-  const newCounts = labels.map(k => map[k].newCount);
-  const resolvedCounts = labels.map(k => map[k].resolvedCount);
+  const { labels: chartLabels, newCounts, resolvedCounts } = buildManagerTrendSeries(tickets, { isEnglish: isEn });
 
   if (trendChartInstance) {
     trendChartInstance.destroy();
     trendChartInstance = null;
   }
+  if (!newCounts.some(Boolean) && !resolvedCounts.some(Boolean)) {
+    showChartMessage("mgrTrendChart", "mgrTrendEmpty", isEn ? "No trend data available" : "لا توجد بيانات اتجاه");
+    return;
+  }
+  canvas.classList.remove("hidden");
+  if (emptyEl) emptyEl.classList.add("hidden");
 
   const isDark = document.documentElement.classList.contains("dark");
   const textColor = isDark ? "#94a3b8" : "#64748b";
@@ -760,7 +800,7 @@ function renderTrendChart(tickets, isEn) {
 }
 
 // جدول يحتاج قراراً الآن (Decisions Desk)
-function renderDecisionsTable(tickets, users, isEn) {
+function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, usersAvailable = true } = {}) {
   const tbody = document.getElementById("mgrDecisionsTableBody");
   const countBadge = document.getElementById("mgrDecisionsCount");
   if (!tbody) return;
@@ -768,11 +808,11 @@ function renderDecisionsTable(tickets, users, isEn) {
   const decisions = [];
 
   // 1. تذاكر متأخرة عن SLA أو حرجة جداً
-  tickets.forEach(t => {
+  (ticketsAvailable ? tickets : []).forEach(t => {
     const isClosed = CLOSED_STATUSES.includes(String(t.status || '').trim().toLowerCase());
     if (isClosed) return;
 
-    const isHigh = String(t.priority || '').trim() === 'High';
+    const isHigh = String(t.priority || '').trim().toLowerCase() === 'high';
     const isOverdue = isOverdueTicket(t);
 
     if (isOverdue || isHigh) {
@@ -780,45 +820,45 @@ function renderDecisionsTable(tickets, users, isEn) {
         id: t.id,
         type: isOverdue ? 'overdue' : 'urgent_ticket',
         rank: isOverdue ? 0 : 1,
-        ts: Date.parse(t.createdAt) || 0,
+        ts: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.getTime() || 0,
         badge: isOverdue ? (isEn ? 'SLA Breach' : 'تأخر SLA') : (isEn ? 'High Priority' : 'أولوية قصوى'),
         badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Breakdown' : 'عطل')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.assignedTo || (isEn ? 'Unassigned' : 'غير معين')}`,
-        time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-',
+        time: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || '-',
         actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Review' : 'معاينة'}</button>`
       });
-    } else if (String(t.status || '').trim() === 'pending' && !t.assignedTo) {
+    } else if (String(t.status || '').trim().toLowerCase() === 'pending' && !t.assignedTo) {
       // 2. بلاغات جديدة بدون تعيين
       decisions.push({
         id: t.id,
         type: 'unassigned',
         rank: 3,
-        ts: Date.parse(t.createdAt) || 0,
+        ts: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.getTime() || 0,
         badge: isEn ? 'Unassigned' : 'بانتظار الإسناد',
         badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.reportedBy || (isEn ? 'User' : 'مستخدم')}`,
-        time: t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
+        time: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) || '-',
         actionBtn: `<button onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-600 hover:bg-amber-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Assign' : 'إسناد فني'}</button>`
       });
     }
   });
 
   // 3. طلبات تسجيل مستخدمين جديدة بانتظار الموافقة
-  users.forEach(u => {
+  (usersAvailable ? users : []).forEach(u => {
     if (u.status === 'pending' || u.role === 'pending') {
       decisions.push({
         id: u.id,
         type: 'user_request',
         rank: 2,
-        ts: Date.parse(u.createdAt) || 0,
+        ts: parseTicketDate(u.createdAt)?.getTime() || 0,
         badge: isEn ? 'User Request' : 'طلب انضمام',
         badgeClass: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30',
         title: `${u.name || (isEn ? 'New User' : 'مستخدم جديد')} (${u.job || u.role || 'Member'})`,
         meta: `${u.phone || ''} • ${u.department || (isEn ? 'Production' : 'الإنتاج')}`,
-        time: u.createdAt ? new Date(u.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) : '-',
-        actionBtn: `<button onclick="window.navigateTo('requests')" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition active:scale-95 cursor-pointer">${isEn ? 'Approve' : 'اعتماد'}</button>`
+        time: parseTicketDate(u.createdAt)?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) || '-',
+        actionBtn: `<span class="text-[10px] font-bold text-indigo-400">${isEn ? 'Administrator approval required' : 'يتطلب اعتماد مدير النظام'}</span>`
       });
     }
   });
@@ -827,10 +867,16 @@ function renderDecisionsTable(tickets, users, isEn) {
   decisions.sort((a, b) => (a.rank - b.rank) || ((a.ts || Number.MAX_SAFE_INTEGER) - (b.ts || Number.MAX_SAFE_INTEGER)));
 
   if (countBadge) {
-    countBadge.textContent = `${decisions.length} ${isEn ? 'Decisions' : 'قرارات'}`;
+    countBadge.textContent = ticketsAvailable && usersAvailable
+      ? `${decisions.length} ${isEn ? 'Decisions' : 'قرارات'}`
+      : `— ${isEn ? 'Decisions' : 'قرارات'}`;
   }
 
-  if (!decisions.length) {
+  const availabilityMessages = [];
+  if (!ticketsAvailable) availabilityMessages.push(isEn ? "Ticket data could not be loaded." : "تعذر تحميل بيانات البلاغات.");
+  if (!usersAvailable) availabilityMessages.push(isEn ? "User requests could not be loaded." : "تعذر تحميل طلبات المستخدمين.");
+
+  if (!decisions.length && !availabilityMessages.length) {
     tbody.innerHTML = `
       <tr>
         <td colspan="5" class="py-8 text-center text-gray-400">
@@ -849,6 +895,14 @@ function renderDecisionsTable(tickets, users, isEn) {
 
   // عرض أول 6 عناصر فقط في الرئيسية لتفادي التكدس
   const visibleItems = decisions.slice(0, 6);
+
+  const hiddenItems = decisions.slice(visibleItems.length);
+  const hiddenTicketCount = hiddenItems.filter(item => item.type !== "user_request").length;
+  const hiddenUserCount = hiddenItems.filter(item => item.type === "user_request").length;
+  const footerActions = [
+    hiddenTicketCount ? `<button type="button" onclick="window.openTicketsWithFilter('all')" class="text-[11px] text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining tickets (${hiddenTicketCount})` : `عرض باقي البلاغات (${hiddenTicketCount})`}</button>` : "",
+    hiddenUserCount ? `<span class="text-[11px] text-indigo-400 font-bold">${isEn ? `${hiddenUserCount} more requests require administrator review` : `${hiddenUserCount} طلب إضافي يتطلب مراجعة مدير النظام`}</span>` : ""
+  ].filter(Boolean);
 
   tbody.innerHTML = visibleItems.map(item => `
     <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
@@ -870,25 +924,34 @@ function renderDecisionsTable(tickets, users, isEn) {
         ${item.actionBtn}
       </td>
     </tr>
-  `).join("") + (decisions.length > visibleItems.length
-    ? `<tr><td colspan="5" class="py-2.5 px-3 text-center"><button type="button" onclick="window.openTicketsWithFilter('overdue')" class="text-[11px] text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining (${decisions.length - visibleItems.length})` : `عرض المتبقي (${decisions.length - visibleItems.length})`}</button></td></tr>`
+  `).join("") + availabilityMessages.map(message => `
+    <tr><td colspan="5" class="py-3 px-3 text-center text-amber-500">${escapeHtml(message)}</td></tr>
+  `).join("") + (footerActions.length
+    ? `<tr><td colspan="5" class="py-2.5 px-3 text-center"><div class="flex flex-wrap justify-center gap-4">${footerActions.join("")}</div></td></tr>`
     : "");
 }
 
 // عرض أداء وحمل عمل الفنيين
-function renderTechnicianWorkload(tickets, users, isEn) {
+function renderTechnicianWorkload(tickets, users, isEn, { ticketsAvailable = true, usersAvailable = true } = {}) {
   const container = document.getElementById("mgrTechWorkloadList");
   if (!container) return;
 
-  const workload = {};
+  if (!ticketsAvailable) {
+    container.innerHTML = `<div class="py-4 text-center text-amber-500 text-xs">${isEn ? "Ticket data could not be loaded." : "تعذر تحميل بيانات البلاغات."}</div>`;
+    return;
+  }
 
-  // جمع الفنيين والمهندسين من قائمة المستخدمين
-  users.forEach(u => {
+  const workload = new Map();
+  const employeeKeyByName = new Map();
+
+  if (usersAvailable) users.forEach(u => {
     const r = String(u.role || '').toLowerCase();
     if (r === 'technician' || r === 'engineer' || r === 'maintainer' || r === 'فني' || r === 'مهندس') {
       const name = String(u.name || '').trim();
       if (name) {
-        workload[name] = { active: 0, resolved: 0, total: 0 };
+        const key = u.id || name;
+        workload.set(key, { name, active: 0, resolved: 0, total: 0 });
+        employeeKeyByName.set(name, key);
       }
     }
   });
@@ -898,35 +961,38 @@ function renderTechnicianWorkload(tickets, users, isEn) {
     const tech = String(ticket.assignedTo || '').trim();
     if (!tech) return;
 
-    if (!workload[tech]) {
-      workload[tech] = { active: 0, resolved: 0, total: 0 };
+    const key = ticket.assignedToUid || employeeKeyByName.get(tech) || tech;
+    if (!workload.has(key)) {
+      workload.set(key, { name: tech, active: 0, resolved: 0, total: 0 });
     }
 
     const isClosed = CLOSED_STATUSES.includes(String(ticket.status || '').trim().toLowerCase());
     if (isClosed) {
-      workload[tech].resolved++;
+      workload.get(key).resolved++;
     } else {
-      workload[tech].active++;
+      workload.get(key).active++;
     }
-    workload[tech].total++;
+    workload.get(key).total++;
   });
 
-  const sortedTechs = Object.entries(workload)
-    .sort((a, b) => (b[1].active + b[1].resolved) - (a[1].active + a[1].resolved))
+  const sortedTechs = Array.from(workload.values())
+    .sort((a, b) => (b.active + b.resolved) - (a.active + a.resolved))
     .slice(0, 6);
 
   if (!sortedTechs.length) {
     container.innerHTML = `
       <div class="py-4 text-center text-gray-400 text-xs">
-        ${isEn ? 'No technician assigned records found' : 'لا توجد بيانات تعيين لفنيين حتى الآن'}
+        ${usersAvailable
+          ? (isEn ? 'No technician assigned records found' : 'لا توجد بيانات تعيين لفنيين حتى الآن')
+          : (isEn ? 'Technician roster could not be loaded.' : 'تعذر تحميل قائمة الفنيين.')}
       </div>
     `;
     return;
   }
 
-  const maxTotal = Math.max(...sortedTechs.map(t => t[1].total), 1);
+  const maxTotal = Math.max(...sortedTechs.map(t => t.total), 1);
 
-  container.innerHTML = sortedTechs.map(([name, data], idx) => {
+  container.innerHTML = sortedTechs.map((data, idx) => {
     const activePercent = Math.min(100, Math.round((data.active / maxTotal) * 100));
     const resolvedPercent = Math.min(100, Math.round((data.resolved / maxTotal) * 100));
 
@@ -937,7 +1003,7 @@ function renderTechnicianWorkload(tickets, users, isEn) {
             <span class="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-[10px]">
               ${idx + 1}
             </span>
-            <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${escapeHtml(name)}</span>
+            <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${escapeHtml(data.name)}</span>
           </div>
           <div class="flex items-center gap-2 font-mono text-[10px]">
             <span class="text-amber-500 font-bold" title="${isEn ? 'Active Workload' : 'مهام جارية'}">⚡ ${data.active}</span>
@@ -952,7 +1018,9 @@ function renderTechnicianWorkload(tickets, users, isEn) {
         </div>
       </div>
     `;
-  }).join("");
+  }).join("") + (!usersAvailable
+    ? `<div class="text-center text-amber-500 text-[10px]">${isEn ? "Technician roster may be incomplete." : "قد تكون قائمة الفنيين غير مكتملة."}</div>`
+    : "");
 }
 
 // دالة التحديث اليدوي
@@ -969,7 +1037,9 @@ function localDateStr() {
 // دالة التصدير التنفيذي
 window.exportManagerExecutiveSummary = async function() {
   const isEn = (window.currentLang || 'ar') === 'en';
-  if (!cachedDashboardData || !Array.isArray(cachedDashboardData.tickets) || !cachedDashboardData.tickets.length) {
+  const currentUserId = localStorage.getItem("userId") || "";
+  if (!currentUserId || !cachedDashboardData || cachedDashboardData.userId !== currentUserId
+    || !Array.isArray(cachedDashboardData.tickets) || !cachedDashboardData.tickets.length) {
     window.print();
     return;
   }

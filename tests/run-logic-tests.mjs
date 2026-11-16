@@ -55,16 +55,40 @@ const [indexSource, brandingSource, attachmentPickerSource] = await Promise.all(
   readFile(new URL("../js/branding.js", import.meta.url), "utf8"),
   readFile(new URL("../js/components/attachmentPicker.js", import.meta.url), "utf8")
 ]);
-const [pmApiSource, managerDesktopSource] = await Promise.all([
+const [pmApiSource, managerDesktopSource, usersApiSource, dashboardTicketsApiSource] = await Promise.all([
   readFile(new URL("../js/services/pmApi.js", import.meta.url), "utf8"),
-  readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/usersApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/ticketsApi.js", import.meta.url), "utf8")
 ]);
+const { buildManagerTrendSeries } = await import("../js/utils/managerDashboard.js");
 await t("manager dashboard PM card uses PM work orders of the current month", () => {
-  assert.match(managerDesktopSource, /fetchPmOrdersApi\(\)/);
+  assert.match(managerDesktopSource, /fetchPmOrdersApi\(\{ plannedMonth: monthKey \}\)/);
   assert.doesNotMatch(managerDesktopSource, /fetchPmRecordsApi\(\)/);
   assert.match(managerDesktopSource, /pmMonthTotal/);
+  assert.match(dashboardTicketsApiSource, /where\("plannedDate", ">=", `\$\{plannedMonth\}-01`\)/);
+  assert.match(dashboardTicketsApiSource, /where\("plannedDate", "<", nextMonthStart\)/);
   assert.match(managerDesktopSource, /let _managerDesktopLoadInFlight = null/);
   assert.match(managerDesktopSource, /if \(!_managerDesktopLoadInFlight\)/);
+  assert.match(managerDesktopSource, /Some data unavailable/);
+  assert.match(managerDesktopSource, /View remaining tickets/);
+  assert.match(managerDesktopSource, /Administrator approval required/);
+  assert.match(usersApiSource, /fetchPendingUsersApi/);
+  assert.match(usersApiSource, /Insufficient permission to view pending users/);
+});
+await t("manager trend buckets use local calendar days and resolution timestamps", () => {
+  const now = new Date(2026, 10, 16, 12);
+  const created = new Date(2026, 10, 15, 23, 30).toISOString();
+  const resolved = new Date(2026, 10, 16, 0, 30).toISOString();
+  const series = buildManagerTrendSeries([{
+    status: "closed",
+    createdAtServer: created,
+    resolvedAtServer: resolved,
+    updatedAt: created
+  }], { now });
+  assert.equal(series.labels.length, 10);
+  assert.equal(series.newCounts[8], 1);
+  assert.equal(series.resolvedCounts[9], 1);
 });
 await t("PWA viewport leaves browser zoom available", () => {
   const viewport = indexSource.match(/<meta name="viewport" content="([^"]+)"/)?.[1] || "";

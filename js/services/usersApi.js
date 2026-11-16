@@ -35,7 +35,7 @@ import {
   getRegistrationAuthContext
 } from "../providers/backend/index.js";
 import { normalizePhone } from "../utils/phoneUtils.js";
-import { isAdminRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
+import { getCurrentRole, isAdminRole, isManagerRole, setCurrentRole, setCurrentPermissions } from "../permissions.js";
 
 // أمان (H8): الدور لا يُمنح تلقائيًا من "الوظيفة" (job) اللي اختارها
 // المتقدم في فورم التسجيل - ده حقل حر يختاره المستخدم بنفسه، وكان اختيار
@@ -96,6 +96,41 @@ export async function countPendingUsersApi() {
 
   }
 
+}
+
+export async function fetchPendingUsersApi() {
+  const role = getCurrentRole();
+  if (!isAdminRole(role) && !isManagerRole(role)) {
+    return { status: "error", message: "Insufficient permission to view pending users" };
+  }
+
+  try {
+    const usersRef = collection(db, "users");
+    const [byStatus, byRole] = await Promise.all([
+      getDocs(query(usersRef, where("status", "==", "pending"))),
+      getDocs(query(usersRef, where("role", "==", "pending")))
+    ]);
+    const pendingUsers = new Map();
+
+    [byStatus, byRole].forEach(snapshot => snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      pendingUsers.set(docSnap.id, {
+        id: docSnap.id,
+        name: String(data.name || ""),
+        job: String(data.job || ""),
+        role: String(data.role || "").trim(),
+        phone: String(data.phone || ""),
+        department: String(data.department || ""),
+        status: String(data.status || "").trim(),
+        createdAt: data.createdAt || null
+      });
+    }));
+
+    return { status: "success", data: Array.from(pendingUsers.values()) };
+  } catch (error) {
+    console.error("Error fetching pending users for manager dashboard:", error);
+    return { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
+  }
 }
 
 // إصلاح (بند A3 في تقرير المراجعة - Production Readiness): fetchUsers()
