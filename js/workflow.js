@@ -321,10 +321,19 @@ async function _loadDashboardStatsImpl() {
     const d = parseTicketDate(t);
     return d && d >= thirtyDaysAgo;
   });
+  // مؤشرات الإصلاح تُحسب بتاريخ تنفيذ الإصلاح، لا بتاريخ إنشاء البلاغ.
+  const recentRepairTickets = tickets.filter(t => {
+    const status = String(t.status || "").trim().toLowerCase();
+    if (!["closed", "resolved", "done", "مغلق", "تم الإصلاح"].includes(status)) return false;
+    const repairedAt =
+      parseTicketDate(t.resolvedAtServer) ||
+      parseTicketDate(t.resolvedAt || t.updatedAt);
+    return repairedAt && repairedAt >= thirtyDaysAgo;
+  });
 
-  const mttrData = computeMTTR(thisMonthTickets);
+  const mttrData = computeMTTR(recentRepairTickets);
   const topMachines = computeTopMachines(thisMonthTickets, 1);
-  const topTechs = computeTechnicianPerformance(thisMonthTickets, 1);
+  const topTechs = computeTechnicianPerformance(recentRepairTickets, 1);
 
   const mttrValue = mttrData.avgHours !== null ? `${mttrData.avgHours.toFixed(1)} h` : '-';
   const topMachineValue = topMachines.length > 0 ? topMachines[0][0] : '-';
