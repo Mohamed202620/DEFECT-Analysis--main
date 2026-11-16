@@ -28,7 +28,7 @@ const statusLabel = (st) => {
 // كان فيه STATUS_BADGE_CLASSES محلي مطابق حرفياً لـ STATUS_CLASSES
 // المشتركة، وOPEN_STATUSES محلي منفصل كان ممكن ينحرف عن isClosedStatus
 // لو حالة جديدة اتضافت مستقبلاً وحد نسي يحدّث الاتنين مع بعض
-import { STATUS_LABELS as STATUS_LABELS_AR, STATUS_CLASSES as STATUS_BADGE_CLASSES, isClosedStatus } from '../ticketStatusConstants.js';
+import { STATUS_LABELS as STATUS_LABELS_AR, STATUS_CLASSES as STATUS_BADGE_CLASSES, isClosedStatus, parseTicketDate } from '../ticketStatusConstants.js';
 
 const PRIORITY_BADGES = {
   High: { get label() { return L("🔴 عالية", "🔴 High"); }, cls: "bg-red-500/15 text-red-300 border border-red-500/30" },
@@ -70,10 +70,15 @@ const ACTION_ICONS = {
 // بدل تكرار/ازدواج نفس المنطق هنا من جديد
 const ACTION_BUTTON_STYLES = {
   assign: "bg-blue-600 hover:bg-blue-500 text-white",
+  review: "bg-blue-600 hover:bg-blue-500 text-white",
+  classify_pm: "bg-teal-600 hover:bg-teal-500 text-white",
+  open_pm_orders: "bg-teal-700 hover:bg-teal-600 text-white",
   reassign: "bg-amber-600 hover:bg-amber-500 text-white",
   start: "bg-indigo-600 hover:bg-indigo-500 text-white",
   resolve: "bg-emerald-600 hover:bg-emerald-500 text-white",
+  self_resolve: "bg-emerald-700 hover:bg-emerald-600 text-white",
   confirm: "bg-emerald-600 hover:bg-emerald-500 text-white",
+  decline: "bg-slate-600 hover:bg-slate-500 text-white",
   reject: "bg-red-600/90 hover:bg-red-600 text-white"
 };
 
@@ -113,22 +118,17 @@ function formatDurationHours(totalHours) {
   return parts.length ? parts.join(L(" و", " and ")) : L("أقل من دقيقة", "less than a minute");
 }
 
-// حساب زمن التوقف: من لحظة الإبلاغ (createdAt) وحتى لحظة الإصلاح
-// (updatedAt عند resolved/closed)، أو حتى اللحظة الحالية لو البلاغ
-// لسه مفتوح (بنفس منطق حساب MTTR المُستخدم فعلياً في statistics.js)
+// حساب زمن التوقف: من لحظة الإبلاغ (createdAtServer / createdAt) وحتى لحظة الإصلاح
+// (resolvedAtServer / resolvedAt، وإلا updatedAt عند الإغلاق)، أو حتى اللحظة الحالية لو البلاغ مفتوح
 function computeDowntime(ticket) {
   const status = String(ticket?.status || "").trim().toLowerCase();
-  const created = ticket?.createdAt ? new Date(ticket.createdAt) : null;
+  const created = parseTicketDate(ticket?.createdAtServer) || parseTicketDate(ticket);
   if (!created || isNaN(created)) return null;
 
-  // إصلاح (تنظيف/Refactor): "مفتوحة" هنا = عكس isClosedStatus بالظبط
-  // (نفس المصدر المشترك) بدل قائمة OPEN_STATUSES منفصلة كانت ممكن
-  // تنحرف عن CLOSED_STATUSES لو حالة جديدة اتضافت مستقبلاً ونسي حد
-  // يحدّث الاتنين مع بعض
   const isOpen = !isClosedStatus(status);
   const end = isOpen
     ? new Date()
-    : (ticket?.updatedAt ? new Date(ticket.updatedAt) : new Date());
+    : (parseTicketDate(ticket?.resolvedAtServer) || parseTicketDate(ticket?.resolvedAt) || parseTicketDate(ticket?.updatedAt) || new Date());
 
   if (isNaN(end) || end < created) return null;
 
@@ -317,6 +317,31 @@ export async function openTicketDetailsModal(ticketId) {
           <div class="text-[11px] bg-red-500/5 border border-red-500/20 rounded-lg p-2.5 text-red-300">
             ⚠️ <span class="font-bold">${L("ملاحظات المُبلّغ (سبب إعادة الفتح):", "Reporter notes (reason for reopening):")}</span>
             <div class="text-red-200/90 mt-1">${escapeHtml(ticket.operatorFeedback)}</div>
+          </div>` : ""}
+
+        ${Array.isArray(ticket.shiftUpdates) && ticket.shiftUpdates.length ? `
+          <div class="space-y-2">
+            <div class="text-[11px] font-bold text-amber-300">${L("🔄 تحديثات تسليم الورديات", "🔄 Shift Handover Updates")} (${ticket.shiftUpdates.length})</div>
+            <div class="space-y-2">
+              ${ticket.shiftUpdates.map(u => `
+                <div class="text-[11px] bg-amber-500/5 border border-amber-500/20 rounded-lg p-2.5 space-y-1">
+                  <div class="flex items-center justify-between gap-2 text-amber-200 font-bold">
+                    <span>${escapeHtml(u.reporterName || L("فني", "Technician"))}${u.shift ? ` • ${escapeHtml(u.shift)}` : ""}</span>
+                    <span class="text-slate-300 font-normal">${formatDate(u.createdAt)}</span>
+                  </div>
+                  ${u.note ? `<div class="text-slate-200 leading-relaxed">${escapeHtml(u.note)}</div>` : ""}
+                  ${Array.isArray(u.images) && u.images.length ? `
+                    <div class="flex gap-2 overflow-x-auto pt-1">
+                      ${u.images.map(url => `
+                        <a href="${escapeHtml(url)}" target="_blank" rel="noopener">
+                          <img src="${escapeHtml(url)}" loading="lazy" class="w-16 h-16 object-cover rounded-lg border border-gray-700" />
+                        </a>
+                      `).join("")}
+                    </div>
+                  ` : ""}
+                </div>
+              `).join("")}
+            </div>
           </div>` : ""}
 
         <!-- الصور المرفقة -->

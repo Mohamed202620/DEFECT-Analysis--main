@@ -1405,7 +1405,7 @@ window.setPmDowntimeSelected = async function(value) {
 };
 
 export const PmOrdersView = () => `
-  <section class="app-page space-y-3 p-3 pb-24 text-slate-900 dark:text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
+  <section class="space-y-3 text-slate-900 dark:text-white" dir="${isEn() ? "ltr" : "rtl"}">
     <div>
       <h2 class="flex items-center gap-2 text-lg font-black text-blue-700 dark:text-blue-400">
         <span>🗓️</span>

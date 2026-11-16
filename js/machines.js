@@ -244,6 +244,9 @@ export function getMachineTypeEntries({ includeInactive = true, filterByUserDepa
 
 // نسخة مسطّحة (بدون تقسيم)
 export let MACHINE_OPTIONS = buildFlatOptions();
+if (typeof window !== "undefined") {
+  window.machinesList = MACHINE_OPTIONS;
+}
 
 function buildFlatOptions() {
   const visible = getMachineTypeEntries({ includeInactive: false });
@@ -252,6 +255,9 @@ function buildFlatOptions() {
 
 function refreshMachineOptionsExport() {
   MACHINE_OPTIONS = buildFlatOptions();
+  if (typeof window !== "undefined") {
+    window.machinesList = MACHINE_OPTIONS;
+  }
 }
 
 export function getMachineUnits(typeKey) {
@@ -487,6 +493,7 @@ export async function ensureMachineCatalogReady(force = false) {
     console.warn("Could not ensure machine catalog is ready:", err);
   }
 
+  refreshMachineOptionsExport();
   return machineTypesLoaded;
 }
 

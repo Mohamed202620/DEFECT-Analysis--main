@@ -109,15 +109,15 @@ export const DailyAMView = () => {
            الإرسال هنا كان معرّض للتغطية الجزئية بشريط السحب السفلي
            على آيفون X فما فوق/أندرويد الحديث - نفس الحل المستخدم
            بالفعل في BottomNav.js/branding.js لهذا الغرض بالضبط. -->
-      <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0F172A] text-white border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 hidden" id="dailyAmBottomBar" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
+      <div class="fixed bottom-0 left-0 right-0 p-4 bg-[#0F172A] text-white border-t border-gray-800 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-40 hidden lg:sticky lg:bottom-4 lg:left-auto lg:right-auto lg:rounded-2xl lg:border lg:border-slate-700/80" id="dailyAmBottomBar" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));">
          <div class="max-w-md sm:max-w-xl md:max-w-3xl mx-auto flex items-center justify-between">
             <div class="flex flex-col">
                <span class="text-[11px] text-slate-300 font-medium tracking-wider">${tr.progressLabel}</span>
                <div class="flex items-baseline gap-1">
-                 <span id="amFloatingProgressText" class="text-xl font-black text-blue-400">0/0</span>
+                 <span id="amFloatingProgressText" class="text-xl font-black text-blue-400 tabular-nums">0/0</span>
                </div>
             </div>
-            <button type="submit" id="dailyAmSubmitBtn" class="bg-blue-600 hover:bg-blue-500 active:scale-95 px-6 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg shadow-blue-900/20">
+            <button type="submit" id="dailyAmSubmitBtn" class="bg-blue-600 hover:bg-blue-500 active:scale-95 px-6 py-3 rounded-xl font-bold text-sm text-white transition-all shadow-lg shadow-blue-900/20 cursor-pointer">
                ${tr.submit}
             </button>
          </div>

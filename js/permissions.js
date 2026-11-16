@@ -240,7 +240,9 @@ export function getTicketActions(ticket) {
             label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
           });
         } else {
-          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          if (isManagerRole(role) || isAdmin) {
+            actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          }
           actions.push({
             key: "classify_pm",
             label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"
@@ -266,7 +268,9 @@ export function getTicketActions(ticket) {
             label: (window.currentLang || "ar") === "en" ? "🗓️ Open PM order" : "🗓️ فتح أمر PM"
           });
         } else {
-          actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          if (isManagerRole(role) || isAdmin) {
+            actions.push({ key: "reassign", label: ta().reassign || "🔄 إعادة إسناد" });
+          }
           actions.push({
             key: "classify_pm",
             label: (window.currentLang || "ar") === "en" ? "🗓️ Classify PM" : "🗓️ تصنيف PM"

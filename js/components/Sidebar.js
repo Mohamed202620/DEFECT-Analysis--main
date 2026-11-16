@@ -62,7 +62,11 @@ export const Sidebar = (activeTab) => {
   const openCount = window.dashboardData?.open || 0; // MGR-DESKTOP
   const pendingRequestsCount = window.pendingUsersCount || 0; // MGR-DESKTOP
 
-  const groups = [
+  const mgrDuplicateIds = isMgrDesk
+    ? new Set(['home', 'reports', 'tickets', 'pm', 'requests'])
+    : null;
+
+  const rawGroups = [
     ...(isMgrDesk ? [{ // MGR-DESKTOP
       id: 'manager',
       title: isAr ? 'الإدارة والتحكم' : 'Management & Command',
@@ -209,11 +213,18 @@ export const Sidebar = (activeTab) => {
     }] : [])
   ];
 
+  const groups = rawGroups
+    .map(group => {
+      if (!mgrDuplicateIds || group.id === 'manager') return group;
+      return { ...group, items: group.items.filter(item => !mgrDuplicateIds.has(item.id)) };
+    })
+    .filter(group => group.items.length > 0);
+
   return `
     <aside
       id="desktopSidebar"
       class="hidden lg:flex lg:flex-col lg:sticky shrink-0 border-e transition-all duration-200 select-none ${
-        isCollapsed ? 'w-16' : 'w-64 xl:w-72'
+        isCollapsed ? 'w-16' : 'w-56 xl:w-60 2xl:w-[264px]'
       }"
       style="background: var(--app-card-bg); border-color: var(--app-border); top: var(--app-header-h, 64px); height: calc(100vh - var(--app-header-h, 64px));"
     >
@@ -246,11 +257,11 @@ export const Sidebar = (activeTab) => {
       </div>
 
       <!-- قائمة العناصر المجمعة مع سكرول بار أنيق -->
-      <div class="flex-1 px-2.5 py-3 overflow-y-auto space-y-4" style="scrollbar-width: thin;">
+      <div class="flex-1 px-2 py-2.5 overflow-y-auto space-y-3" style="scrollbar-width: thin;">
         ${groups.map(group => `
-          <div class="space-y-1">
+          <div class="space-y-0.5">
             ${!isCollapsed ? `
-              <div class="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+              <div class="px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 ${escapeHtml(group.title)}
               </div>
             ` : `
@@ -264,19 +275,19 @@ export const Sidebar = (activeTab) => {
                   type="button"
                   onclick="${item.action}"
                   title="${isCollapsed ? item.label : ''}"
-                  class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs cursor-pointer transition-all duration-150 active:scale-[0.98] ${
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all duration-150 active:scale-[0.98] ${
                     isCollapsed ? 'justify-center' : ''
                   } ${
                     active
                       ? 'bg-blue-600/15 dark:bg-blue-600/25 text-blue-700 dark:text-blue-300 font-bold border border-blue-500/40 shadow-sm'
-                      : 'text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-semibold'
+                      : 'border border-transparent text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-semibold'
                   }">
                   <span class="inline-flex items-center justify-center w-5 h-5 shrink-0 ${active ? 'text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300'}">
                     ${item.iconSvg}
                   </span>
                   ${!isCollapsed ? `
                     <span class="truncate flex-1 text-start">${escapeHtml(item.label)}</span>
-                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[10.5px] font-bold ${item.badgeClass || 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}">${item.badge}</span>` : ''}
+                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 tabular-nums ${item.badgeClass || 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}
                 </button>
@@ -319,7 +330,7 @@ if (typeof window !== "undefined") {
     const container = document.getElementById("sidebarContainer");
     const activeTab = window.currentPage || localStorage.getItem('lastPage') || 'home';
     if (container) {
-      container.className = `hidden lg:block shrink-0 ${nextState ? 'w-16' : 'w-64 xl:w-72'}`;
+      container.className = `hidden lg:block shrink-0 ${nextState ? 'w-16' : 'w-56 xl:w-60 2xl:w-[264px]'}`;
       container.innerHTML = Sidebar(activeTab);
     }
 

@@ -192,7 +192,8 @@ if (sidebarContainer) {
     sidebarContainer.className = "hidden";
     sidebarContainer.innerHTML = "";
   } else {
-    sidebarContainer.className = "hidden lg:block";
+    const isSidebarCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+    sidebarContainer.className = `hidden lg:block shrink-0 ${isSidebarCollapsed ? 'w-16' : 'w-56 xl:w-60 2xl:w-[264px]'}`;
     sidebarContainer.innerHTML = Sidebar(currentPage);
   }
 }

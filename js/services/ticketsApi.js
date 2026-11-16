@@ -1009,7 +1009,7 @@ export function subscribeToTicketsBoardApi({ role, myUid, myName, status }, call
       return values ? [where("status", "in", values)] : [where("status", "==", status)];
     };
 
-    if (isAdminRole(role) || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer" || !["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)) {
+    if (hasFullDataAccess(role)) {
       const clauses = statusClauses();
       const q = clauses.length === 0
         ? query(ticketsRef, orderBy("createdAt", "desc"), limit(TICKETS_BOARD_DEFAULT_LIMIT))
@@ -1323,12 +1323,19 @@ export async function appendShiftNoteToTicketApi(ticketId, { note, shift = "", r
     await ensureAuthReady();
     if (!ticketId) return { status: "error", message: "معرف التذكرة مطلوب" };
 
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return { status: "error", message: "لا يوجد اتصال بالإنترنت - تعذر إرسال تحديث الوردية حالياً" };
+    }
+
     const ticketRef = doc(db, "tickets", ticketId);
 
     // رفع الصور مرة واحدة قبل أي محاولة (مايتكررش مع إعادة المحاولة)
     let imageUrls = [];
     if (Array.isArray(images) && images.length) {
       imageUrls = await uploadBase64Images(images, `${ticketId}_shift_${Date.now()}`);
+      if (!imageUrls.length) {
+        return { status: "error", message: "فشل رفع الصور المرفقة لتحديث الوردية، حاول مرة أخرى" };
+      }
     }
 
     // هوية الملاحظة ثابتة طول المحاولات (منع تكرارها لو المحاولة الأولى نجحت
@@ -2848,7 +2855,19 @@ export async function closeTicketApi(
 
   try {
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
-    const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
+    if (!ticketSnap.exists()) {
+      return { status: "error", message: "التذكرة غير موجودة" };
+    }
+    const ticketData = ticketSnap.data();
+    const currentStatus = String(ticketData.status || "").trim().toLowerCase();
+    if (currentStatus !== "resolved") {
+      return { status: "error", message: "لا يمكن تأكيد الإغلاق إلا لتذكرة بحالة (بانتظار التأكيد)" };
+    }
+    const myUid = localStorage.getItem("userId") || "";
+    if (ticketData.isSelfResolved === true && (!myUid || ticketData.resolvedByUid === myUid)) {
+      return { status: "error", message: "لا يمكن إغلاق بلاغ إصلاح ذاتي بواسطة نفس الشخص الذي أصلحه" };
+    }
+    const assignedToUid = ticketData.assignedToUid || null;
 
     const applied = await updateTicketWithLog(ticketId, stampUpdate({ status: "closed" }), {
       action: "close",
@@ -2875,19 +2894,28 @@ export async function closeTicketApi(
 // إضافة (تحسين Workflow - إجراءات جماعية Bulk Actions): تأكيد إغلاق
 // أكتر من تذكرة "بانتظار تأكيد" مرة واحدة، بدل الضغط على كل تذكرة
 // لوحدها. الحالة وسجلها يُكتبان معاً في دفعات writeBatch، وأي تذكرة
-// مش بحالة "resolved" بيتم تجاهلها بأمان (مفيش إغلاق جماعي لتذاكر
-// لسه قيد التنفيذ مثلاً).
+// مش بحالة "resolved" أو أصلحها نفس المستخدم (إصلاح ذاتي) بيتم تجاهلها بأمان.
 // ============================================================
 export async function bulkCloseTicketsApi(ticketIds) {
-  if (!Array.isArray(ticketIds) || !ticketIds.length) {
+  const uniqueIds = Array.isArray(ticketIds)
+    ? Array.from(new Set(ticketIds.map(id => String(id || "").trim()).filter(Boolean)))
+    : [];
+  if (!uniqueIds.length) {
     return { status: "error", message: "لم يتم تحديد أي تذكرة" };
+  }
+  if (typeof navigator !== "undefined" && !navigator.onLine) {
+    return { status: "error", message: "الإغلاق الجماعي يتطلب اتصالاً نشطاً بالإنترنت" };
   }
 
   try {
-    // 1. قراءة كل التذاكر أولاً - للتحقق من إن الحالة "resolved" فعلاً
-    // (المسموح إغلاقه جماعياً)، ولمعرفة assignedToUid لإرسال إشعار لاحقاً
+    const role = getCurrentRole();
+    const myUid = localStorage.getItem("userId") || "";
+    const canCloseOthers = isAdminRole(role) || isManagerRole(role);
+
+    // 1. قراءة كل التذاكر أولاً - للتحقق من الحالة "resolved" ومنع
+    // تسميم الدفعة بتذكرة إصلاح ذاتي لنفس المستخدم أو بدون صلاحية
     const snapshots = await Promise.all(
-      ticketIds.map(id => getDoc(doc(db, "tickets", id)))
+      uniqueIds.map(id => getDoc(doc(db, "tickets", id)))
     );
 
     const validIds = [];
@@ -2897,13 +2925,16 @@ export async function bulkCloseTicketsApi(ticketIds) {
       if (!snap.exists()) return;
       const data = snap.data();
       if (String(data.status || "").trim().toLowerCase() !== "resolved") return;
-      const id = ticketIds[i];
+      const isSelfResolved = data.isSelfResolved === true;
+      if (isSelfResolved && (!myUid || data.resolvedByUid === myUid)) return;
+      if (!canCloseOthers && (data.reportedByUid !== myUid || isSelfResolved)) return;
+      const id = uniqueIds[i];
       validIds.push(id);
       assigneeByTicket[id] = data.assignedToUid || null;
     });
 
     if (!validIds.length) {
-      return { status: "error", message: "لا توجد تذاكر صالحة للإغلاق الجماعي (بانتظار تأكيد فقط)" };
+      return { status: "error", message: "لا توجد تذاكر صالحة للإغلاق الجماعي (أو لا تملك صلاحية إغلاق المحدد)" };
     }
 
     // 2. تحديث الحالة وسجلها معاً، ضمن دفعات لا تتجاوز حد Firestore
@@ -2935,7 +2966,7 @@ export async function bulkCloseTicketsApi(ticketIds) {
     return {
       status: "success",
       closedCount: validIds.length,
-      skippedCount: ticketIds.length - validIds.length
+      skippedCount: uniqueIds.length - validIds.length
     };
   } catch (error) {
     console.error("Error bulk closing tickets:", error);

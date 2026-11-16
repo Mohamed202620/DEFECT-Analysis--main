@@ -188,8 +188,15 @@ window.submitShiftHandover = async function(ticketId) {
     alert(isEn ? 'Please enter handover notes.' : 'يرجى كتابة ملاحظات الوردية أولاً.');
     return;
   }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    alert(isEn
+      ? '⚠️ Shift handover update requires an active internet connection.'
+      : '⚠️ إضافة تحديث الوردية تتطلب اتصالاً نشطاً بالإنترنت.');
+    return;
+  }
 
   const btn = document.getElementById('submitHandoverBtn');
+  if (btn && btn.disabled) return;
   if (btn) {
     btn.disabled = true;
     btn.innerHTML = isEn ? '⏳ Saving...' : '⏳ جاري الحفظ...';
@@ -256,21 +263,30 @@ window.selectIssueType = function(typeVal) {
   const activeTeal = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-teal-500/20 border-teal-500 text-teal-200 shadow-sm";
   const inactive = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white";
 
+  const selfResolveWrap = document.getElementById('selfResolvedContainer');
+  const selfResolveCheckbox = document.getElementById('isSelfResolved');
+  const selfResolveBox = document.getElementById('selfResolvedBox');
+
   if (typeVal === 'Breakdown') {
     if (breakdownRadio) breakdownRadio.checked = true;
     if (btnBreakdown) btnBreakdown.className = activeRed;
     if (btnObs) btnObs.className = inactive;
     if (btnPM) btnPM.className = inactive;
+    if (selfResolveWrap) selfResolveWrap.classList.remove('hidden');
   } else if (typeVal === 'PM') {
     if (pmRadio) pmRadio.checked = true;
     if (btnPM) btnPM.className = activeTeal;
     if (btnBreakdown) btnBreakdown.className = inactive;
     if (btnObs) btnObs.className = inactive;
+    if (selfResolveCheckbox) selfResolveCheckbox.checked = false;
+    if (selfResolveBox) selfResolveBox.classList.add('hidden');
+    if (selfResolveWrap) selfResolveWrap.classList.add('hidden');
   } else {
     if (obsRadio) obsRadio.checked = true;
     if (btnObs) btnObs.className = activeBlue;
     if (btnBreakdown) btnBreakdown.className = inactive;
     if (btnPM) btnPM.className = inactive;
+    if (selfResolveWrap) selfResolveWrap.classList.remove('hidden');
   }
 };
 
@@ -441,27 +457,27 @@ export const IssueView = () => {
         <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           <button type="button" id="btnCat_كهرباء" onclick="window.selectIssueCategory('كهرباء')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>⚡ كهرباء</span>
+            <span>⚡ ${isAr ? "كهرباء" : "Electrical"}</span>
           </button>
           <button type="button" id="btnCat_ميكانيكا" onclick="window.selectIssueCategory('ميكانيكا')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>⚙️ ميكانيكا</span>
+            <span>⚙️ ${isAr ? "ميكانيكا" : "Mechanical"}</span>
           </button>
           <button type="button" id="btnCat_برمجة" onclick="window.selectIssueCategory('برمجة')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>💻 برمجة</span>
+            <span>💻 ${isAr ? "برمجة" : "Controls / PLC"}</span>
           </button>
           <button type="button" id="btnCat_Safety" onclick="window.selectIssueCategory('Safety')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>🛡️ سلامة</span>
+            <span>🛡️ ${isAr ? "سلامة" : "Safety"}</span>
           </button>
           <button type="button" id="btnCat_جودة" onclick="window.selectIssueCategory('جودة')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>📦 جودة</span>
+            <span>📦 ${isAr ? "جودة" : "Quality"}</span>
           </button>
           <button type="button" id="btnCat_أخرى" onclick="window.selectIssueCategory('أخرى')"
             class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
-            <span>❓ أخرى</span>
+            <span>❓ ${isAr ? "أخرى" : "Other"}</span>
           </button>
         </div>
       </div>
@@ -483,7 +499,7 @@ export const IssueView = () => {
             📍 ${t.locationInMachine || "مكان العطل بالتحديد"}
           </label>
           <input id="issueLocation" type="text"
-            placeholder="مثال: Main Motor - Sensor - Bearing"
+            placeholder="${isAr ? "مثال: Main Motor - Sensor - Bearing" : "e.g. Main Motor - Sensor - Bearing"}"
             class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-400">
         </div>
 
@@ -492,7 +508,7 @@ export const IssueView = () => {
             💡 ${escapeHtml(t.suggestion || "اقتراح الحل (اختياري)")}
           </label>
           <input id="issueSuggestion" type="text"
-            placeholder="${t.enterSuggestion || "إذا كان لديك مقترح أولي للحل..."}"
+            placeholder="${escapeHtml(t.enterSuggestion || (isAr ? "إذا كان لديك مقترح أولي للحل..." : "Optional initial fix suggestion..."))}"
             class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-400">
         </div>
       </div>
@@ -503,7 +519,7 @@ export const IssueView = () => {
           📷 ${t.attachPhoto || "صور توضيحية (اختياري)"}
         </label>
         ${buildAttachmentPickerHtml("issueImages", {
-          emptyText: "لا توجد صور مرفقة",
+          emptyText: isAr ? "لا توجد صور مرفقة" : "No photos attached",
           cameraButtonClass: "bg-blue-600/20 border border-blue-500/40 hover:bg-blue-600/30 rounded-lg py-1.5 px-2.5 text-blue-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
           galleryButtonClass: "bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
           buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-1"
@@ -511,7 +527,7 @@ export const IssueView = () => {
       </div>
 
       <!-- 9.5. خيار الإصلاح الذاتي بواسطة المُبلغ -->
-      <div class="p-2.5 rounded-xl bg-emerald-950/35 border border-emerald-500/40 space-y-2">
+      <div id="selfResolvedContainer" class="p-2.5 rounded-xl bg-emerald-950/35 border border-emerald-500/40 space-y-2">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="isSelfResolved" onchange="window.toggleSelfResolvedFields(this.checked)" class="w-4 h-4 rounded border-gray-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 cursor-pointer">
           <span class="text-xs font-bold text-emerald-200">🛠️ ${isAr ? "تم إصلاح العطل فورياً (صيانة ذاتية بواسطة المُبلغ)" : "Fixed immediately (Self-resolved by reporter)"}</span>
@@ -528,7 +544,7 @@ export const IssueView = () => {
 
       <!-- 10. زر الحفظ والإرسال الميداني -->
       <div class="pt-1.5">
-        <button type="button"
+        <button id="saveIssueBtn" type="button"
           onclick="window.confirmIssue()"
           class="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl font-bold text-white text-xs sm:text-sm transition active:scale-[0.98] shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2">
           <span>💾</span>

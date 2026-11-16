@@ -26,7 +26,7 @@ export const HomeView = () => {
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(waMessage)}`;
 
   return `
-  <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1500px] mx-auto pb-24 space-y-4 md:space-y-6">
+  <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1500px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6">
 
     <div class="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-6 items-start w-full">
 
@@ -58,7 +58,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] sm:text-xs font-black text-amber-500 dark:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block mb-1 font-semibold truncate">${t.kpiOpen}</span>
-              <span id="statOpenCount" class="text-xl sm:text-2xl md:text-3xl font-black text-amber-500 dark:text-amber-400 leading-none">${stats.open}</span>
+              <span id="statOpenCount" class="text-xl sm:text-2xl md:text-3xl font-black text-amber-500 dark:text-amber-400 leading-none tabular-nums">${stats.open}</span>
               <span id="criticalBadge" class="hidden mt-1.5 items-center gap-1 text-[11px] font-bold text-red-700 dark:text-red-200 bg-red-500/20 border border-red-500/40 px-2 py-0.5 rounded-full w-fit">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                 <span id="criticalBadgeText">${t.kpiCritical}</span>
@@ -80,7 +80,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] sm:text-xs font-black text-emerald-600 dark:text-emerald-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block mb-1 font-semibold truncate">${t.kpiClosed}</span>
-              <span id="statClosedCount" class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-none">${stats.closed}</span>
+              <span id="statClosedCount" class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-none tabular-nums">${stats.closed}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -98,7 +98,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] sm:text-xs font-black text-blue-600 dark:text-blue-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block mb-1 font-semibold truncate">${t.kpiToday}</span>
-              <span id="statTodayCount" class="text-xl sm:text-2xl md:text-3xl font-black text-blue-600 dark:text-blue-400 leading-none">${stats.today}</span>
+              <span id="statTodayCount" class="text-xl sm:text-2xl md:text-3xl font-black text-blue-600 dark:text-blue-400 leading-none tabular-nums">${stats.today}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -116,7 +116,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] sm:text-xs font-black text-rose-600 dark:text-rose-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block mb-1 font-semibold truncate">${t.kpiOverdue || (currentLang === 'ar' ? 'متأخرة' : 'Overdue')}</span>
-              <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-600 dark:text-rose-400 leading-none">${stats.overdue}</span>
+              <span id="statOverdueCount" class="text-xl sm:text-2xl md:text-3xl font-black text-rose-600 dark:text-rose-400 leading-none tabular-nums">${stats.overdue}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-600 dark:text-rose-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -134,7 +134,7 @@ export const HomeView = () => {
             <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-[11px] sm:text-xs font-black text-purple-600 dark:text-purple-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">↗</span>
             <div class="min-w-0 pr-1.5 rtl:pr-1.5 rtl:pl-0 ltr:pl-1.5">
               <span class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 block mb-1 font-semibold truncate">${t.kpiTotal}</span>
-              <span id="statTotalCount" class="text-xl sm:text-2xl md:text-3xl font-black text-purple-600 dark:text-purple-400 leading-none">${stats.total}</span>
+              <span id="statTotalCount" class="text-xl sm:text-2xl md:text-3xl font-black text-purple-600 dark:text-purple-400 leading-none tabular-nums">${stats.total}</span>
             </div>
             <div class="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4.5 h-4.5 sm:w-5 sm:h-5 md:w-6 md:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -149,7 +149,7 @@ export const HomeView = () => {
         <div class="grid grid-cols-3 gap-2 sm:gap-3 md:gap-3.5">
           <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-cyan-500/30 transition-colors">
             <div class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 mb-1 truncate font-semibold">⏱️ ${t.mttr}</div>
-            <div id="statMttrValue" class="text-xs sm:text-sm md:text-base font-black text-cyan-600 dark:text-cyan-400">—</div>
+            <div id="statMttrValue" class="text-xs sm:text-sm md:text-base font-black text-cyan-600 dark:text-cyan-400 tabular-nums">—</div>
           </div>
           <div class="dyn-card border p-2.5 sm:p-3 md:p-3.5 rounded-xl md:rounded-2xl text-center shadow-sm cursor-default hover:border-purple-500/30 transition-colors">
             <div class="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 mb-1 truncate font-semibold">🏭 ${t.topMachine}</div>

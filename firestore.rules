@@ -174,7 +174,7 @@ service cloud.firestore {
               request.resource.data.action == "assign"
               && request.resource.data.fromStatus == "pending"
               && request.resource.data.toStatus == "assigned"
-              && (isAdmin() || isManagerRole())
+              && isMaintenanceReviewer()
             )
             ||
             (
@@ -494,7 +494,7 @@ service cloud.firestore {
                     ["status", "assignedTo", "assignedToUid", "declineReason", "declinedBy",
                      "declinedAt", "updatedAt", "updatedBy"])
                && isActive()
-               && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+               && (isMaintenanceReviewer() || resource.data.assignedToUid == request.auth.uid)
                && ticketReporterUnchanged();
       }
 

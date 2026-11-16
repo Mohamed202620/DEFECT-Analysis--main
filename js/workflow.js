@@ -38,9 +38,10 @@ export { compressImage };
 // + إضافة صور لاحقًا + حذف مستقل لكل صورة) لفورم تسجيل عطل - يُستدعى
 // من renderCore.js AUTO LOAD بعد إدراج HTML الفورم فعلياً في الصفحة
 export function initIssueAttachments() {
+  const isEn = (window.currentLang || "ar") === "en";
   initAttachmentPicker("issueImages", {
     maxFileSizeMB: 10,
-    emptyText: "لا توجد صور مرفقة"
+    emptyText: isEn ? "No photos attached" : "لا توجد صور مرفقة"
   });
 }
 window.initIssueAttachments = initIssueAttachments;
@@ -86,7 +87,10 @@ function withTimeout(promise, ms) {
 
 // دالة حفظ وإرسال البلاغ المربوطة بزر الحفظ
 window.confirmIssue = async function() {
+  const isEn = (window.currentLang || "ar") === "en";
   const line = document.getElementById('issueLine')?.value;
+  const machineTypeVal = document.getElementById('issueMachineType')?.value;
+  const machineUnitEl = document.getElementById('issueMachineUnit');
   const machine = document.getElementById('issueMachine')?.value;
   const priority = document.getElementById('issuePriority')?.value;
   const type = document.querySelector('input[name="issueType"]:checked')?.value || "Breakdown";
@@ -94,108 +98,110 @@ window.confirmIssue = async function() {
   const description = document.getElementById('issueDescription')?.value?.trim();
   const location = document.getElementById('issueLocation')?.value?.trim();
   const suggestion = document.getElementById('issueSuggestion')?.value?.trim();
-  // ✅ توليد معرف فريد للبلاغ بنفس أسلوب defectId
-  // (العنصر generatedIssueId# غير موجود فعلياً في IssueView، لذا كان
-  // issueId يصل دائماً كـ undefined قبل هذا التعديل)
   const issueId = getIssueDraftId();
 
-  if (!line || !machine || !category || !description) {
-    alert("⚠️ يرجى استكمال البيانات الأساسية: (الخط، الماكينة، نوع العطل، والوصف)");
+  if (line && machineTypeVal && !machine && machineUnitEl && !machineUnitEl.classList.contains("hidden")) {
+    alert(isEn ? "⚠️ Please select the specific machine unit number." : "⚠️ يرجى اختيار رقم وحدة الماكينة المحددة.");
+    machineUnitEl.focus();
     return;
   }
 
-  // إصلاح (Workflow - منع التكرار): التحذير في شاشة البلاغ (checkActiveTicketForMachine)
-  // استشاري فقط، ومفيش أي فحص وقت الحفظ - فأي مستخدم/شيفت يقدر يسجّل نفس العطل
-  // مرة ثانية (والطابور الأوفلاين بيتخطى الفحص أصلاً). دلوقتي بنعيد الفحص قبل
-  // الإرسال ونطلب تأكيداً صريحاً لو فيه بلاغ مفتوح لنفس الخط والماكينة. لو الفحص
-  // فشل (مثلاً أوفلاين) بنكمل عادي عشان ما نعطّلش تسجيل العطل.
-  try {
-    if (typeof navigator === "undefined" || navigator.onLine) {
-      const { fetchActiveTicketForMachineApi } = await import('./services/api.js');
-      const dup = await fetchActiveTicketForMachineApi(machine, line);
-      if (dup?.status === 'success' && dup.ticket) {
-        const dt = dup.ticket;
-        const proceed = confirm(
-          "⚠️ يوجد بلاغ مفتوح بالفعل لهذه الماكينة" +
-          (` (${displayRecordNumber(dt, "")})`) +
-          (dt.status ? ` - الحالة: ${dt.status}` : "") +
-          "\n\nالأفضل إضافة تحديث الوردية على البلاغ الحالي بدل فتح بلاغ جديد." +
-          "\nهل تريد تسجيل بلاغ جديد رغم ذلك؟"
-        );
-        if (!proceed) return;
-      }
-    }
-  } catch (_) { /* فحص التكرار مساعد فقط - مايمنعش الحفظ */ }
-
-  const btn = document.querySelector('button[onclick="window.confirmIssue()"]');
-  const originalText = btn ? btn.innerHTML : "💾 حفظ وإرسال البلاغ";
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = "⏳ جاري الإرسال...";
+  if (!line || !machine || !category || !description) {
+    alert(isEn
+      ? "⚠️ Please fill in all required fields: (Line, Machine, Fault Category, and Description)."
+      : "⚠️ يرجى استكمال البيانات الأساسية: (الخط، الماكينة، نوع العطل، والوصف)");
+    return;
   }
 
-  const isSelfResolved = document.getElementById('isSelfResolved')?.checked || false;
-  const selfResolvedNotes = document.getElementById('selfResolvedNotes')?.value?.trim() || "";
-
-  const payload = {
-    // ✅ 4. تم إزالة action: "saveIssue"
-    issueId,
-    line,
-    machine,
-    priority,
-    type,
-    category,
-    description,
-    location,
-    suggestion,
-    // الصور المرفقة (صفر أو أكثر) - مُجمَّعة من مكوّن الاختيار
-    // المتعدد (attachmentPicker.js)، بدل صورة واحدة فقط كالسابق
-    images: getAttachmentFiles("issueImages"),
-
-    // اسم/معرّف المُبلّغ بشكل مسطّح (يُستخدم في دورة حياة التذكرة:
-    // قواعد الأمان وواجهة "Review & Closure" - راجع ticketsBoard.js)
-    reportedBy: localStorage.getItem("name") || "",
-    reportedByUid: localStorage.getItem("userId") || "",
-
-    reporter: {
-      name: localStorage.getItem("name") || "",
-      job: localStorage.getItem("job") || "",
-      department: localStorage.getItem("department") || "",
-      shift: localStorage.getItem("shift") || ""
-    },
-
-    status: isSelfResolved ? "resolved" : "pending",
-    ...(type === "PM" && {
-      maintenanceType: "PM",
-      pmStatus: "unplanned",
-      reviewedBy: localStorage.getItem("name") || "",
-      reviewedByUid: localStorage.getItem("userId") || "",
-      reviewedAt: new Date().toISOString()
-    }),
-    ...(isSelfResolved && {
-      isSelfResolved: true,
-      mechanicNotes: "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): " + (selfResolvedNotes || "تم الفحص والتصليح الميداني مباشرة"),
-      resolvedAt: new Date().toISOString(),
-      resolvedBy: localStorage.getItem("name") || "المُبلغ",
-      resolvedByUid: localStorage.getItem("userId") || ""
-    }),
-    createdAt: new Date().toISOString()
-  };
+  const btn = document.getElementById('saveIssueBtn') || document.querySelector('button[onclick="window.confirmIssue()"]');
+  if (btn && btn.disabled) return;
+  const originalText = btn ? btn.innerHTML : (isEn ? "💾 Save & Submit Ticket" : "💾 حفظ وإرسال البلاغ");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = isEn ? "⏳ Submitting..." : "⏳ جاري الإرسال...";
+  }
 
   try {
+    // فحص وجود بلاغ مفتوح لنفس الماكينة والخط لمنع التكرار (بعد قفل الزر لمنع النقر المزدوج)
+    try {
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        const { fetchActiveTicketForMachineApi } = await import('./services/api.js');
+        const dup = await fetchActiveTicketForMachineApi(machine, line);
+        if (dup?.status === 'success' && dup.ticket) {
+          const dt = dup.ticket;
+          const statusStr = dt.status ? ` (${dt.status})` : "";
+          const proceed = confirm(
+            isEn
+              ? `⚠️ An active ticket is already open for this machine (${displayRecordNumber(dt, "")})${statusStr}.\n\nIt is better to add a shift handover update to the existing ticket instead of opening a duplicate.\nDo you still want to submit a new ticket?`
+              : "⚠️ يوجد بلاغ مفتوح بالفعل لهذه الماكينة" +
+                (` (${displayRecordNumber(dt, "")})`) +
+                (dt.status ? ` - الحالة: ${dt.status}` : "") +
+                "\n\nالأفضل إضافة تحديث الوردية على البلاغ الحالي بدل فتح بلاغ جديد." +
+                "\nهل تريد تسجيل بلاغ جديد رغم ذلك؟"
+          );
+          if (!proceed) return;
+        }
+      }
+    } catch (_) { /* فحص التكرار مساعد فقط - مايمنعش الحفظ */ }
+
+    const isSelfResolved = type !== "PM" && (document.getElementById('isSelfResolved')?.checked || false);
+    const selfResolvedNotes = document.getElementById('selfResolvedNotes')?.value?.trim() || "";
+
+    const payload = {
+      issueId,
+      line,
+      machine,
+      priority,
+      type,
+      category,
+      description,
+      location,
+      suggestion,
+      images: getAttachmentFiles("issueImages"),
+      reportedBy: localStorage.getItem("name") || "",
+      reportedByUid: localStorage.getItem("userId") || "",
+      reporter: {
+        name: localStorage.getItem("name") || "",
+        job: localStorage.getItem("job") || "",
+        department: localStorage.getItem("department") || "",
+        shift: localStorage.getItem("shift") || ""
+      },
+      status: isSelfResolved ? "resolved" : "pending",
+      ...(type === "PM" && {
+        maintenanceType: "PM",
+        pmStatus: "unplanned",
+        reviewedBy: localStorage.getItem("name") || "",
+        reviewedByUid: localStorage.getItem("userId") || "",
+        reviewedAt: new Date().toISOString()
+      }),
+      ...(isSelfResolved && {
+        isSelfResolved: true,
+        mechanicNotes: (isEn
+          ? "Self-resolved immediately by reporter: "
+          : "تم الإصلاح فورياً بواسطة المُبلغ (صيانة ذاتية): ") +
+          (selfResolvedNotes || (isEn ? "Checked and fixed on site directly" : "تم الفحص والتصليح الميداني مباشرة")),
+        resolvedAt: new Date().toISOString(),
+        resolvedBy: localStorage.getItem("name") || (isEn ? "Reporter" : "المُبلغ"),
+        resolvedByUid: localStorage.getItem("userId") || ""
+      }),
+      createdAt: new Date().toISOString()
+    };
+
     const { saveIssueApi } = await import('./services/api.js');
     let res = await withTimeout(saveIssueApi(payload), ISSUE_SAVE_TIMEOUT_MS);
 
     if (res && res.status === 'timeout') {
-      // الشبكة معلّقة (Wi-Fi بلا إنترنت فعلي): نحفظ البلاغ في الطابور
-      // المحلي بنفس issueId - لو الإرسال المعلّق نجح لاحقاً فالمزامنة
-      // هتلاقي نفس المستند (معرّف حتمي) ومش هتكرر البلاغ
       try {
         const { queueOfflineTicket } = await import('./services/offlineQueue.js');
         const localId = await queueOfflineTicket(payload);
         res = { status: 'queued', localId };
       } catch (queueError) {
-        res = { status: 'error', message: "انتهت مهلة الإرسال وتعذّر الحفظ المحلي، حاول مرة أخرى (لن يتكرر البلاغ)." };
+        res = {
+          status: 'error',
+          message: isEn
+            ? "Submission timed out and local queue save failed. Please try again (your ticket will not duplicate)."
+            : "انتهت مهلة الإرسال وتعذّر الحفظ المحلي، حاول مرة أخرى (لن يتكرر البلاغ)."
+        };
       }
     }
 
@@ -203,24 +209,26 @@ window.confirmIssue = async function() {
       clearIssueDraftId();
       alert(
         res.status === 'queued'
-          ? "📴 لا يوجد اتصال حالياً - تم حفظ البلاغ محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت"
-          : "✅ تم حفظ وإرسال البلاغ بنجاح"
+          ? (isEn ? "📴 Offline - ticket saved locally and will sync automatically when connected." : "📴 لا يوجد اتصال حالياً - تم حفظ البلاغ محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت")
+          : (isEn ? "✅ Ticket saved and submitted successfully." : "✅ تم حفظ وإرسال البلاغ بنجاح")
       );
-      
-      // ✅ 3. إعادة ضبط حقول البلاغ بعد الحفظ قبل العودة للرئيسية
+
       resetAttachmentFiles("issueImages");
       if (document.getElementById("issueDescription")) document.getElementById("issueDescription").value = "";
       if (document.getElementById("issueSuggestion")) document.getElementById("issueSuggestion").value = "";
       if (document.getElementById("issueLocation")) document.getElementById("issueLocation").value = "";
+      if (document.getElementById("isSelfResolved")) document.getElementById("isSelfResolved").checked = false;
+      if (document.getElementById("selfResolvedNotes")) document.getElementById("selfResolvedNotes").value = "";
+      document.getElementById("selfResolvedBox")?.classList.add("hidden");
 
       if (typeof window.navigateTo === 'function') {
         window.goBack('home');
       }
     } else {
-      alert("❌ حدث خطأ أثناء الإرسال: " + (res?.message || "خطأ غير معروف"));
+      alert((isEn ? "❌ Error while submitting: " : "❌ حدث خطأ أثناء الإرسال: ") + (res?.message || (isEn ? "Unknown error" : "خطأ غير معروف")));
     }
   } catch (err) {
-    alert("❌ خطأ بالاتصال: " + (err?.message || "خطأ غير معروف"));
+    alert((isEn ? "❌ Connection error: " : "❌ خطأ بالاتصال: ") + (err?.message || (isEn ? "Unknown error" : "خطأ غير معروف")));
   } finally {
     if (btn) {
       btn.disabled = false;

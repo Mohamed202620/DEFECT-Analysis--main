@@ -1069,5 +1069,88 @@ await t("قواعد counters: بداية من 1، +1 فقط، ربط الباد�
   assert.ok(block.includes("allow delete: if false"));
 });
 
+// ---------- مراجعة كارت BM (Breakdown Maintenance) الشاملة ----------
+console.log("BM Audit & Safety Checks");
+const [
+  workflowAuditSrc,
+  issueViewAuditSrc,
+  detailsModalAuditSrc,
+  machinesAuditSrc,
+  mgrHomeAuditSrc
+] = await Promise.all([
+  readFile(new URL("../js/workflow.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/issueView.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/components/TicketDetailsModal.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/machines.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/views/managerDesktop/ManagerDesktopHome.js", import.meta.url), "utf8")
+]);
+
+await t("تطابق قواعد Firestore مع permissions.js: المهندس يرى classify_pm بدون reassign والقواعد تسمح بالإسناد والاعتذار للمراجعين", () => {
+  asUser("engineer", "E1", "Eng");
+  const engAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(engAssigned.includes("classify_pm"), "غياب classify_pm للمهندس");
+  assert.ok(!engAssigned.includes("reassign"), "المهندس يرى reassign رغم حظرها في Firestore");
+
+  asUser("manager", "M1", "Mgr");
+  const mgrAssigned = keys({ status: "assigned", maintenanceType: "CM", assignedToUid: "T1", reportedByUid: "U9" });
+  assert.ok(mgrAssigned.includes("reassign"), "المدير يجب أن يرى reassign");
+
+  const assignLogBlock = firestoreRulesSrc.slice(
+    firestoreRulesSrc.indexOf('request.resource.data.action == "assign"'),
+    firestoreRulesSrc.indexOf('request.resource.data.action == "reassign"')
+  );
+  assert.ok(assignLogBlock.includes("isMaintenanceReviewer()"), "قاعدة log الإسناد لا تطابق canAssignPendingTicket");
+  const declineBlock = firestoreRulesSrc.slice(
+    firestoreRulesSrc.indexOf("function canDeclineTicket()"),
+    firestoreRulesSrc.indexOf("function canStartTicket()")
+  );
+  assert.ok(declineBlock.includes("isMaintenanceReviewer()"), "canDeclineTicket يجب أن تسمح للمراجعين لتفعيل classify_pm");
+});
+
+await t("أمان لوحة البلاغات والعمليات الجماعية: حجب النطاق الكامل عن غير المخوّلين ومنع تسميم الدفعة بالإصلاح الذاتي", () => {
+  const boardSubBlock = pmTicketsSrc2.slice(
+    pmTicketsSrc2.indexOf("export function subscribeToTicketsBoardApi"),
+    pmTicketsSrc2.indexOf("export async function fetchTicketsForReportApi")
+  );
+  assert.ok(boardSubBlock.includes("if (hasFullDataAccess(role))"), "تجاوز نطاق الصلاحيات في subscribeToTicketsBoardApi");
+  assert.ok(!boardSubBlock.includes('!["my_tickets", "assigned_to_me", "awaiting_confirm"].includes(status)'), "شرط ميت يعطل subscribeByIdentity");
+
+  const bulkBlock = pmTicketsSrc2.slice(
+    pmTicketsSrc2.indexOf("export async function bulkCloseTicketsApi"),
+    pmTicketsSrc2.indexOf("export async function rejectTicketApi")
+  );
+  assert.ok(bulkBlock.includes("isSelfResolved") && bulkBlock.includes("resolvedByUid"), "bulkCloseTicketsApi لا يستبعد الإصلاح الذاتي");
+  assert.ok(bulkBlock.includes("new Set("), "bulkCloseTicketsApi لا يزيل التكرار");
+
+  assert.ok(
+    ticketsBoardSrc.includes("function isBulkActionsRole(role) {\n  return isAdminRole(role) || isManagerRole(role);"),
+    "isBulkActionsRole يجب أن يقتصر على الأدمن والمدير"
+  );
+  assert.ok(ticketsBoardSrc.includes("inFlightTicketActions"), "غياب قفل منع تكرار إجراءات التذكرة");
+});
+
+await t("سلامة نموذج BM وتسليم الوردية: قفل الزر قبل فحص التكرار، منع تعارض PM+إصلاح ذاتي، وحماية المرفقات أوفلاين", () => {
+  const idxLock = workflowAuditSrc.indexOf("btn.disabled = true");
+  const idxDup = workflowAuditSrc.indexOf("fetchActiveTicketForMachineApi(machine, line)");
+  assert.ok(idxLock > 0 && idxDup > idxLock, "يجب قفل زر الحفظ قبل بدء الفحص غير المتزامن للتكرار");
+  assert.ok(workflowAuditSrc.includes('type !== "PM" && (document.getElementById(\'isSelfResolved\')'), "يجب منع الجمع بين PM والإصلاح الذاتي");
+  assert.ok(issueViewAuditSrc.includes("selfResolvedContainer") && issueViewAuditSrc.includes("!navigator.onLine"), "نقص إخفاء الإصلاح الذاتي لـ PM أو فحص الأوفلاين في تسليم الوردية");
+
+  const shiftBlock = pmTicketsSrc2.slice(
+    pmTicketsSrc2.indexOf("export async function appendShiftNoteToTicketApi"),
+    pmTicketsSrc2.indexOf("async function notifyShiftUpdate")
+  );
+  assert.ok(shiftBlock.includes("!imageUrls.length") && shiftBlock.includes("!navigator.onLine"), "appendShiftNoteToTicketApi يسقط الصور بصمت أو لا يفحص الاتصال");
+});
+
+await t("دقة مؤشرات الديسكتوب وتفاصيل التذكرة: resolvedAt لزمن التوقف، تفعيل machinesList، واختصارات مقيدة بالشاشة", () => {
+  assert.ok(detailsModalAuditSrc.includes("resolvedAtServer") && detailsModalAuditSrc.includes("shiftUpdates"), "TicketDetailsModal لا يعتمد resolvedAt أو لا يعرض تحديثات الوردية");
+  assert.ok(machinesAuditSrc.includes("window.machinesList = MACHINE_OPTIONS") && machinesAuditSrc.includes("ensureMachineCatalogReady"), "window.machinesList غير مفعّل لحساب MTBF وعدد الماكينات");
+  assert.ok(mgrHomeAuditSrc.includes("window.openTicketsWithFilter('open')") && mgrHomeAuditSrc.includes("ensureMachineCatalogReady()"), "كارت المفتوحة أو MTBF في ManagerDesktopHome غير مكتمل");
+  assert.ok(mgrHomeAuditSrc.includes("String(t.maintenanceType || '').trim().toUpperCase() !== 'PM'"), "قرارات BM تعرض أوامر PM غير المعينة");
+  assert.ok(mgrDesktopTicketsSrc.includes('!document.getElementById("mgrTicketsTableBody")'), "اختصارات لوحة التذاكر تتداخل مع باقي الشاشات");
+  assert.ok(mgrDesktopTicketsSrc.includes("getLocalizedStatusLabel") && mgrDesktopTicketsSrc.includes("mgrLineFilterSelect"), "حالات الجدول أو فلتر الخط/المسار غير مكتملين");
+});
+
 console.log(`\nالنتيجة: ${passed} نجح / ${failed} فشل`);
 process.exit(failed ? 1 : 0);

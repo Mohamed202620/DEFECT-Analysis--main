@@ -134,14 +134,22 @@ case 'tickets':
         `  
           <div class="space-y-3">  
 
-            <div class="flex gap-2">
-              <div id="ticketsTabsContainer" class="flex-1 flex gap-2 overflow-x-auto"></div>
-              <button
-                onclick="window.toggleNotificationsPanel()"
-                class="relative shrink-0 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-4 font-bold text-white text-sm">
-                🔔
-                <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
-              </button>
+            <div class="flex flex-wrap items-center justify-between gap-2.5">
+              <div id="ticketsTabsContainer" class="flex-1 min-w-0 flex gap-2 overflow-x-auto pb-0.5"></div>
+              <div class="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+                <button
+                  id="monthlyReportBtn"
+                  onclick="window.generateMonthlyReport()"
+                  class="flex-1 md:flex-initial md:w-auto bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg px-4 py-2 font-bold text-white text-xs transition-all whitespace-nowrap cursor-pointer">
+                  ${t().monthlyReportBtn}
+                </button>
+                <button
+                  onclick="window.toggleNotificationsPanel()"
+                  class="relative shrink-0 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-3.5 py-2 font-bold text-white text-sm cursor-pointer">
+                  🔔
+                  <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+                </button>
+              </div>
             </div>
 
             <!-- شريط البحث المباشر في البلاغات -->
@@ -168,14 +176,7 @@ case 'tickets':
             <div id="bulkSelectToggleContainer"></div>
             <div id="bulkActionsBar"></div>
 
-            <button
-              id="monthlyReportBtn"
-              onclick="window.generateMonthlyReport()"
-              class="w-full bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] rounded-lg py-2.5 font-bold text-white text-xs transition-all">
-              ${t().monthlyReportBtn}
-            </button>
-
-            <div id="ticketsBoardContainer" class="mt-4">  
+            <div id="ticketsBoardContainer" class="mt-3">  
               <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">  
                 ${t().loadingTickets}
               </div>  

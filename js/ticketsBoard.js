@@ -6,7 +6,7 @@ import { buildPdfStatsCardsHtml } from './branding.js';
 // لوحة متابعة دورة حياة التذكرة - تُعرض ديناميكياً حسب دور المستخدم
 // ============================================================
 
-import { getCurrentRole, getTicketActions } from './permissions.js';
+import { getCurrentRole, getTicketActions, isAdminRole, isManagerRole } from './permissions.js';
 import { escapeHtml, escapeJsArg } from './utils/escapeHtml.js';
 import { displayRecordNumber, recordNumberSearchText } from './utils/recordNumber.js';
 import { openActionModal } from './components/ActionModal.js';
@@ -276,8 +276,8 @@ function renderBoardPage(containerId, emptyMessage) {
     : `<div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">${escapeHtml(boardSearchTerm ? (isEnUi ? 'No tickets matched your search' : 'لا توجد بلاغات تطابق بحثك الحالي') : emptyMessage)}</div>`;
 
   const loaderHtml = boardVisibleCount < filteredTickets.length 
-    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-slate-600 dark:text-slate-300 text-[11px] font-medium animate-pulse">
-         جاري تحميل المزيد... ( ${boardVisibleCount} من ${filteredTickets.length} )
+    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-slate-600 dark:text-slate-300 text-[11px] font-medium">
+         ${escapeHtml(tr.loadingMore || (isEnUi ? "Loading more..." : "جاري تحميل المزيد..."))} (${boardVisibleCount} / ${filteredTickets.length})
        </div>` 
     : ``;
 
@@ -355,7 +355,7 @@ let selectedTicketIds = new Set();
 window.selectedTicketIds = selectedTicketIds; // MGR-DESKTOP
 
 function isBulkActionsRole(role) {
-  return role === "admin" || role === "manager" || role === "supervisor" || role === "engineer" || role === "maintainer";
+  return isAdminRole(role) || isManagerRole(role);
 }
 
 function renderBulkSelectToggle() {
@@ -363,7 +363,7 @@ function renderBulkSelectToggle() {
   if (!container) return;
 
   const role = getCurrentRole();
-  if (!isBulkActionsRole(role)) {
+  if (!isBulkActionsRole(role) || (typeof isManagerDesktopEligible === "function" && isManagerDesktopEligible())) {
     container.innerHTML = "";
     return;
   }
@@ -579,9 +579,16 @@ window.loadTicketsBoard = function () {
 
       if (!result || result.status !== "success") {
         console.error("Ticket subscription error:", result?.message);
+        const trErr = t();
         container.innerHTML = `
-          <div class="text-red-600 dark:text-red-300 text-center text-xs py-6 font-medium">
-            ${t().loadError}
+          <div class="text-center py-6 space-y-2.5">
+            <div class="text-red-600 dark:text-red-300 text-xs font-medium">
+              ${escapeHtml(trErr.loadError)}
+            </div>
+            <button type="button" onclick="window.loadTicketsBoard()"
+              class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition active:scale-95 cursor-pointer">
+              ${escapeHtml(trErr.retryBtn || "🔄 Retry")}
+            </button>
           </div>
         `;
         return;
@@ -675,6 +682,8 @@ window.cleanupTicketsBoard = function () {
 /**
  * تنفيذ الإجراءات على التذكرة
  */
+const inFlightTicketActions = new Set();
+
 window.handleTicketAction = async function (ticketId, action) {
 
   let result;
@@ -684,6 +693,11 @@ window.handleTicketAction = async function (ticketId, action) {
     openTicketDetailsModal(ticketId);
     return;
   }
+
+  const lockKey = `${ticketId}::${action}`;
+  if (inFlightTicketActions.has(lockKey)) return;
+  inFlightTicketActions.add(lockKey);
+  try {
 
   // بلاغ مصنّف PM: أمر الصيانة الوقائية هو نفس مستند البلاغ ويُخطَّط من
   // صفحة أوامر PM (لا إسناد إجباري ولا إعادة تصنيف من لوحة البلاغات)
@@ -902,6 +916,9 @@ window.handleTicketAction = async function (ticketId, action) {
 
     alert("❌ " + (isArabicMessage ? msg : tr.genericActionError));
   }
+  } finally {
+    inFlightTicketActions.delete(lockKey);
+  }
 
 };
 
@@ -1093,7 +1110,7 @@ window.generateMonthlyReport = async function () {
   const originalLabel = btn ? btn.innerHTML : "";
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = "⏳ جاري تجهيز التقرير...";
+    btn.innerHTML = escapeHtml(t().preparingReport || "⏳ Preparing report...");
   }
 
   try {

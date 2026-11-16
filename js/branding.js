@@ -203,7 +203,7 @@ export function renderHeader() {
       class="w-full fixed top-0 inset-x-0 z-50 backdrop-blur-xl border-b transition-colors duration-300 shadow-md overflow-hidden"
       style="background: var(--app-header-bg); border-color: rgba(148,163,184,0.14); padding-top: env(safe-area-inset-top, 0px);"
     >
-      <div class="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-1.5 md:py-2 flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-4 overflow-hidden w-full">
+      <div class="max-w-[1920px] mx-auto px-3 sm:px-4 md:px-6 lg:px-7 py-1.5 flex flex-col md:flex-row md:items-center md:justify-between gap-1.5 md:gap-4 overflow-hidden w-full">
 
         <!-- السطر الأول: شعار الشركة (يمين/بداية) | جرس الإشعارات + الثيم (يسار/الجهة المقابلة) -->
         <div class="app-header-row-top flex items-center justify-between gap-2.5 pb-1 md:pb-0 border-b md:border-b-0 min-w-0 md:flex-initial" style="border-color: rgba(148,163,184,0.1);">
@@ -213,7 +213,7 @@ export function renderHeader() {
             <img
               src="${LOGO_ICON_DATA_URL}"
               alt="${COMPANY_SHORT}"
-              class="app-header-logo h-8 sm:h-9 md:h-10 w-auto object-contain shrink-0 transition-transform duration-200"
+              class="app-header-logo h-8 sm:h-9 md:h-9 w-auto object-contain shrink-0 transition-transform duration-200"
               style="filter: drop-shadow(0 0 8px rgba(245,166,35,0.35));"
               onerror="if(this.dataset.triedFallback){this.outerHTML='<div class=\'h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-xs font-black text-amber-400 shrink-0 shadow-md\'>🏭</div>';}else{this.dataset.triedFallback=true;this.src='${LOGO_ICON_PATH}';}"
             />
@@ -235,7 +235,7 @@ export function renderHeader() {
               onclick="${notifAction}"
               aria-label="${isEn ? "Notifications" : "الإشعارات"}"
               title="${isEn ? "Notifications" : "الإشعارات"}"
-              class="app-header-button relative min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button relative min-w-[44px] min-h-[44px] md:min-w-[36px] md:min-h-[36px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90 cursor-pointer"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(248,113,113,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -254,7 +254,7 @@ export function renderHeader() {
               onclick="if (typeof window.toggleDarkMode === 'function') { window.toggleDarkMode(); }"
               aria-label="${isEn ? "Toggle theme" : "تبديل الوضع"}"
               title="${isEn ? "Toggle theme" : "تبديل الوضع"}"
-              class="app-header-button min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90"
+              class="app-header-button min-w-[44px] min-h-[44px] md:min-w-[36px] md:min-h-[36px] rounded-full flex items-center justify-center text-xs sm:text-sm transition-all duration-200 active:scale-90 cursor-pointer"
               style="${glassChip}"
               onmouseover="this.style.boxShadow='0 0 10px rgba(96,165,250,0.4)'"
               onmouseout="this.style.boxShadow='none'"
@@ -263,9 +263,8 @@ export function renderHeader() {
 
         </div>
 
-        ${showUserRow ? `
-        <!-- السطر الثاني: المستخدم واضح في جهة | زر اللغة في الجهة المقابلة (الرئيسية فقط) -->
-        <div class="app-header-row-bottom flex items-center justify-between md:justify-end gap-2.5 min-w-0 md:flex-1 md:gap-4">
+        <!-- السطر الثاني: ظاهر دائماً على الكمبيوتر (صف واحد مع الشعار) وعلى الموبايل في الرئيسية/الدخول فقط -->
+        <div class="app-header-row-bottom ${showUserRow ? "flex" : "hidden md:flex"} items-center justify-between md:justify-end gap-2.5 min-w-0 md:flex-1 md:gap-3">
 
           <!-- المستخدم واضح وكامل -->
           <div class="min-w-0 flex-1 md:flex-initial overflow-hidden">
@@ -277,19 +276,18 @@ export function renderHeader() {
             <button
               type="button"
               onclick="if (window.currentLang !== 'ar' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] md:min-w-[36px] md:min-h-[32px] px-2.5 rounded-full text-[11px] font-bold transition-all duration-200 active:scale-90 cursor-pointer"
               style="${!isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#cbd5e1;"}"
             >AR</button>
             <button
               type="button"
               onclick="if (window.currentLang !== 'en' && typeof window.toggleLanguage === 'function') { window.toggleLanguage(); }"
-              class="min-w-[44px] min-h-[44px] px-2 rounded-full text-[11px] font-bold transition-all duration-200 active:scale-90"
+              class="min-w-[44px] min-h-[44px] md:min-w-[36px] md:min-h-[32px] px-2.5 rounded-full text-[11px] font-bold transition-all duration-200 active:scale-90 cursor-pointer"
               style="${isEn ? "background:#2563eb; color:#ffffff; box-shadow:0 0 8px rgba(37,99,235,0.5);" : "color:#cbd5e1;"}"
             >EN</button>
           </div>
 
         </div>
-        ` : ""}
 
       </div>
     </header>
@@ -478,9 +476,10 @@ let _headerResizeObserver = null;
 
 function syncHeaderHeightVar(headerEl) {
   if (!headerEl) return;
+  const h = Math.ceil(headerEl.getBoundingClientRect().height || headerEl.offsetHeight);
   document.documentElement.style.setProperty(
     "--app-header-h",
-    headerEl.offsetHeight + "px"
+    h + "px"
   );
 }
 

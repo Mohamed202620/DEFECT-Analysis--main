@@ -125,27 +125,23 @@ return `
     </div>
 
 
-    <!-- Search -->
+    <!-- Search & Filters Toolbar -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-center">
 
-    <div class="relative">
-        <input
-            id="userSearch"
-            oninput="window.searchUsers()"
-            placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
-            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition shadow-inner"
-        >
-        <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-slate-300 text-xs pointer-events-none">🔍</span>
-    </div>
-
-
-    <!-- Filters -->
-
-    <div class="grid grid-cols-2 gap-3">
+        <div class="relative sm:col-span-2 lg:col-span-5">
+            <input
+                id="userSearch"
+                oninput="window.searchUsers()"
+                placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
+                class="w-full p-2.5 rtl:pr-9 ltr:pl-9 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition shadow-inner"
+            >
+            <span class="absolute top-3 rtl:right-3 ltr:left-3 text-slate-300 text-xs pointer-events-none">🔍</span>
+        </div>
 
         <select
             id="statusFilter"
             onchange="window.filterUsers()"
-            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            class="lg:col-span-2 bg-[#0F172A] border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="" ${defaultStatusFilter === "" ? "selected" : ""}>
                 كل الحالات
@@ -165,11 +161,10 @@ return `
 
         </select>
 
-
         <select
             id="roleFilter"
             onchange="window.filterUsers()"
-            class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
+            class="lg:col-span-2 bg-[#0F172A] border border-gray-700 rounded-xl p-2.5 text-xs text-white outline-none focus:border-blue-500 transition shadow-inner cursor-pointer">
 
             <option value="">
                 كل الأدوار
@@ -205,15 +200,14 @@ return `
 
         </select>
 
-    </div>
+        <div class="sm:col-span-2 lg:col-span-3 flex justify-end">
+            <button
+                onclick="window.migrateEmployeeCodes()"
+                class="w-full lg:w-auto px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition font-bold text-xs whitespace-nowrap cursor-pointer">
+                🔐 حماية أكواد الموظفين (مرة واحدة)
+            </button>
+        </div>
 
-
-    <div class="flex justify-end">
-        <button
-            onclick="window.migrateEmployeeCodes()"
-            class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition font-bold text-xs">
-            🔐 حماية أكواد الموظفين (مرة واحدة)
-        </button>
     </div>
 
     <!-- عدد المستخدمين -->

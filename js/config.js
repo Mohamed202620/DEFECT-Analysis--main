@@ -1004,7 +1004,18 @@ export const translations = {
       reportDescLabel: "وصف البلاغ:",
       reportMechanicNotesLabel: "ملاحظات الفني:",
       reportGenerateError: "❌ حدث خطأ أثناء إنشاء التقرير، حاول مرة أخرى.",
-      reportFileName: "تقرير-شهري"
+      reportFileName: "تقرير-شهري",
+      bulkSelectEnter: "☑️ تحديد للإجراءات الجماعية",
+      bulkSelectExit: "إنهاء وضع التحديد",
+      bulkSelectedCount: "{n} محدد",
+      bulkCloseBtn: "✔️ تأكيد إغلاق المحدد",
+      bulkExportBtn: "📄 تصدير PDF",
+      bulkClearBtn: "إلغاء",
+      bulkCloseConfirm: "تأكيد إغلاق {n} تذكرة؟",
+      bulkCloseSuccess: "تم إغلاق {n} تذكرة بنجاح",
+      bulkCloseSkipped: "تم تجاهل {n} (غير مؤهلة للإغلاق)",
+      loadingMore: "جاري تحميل المزيد...",
+      retryBtn: "🔄 إعادة المحاولة"
     }
 
   },
@@ -1707,7 +1718,18 @@ export const translations = {
       reportDescLabel: "Ticket Description:",
       reportMechanicNotesLabel: "Technician Notes:",
       reportGenerateError: "❌ An error occurred while generating the report, try again.",
-      reportFileName: "monthly-report"
+      reportFileName: "monthly-report",
+      bulkSelectEnter: "☑️ Select for Bulk Actions",
+      bulkSelectExit: "Exit Selection Mode",
+      bulkSelectedCount: "{n} selected",
+      bulkCloseBtn: "✔️ Confirm Close Selected",
+      bulkExportBtn: "📄 Export PDF",
+      bulkClearBtn: "Clear",
+      bulkCloseConfirm: "Confirm closing {n} ticket(s)?",
+      bulkCloseSuccess: "Closed {n} ticket(s) successfully",
+      bulkCloseSkipped: "Skipped {n} (not eligible for closing)",
+      loadingMore: "Loading more...",
+      retryBtn: "🔄 Retry"
     }
 
   }

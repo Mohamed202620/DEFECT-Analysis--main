@@ -1,6 +1,7 @@
 /* ==========================================================================
    MANAGER DESKTOP MODE (وضع المدير على الكمبيوتر)
    Strictly scoped under @media (min-width: 1280px) and body.mgr-desktop
+   Tested for 1366x768, 1440x900, and 1920x1080 in RTL & LTR
    ========================================================================== */
 
 @media (min-width: 1280px) {
@@ -16,41 +17,53 @@
   body.mgr-desktop .mgr-command-center {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: clamp(1rem, 1.25vw, 1.5rem);
-    padding: clamp(1rem, 1.5vw, 2rem) clamp(1rem, 1.75vw, 2rem) 3rem;
+    gap: clamp(0.875rem, 1.15vw, 1.35rem);
+    padding: clamp(0.875rem, 1.25vw, 1.5rem) clamp(1rem, 1.6vw, 1.75rem) 2.5rem;
     max-width: 1840px;
     margin: 0 auto;
     width: 100%;
     min-width: 0;
   }
 
-  body.mgr-desktop .mgr-command-center > .col-span-12 {
+  /* Command Header Bar: balanced single-row layout across 1366 / 1440 / 1920 */
+  body.mgr-desktop .mgr-command-header {
+    grid-column: span 12 / span 12;
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1.25rem;
     min-width: 0;
   }
 
-  body.mgr-desktop .mgr-command-center > .col-span-12 > div:first-child {
-    flex: 1 1 28rem;
-    min-width: min(100%, 20rem);
+  body.mgr-desktop .mgr-command-header-info {
+    flex: 1 1 20rem;
+    min-width: 0;
   }
 
-  body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
-    flex: 1 1 28rem;
-    justify-content: flex-end;
+  body.mgr-desktop .mgr-command-header-actions {
+    flex: 0 1 auto;
+    display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
     min-width: 0;
   }
 
-  /* KPI Cards Row (Span full 12 cols) */
+  /* KPI Cards Row: 3x2 symmetrical grid on laptops (1280-1599px), 6x1 bar on wide displays (1600px+) */
   body.mgr-desktop .mgr-kpi-grid {
     grid-column: span 12 / span 12;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.75rem), 1fr));
-    gap: clamp(0.75rem, 1vw, 1rem);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(0.65rem, 0.95vw, 1rem);
     min-width: 0;
+  }
+
+  @media (min-width: 1600px) {
+    body.mgr-desktop .mgr-kpi-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
   }
 
   body.mgr-desktop .mgr-card {
@@ -59,7 +72,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 0.875rem;
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-    transition: all 0.2s ease-in-out;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
 
   .dark body.mgr-desktop .mgr-card {
@@ -69,32 +82,31 @@
   }
 
   body.mgr-desktop .mgr-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.08);
   }
 
-  /* Main Visual Center (8 columns) */
+  /* Main Visual Center (8 columns) & Side Operations Col (4 columns) across all >=1280px */
   body.mgr-desktop .mgr-main-col {
     grid-column: span 8 / span 8;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: clamp(0.875rem, 1.15vw, 1.35rem);
     min-width: 0;
   }
 
-  /* Side Operations & Technicians Col (4 columns) */
   body.mgr-desktop .mgr-side-col {
     grid-column: span 4 / span 4;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: clamp(0.875rem, 1.15vw, 1.35rem);
     min-width: 0;
   }
 
-  /* Charts Container */
+  /* Charts Container: keep side-by-side 2 columns across 1366 / 1440 / 1920 */
   body.mgr-desktop .mgr-charts-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 1.25rem;
+    gap: clamp(0.75rem, 1vw, 1.25rem);
     min-width: 0;
   }
 
@@ -103,7 +115,7 @@
     min-width: 0;
   }
 
-  /* Decisions Table Container */
+  /* Decisions & Tickets Table Containers */
   body.mgr-desktop .mgr-table-container {
     max-width: 100%;
     overflow-x: auto;
@@ -113,7 +125,11 @@
   }
 
   body.mgr-desktop .mgr-table-container table {
-    min-width: 48rem;
+    width: 100%;
+  }
+
+  body.mgr-desktop .mgr-tickets-main-panel .mgr-table-container table {
+    min-width: 660px;
   }
 
   body.mgr-desktop .mgr-table-container th:last-child,
@@ -121,32 +137,51 @@
     white-space: nowrap;
   }
 
+  /* Hide duplicate ticketsBoard search & bulk toggle when ManagerDesktopTickets toolbar is active */
+  body.mgr-desktop #ticketsSearchContainer,
+  body.mgr-desktop #bulkSelectToggleContainer {
+    display: none;
+  }
+
   /* Tickets Desktop Board (Split Panel View) */
   body.mgr-desktop .mgr-tickets-split-container {
     display: flex;
-    gap: 1.5rem;
+    align-items: flex-start;
+    gap: clamp(0.875rem, 1.2vw, 1.5rem);
     width: 100%;
-    padding: 1.25rem 2rem;
+    padding: 0;
     max-width: 1850px;
     margin: 0 auto;
-    min-height: calc(100vh - 120px);
+    min-height: calc(100vh - var(--app-header-h, 64px) - 7rem);
   }
 
   body.mgr-desktop .mgr-tickets-main-panel {
-    flex: 1;
+    flex: 1 1 0%;
     min-width: 0;
     display: flex;
     flex-direction: column;
   }
 
   body.mgr-desktop .mgr-tickets-side-preview {
-    width: 440px;
+    width: 310px;
     flex-shrink: 0;
     position: sticky;
-    top: 5rem;
-    max-height: calc(100vh - 6rem);
+    top: calc(var(--app-header-h, 64px) + 0.875rem);
+    max-height: calc(100vh - var(--app-header-h, 64px) - 1.75rem);
     overflow-y: auto;
     transition: width 0.2s ease;
+  }
+
+  @media (min-width: 1440px) {
+    body.mgr-desktop .mgr-tickets-side-preview {
+      width: 345px;
+    }
+  }
+
+  @media (min-width: 1600px) {
+    body.mgr-desktop .mgr-tickets-side-preview {
+      width: 400px;
+    }
   }
 
   /* Keyboard hints pill */
@@ -171,38 +206,10 @@
     border-color: #475569;
   }
 
-  @media (max-width: 1535px) {
-    body.mgr-desktop .mgr-main-col {
-      grid-column: span 7 / span 7;
-    }
-
-    body.mgr-desktop .mgr-side-col {
-      grid-column: span 5 / span 5;
-    }
-
-    body.mgr-desktop .mgr-charts-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    body.mgr-desktop .mgr-command-center > .col-span-12 > div:first-child,
-    body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
-      flex-basis: 100%;
-    }
-
-    body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
-      justify-content: flex-start;
-    }
-  }
-
-  /* Table selected row */
+  /* Table selected row (RTL/LTR logical border) */
   body.mgr-desktop .mgr-row-active {
     background-color: rgba(59, 130, 246, 0.08) !important;
-    border-left: 3px solid #3b82f6;
-  }
-
-  [dir="rtl"] body.mgr-desktop .mgr-row-active {
-    border-left: none;
-    border-right: 3px solid #3b82f6;
+    border-inline-start: 3px solid #3b82f6;
   }
 
   /* Sidebar Manager Special Section */

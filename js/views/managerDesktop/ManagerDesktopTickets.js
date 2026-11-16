@@ -11,6 +11,13 @@ import { assignTicketApi, reassignTicketApi, fetchTicketByIdApi } from '../../se
 import { openActionModal } from '../../components/ActionModal.js';
 import { escapeHtml, escapeJsArg } from "../../utils/escapeHtml.js";
 import { displayRecordNumber, recordNumberSearchText } from "../../utils/recordNumber.js";
+import { getCurrentRole, isAdminRole, isManagerRole } from '../../permissions.js';
+
+function getLocalizedStatusLabel(statusKey) {
+  const lang = window.currentLang || "ar";
+  const map = (translations[lang] || translations.ar).ticketsBoard?.status || {};
+  return map[statusKey] || STATUS_LABELS[statusKey] || statusKey;
+}
 
 let activeFilteredTickets = [];
 let selectedRowIndex = 0;
@@ -43,7 +50,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
         <div class="mgr-card p-3 flex flex-wrap items-center justify-between gap-3">
           
           <!-- حقل البحث مع اختصار / -->
-          <div class="relative flex-1 min-w-[240px]">
+          <div class="relative flex-1 min-w-[180px]">
             <span class="absolute inset-y-0 start-3 flex items-center text-slate-500 dark:text-slate-300 pointer-events-none">
               🔍
             </span>
@@ -72,7 +79,18 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
               <option value="Low" ${currentPriorityFilter === 'Low' ? 'selected' : ''}>🟢 ${isEn ? 'Low' : 'منخفضة'}</option>
             </select>
 
-            <!-- فلتر الأقسام والخطوط إن وجدت -->
+            <!-- فلتر الخط / المسار -->
+            <select
+              id="mgrLineFilterSelect"
+              class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none">
+              <option value="all" ${currentLineFilter === 'all' ? 'selected' : ''}>${isEn ? 'All Lines / Routes' : 'كل الخطوط / المسارات'}</option>
+              <option value="Line 1" ${currentLineFilter === 'Line 1' ? 'selected' : ''}>Line 1</option>
+              <option value="Line 2" ${currentLineFilter === 'Line 2' ? 'selected' : ''}>Line 2</option>
+              <option value="CM" ${currentLineFilter === 'CM' ? 'selected' : ''}>CM (${isEn ? 'Corrective' : 'أعطال'})</option>
+              <option value="PM" ${currentLineFilter === 'PM' ? 'selected' : ''}>PM (${isEn ? 'Preventive' : 'وقائية'})</option>
+            </select>
+
+            <!-- الترتيب -->
             <select
               id="mgrSortSelect"
               class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none">
@@ -83,7 +101,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
             </select>
 
             <!-- اختصارات لوحة المفاتيح المرئية -->
-            <div class="hidden xl:flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-200 bg-gray-100 dark:bg-gray-800/80 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div class="hidden 2xl:flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-200 bg-gray-100 dark:bg-gray-800/80 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 whitespace-nowrap">
               <span>${isEn ? 'Shortcuts:' : 'اختصارات:'}</span>
               <kbd class="mgr-kbd">N</kbd> <span class="text-[11px]">${isEn ? 'New' : 'جديد'}</span>
               <kbd class="mgr-kbd">J</kbd>/<kbd class="mgr-kbd">K</kbd> <span class="text-[11px]">${isEn ? 'Rows' : 'تنقل'}</span>
@@ -95,33 +113,35 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
 
         <!-- شريط الإجراءات الجماعية المتقدم للمدير -->
         <div id="mgrBulkActionsContainer" class="hidden">
-          <div class="mgr-card p-2.5 flex items-center justify-between bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+          <div class="mgr-card p-2.5 flex flex-wrap items-center justify-between gap-2 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
             <div class="flex items-center gap-2">
-              <span id="mgrBulkSelectedText" class="text-xs font-bold text-blue-700 dark:text-blue-300">0 محدد</span>
+              <span id="mgrBulkSelectedText" class="text-xs font-bold text-blue-700 dark:text-blue-300 tabular-nums">0 ${isEn ? 'Selected' : 'محدد'}</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              ${(isAdminRole(getCurrentRole()) || isManagerRole(getCurrentRole())) ? `
               <button
                 type="button"
                 onclick="window.mgrBulkAssignPrompt()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap">
                 👤 ${isEn ? 'Bulk Assign' : 'إسناد جماعي'}
               </button>
               <button
                 type="button"
                 onclick="window.bulkCloseSelectedTickets()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap">
                 ✔️ ${isEn ? 'Close Selected' : 'إغلاق المحدد'}
               </button>
+              ` : ''}
               <button
                 type="button"
                 onclick="window.bulkExportSelectedTickets()"
-                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-700 hover:bg-gray-600 text-white shadow-sm transition active:scale-95 cursor-pointer">
+                class="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-700 hover:bg-gray-600 text-white shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap">
                 📄 ${isEn ? 'Export PDF' : 'تصدير PDF'}
               </button>
               <button
                 type="button"
                 onclick="window.mgrClearSelection()"
-                class="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 transition cursor-pointer">
+                class="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 transition cursor-pointer whitespace-nowrap">
                 ${isEn ? 'Clear' : 'إلغاء'}
               </button>
             </div>
@@ -133,21 +153,21 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
           <table class="w-full text-start text-xs border-collapse">
             <thead>
               <tr class="bg-gray-50 dark:bg-gray-800/80 text-slate-700 dark:text-slate-200 border-b border-gray-200 dark:border-gray-800 select-none">
-                <th class="py-3 px-3 w-8 text-center">
+                <th class="py-2.5 px-2 w-8 text-center">
                   <input
                     type="checkbox"
                     id="mgrSelectAllCheckbox"
                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Status' : 'الحالة'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Priority' : 'الأولوية'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Machine / Asset' : 'الماكينة'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Line / Dept' : 'الخط / القسم'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Issue Description' : 'بيان العطل'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Assigned Tech' : 'الفني المكلف'}</th>
-                <th class="py-3 px-3 font-semibold text-start">${isEn ? 'Reported Time' : 'وقت البلاغ'}</th>
-                <th class="py-3 px-3 font-semibold text-center">${isEn ? 'Actions' : 'إجراء'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Status' : 'الحالة'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Priority' : 'الأولوية'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Machine / Asset' : 'الماكينة'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Line / Dept' : 'الخط / القسم'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start">${isEn ? 'Issue Description' : 'بيان العطل'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Assigned Tech' : 'الفني المكلف'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-start whitespace-nowrap">${isEn ? 'Reported Time' : 'وقت البلاغ'}</th>
+                <th class="py-2.5 px-2 xl:px-2.5 font-semibold text-center whitespace-nowrap">${isEn ? 'Actions' : 'إجراء'}</th>
               </tr>
             </thead>
             <tbody id="mgrTicketsTableBody" class="divide-y divide-gray-100 dark:divide-gray-800/60 font-sans">
@@ -216,6 +236,17 @@ function filterAndSortTickets(allTickets) {
     list = list.filter(t => String(t.priority || '').trim() === currentPriorityFilter);
   }
 
+  // 2.5 فلتر الخط / المسار
+  if (currentLineFilter !== 'all') {
+    if (currentLineFilter === 'PM') {
+      list = list.filter(t => String(t.maintenanceType || '').trim().toUpperCase() === 'PM');
+    } else if (currentLineFilter === 'CM') {
+      list = list.filter(t => String(t.maintenanceType || '').trim().toUpperCase() !== 'PM');
+    } else {
+      list = list.filter(t => String(t.line || '').trim() === currentLineFilter);
+    }
+  }
+
   // 3. الترتيب
   list.sort((a, b) => {
     if (currentSortField === 'createdAt') {
@@ -272,7 +303,7 @@ function renderTableRows(allTickets) {
         : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30';
 
     const statusBadgeCls = STATUS_CLASSES[t.status] || "bg-gray-500/20 text-slate-700 dark:text-slate-200";
-    const statusText = STATUS_LABELS[t.status] || t.status;
+    const statusText = getLocalizedStatusLabel(t.status);
     const isOverdue = isOverdueTicket(t);
 
     const timeStr = t.createdAt ? new Date(t.createdAt).toLocaleDateString(isEn ? 'en-US' : 'ar-EG', {
@@ -289,7 +320,7 @@ function renderTableRows(allTickets) {
         class="mgr-ticket-row cursor-pointer transition hover:bg-blue-50/50 dark:hover:bg-gray-800/60 ${isRowActive ? 'mgr-row-active' : ''}">
         
         <!-- التحديد -->
-        <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
+        <td class="py-2 px-2 text-center" onclick="event.stopPropagation()">
           <input
             type="checkbox"
             data-select-id="${escapeHtml(t.id)}"
@@ -299,47 +330,50 @@ function renderTableRows(allTickets) {
         </td>
 
         <!-- الحالة -->
-        <td class="py-2.5 px-3">
-          <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
-            ${isOverdue ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>' : ''}
-            <span>${escapeHtml(statusText)}</span>
-          </span>
+        <td class="py-2 px-2 xl:px-2.5 whitespace-nowrap">
+          <div class="inline-flex items-center gap-1 flex-wrap">
+            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
+              <span>${escapeHtml(statusText)}</span>
+            </span>
+            ${isOverdue ? `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-red-600/20 text-red-700 dark:text-red-300 border border-red-500/40">⏰ ${isEn ? 'SLA' : 'متأخر'}</span>` : ''}
+          </div>
         </td>
 
         <!-- الأولوية -->
-        <td class="py-2.5 px-3 font-semibold">
+        <td class="py-2 px-2 xl:px-2.5 font-semibold whitespace-nowrap">
           <span class="inline-block text-[11px] px-2 py-0.5 rounded-md ${priorityCls}">
             ${escapeHtml(t.priority || (isEn ? 'Normal' : 'عادية'))}
           </span>
         </td>
 
-        <!-- الماكينة -->
-        <td class="py-2.5 px-3 font-bold text-gray-900 dark:text-white">
-          ${escapeHtml(t.machine || '-')}
+        <!-- الماكينة ورقم البلاغ -->
+        <td class="py-2 px-2 xl:px-2.5 font-bold text-gray-900 dark:text-white max-w-[130px] truncate" title="${escapeHtml(`${displayRecordNumber(t, '')} ${t.machine || ''}`.trim())}">
+          <div>${escapeHtml(t.machine || '-')}</div>
+          <div class="text-[11px] font-mono text-amber-600 dark:text-amber-400 font-bold">${escapeHtml(displayRecordNumber(t, ''))}</div>
         </td>
 
         <!-- الخط والقسم -->
-        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+        <td class="py-2 px-2 xl:px-2.5 text-slate-600 dark:text-slate-300 max-w-[110px] truncate" title="${escapeHtml(t.line || '')}">
           ${escapeHtml(t.line || '-')}
         </td>
 
         <!-- الوصف -->
-        <td class="py-2.5 px-3 text-slate-700 dark:text-slate-200 max-w-[240px] truncate" title="${escapeHtml(t.description || '')}">
+        <td class="py-2 px-2 xl:px-2.5 text-slate-700 dark:text-slate-200 max-w-[130px] xl:max-w-[180px] 2xl:max-w-[230px] truncate" title="${escapeHtml(t.description || '')}">
           ${escapeHtml(t.description || '-')}
         </td>
 
         <!-- الفني المكلف -->
-        <td class="py-2.5 px-3 text-slate-700 dark:text-slate-200 font-medium">
+        <td class="py-2 px-2 xl:px-2.5 text-slate-700 dark:text-slate-200 font-medium whitespace-nowrap max-w-[130px] truncate">
           ${t.assignedTo ? `👷 ${escapeHtml(t.assignedTo)}` : `<span class="text-amber-600 dark:text-amber-400 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
         </td>
 
         <!-- الوقت -->
-        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+        <td class="py-2 px-2 xl:px-2.5 text-slate-600 dark:text-slate-300 font-mono text-[11px] whitespace-nowrap tabular-nums">
           ${timeStr}
         </td>
 
         <!-- إجراءات -->
-        <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
+        <td class="py-2 px-2 xl:px-2.5 text-center whitespace-nowrap" onclick="event.stopPropagation()">
           <button
             type="button"
             onclick="window.openTicketDetailsModal('${escapeJsArg(t.id)}')"
@@ -424,7 +458,7 @@ function renderSidePreview(ticket) {
       : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30';
 
   const statusBadgeCls = STATUS_CLASSES[ticket.status] || "bg-gray-500/20 text-slate-700 dark:text-slate-200";
-  const statusText = STATUS_LABELS[ticket.status] || ticket.status;
+  const statusText = getLocalizedStatusLabel(ticket.status);
 
   const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0)
     ? ticket.imageUrls : (ticket.imageUrl ? [ticket.imageUrl] : []);
@@ -444,8 +478,8 @@ function renderSidePreview(ticket) {
         <h2 class="text-base font-black text-gray-900 dark:text-white mt-1.5">
           ${escapeHtml(ticket.machine || (isEn ? 'Unspecified Machine' : 'ماكينة غير محددة'))}
         </h2>
-        <div class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-mono">
-          ${isEn ? 'Ticket' : 'تذكرة'}: #${ticket.id ? ticket.id.slice(0, 8) : '-'}
+        <div class="text-xs text-amber-600 dark:text-amber-300 mt-0.5 font-mono font-bold">
+          ${isEn ? 'Ticket' : 'تذكرة'}: ${escapeHtml(displayRecordNumber(ticket))}
         </div>
       </div>
 
@@ -551,6 +585,17 @@ function attachTableFilterListeners(allTickets, containerId, emptyMessage) {
     });
   }
 
+  // Line / Route filter
+  const lineSelect = document.getElementById("mgrLineFilterSelect");
+  if (lineSelect) {
+    lineSelect.addEventListener("change", (e) => {
+      currentLineFilter = e.target.value;
+      activeFilteredTickets = filterAndSortTickets(allTickets);
+      selectedRowIndex = 0;
+      renderTableRows(allTickets);
+    });
+  }
+
   // Sort select
   const sortSelect = document.getElementById("mgrSortSelect");
   if (sortSelect) {
@@ -603,6 +648,9 @@ function attachKeyboardShortcuts(allTickets) {
   keyListenerAttached = true;
 
   window.addEventListener("keydown", (e) => {
+    // اختصارات لوحة التذاكر تعمل فقط عندما تكون شاشة الجدول نشطة في الصفحة
+    if (!document.getElementById("mgrTicketsTableBody")) return;
+
     // إذا كان المستخدم يكتب في حقل إدخال أو نص
     const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
     const isInput = tag === "input" || tag === "textarea" || tag === "select";
