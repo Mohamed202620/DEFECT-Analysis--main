@@ -672,6 +672,8 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
     const merged = new Map();
     notClosedSnap.forEach(d => merged.set(d.id, { id: d.id, ...d.data() }));
     recentSnap.forEach(d => { if (!merged.has(d.id)) merged.set(d.id, { id: d.id, ...d.data() }); });
+    recentResolvedSnap.forEach(d => { if (!merged.has(d.id)) merged.set(d.id, { id: d.id, ...d.data() }); });
+    recentUpdatedSnap.forEach(d => { if (!merged.has(d.id)) merged.set(d.id, { id: d.id, ...d.data() }); });
     const tickets = Array.from(merged.values());
     tickets.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
