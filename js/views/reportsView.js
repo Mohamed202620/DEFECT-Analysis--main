@@ -20,22 +20,22 @@ export const ReportsView = () => {
   const isAr = !isEn;
 
   return `
-  <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+  <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-slate-900 dark:text-white">
     <!-- زر الرجوع والعنوان -->
-    <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
       <div class="flex items-center gap-3">
         <button
           type="button"
           onclick="window.goBack('maintenance')"
           class="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 px-3 py-2 rounded-xl text-amber-400 font-black transition-all duration-150 active:scale-95 shadow-sm flex items-center gap-1.5 cursor-pointer">
           <span class="text-base rtl:rotate-180">‹</span>
-          <span class="text-xs text-slate-200">${isEn ? 'Back' : 'رجوع'}</span>
+          <span class="text-xs text-slate-100">${isEn ? 'Back' : 'رجوع'}</span>
         </button>
         <div>
-          <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+          <h2 class="text-base font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">
             <span>📊</span> ${isEn ? 'Reports & Excel Export' : 'مركز تقارير وتصدير البيانات'}
           </h2>
-          <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
             ${isEn ? 'Export official logs with company header and branding' : 'تصدير السجلات الرسمية مع هيدر وشعار الشركة'}
           </p>
         </div>
@@ -43,7 +43,7 @@ export const ReportsView = () => {
     </div>
 
     <!-- بطاقة تأكيد الهوية الرسمية -->
-    <div class="bg-gradient-to-r from-blue-950/40 via-slate-900 to-slate-900 border border-blue-500/20 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
+    <div class="bg-gradient-to-r from-slate-900 via-[#13223a] to-slate-900 text-white border border-blue-500/30 rounded-2xl p-3.5 flex items-start gap-3 shadow-md">
       <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 text-lg shrink-0 mt-0.5">
         🏢
       </div>
@@ -51,7 +51,7 @@ export const ReportsView = () => {
         <div class="font-bold text-blue-300">
           ${isEn ? COMPANY_NAME_EN : COMPANY_NAME_AR}
         </div>
-        <div class="text-[10px] text-gray-400 leading-relaxed">
+        <div class="text-[11px] text-slate-300 leading-relaxed">
           ${isEn 
             ? 'All exported Excel files automatically include the high-resolution company logo, certified ISO standards, timestamps, exporter details, and conditional color badges.' 
             : 'جميع ملفات الإكسيل المُصدّرة تُدرج تلقائياً لوجو الشركة الرسمي بدقة عالية، شهادات الجودة (ISO/FSSC)، بيانات القائم بالتصدير، وتلوين الحالات الذكي.'}
@@ -62,13 +62,13 @@ export const ReportsView = () => {
     <!-- شبكة فلتر التاريخ وبطاقة التصدير الشامل -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
       <!-- فلتر الفترة الزمنية للتصدير -->
-      <div class="bg-[#1E293B] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3 flex flex-col justify-between">
+      <div class="bg-[#1E293B] text-white rounded-2xl p-4 border border-gray-800 shadow-xl space-y-3 flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between mb-2">
-            <label class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
               <span>🗓️</span> ${isEn ? 'Date Range Filter' : 'نطاق الفترة الزمنية للتصدير'}
             </label>
-            <span class="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20 font-medium">
+            <span class="text-[11px] text-blue-300 bg-blue-500/15 px-2 py-0.5 rounded-full border border-blue-500/30 font-semibold">
               ${isEn ? 'Auto Applied' : 'مطبق تلقائياً'}
             </span>
           </div>
@@ -86,12 +86,12 @@ export const ReportsView = () => {
 
         <div id="reportCustomDatesRow" class="hidden grid grid-cols-2 gap-2 pt-1">
           <div>
-            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
+            <label class="block text-[11px] text-slate-300 mb-1">${isEn ? 'From Date' : 'من تاريخ'}</label>
             <input id="reportDateFrom" type="date"
               class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
           </div>
           <div>
-            <label class="block text-[10px] text-gray-400 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
+            <label class="block text-[11px] text-slate-300 mb-1">${isEn ? 'To Date' : 'إلى تاريخ'}</label>
             <input id="reportDateTo" type="date"
               class="w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
           </div>
@@ -99,7 +99,7 @@ export const ReportsView = () => {
       </div>
 
       <!-- بطاقة التصدير الشامل (Master Multi-Sheet Report) -->
-      <div class="bg-gradient-to-br from-emerald-950/50 via-slate-900 to-[#1E293B] rounded-2xl p-4 border border-emerald-500/30 shadow-xl space-y-3 flex flex-col justify-between">
+      <div class="bg-gradient-to-br from-[#0c2924] via-slate-900 to-[#1E293B] text-white rounded-2xl p-4 border border-emerald-500/30 shadow-xl space-y-3 flex flex-col justify-between">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg shrink-0">
             📁
@@ -108,7 +108,7 @@ export const ReportsView = () => {
             <h3 class="text-xs font-black text-emerald-300">
               ${isEn ? 'Master Multi-Sheet Operations Report' : 'التقرير الشامل المجمع (متعدد التبويبات)'}
             </h3>
-            <p class="text-[10px] text-gray-400">
+            <p class="text-[11px] text-slate-300">
               ${isEn ? 'Includes Tickets, PM, and Kaizen in a single structured workbook' : 'يجمع البلاغات والصيانة الوقائية والكايزن في ملف إكسيل واحد ذكي'}
             </p>
           </div>
@@ -127,13 +127,13 @@ export const ReportsView = () => {
 
     <!-- خيارات التصدير الفردية المخصصة -->
     <div class="space-y-2.5">
-      <h3 class="text-xs font-bold text-gray-400 px-1">
+      <h3 class="text-xs font-bold text-slate-700 dark:text-slate-300 px-1">
         ${isEn ? 'Sectional Reports' : 'تقارير الأقسام الفردية'}
       </h3>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <!-- 1. بلاغات الأعطال -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-[#1E293B] hover:bg-[#243348] text-white border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 flex items-center justify-center text-base shrink-0">
               🚨
@@ -142,7 +142,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Breakdown Tickets Log' : 'سجل بلاغات الأعطال والتوقفات'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-[11px] text-slate-300">
                 ${isEn ? 'Machine issues, downtime, technician actions' : 'سجل الأعطال والتوقفات وإجراءات المعالجة'}
               </div>
             </div>
@@ -150,14 +150,14 @@ export const ReportsView = () => {
           <button
             type="button"
             onclick="window.runExcelExport('tickets')"
-            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-300 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
             <span>📤</span>
             <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
           </button>
         </div>
 
         <!-- 2. الصيانة الوقائية -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-[#1E293B] hover:bg-[#243348] text-white border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center text-base shrink-0">
               🛠️
@@ -166,7 +166,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Preventive Maintenance (PM)' : 'سجل الصيانة الوقائية والتفتيش'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-[11px] text-slate-300">
                 ${isEn ? 'Routine checks, checklists, spare parts' : 'الفحوصات الدورية وقطع الغيار'}
               </div>
             </div>
@@ -174,14 +174,14 @@ export const ReportsView = () => {
           <button
             type="button"
             onclick="window.runExcelExport('pm')"
-            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-300 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
             <span>📤</span>
             <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
           </button>
         </div>
 
         <!-- 3. مقترحات كايزن -->
-        <div class="bg-[#1E293B] hover:bg-[#243348] border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
+        <div class="bg-[#1E293B] hover:bg-[#243348] text-white border border-gray-800 hover:border-gray-700 rounded-2xl p-3.5 flex flex-col justify-between gap-3 transition-all duration-150 shadow-md">
           <div class="flex items-center gap-3">
             <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center text-base shrink-0">
               💡
@@ -190,7 +190,7 @@ export const ReportsView = () => {
               <div class="text-xs font-bold text-white">
                 ${isEn ? 'Kaizen Improvement Log' : 'سجل مقترحات كايزن والتطوير'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-[11px] text-slate-300">
                 ${isEn ? 'Suggestions, reviews, implementation' : 'أفكار التحسين ومراحل المراجعة والاعتماد'}
               </div>
             </div>
@@ -198,7 +198,7 @@ export const ReportsView = () => {
           <button
             type="button"
             onclick="window.runExcelExport('suggestions')"
-            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-400 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
+            class="w-full justify-center px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-emerald-300 font-bold text-xs active:scale-95 transition-all duration-150 flex items-center gap-1.5 shadow-sm cursor-pointer">
             <span>📤</span>
             <span>${isEn ? 'Export Excel' : 'تصدير إكسيل'}</span>
           </button>
@@ -207,7 +207,7 @@ export const ReportsView = () => {
     </div>
 
     <!-- مؤشر حالة التصدير المباشر -->
-    <div id="exportStatusBox" class="hidden bg-slate-900 border border-slate-700 rounded-xl p-3 text-center text-xs text-gray-300 animate-pulse">
+    <div id="exportStatusBox" class="hidden bg-slate-900 border border-slate-700 rounded-xl p-3 text-center text-xs text-slate-200 animate-pulse">
       ⏳ جاري سحب البيانات وبناء ملف الإكسيل الرسمي...
     </div>
   </div>
@@ -540,7 +540,7 @@ window.runExcelExport = async function (type) {
         <div class="text-emerald-400 font-bold flex items-center justify-center gap-1.5 mb-1">
           <span>✅</span> <span>${isAr ? 'تم إنشاء التقرير بنجاح وبدء التنزيل!' : 'Report generated and download started!'}</span>
         </div>
-        <div class="text-[10px] text-gray-400">
+        <div class="text-[11px] text-slate-300">
           ${isAr ? 'إذا طلب المتصفح إذناً، اضغط "سماح" (Allow) لإتمام الحفظ.' : 'If browser prompts for permission, click "Allow".'}
         </div>
       `;

@@ -42,7 +42,7 @@ export function renderManagerDesktopHomeHtml() {
               ${isEn ? 'Loading dashboard...' : 'جاري تحميل لوحة المدير...'}
             </span>
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
             ${isEn ? 'Operations data, equipment availability, downtime analysis & decisions' : 'متابعة الجاهزية التشغيلية، ومؤشرات الأعطال، والقرارات المعلقة'}
           </p>
         </div>
@@ -54,7 +54,7 @@ export function renderManagerDesktopHomeHtml() {
           type="button"
           onclick="window.refreshManagerDesktopDashboard()"
           title="${isEn ? 'Refresh Data' : 'تحديث البيانات'}"
-          class="px-3 py-2 text-xs font-bold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-700 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
+          class="px-3 py-2 text-xs font-bold rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer">
           <span id="mgrRefreshSpinner">🔄</span>
           <span>${isEn ? 'Refresh' : 'تحديث'}</span>
         </button>
@@ -62,7 +62,7 @@ export function renderManagerDesktopHomeHtml() {
         <button
           type="button"
           onclick="window.navigateTo('pmOrders')"
-          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 shadow-sm transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
+          class="px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-200 border border-blue-500/40 shadow-sm transition flex items-center gap-1.5 active:scale-95 cursor-pointer">
           <span>🗓️</span>
           <span>${isEn ? 'PM Work Orders' : 'أوامر PM وتوقف الخط'}</span>
         </button>
@@ -82,17 +82,17 @@ export function renderManagerDesktopHomeHtml() {
       
       <!-- كارت: بلاغات مفتوحة -->
       <button type="button" onclick="window.navigateTo('tickets')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-amber-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'Open Tickets' : 'بلاغات قيد الإجراء'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">⚠️</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiOpen" class="text-2xl font-black text-amber-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 flex items-center gap-0.5">
+          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center gap-0.5">
             <span>●</span> ${isEn ? 'Active' : 'نشط'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span class="text-amber-500 font-bold">↗</span>
           <span>${isEn ? 'Requires prompt assignment' : 'تحتاج إسناد ومتابعة فورية'}</span>
         </div>
@@ -100,17 +100,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متأخرة عن SLA -->
       <button type="button" onclick="window.openTicketsWithFilter('overdue')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-red-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'Overdue (SLA)' : 'تجاوزت وقت الاستجابة SLA'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🚨</span>
         </div>
         <div class="flex items-baseline justify-between">
           <div id="mgrKpiOverdue" class="text-2xl font-black text-red-500">--</div>
-          <span id="mgrKpiOverdueBadge" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">
+          <span id="mgrKpiOverdueBadge" class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-700 dark:text-red-300">
             ${isEn ? 'Critical' : 'حرج'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span class="text-red-500 font-bold">⚠️</span>
           <span>${isEn ? 'Breached SLA threshold' : 'تجاوزت الحد المسموح للإصلاح'}</span>
         </div>
@@ -118,17 +118,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متوسط زمن الإصلاح MTTR -->
       <div class="mgr-card p-4 hover:border-cyan-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'MTTR (Mean Repair Time)' : 'متوسط زمن الإصلاح MTTR'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">⏱️</span>
         </div>
         <div class="flex items-baseline justify-between">
-          <div id="mgrKpiMttr" class="text-2xl font-black text-cyan-500">--</div>
-          <span id="mgrKpiMttrTrend" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400">
+          <div id="mgrKpiMttr" class="text-2xl font-black text-cyan-600 dark:text-cyan-400">--</div>
+          <span id="mgrKpiMttrTrend" class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300">
             --
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span>🎯</span>
           <span>${isEn ? 'Target: < 2.5 hrs' : 'الهدف المعياري: أقل من ساعتين ونصف'}</span>
         </div>
@@ -136,17 +136,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: متوسط الزمن بين الأعطال MTBF -->
       <div class="mgr-card p-4 hover:border-indigo-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'MTBF (Estimated)' : 'زمن بين الأعطال MTBF (تقديري)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛡️</span>
         </div>
         <div class="flex items-baseline justify-between">
-          <div id="mgrKpiMtbf" class="text-2xl font-black text-indigo-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">
+          <div id="mgrKpiMtbf" class="text-2xl font-black text-indigo-600 dark:text-indigo-400">--</div>
+          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300">
             ${isEn ? 'Estimate' : 'تقديري'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span>📈</span>
           <span>${isEn ? 'Higher is better' : 'مؤشر موثوقية المعدات والخطوط'}</span>
         </div>
@@ -154,17 +154,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: نسبة إنجاز الصيانة الوقائية PM -->
       <button type="button" onclick="window.navigateTo('pmOrders')" class="mgr-card p-4 text-start w-full cursor-pointer hover:border-emerald-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'PM Compliance' : 'إنجاز الصيانة الوقائية PM'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">📋</span>
         </div>
         <div class="flex items-baseline justify-between">
-          <div id="mgrKpiPmRate" class="text-2xl font-black text-emerald-500">--%</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400">
+          <div id="mgrKpiPmRate" class="text-2xl font-black text-emerald-600 dark:text-emerald-400">--%</div>
+          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
             ${isEn ? 'Compliance' : 'مطابقة'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span>✅</span>
           <span id="mgrKpiPmCounts">${isEn ? 'PM orders this month' : 'أوامر PM هذا الشهر'}</span>
         </div>
@@ -172,17 +172,17 @@ export function renderManagerDesktopHomeHtml() {
 
       <!-- كارت: إجمالي ساعات التوقف هذا الشهر -->
       <div class="mgr-card p-4 hover:border-purple-500/50 group relative overflow-hidden">
-        <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+        <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-1">
           <span class="font-bold">${isEn ? 'Breakdown Hours (30d)' : 'ساعات الأعطال (آخر 30 يوم)'}</span>
           <span class="text-base group-hover:scale-110 transition-transform">🛑</span>
         </div>
         <div class="flex items-baseline justify-between">
-          <div id="mgrKpiDowntime" class="text-2xl font-black text-purple-500">--</div>
-          <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400">
+          <div id="mgrKpiDowntime" class="text-2xl font-black text-purple-600 dark:text-purple-400">--</div>
+          <span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300">
             ${isEn ? 'Total Hrs' : 'ساعة إجمالية'}
           </span>
         </div>
-        <div class="text-[10px] text-gray-400 mt-2 flex items-center gap-1">
+        <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-2 flex items-center gap-1">
           <span>📉</span>
           <span>${isEn ? 'Total breakdown ticket hours' : 'مجموع ساعات بلاغات الأعطال'}</span>
         </div>
@@ -204,18 +204,18 @@ export function renderManagerDesktopHomeHtml() {
                 <span>📊</span>
                 <span>${isEn ? 'Chronic Machine Defects (Pareto Analysis)' : 'أكثر الماكينات عطلاً (تحليل باريتو)'}</span>
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
                 ${isEn ? 'Frequency distribution & 80/20 critical breakdown focus' : 'تكرار الأعطال للتركيز على الماكينات الأكثر تأثيراً'}
               </p>
             </div>
-            <span class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-mono">
+            <span class="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-slate-700 dark:text-slate-200 font-mono font-bold">
               Top 6
             </span>
           </div>
 
           <div class="relative h-[240px] w-full flex items-center justify-center">
             <canvas id="mgrParetoChart"></canvas>
-            <div id="mgrParetoEmpty" class="hidden text-xs text-gray-400 text-center">
+            <div id="mgrParetoEmpty" class="hidden text-xs text-slate-600 dark:text-slate-300 text-center">
               ${isEn ? 'No enough breakdown data for Pareto analysis' : 'لا توجد بيانات أعطال كافية لتحليل باريتو'}
             </div>
           </div>
@@ -229,21 +229,21 @@ export function renderManagerDesktopHomeHtml() {
                 <span>📈</span>
                 <span>${isEn ? 'Breakdown Inflow & Resolution Trend' : 'اتجاه تدفق البلاغات والإغلاق'}</span>
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+              <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
                 ${isEn ? 'Daily comparison of new reports vs resolved' : 'مقارنة يومية بين البلاغات الجديدة وما تم إصلاحه'}
               </p>
             </div>
             <div class="flex items-center gap-1">
               <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-              <span class="text-[10px] text-gray-400 me-2">${isEn ? 'New' : 'جديد'}</span>
+              <span class="text-[11px] text-slate-600 dark:text-slate-300 font-medium me-2">${isEn ? 'New' : 'جديد'}</span>
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span class="text-[10px] text-gray-400">${isEn ? 'Fixed' : 'تم إصلاحه'}</span>
+              <span class="text-[11px] text-slate-600 dark:text-slate-300 font-medium">${isEn ? 'Fixed' : 'تم إصلاحه'}</span>
             </div>
           </div>
 
           <div class="relative h-[240px] w-full flex items-center justify-center">
             <canvas id="mgrTrendChart"></canvas>
-            <div id="mgrTrendEmpty" class="hidden text-xs text-gray-400 text-center">
+            <div id="mgrTrendEmpty" class="hidden text-xs text-slate-600 dark:text-slate-300 text-center">
               ${isEn ? 'No trend data available' : 'لا توجد بيانات اتجاه كافية'}
             </div>
           </div>
@@ -262,12 +262,12 @@ export function renderManagerDesktopHomeHtml() {
               <h3 class="text-sm font-bold text-gray-900 dark:text-white">
                 ${isEn ? 'Immediate Decisions Desk' : 'يحتاج قراراً الآن (مركز الموافقات والإسناد)'}
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400">
+              <p class="text-[11px] text-slate-600 dark:text-slate-300">
                 ${isEn ? 'Pending unassigned tickets, SLA risks, and new user access requests' : 'بلاغات بانتظار التعيين، أعطال حرجة، وطلبات مستخدمين جديدة بانتظار الاعتماد'}
               </p>
             </div>
           </div>
-          <span id="mgrDecisionsCount" class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">
+          <span id="mgrDecisionsCount" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
             0 ${isEn ? 'Actions' : 'إجراءات'}
           </span>
         </div>
@@ -275,7 +275,7 @@ export function renderManagerDesktopHomeHtml() {
         <div class="mgr-table-container border border-gray-200 dark:border-gray-800 rounded-lg">
           <table class="w-full text-start text-xs border-collapse">
             <thead>
-              <tr class="bg-gray-50 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
+              <tr class="bg-gray-50 dark:bg-gray-800/80 text-slate-700 dark:text-slate-200 border-b border-gray-200 dark:border-gray-800">
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Type' : 'النوع'}</th>
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Item / Target' : 'العنصر / الهدف'}</th>
                 <th class="py-2.5 px-3 font-semibold text-start">${isEn ? 'Priority / Department' : 'الأولوية / القسم'}</th>
@@ -285,7 +285,7 @@ export function renderManagerDesktopHomeHtml() {
             </thead>
             <tbody id="mgrDecisionsTableBody" class="divide-y divide-gray-100 dark:divide-gray-800/60">
               <tr>
-                <td colspan="5" class="py-6 text-center text-gray-400">
+                <td colspan="5" class="py-6 text-center text-slate-600 dark:text-slate-300">
                   <div class="inline-block animate-spin w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full mb-1"></div>
                   <div>${isEn ? 'Scanning pending decisions...' : 'جاري فحص العناصر التي تحتاج لقرار...'}</div>
                 </td>
@@ -309,7 +309,7 @@ export function renderManagerDesktopHomeHtml() {
               <h3 class="text-sm font-bold text-gray-900 dark:text-white">
                 ${isEn ? 'Technician Workload & Performance' : 'أداء الفنيين وحمل العمل المباشر'}
               </h3>
-              <p class="text-[10px] text-gray-500 dark:text-gray-400">
+              <p class="text-[11px] text-slate-600 dark:text-slate-300">
                 ${isEn ? 'Active assigned tasks vs resolved' : 'توزيع التذاكر النشطة والإصلاحات المكتملة'}
               </p>
             </div>
@@ -317,13 +317,13 @@ export function renderManagerDesktopHomeHtml() {
           <button
             type="button"
             onclick="window.navigateTo('tickets')"
-            class="text-[11px] text-blue-500 hover:underline font-bold">
+            class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-bold">
             ${isEn ? 'View Board' : 'فتح اللوحة'}
           </button>
         </div>
 
         <div id="mgrTechWorkloadList" class="space-y-3 pt-1">
-          <div class="py-6 text-center text-gray-400 text-xs">
+          <div class="py-6 text-center text-slate-600 dark:text-slate-300 text-xs">
             ${isEn ? 'Loading technician statistics...' : 'جاري تحميل إحصائيات الفنيين...'}
           </div>
         </div>
@@ -336,25 +336,25 @@ export function renderManagerDesktopHomeHtml() {
             <span>🏭</span>
             <span>${isEn ? 'Operations Pulse & Shifts' : 'النبض التشغيلي والورديات'}</span>
           </h3>
-          <span id="mgrOperationsStatus" role="status" class="text-[10px] font-bold text-gray-400 bg-gray-500/10 px-2 py-0.5 rounded">
+          <span id="mgrOperationsStatus" role="status" class="text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-gray-500/10 px-2 py-0.5 rounded">
             ${isEn ? 'Online' : 'جاهز'}
           </span>
         </div>
 
         <div class="space-y-2 text-xs">
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Current Shift' : 'الوردية الحالية'}</span>
-            <span id="mgrCurrentShiftName" class="font-bold text-blue-500 font-mono">--</span>
+            <span class="text-slate-700 dark:text-slate-200 font-medium">${isEn ? 'Current Shift' : 'الوردية الحالية'}</span>
+            <span id="mgrCurrentShiftName" class="font-bold text-blue-600 dark:text-blue-400 font-mono">--</span>
           </div>
 
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Total Tracked Equipment' : 'إجمالي الماكينات المسجلة'}</span>
+            <span class="text-slate-700 dark:text-slate-200 font-medium">${isEn ? 'Total Tracked Equipment' : 'إجمالي الماكينات المسجلة'}</span>
             <span id="mgrTotalMachinesCount" class="font-bold text-gray-900 dark:text-white font-mono">--</span>
           </div>
 
           <div class="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-800">
-            <span class="text-gray-600 dark:text-gray-300 font-medium">${isEn ? 'Pending Registrations' : 'طلبات تسجيل معلقة'}</span>
-            <span id="mgrPendingUsersCount" class="font-bold text-amber-500 font-mono">0</span>
+            <span class="text-slate-700 dark:text-slate-200 font-medium">${isEn ? 'Pending Registrations' : 'طلبات تسجيل معلقة'}</span>
+            <span id="mgrPendingUsersCount" class="font-bold text-amber-600 dark:text-amber-400 font-mono">0</span>
           </div>
         </div>
 
@@ -462,8 +462,8 @@ async function _initManagerDesktopHomeData() {
           ? (isEn ? "Cached data" : "بيانات مخزنة")
           : (isEn ? "Online" : "متصل");
       operationsStatus.className = isOffline || dashboardIsCached
-        ? "text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded"
-        : "text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded";
+        ? "text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded"
+        : "text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded";
     }
     // تحليلات الأعطال (MTTR/MTBF/باريتو/الاتجاه/التوقف) تستبعد أوامر الصيانة الوقائية PM
     const cmTickets = tickets.filter(t => String(t.maintenanceType || '').trim().toUpperCase() !== 'PM');
@@ -516,10 +516,10 @@ async function _initManagerDesktopHomeData() {
       const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
       if (overdueBadge) {
         overdueBadge.className = overdueCount === null
-          ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-400"
+          ? "text-[11px] font-bold px-2 py-0.5 rounded bg-gray-500/15 text-slate-600 dark:text-slate-300"
           : overdueCount > 0
-            ? "text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-400 animate-pulse border border-red-500/40"
-            : "text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400";
+            ? "text-[11px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-700 dark:text-red-300 animate-pulse border border-red-500/40"
+            : "text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300";
         overdueBadge.textContent = overdueCount === null
           ? (isEn ? 'Unavailable' : 'غير متاح')
           : overdueCount > 0
@@ -534,7 +534,7 @@ async function _initManagerDesktopHomeData() {
       setTxt("mgrKpiMttrTrend", "--");
       const overdueBadge = document.getElementById("mgrKpiOverdueBadge");
       if (overdueBadge) {
-        overdueBadge.className = "text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-500/15 text-gray-400";
+        overdueBadge.className = "text-[11px] font-bold px-2 py-0.5 rounded bg-gray-500/15 text-slate-600 dark:text-slate-300";
         overdueBadge.textContent = isEn ? "Unavailable" : "غير متاح";
       }
       showChartMessage("mgrParetoChart", "mgrParetoEmpty", isEn ? "Data unavailable" : "تعذر تحميل البيانات");
@@ -585,10 +585,10 @@ function setManagerDataStatus(state, isEn) {
   };
   status.textContent = labels[state] || labels.error;
   status.className = state === "live"
-    ? "px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+    ? "px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
     : state === "cached" || state === "cachedPartial" || state === "partial" || state === "error"
-      ? "px-2 py-0.5 text-[11px] font-bold rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30"
-      : "px-2 py-0.5 text-[11px] font-bold rounded-full bg-gray-500/15 text-gray-400 border border-gray-500/30";
+      ? "px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+      : "px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-gray-500/15 text-slate-600 dark:text-slate-300 border border-gray-500/30";
 }
 
 function showChartMessage(canvasId, emptyId, message) {
@@ -643,8 +643,8 @@ function renderParetoChart(tickets, isEn) {
   });
 
   const isDark = document.documentElement.classList.contains("dark");
-  const textColor = isDark ? "#94a3b8" : "#64748b";
-  const gridColor = isDark ? "rgba(51, 65, 85, 0.4)" : "rgba(226, 232, 240, 0.6)";
+  const textColor = isDark ? "#e2e8f0" : "#334155";
+  const gridColor = isDark ? "rgba(71, 85, 105, 0.45)" : "rgba(203, 213, 225, 0.7)";
 
   paretoChartInstance = new Chart(canvas, {
     data: {
@@ -679,7 +679,7 @@ function renderParetoChart(tickets, isEn) {
         legend: {
           display: true,
           position: 'top',
-          labels: { color: textColor, font: { size: 10 } }
+          labels: { color: textColor, font: { size: 11 } }
         },
         tooltip: {
           callbacks: {
@@ -694,14 +694,14 @@ function renderParetoChart(tickets, isEn) {
       },
       scales: {
         x: {
-          ticks: { color: textColor, font: { size: 10 } },
+          ticks: { color: textColor, font: { size: 11 } },
           grid: { display: false }
         },
         y: {
           type: 'linear',
           display: true,
           position: 'left',
-          ticks: { color: textColor, precision: 0, font: { size: 10 } },
+          ticks: { color: textColor, precision: 0, font: { size: 11 } },
           grid: { color: gridColor }
         },
         y1: {
@@ -712,7 +712,7 @@ function renderParetoChart(tickets, isEn) {
           max: 100,
           ticks: {
             color: '#ef4444',
-            font: { size: 9 },
+            font: { size: 11 },
             callback: v => `${v}%`
           },
           grid: { drawOnChartArea: false }
@@ -744,8 +744,8 @@ function renderTrendChart(tickets, isEn) {
   if (emptyEl) emptyEl.classList.add("hidden");
 
   const isDark = document.documentElement.classList.contains("dark");
-  const textColor = isDark ? "#94a3b8" : "#64748b";
-  const gridColor = isDark ? "rgba(51, 65, 85, 0.4)" : "rgba(226, 232, 240, 0.6)";
+  const textColor = isDark ? "#e2e8f0" : "#334155";
+  const gridColor = isDark ? "rgba(71, 85, 105, 0.45)" : "rgba(203, 213, 225, 0.7)";
 
   trendChartInstance = new Chart(canvas, {
     type: 'line',
@@ -782,16 +782,16 @@ function renderTrendChart(tickets, isEn) {
         legend: {
           display: true,
           position: 'top',
-          labels: { color: textColor, font: { size: 10 } }
+          labels: { color: textColor, font: { size: 11 } }
         }
       },
       scales: {
         x: {
-          ticks: { color: textColor, font: { size: 9 } },
+          ticks: { color: textColor, font: { size: 11 } },
           grid: { color: gridColor }
         },
         y: {
-          ticks: { color: textColor, precision: 0, font: { size: 10 } },
+          ticks: { color: textColor, precision: 0, font: { size: 11 } },
           grid: { color: gridColor }
         }
       }
@@ -822,7 +822,7 @@ function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, u
         rank: isOverdue ? 0 : 1,
         ts: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.getTime() || 0,
         badge: isOverdue ? (isEn ? 'SLA Breach' : 'تأخر SLA') : (isEn ? 'High Priority' : 'أولوية قصوى'),
-        badgeClass: 'bg-red-500/15 text-red-400 border border-red-500/30',
+        badgeClass: 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30',
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Breakdown' : 'عطل')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.assignedTo || (isEn ? 'Unassigned' : 'غير معين')}`,
         time: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) || '-',
@@ -836,7 +836,7 @@ function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, u
         rank: 3,
         ts: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.getTime() || 0,
         badge: isEn ? 'Unassigned' : 'بانتظار الإسناد',
-        badgeClass: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        badgeClass: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30',
         title: `${t.machine || (isEn ? 'Machine' : 'ماكينة')} - ${t.description ? (String(t.description).slice(0, 45) + (String(t.description).length > 45 ? '...' : '')) : (isEn ? 'Pending Ticket' : 'بلاغ جديد')}`,
         meta: `${t.line || (isEn ? 'General' : 'عام')} • ${t.reportedBy || (isEn ? 'User' : 'مستخدم')}`,
         time: (parseTicketDate(t.createdAtServer) || parseTicketDate(t))?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) || '-',
@@ -854,11 +854,11 @@ function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, u
         rank: 2,
         ts: parseTicketDate(u.createdAt)?.getTime() || 0,
         badge: isEn ? 'User Request' : 'طلب انضمام',
-        badgeClass: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/30',
+        badgeClass: 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30',
         title: `${u.name || (isEn ? 'New User' : 'مستخدم جديد')} (${u.job || u.role || 'Member'})`,
         meta: `${u.phone || ''} • ${u.department || (isEn ? 'Production' : 'الإنتاج')}`,
         time: parseTicketDate(u.createdAt)?.toLocaleDateString(isEn ? 'en-US' : 'ar-EG', { month: 'numeric', day: 'numeric' }) || '-',
-        actionBtn: `<span class="text-[10px] font-bold text-indigo-400">${isEn ? 'Administrator approval required' : 'يتطلب اعتماد مدير النظام'}</span>`
+        actionBtn: `<span class="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">${isEn ? 'Administrator approval required' : 'يتطلب اعتماد مدير النظام'}</span>`
       });
     }
   });
@@ -879,12 +879,12 @@ function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, u
   if (!decisions.length && !availabilityMessages.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" class="py-8 text-center text-gray-400">
+        <td colspan="5" class="py-8 text-center text-slate-600 dark:text-slate-300">
           <div class="text-2xl mb-1">🎉</div>
-          <div class="font-bold text-gray-700 dark:text-gray-300 text-xs">
+          <div class="font-bold text-slate-800 dark:text-slate-200 text-xs">
             ${isEn ? 'All operational decisions are up to date' : 'رائع! لا توجد قرارات أو بلاغات حرجة معلقة الآن'}
           </div>
-          <div class="text-[10px] text-gray-500 mt-0.5">
+          <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
             ${isEn ? 'No SLA breaches or unassigned tasks' : 'كافة التذاكر مسندة ولا توجد تجاوزات في أوقات الإصلاح'}
           </div>
         </td>
@@ -900,24 +900,24 @@ function renderDecisionsTable(tickets, users, isEn, { ticketsAvailable = true, u
   const hiddenTicketCount = hiddenItems.filter(item => item.type !== "user_request").length;
   const hiddenUserCount = hiddenItems.filter(item => item.type === "user_request").length;
   const footerActions = [
-    hiddenTicketCount ? `<button type="button" onclick="window.openTicketsWithFilter('all')" class="text-[11px] text-blue-500 hover:underline font-bold cursor-pointer">${isEn ? `View remaining tickets (${hiddenTicketCount})` : `عرض باقي البلاغات (${hiddenTicketCount})`}</button>` : "",
-    hiddenUserCount ? `<span class="text-[11px] text-indigo-400 font-bold">${isEn ? `${hiddenUserCount} more requests require administrator review` : `${hiddenUserCount} طلب إضافي يتطلب مراجعة مدير النظام`}</span>` : ""
+    hiddenTicketCount ? `<button type="button" onclick="window.openTicketsWithFilter('all')" class="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-bold cursor-pointer">${isEn ? `View remaining tickets (${hiddenTicketCount})` : `عرض باقي البلاغات (${hiddenTicketCount})`}</button>` : "",
+    hiddenUserCount ? `<span class="text-[11px] text-indigo-700 dark:text-indigo-300 font-bold">${isEn ? `${hiddenUserCount} more requests require administrator review` : `${hiddenUserCount} طلب إضافي يتطلب مراجعة مدير النظام`}</span>` : ""
   ].filter(Boolean);
 
   tbody.innerHTML = visibleItems.map(item => `
     <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40 transition">
       <td class="py-2.5 px-3">
-        <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${item.badgeClass}">
+        <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ${item.badgeClass}">
           ${item.badge}
         </span>
       </td>
       <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-white max-w-[280px] truncate" title="${escapeHtml(item.title)}">
         ${escapeHtml(item.title)}
       </td>
-      <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400">
+      <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">
         ${escapeHtml(item.meta)}
       </td>
-      <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400 font-mono text-[11px]">
+      <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
         ${item.time}
       </td>
       <td class="py-2.5 px-3 text-center">
@@ -981,7 +981,7 @@ function renderTechnicianWorkload(tickets, users, isEn, { ticketsAvailable = tru
 
   if (!sortedTechs.length) {
     container.innerHTML = `
-      <div class="py-4 text-center text-gray-400 text-xs">
+      <div class="py-4 text-center text-slate-600 dark:text-slate-300 text-xs">
         ${usersAvailable
           ? (isEn ? 'No technician assigned records found' : 'لا توجد بيانات تعيين لفنيين حتى الآن')
           : (isEn ? 'Technician roster could not be loaded.' : 'تعذر تحميل قائمة الفنيين.')}
@@ -1000,14 +1000,14 @@ function renderTechnicianWorkload(tickets, users, isEn, { ticketsAvailable = tru
       <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
         <div class="flex items-center justify-between text-xs mb-1.5">
           <div class="flex items-center gap-1.5">
-            <span class="w-5 h-5 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-[10px]">
+            <span class="w-5 h-5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold text-[11px]">
               ${idx + 1}
             </span>
             <span class="font-bold text-gray-900 dark:text-white truncate max-w-[130px]">${escapeHtml(data.name)}</span>
           </div>
-          <div class="flex items-center gap-2 font-mono text-[10px]">
-            <span class="text-amber-500 font-bold" title="${isEn ? 'Active Workload' : 'مهام جارية'}">⚡ ${data.active}</span>
-            <span class="text-emerald-500 font-bold" title="${isEn ? 'Resolved' : 'تم حلها'}">✅ ${data.resolved}</span>
+          <div class="flex items-center gap-2 font-mono text-[11px]">
+            <span class="text-amber-600 dark:text-amber-400 font-bold" title="${isEn ? 'Active Workload' : 'مهام جارية'}">⚡ ${data.active}</span>
+            <span class="text-emerald-600 dark:text-emerald-400 font-bold" title="${isEn ? 'Resolved' : 'تم حلها'}">✅ ${data.resolved}</span>
           </div>
         </div>
 
@@ -1019,7 +1019,7 @@ function renderTechnicianWorkload(tickets, users, isEn, { ticketsAvailable = tru
       </div>
     `;
   }).join("") + (!usersAvailable
-    ? `<div class="text-center text-amber-500 text-[10px]">${isEn ? "Technician roster may be incomplete." : "قد تكون قائمة الفنيين غير مكتملة."}</div>`
+    ? `<div class="text-center text-amber-600 dark:text-amber-400 text-[11px]">${isEn ? "Technician roster may be incomplete." : "قد تكون قائمة الفنيين غير مكتملة."}</div>`
     : "");
 }
 

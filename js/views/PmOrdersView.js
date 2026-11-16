@@ -175,16 +175,16 @@ const pmStatusLabel = status => ({
 }[status] || valueOrDash(status));
 
 const PM_STATUS_CLASS = {
-  completed: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
-  completed_partial: "bg-orange-500/20 text-orange-300 border border-orange-500/30",
-  planned: "bg-blue-500/20 text-blue-300 border border-blue-500/30",
-  in_progress: "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30",
-  deferred: "bg-gray-500/20 text-gray-300 border border-gray-500/30",
-  unplanned: "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+  completed: "bg-emerald-500/20 text-emerald-200 border border-emerald-500/40",
+  completed_partial: "bg-orange-500/20 text-orange-200 border border-orange-500/40",
+  planned: "bg-blue-500/20 text-blue-200 border border-blue-500/40",
+  in_progress: "bg-cyan-500/20 text-cyan-200 border border-cyan-500/40",
+  deferred: "bg-slate-600/35 text-slate-200 border border-slate-500/40",
+  unplanned: "bg-amber-500/20 text-amber-200 border border-amber-500/40"
 };
 const pmStatusBadge = status => {
   const key = status || "unplanned";
-  return `<span class="whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-bold ${PM_STATUS_CLASS[key] || PM_STATUS_CLASS.unplanned}">${escapeHtml(pmStatusLabel(key))}</span>`;
+  return `<span class="whitespace-nowrap px-2 py-0.5 rounded text-[11px] font-bold ${PM_STATUS_CLASS[key] || PM_STATUS_CLASS.unplanned}">${escapeHtml(pmStatusLabel(key))}</span>`;
 };
 
 const PM_TASK_STAGES = ["assigned", "in_progress"];
@@ -230,7 +230,7 @@ function getTaskActionButtons(order) {
       if (taskStageReady(order)) {
         btns.push(pmBtn("bg-emerald-600 hover:bg-emerald-500", "executePmTasks", id, label("▶ تنفيذ", "▶ Execute")));
       } else {
-        btns.push(`<span class="text-[10px] text-gray-500">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`);
+        btns.push(`<span class="text-[11px] text-slate-300">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`);
       }
     }
   }
@@ -243,7 +243,7 @@ function getTaskActionButtons(order) {
   }
   if (status === "completed_partial") {
     if (order.followupTicketId) {
-      btns.push(`<span class="rounded px-2 py-1 text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">${label("تمت المتابعة", "Follow-up created")}</span>`);
+      btns.push(`<span class="rounded px-2 py-1 text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/40">${label("تمت المتابعة", "Follow-up created")}</span>`);
     } else if (canCreateFollowup() && (order.remainingTasks || []).length) {
       btns.push(pmBtn("bg-rose-600 hover:bg-rose-500", "createFollowupFromRemaining", id, label("متابعة المتبقي", "Follow-up")));
     }
@@ -255,7 +255,7 @@ function taskProgressCell(order) {
   const { total, done, notDone } = taskStats(order);
   if (!total) return "";
   const pct = Math.round((done / total) * 100);
-  return `<div class="mt-1.5 flex items-center gap-2"><div class="h-1.5 w-16 overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div><span class="text-[10px] font-bold text-gray-300">${done}/${total}${notDone ? ` · ❌${notDone}` : ""}</span></div>`;
+  return `<div class="mt-1.5 flex items-center gap-2"><div class="h-1.5 w-16 overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div><span class="text-[11px] font-bold text-slate-200">${done}/${total}${notDone ? ` · ❌${notDone}` : ""}</span></div>`;
 }
 
 function filteredPmOrders() {
@@ -302,25 +302,25 @@ function orderRow(order) {
   const downtime = isDowntime(order);
   const canMark = canPlanPmOrders() && isOpenOrder(order);
   const downtimeBadge = canMark
-    ? `<button type="button" data-downtime-toggle="${escapeHtml(order.id)}" title="${label("تبديل توقف الخط", "Toggle line downtime")}" class="rounded px-2 py-0.5 text-[10px] font-bold border transition ${downtime ? "bg-rose-500/25 text-rose-200 border-rose-500/50" : "bg-transparent text-gray-500 border-gray-700 hover:text-rose-300 hover:border-rose-500/40"}">⚡ ${downtime ? label("توقف الخط", "Downtime") : ""}</button>`
-    : (downtime ? `<span class="rounded px-2 py-0.5 text-[10px] font-bold border bg-rose-500/25 text-rose-200 border-rose-500/50">⚡ ${label("توقف الخط", "Downtime")}</span>` : "");
+    ? `<button type="button" data-downtime-toggle="${escapeHtml(order.id)}" title="${label("تبديل توقف الخط", "Toggle line downtime")}" class="rounded px-2 py-0.5 text-[11px] font-bold border transition ${downtime ? "bg-rose-500/25 text-rose-200 border-rose-500/50" : "bg-transparent text-slate-300 border-slate-600 hover:text-rose-200 hover:border-rose-500/40"}">⚡ ${downtime ? label("توقف الخط", "Downtime") : ""}</button>`
+    : (downtime ? `<span class="rounded px-2 py-0.5 text-[11px] font-bold border bg-rose-500/25 text-rose-200 border-rose-500/50">⚡ ${label("توقف الخط", "Downtime")}</span>` : "");
   return `
-    <div class="flex gap-2 border-b border-gray-800 p-3 transition-colors ${checked ? "bg-blue-950/20" : overdue ? "bg-rose-950/10" : "hover:bg-gray-800/40"}">
+    <div class="flex gap-2 border-b border-gray-800 p-3 transition-colors ${checked ? "bg-blue-950/30" : overdue ? "bg-rose-950/20" : "hover:bg-gray-800/40"}">
       <input type="checkbox" data-order-id="${escapeHtml(order.id)}" ${checked ? "checked" : ""} aria-label="${label("تحديد", "Select")}" class="pmRowCheckbox mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-600 bg-slate-900 text-blue-600">
       <div class="grid min-w-0 flex-1 grid-cols-1 items-center gap-2 ${GRID_COLS}">
         <div class="min-w-0">
           <div class="font-mono text-xs font-bold text-blue-300">${escapeHtml(orderNumber(order))}</div>
-          <div class="truncate text-[10px] text-gray-400">${order.originalUnifiedNumber ? `${label("البلاغ", "Ticket")}: ${escapeHtml(displayRecordNumber({ unifiedNumber: order.originalUnifiedNumber }))}` : ""}</div>
+          <div class="truncate text-[11px] text-slate-300">${order.originalUnifiedNumber ? `${label("البلاغ", "Ticket")}: ${escapeHtml(displayRecordNumber({ unifiedNumber: order.originalUnifiedNumber }))}` : ""}</div>
         </div>
         <div class="min-w-0">
-          <div class="truncate text-xs font-bold text-gray-100">${escapeHtml(valueOrDash(order.machine))}</div>
-          <div class="truncate text-[10px] text-gray-400">${escapeHtml(valueOrDash(order.line))}${order.description ? ` · ${escapeHtml(order.description)}` : ""}</div>
+          <div class="truncate text-xs font-bold text-white">${escapeHtml(valueOrDash(order.machine))}</div>
+          <div class="truncate text-[11px] text-slate-300">${escapeHtml(valueOrDash(order.line))}${order.description ? ` · ${escapeHtml(order.description)}` : ""}</div>
         </div>
-        <div class="text-xs ${overdue ? "font-bold text-rose-300" : "text-gray-200"}">
+        <div class="text-xs ${overdue ? "font-bold text-rose-300" : "text-slate-100"}">
           ${planned ? `📅 ${escapeHtml(planned)}` : `<span class="text-amber-300">${unscheduledLabel()}</span>`}
-          ${overdue ? `<div class="text-[10px] font-bold text-rose-400">⏰ ${label("متأخر", "Overdue")}</div>` : ""}
+          ${overdue ? `<div class="text-[11px] font-bold text-rose-300">⏰ ${label("متأخر", "Overdue")}</div>` : ""}
         </div>
-        <div class="truncate text-xs ${order.assignedTo ? "text-gray-200" : "text-blue-300"}">👤 ${escapeHtml(order.assignedTo || unassignedLabel())}</div>
+        <div class="truncate text-xs ${order.assignedTo ? "text-slate-100" : "text-blue-300"}">👤 ${escapeHtml(order.assignedTo || unassignedLabel())}</div>
         <div>
           <div class="flex flex-wrap items-center gap-1.5">${pmStatusBadge(status)}${downtimeBadge}</div>
           ${taskProgressCell(order)}
@@ -331,7 +331,7 @@ function orderRow(order) {
 }
 
 function chipButton(key, text, count, active, onCls) {
-  return `<button type="button" ${key === "downtime" ? 'id="pmQuickDowntimeBtn"' : ""} data-chip="${key}" aria-pressed="${active}" class="rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? onCls : "border-gray-700 bg-gray-800 text-gray-300 hover:bg-gray-700"}">${text}: ${count}</button>`;
+  return `<button type="button" ${key === "downtime" ? 'id="pmQuickDowntimeBtn"' : ""} data-chip="${key}" aria-pressed="${active}" class="rounded-lg border px-3 py-2 text-xs font-bold transition ${active ? onCls : "border-gray-700 bg-gray-800 text-slate-200 hover:bg-gray-700"}">${text}: ${count}</button>`;
 }
 
 window.switchPmTab = function(tabName) {
@@ -365,53 +365,53 @@ function renderPlanCard(plan) {
     : label("لم يُسجل تنفيذ بعد", "Never executed");
 
   const lastResultBadge = lastExec?.result === "completed"
-    ? `<span class="text-emerald-400 font-bold text-[10px]">✅ ${label("مكتمل", "Done")}</span>`
+    ? `<span class="text-emerald-300 font-bold text-[11px]">✅ ${label("مكتمل", "Done")}</span>`
     : lastExec?.result === "completed_partial"
-    ? `<span class="text-amber-400 font-bold text-[10px]">⚠️ ${label("جزئي", "Partial")}</span>`
+    ? `<span class="text-amber-300 font-bold text-[11px]">⚠️ ${label("جزئي", "Partial")}</span>`
     : lastExec?.result === "deferred"
-    ? `<span class="text-rose-400 font-bold text-[10px]">⏸️ ${label("مؤجل", "Deferred")}</span>`
+    ? `<span class="text-rose-300 font-bold text-[11px]">⏸️ ${label("مؤجل", "Deferred")}</span>`
     : "";
 
   return `
-    <div class="rounded-xl border border-gray-800 bg-[#1E293B] hover:border-gray-700 transition p-4 space-y-3 flex flex-col justify-between shadow-md">
+    <div class="rounded-xl border border-gray-800 bg-[#1E293B] text-white hover:border-gray-700 transition p-4 space-y-3 flex flex-col justify-between shadow-md">
       <div>
         <div class="flex items-start justify-between gap-2 border-b border-gray-800/80 pb-2.5">
           <div>
             <div class="flex items-center gap-2">
               <span class="text-base font-black text-white">${e(plan.machine)}</span>
-              <span class="rounded px-1.5 py-0.5 text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
+              <span class="rounded px-1.5 py-0.5 text-[11px] font-bold bg-blue-500/20 text-blue-200 border border-blue-500/30">${e(plan.line || "Line 1")}</span>
             </div>
-            <div class="text-[11px] text-gray-400 mt-0.5">
+            <div class="text-[11px] text-slate-300 mt-0.5">
               ${plan.department === "frontend" ? "Front-End" : "Back-End"} · ⏱️ ${plan.estimatedDurationMinutes || 30} ${label("دقيقة", "min")}
             </div>
           </div>
-          <span class="rounded px-2 py-0.5 text-[10px] font-bold ${dueInfo.badgeClass} whitespace-nowrap">
+          <span class="rounded px-2 py-0.5 text-[11px] font-bold ${dueInfo.badgeClass} whitespace-nowrap">
             ${dueInfo.label}
           </span>
         </div>
 
         <div class="mt-2.5 space-y-1.5 text-xs">
-          <div class="flex justify-between items-center text-gray-300">
-            <span class="text-gray-400 font-medium">${label("الدورية:", "Frequency:")}</span>
+          <div class="flex justify-between items-center text-slate-200">
+            <span class="text-slate-300 font-medium">${label("الدورية:", "Frequency:")}</span>
             <span class="font-bold text-amber-300">🔄 ${e(freqLabel)}</span>
           </div>
 
-          <div class="flex justify-between items-center text-gray-300">
-            <span class="text-gray-400 font-medium">${label("آخر تنفيذ:", "Last Run:")}</span>
-            <span class="text-gray-200 text-[11px] flex items-center gap-1">
+          <div class="flex justify-between items-center text-slate-200">
+            <span class="text-slate-300 font-medium">${label("آخر تنفيذ:", "Last Run:")}</span>
+            <span class="text-slate-100 text-[11px] flex items-center gap-1">
               ${lastExecText} ${lastResultBadge}
             </span>
           </div>
 
           ${plan.lastDeferral?.executedAt && (!lastExec?.executedAt || String(plan.lastDeferral.executedAt) > String(lastExec.executedAt)) ? `
-          <div class="flex justify-between items-center text-gray-300">
-            <span class="text-gray-400 font-medium">${label("آخر تأجيل:", "Last Deferral:")}</span>
+          <div class="flex justify-between items-center text-slate-200">
+            <span class="text-slate-300 font-medium">${label("آخر تأجيل:", "Last Deferral:")}</span>
             <span class="text-rose-300 text-[11px]">⏸️ ${formatDisplayDate(plan.lastDeferral.executedAt)}</span>
           </div>` : ""}
 
-          <div class="flex justify-between items-center text-gray-300">
-            <span class="text-gray-400 font-medium">${label("الموعد القادم:", "Next Due:")}</span>
-            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-400 font-black' : 'text-emerald-300'}">
+          <div class="flex justify-between items-center text-slate-200">
+            <span class="text-slate-300 font-medium">${label("الموعد القادم:", "Next Due:")}</span>
+            <span class="font-bold ${dueInfo.status === 'overdue' ? 'text-red-300 font-black' : 'text-emerald-300'}">
               📅 ${formatDisplayDate(plan.nextDueDate) || unscheduledLabel()}
             </span>
           </div>
@@ -419,17 +419,17 @@ function renderPlanCard(plan) {
 
         <!-- قائمة المهام مختصرة -->
         <div class="mt-3 bg-[#0F172A] rounded-lg p-2.5 border border-gray-800/80">
-          <div class="flex items-center justify-between text-[11px] font-bold text-gray-300 mb-1.5">
+          <div class="flex items-center justify-between text-[11px] font-bold text-slate-200 mb-1.5">
             <span>📋 ${label("مهام الصيانة المحددة", "Maintenance Tasks")} (${tasks.length})</span>
           </div>
-          <ul class="text-[11px] text-gray-400 space-y-1">
+          <ul class="text-[11px] text-slate-300 space-y-1">
             ${tasks.slice(0, 3).map((t, idx) => `
               <li class="truncate flex items-center gap-1.5">
-                <span class="text-blue-400 text-[9px]">▪</span>
+                <span class="text-blue-400 text-[11px]">▪</span>
                 <span>${idx + 1}. ${e(t.text || t.description || "")}</span>
               </li>
             `).join("")}
-            ${tasks.length > 3 ? `<li class="text-[10px] text-gray-500 italic">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
+            ${tasks.length > 3 ? `<li class="text-[11px] text-slate-300 italic">+ ${tasks.length - 3} ${label("مهام إضافية...", "more tasks...")}</li>` : ""}
           </ul>
         </div>
       </div>
@@ -507,13 +507,13 @@ function renderPeriodicPlansTabHtml() {
   return `
     <div class="space-y-4">
       <!-- شريط البحث والفلاتر + زر إضافة خطة -->
-      <div class="flex flex-wrap items-center gap-2 bg-[#1E293B] p-3 rounded-xl border border-gray-800">
+      <div class="flex flex-wrap items-center gap-2 bg-[#1E293B] text-white p-3 rounded-xl border border-gray-800">
         <input
           id="pmPlanSearchInput"
           type="text"
           value="${escapeHtml(plansSearch)}"
           placeholder="🔍 ${label("بحث بالماكينة أو الخط أو المهمة...", "Search machine, line, task...")}"
-          class="flex-1 min-w-[200px] p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          class="flex-1 min-w-[200px] p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
         />
 
         <select id="pmPlanLineSelect" class="p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white">
@@ -547,12 +547,12 @@ function renderPeriodicPlansTabHtml() {
           ${filteredPlans.map(renderPlanCard).join("")}
         </div>
       ` : `
-        <div class="rounded-xl border border-gray-800 bg-[#1E293B] p-10 text-center space-y-3">
+        <div class="rounded-xl border border-gray-800 bg-[#1E293B] text-white p-10 text-center space-y-3">
           <div class="text-3xl">📋</div>
-          <div class="text-sm font-bold text-gray-200">
+          <div class="text-sm font-bold text-white">
             ${pmPlans.length ? label("لا توجد خطط PM مطابقة للفلاتر.", "No PM plans match these filters.") : label("لم يتم إنشاء خطط PM دورية للماكينات بعد.", "No periodic PM plans created yet.")}
           </div>
-          <p class="text-xs text-gray-400 max-w-md mx-auto">
+          <p class="text-xs text-slate-300 max-w-md mx-auto">
             ${label("أنشئ خطة صيانة وقائية دورية مستقلة لكل ماكينة مع تحديد مهامها ودوريتها ومواعيد استحقاقها.", "Create an independent periodic PM plan for each machine with its tasks, frequency, and due dates.")}
           </p>
           ${canPlanPmOrders() ? `
@@ -593,21 +593,21 @@ function renderLineDowntimeTabHtml() {
   return `
     <div class="space-y-4">
       <!-- لافتة توجيه العمل الميداني السريع -->
-      <div class="bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-2 text-[10px] text-amber-200 flex items-start gap-2">
+      <div class="bg-[#23190b] border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-[11px] text-amber-100 flex items-start gap-2 shadow-sm">
         <span class="text-base shrink-0">⚡</span>
         <div class="space-y-1">
           <div class="font-bold text-xs text-amber-300">
             ${label("استخراج PM الميداني السريع عند توقف الخط", "Quick Field PM Extraction on Line Stoppage")}
           </div>
-          <p class="text-gray-300 leading-snug text-[10px]">
+          <p class="text-slate-200 leading-snug text-[11px]">
             ${label("اختر خط الإنتاج ثم المعدة لعرض خطة الصيانة الوقائية وبطاقة العمل وتصديرها أو طباعتها فوراً، واستعراض أوامر الأعطال المسندة لنفس المعدة لتنفيذها أثناء التوقف.", "Select the line and machine to instantly view the PM plan, print or export the work card (PDF/Excel), and review open assigned PM breakdown orders to execute during downtime.")}
           </p>
         </div>
       </div>
 
       <!-- اختيار الخط والمعدة -->
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3 shadow-md">
-        <div class="text-xs font-bold text-gray-300 flex items-center gap-2">
+      <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 space-y-3 shadow-md">
+        <div class="text-xs font-bold text-slate-200 flex items-center gap-2">
           <span>1️⃣</span>
           <span>${label("اختر خط الإنتاج:", "Select Production Line:")}</span>
         </div>
@@ -615,7 +615,7 @@ function renderLineDowntimeTabHtml() {
           <button
             type="button"
             onclick="window.selectDowntimeLine('Line 1')"
-            class="py-3 px-4 rounded-xl font-black text-xs sm:text-sm border transition flex items-center justify-center gap-2 ${line === 'Line 1' ? 'border-amber-500 bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/30 scale-[1.01]' : 'border-gray-700 bg-[#0F172A] text-gray-300 hover:bg-gray-800'}"
+            class="py-3 px-4 rounded-xl font-black text-xs sm:text-sm border transition flex items-center justify-center gap-2 ${line === 'Line 1' ? 'border-amber-500 bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/30 scale-[1.01]' : 'border-gray-700 bg-[#0F172A] text-slate-200 hover:bg-gray-800'}"
           >
             <span>🏭</span>
             <span>Line 1 (${label("خط 1", "Line 1")})</span>
@@ -624,14 +624,14 @@ function renderLineDowntimeTabHtml() {
           <button
             type="button"
             onclick="window.selectDowntimeLine('Line 2')"
-            class="py-3 px-4 rounded-xl font-black text-xs sm:text-sm border transition flex items-center justify-center gap-2 ${line === 'Line 2' ? 'border-amber-500 bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/30 scale-[1.01]' : 'border-gray-700 bg-[#0F172A] text-gray-300 hover:bg-gray-800'}"
+            class="py-3 px-4 rounded-xl font-black text-xs sm:text-sm border transition flex items-center justify-center gap-2 ${line === 'Line 2' ? 'border-amber-500 bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-lg shadow-amber-600/30 scale-[1.01]' : 'border-gray-700 bg-[#0F172A] text-slate-200 hover:bg-gray-800'}"
           >
             <span>🏭</span>
             <span>Line 2 (${label("خط 2", "Line 2")})</span>
           </button>
         </div>
 
-        <div class="text-xs font-bold text-gray-300 flex items-center gap-2 pt-2 border-t border-gray-800">
+        <div class="text-xs font-bold text-slate-200 flex items-center gap-2 pt-2 border-t border-gray-800">
           <span>2️⃣</span>
           <span>${label("اختر الماكينة / المعدة:", "Select Equipment / Machine:")}</span>
         </div>
@@ -649,14 +649,14 @@ function renderLineDowntimeTabHtml() {
       ${selectedMachine ? `
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <!-- كارت خطة PM الدورية للمعدة (عمودان على الديسكتوب) -->
-          <div class="lg:col-span-2 bg-[#1E293B] border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg">
+          <div class="lg:col-span-2 bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg">
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-3">
               <div>
                 <div class="flex items-center gap-2">
-                  <h3 class="text-base font-black text-blue-400">⚙️ ${e(selectedMachine)}</h3>
-                  <span class="rounded px-2 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">${e(line)}</span>
+                  <h3 class="text-base font-black text-blue-300">⚙️ ${e(selectedMachine)}</h3>
+                  <span class="rounded px-2 py-0.5 text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/30">${e(line)}</span>
                 </div>
-                <div class="text-[11px] text-gray-400 mt-1">
+                <div class="text-[11px] text-slate-300 mt-1">
                   ${label("خطة الصيانة الوقائية الدورية للمعدة", "Periodic Preventive Maintenance Plan")}
                 </div>
               </div>
@@ -666,7 +666,7 @@ function renderLineDowntimeTabHtml() {
                   ${getPlanDueStatus(plan).label}
                 </span>
               ` : `
-                <span class="rounded px-2.5 py-1 text-xs font-bold bg-gray-700 text-gray-300">
+                <span class="rounded px-2.5 py-1 text-xs font-bold bg-slate-700 text-slate-200">
                   ${label("لا توجد خطة مسجلة", "No plan recorded")}
                 </span>
               `}
@@ -676,32 +676,32 @@ function renderLineDowntimeTabHtml() {
               <!-- بيانات دورية الخطة وتاريخها -->
               <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                 <div class="bg-[#0F172A] p-2.5 rounded-lg border border-gray-800">
-                  <div class="text-[10px] text-gray-400">${label("الدورية", "Frequency")}</div>
+                  <div class="text-[11px] text-slate-300">${label("الدورية", "Frequency")}</div>
                   <div class="font-bold text-amber-300 mt-0.5">🔄 ${e(plan.frequencyLabel || plan.frequency)}</div>
                 </div>
                 <div class="bg-[#0F172A] p-2.5 rounded-lg border border-gray-800">
-                  <div class="text-[10px] text-gray-400">${label("الموعد القادم", "Next Due")}</div>
+                  <div class="text-[11px] text-slate-300">${label("الموعد القادم", "Next Due")}</div>
                   <div class="font-bold text-emerald-300 mt-0.5">📅 ${formatDisplayDate(plan.nextDueDate)}</div>
                 </div>
                 <div class="bg-[#0F172A] p-2.5 rounded-lg border border-gray-800">
-                  <div class="text-[10px] text-gray-400">${label("آخر تنفيذ", "Last Execution")}</div>
-                  <div class="font-bold text-gray-200 mt-0.5 truncate">${plan.lastExecution?.executedAt ? formatDisplayDate(plan.lastExecution.executedAt) : label("لم ينفذ بعد", "None")}</div>
+                  <div class="text-[11px] text-slate-300">${label("آخر تنفيذ", "Last Execution")}</div>
+                  <div class="font-bold text-slate-100 mt-0.5 truncate">${plan.lastExecution?.executedAt ? formatDisplayDate(plan.lastExecution.executedAt) : label("لم ينفذ بعد", "None")}</div>
                 </div>
                 <div class="bg-[#0F172A] p-2.5 rounded-lg border border-gray-800">
-                  <div class="text-[10px] text-gray-400">${label("المدة المقدرة", "Duration")}</div>
-                  <div class="font-bold text-gray-200 mt-0.5">⏱️ ${plan.estimatedDurationMinutes || 30} ${label("دقيقة", "min")}</div>
+                  <div class="text-[11px] text-slate-300">${label("المدة المقدرة", "Duration")}</div>
+                  <div class="font-bold text-slate-100 mt-0.5">⏱️ ${plan.estimatedDurationMinutes || 30} ${label("دقيقة", "min")}</div>
                 </div>
               </div>
 
               <!-- جدول مهام الصيانة الوقائية -->
               <div class="space-y-2">
-                <div class="font-bold text-xs text-gray-200 flex items-center justify-between">
+                <div class="font-bold text-xs text-slate-100 flex items-center justify-between">
                   <span>📋 ${label("قائمة مهام الصيانة المطلوب فحصها:", "Required Maintenance Checklist:")}</span>
-                  <span class="text-[11px] text-gray-400">${(plan.tasks || []).length} ${label("مهام", "tasks")}</span>
+                  <span class="text-[11px] text-slate-300">${(plan.tasks || []).length} ${label("مهام", "tasks")}</span>
                 </div>
                 <div class="overflow-x-auto rounded-xl border border-gray-800">
                   <table class="w-full text-xs text-start">
-                    <thead class="bg-gray-800/90 text-[11px] text-gray-300">
+                    <thead class="bg-gray-800/90 text-[11px] text-slate-200">
                       <tr>
                         <th class="p-2.5 w-10 text-center">#</th>
                         <th class="p-2.5 text-start">${label("مهمة الصيانة الوقائية", "Maintenance Task")}</th>
@@ -711,9 +711,9 @@ function renderLineDowntimeTabHtml() {
                     <tbody class="divide-y divide-gray-800 bg-[#0F172A]">
                       ${(plan.tasks || []).map((t, idx) => `
                         <tr>
-                          <td class="p-2.5 text-center font-bold text-gray-400">${idx + 1}</td>
-                          <td class="p-2.5 text-gray-200 font-medium">${e(t.text || t.description || "")}</td>
-                          <td class="p-2.5 text-center text-gray-400">⬜ ${label("للتنفيذ", "Pending")}</td>
+                          <td class="p-2.5 text-center font-bold text-slate-300">${idx + 1}</td>
+                          <td class="p-2.5 text-slate-100 font-medium">${e(t.text || t.description || "")}</td>
+                          <td class="p-2.5 text-center text-slate-300">⬜ ${label("للتنفيذ", "Pending")}</td>
                         </tr>
                       `).join("")}
                     </tbody>
@@ -723,7 +723,7 @@ function renderLineDowntimeTabHtml() {
 
               <!-- أزرار العمليات الميدانية السريعة -->
               <div class="bg-gradient-to-r from-gray-900 via-[#1E293B] to-gray-900 p-3.5 rounded-xl border border-gray-700/80 space-y-3">
-                <div class="text-[11px] font-bold text-gray-300">${label("إجراءات استخراج وتنفيذ بطاقة PM:", "PM Card Actions:")}</div>
+                <div class="text-[11px] font-bold text-slate-200">${label("إجراءات استخراج وتنفيذ بطاقة PM:", "PM Card Actions:")}</div>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
@@ -765,8 +765,8 @@ function renderLineDowntimeTabHtml() {
             ` : `
               <div class="p-6 text-center space-y-3 bg-[#0F172A] rounded-xl border border-gray-800">
                 <div class="text-3xl">⚠️</div>
-                <div class="text-sm font-bold text-gray-200">${label("لم يتم إنشاء خطة PM دورية لهذه الماكينة بعد.", "No periodic PM plan exists for this machine yet.")}</div>
-                <p class="text-xs text-gray-400 max-w-sm mx-auto">
+                <div class="text-sm font-bold text-white">${label("لم يتم إنشاء خطة PM دورية لهذه الماكينة بعد.", "No periodic PM plan exists for this machine yet.")}</div>
+                <p class="text-xs text-slate-300 max-w-sm mx-auto">
                   ${label("يمكنك إنشاء خطة صيانة دورية مستقلة لهذه الماكينة الآن لتحديد مهامها وتكرارها ومواعيد استحقاقها.", "Create an independent PM plan for this machine now to specify its tasks, frequency, and due dates.")}
                 </p>
                 ${canPlanPmOrders() ? `
@@ -783,7 +783,7 @@ function renderLineDowntimeTabHtml() {
             `}
 
             <!-- تنبيه عدم اعتبار الاستخراج تنفيذاً -->
-            <div class="text-[11px] text-gray-400 bg-[#0F172A]/70 p-3 rounded-xl border border-gray-800 flex items-center gap-2">
+            <div class="text-[11px] text-slate-300 bg-[#0F172A]/95 p-3 rounded-xl border border-gray-800 flex items-center gap-2">
               <span class="text-base text-blue-400 shrink-0">ℹ️</span>
               <span>
                 ${label("تنبيه إجرائي: طباعة أو تصدير كارت PM لا يعتبر تنفيذاً للصيانة. يتم تسجيل التنفيذ وتحديث موعد الصيانة القادم حصراً عند الضغط على «تسجيل التنفيذ الفعلي» وحفظ نتيجة التنفيذ.", "Procedure notice: Printing or exporting PM card does not count as execution. Execution is recorded and next due date is updated only upon clicking 'Record Run' and submitting actual results.")}
@@ -792,18 +792,18 @@ function renderLineDowntimeTabHtml() {
           </div>
 
           <!-- أوامر PM المسندة من الأعطال لنفس المعدة (عمود 3 على الديسكتوب) -->
-          <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg flex flex-col justify-between">
+          <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-3 shadow-lg flex flex-col justify-between">
             <div class="space-y-3">
               <div class="flex items-center justify-between border-b border-gray-800 pb-2.5">
                 <div class="font-bold text-xs text-indigo-300 flex items-center gap-1.5">
                   <span>🛠️</span>
                   <span>${label("أوامر الأعطال المسندة", "Breakdown PM Orders")}</span>
                 </div>
-                <span class="rounded-full bg-indigo-500/20 text-indigo-300 px-2 py-0.5 text-[10px] font-bold border border-indigo-500/30">
+                <span class="rounded-full bg-indigo-500/20 text-indigo-200 px-2 py-0.5 text-[11px] font-bold border border-indigo-500/30">
                   ${machineAssignedOrders.length}
                 </span>
               </div>
-              <p class="text-[11px] text-gray-400">
+              <p class="text-[11px] text-slate-300">
                 ${label("أوامر PM المحولة من بلاغات الأعطال المفتوحة المرتبطة بنفس الماكينة والخط والمتاحة للتنفيذ أثناء توقف الخط.", "Open PM orders converted from breakdown tickets on this equipment, ready for execution during downtime.")}
               </p>
 
@@ -815,8 +815,8 @@ function renderLineDowntimeTabHtml() {
                         <span class="font-mono font-bold text-white text-[11px]">${e(displayRecordNumber(order))}</span>
                         ${pmStatusBadge(order.pmStatus)}
                       </div>
-                      <div class="text-gray-300 text-[11px] font-medium line-clamp-2">${e(order.description || label("صيانة وقائية لعطل", "PM for breakdown"))}</div>
-                      <div class="flex items-center justify-between text-[10px] text-gray-400 pt-1 border-t border-gray-800/80">
+                      <div class="text-slate-200 text-[11px] font-medium line-clamp-2">${e(order.description || label("صيانة وقائية لعطل", "PM for breakdown"))}</div>
+                      <div class="flex items-center justify-between text-[11px] text-slate-300 pt-1 border-t border-gray-800/80">
                         <span>👤 ${e(order.assignedTo || unassignedLabel())}</span>
                         <span class="font-bold text-amber-300">${e(order.priority || "Medium")}</span>
                       </div>
@@ -824,15 +824,15 @@ function renderLineDowntimeTabHtml() {
                         ${canWorkOnOrder(order) ? (taskStageReady(order) ? `<button
                           type="button"
                           onclick="window.executePmTasks('${escapeJsArg(order.id)}')"
-                          class="flex-1 py-1 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] transition text-center"
+                          class="flex-1 py-1 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition text-center"
                         >
                           ▶️ ${label("تنفيذ", "Execute")}
-                        </button>` : `<span class="flex-1 text-center text-[10px] text-gray-500">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`) : `<span class="flex-1"></span>`}
+                        </button>` : `<span class="flex-1 text-center text-[11px] text-slate-300">${label("بانتظار الإسناد", "Awaiting assignment")}</span>`) : `<span class="flex-1"></span>`}
                         <button
                           type="button"
                           onclick="window.printPmCard('${escapeJsArg(order.id)}')"
                           title="${label("طباعة كارت أمر العطل", "Print ticket card")}"
-                          class="py-1 px-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-bold text-[10px] transition"
+                          class="py-1 px-2 rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-bold text-[11px] transition"
                         >
                           🖨️
                         </button>
@@ -841,7 +841,7 @@ function renderLineDowntimeTabHtml() {
                   `).join("")}
                 </div>
               ` : `
-                <div class="p-6 text-center text-xs text-gray-400 bg-[#0F172A] rounded-xl border border-gray-800/80">
+                <div class="p-6 text-center text-xs text-slate-300 bg-[#0F172A] rounded-xl border border-gray-800/80">
                   <div class="text-2xl mb-1">✨</div>
                   ${label("لا توجد أوامر PM مفتوحة مسندة من الأعطال لهذه المعدة حالياً.", "No open breakdown PM orders for this equipment.")}
                 </div>
@@ -852,7 +852,7 @@ function renderLineDowntimeTabHtml() {
               <button
                 type="button"
                 onclick="window.switchPmTab('assigned')"
-                class="text-indigo-400 hover:text-indigo-300 text-[11px] font-bold underline"
+                class="text-indigo-300 hover:text-indigo-200 text-[11px] font-bold underline"
               >
                 ${label("الانتقال لجميع أوامر PM المسندة ←", "View All Assigned PM Orders →")}
               </button>
@@ -860,7 +860,7 @@ function renderLineDowntimeTabHtml() {
           </div>
         </div>
       ` : `
-        <div class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-gray-400">
+        <div class="rounded-xl border border-gray-800 bg-[#1E293B] text-slate-200 p-6 text-center text-xs">
           ${lineMachines.length ? label("اختر الماكينة ورقمها لعرض خطة PM وأوامرها.", "Select the machine and its number to view its PM plan and orders.") : label("لا توجد ماكينات مسجلة لهذا الخط.", "No machines registered for this line.")}
         </div>
       `}
@@ -872,20 +872,20 @@ function renderAssignedOrdersTabHtml(counts, selectedVisible, selectedCount, all
   return `
     <div class="space-y-3 text-start" dir="${isEn() ? "ltr" : "rtl"}">
       <div class="flex flex-wrap items-center gap-2">
-        ${chipButton("all", label("الكل", "All"), pmOrders.length, !filters.quick && filters.downtime !== "true", "border-blue-500/60 bg-blue-500/20 text-blue-200")}
-        ${chipButton("overdue", `⏰ ${label("متأخر", "Overdue")}`, counts.overdue, filters.quick === "overdue", "border-rose-500/60 bg-rose-500/20 text-rose-200")}
-        ${chipButton("unscheduled", label("غير مجدول", "Unscheduled"), counts.unscheduled, filters.quick === "unscheduled", "border-amber-500/60 bg-amber-500/20 text-amber-200")}
-        ${chipButton("unassigned", unassignedLabel(), counts.unassigned, filters.quick === "unassigned", "border-sky-500/60 bg-sky-500/20 text-sky-200")}
-        ${chipButton("downtime", `⚡ ${label("توقف الخط", "Line downtime")}`, counts.downtime, filters.downtime === "true", "border-orange-500/60 bg-orange-500/20 text-orange-200")}
+        ${chipButton("all", label("الكل", "All"), pmOrders.length, !filters.quick && filters.downtime !== "true", "border-blue-500/60 bg-blue-600 text-white")}
+        ${chipButton("overdue", `⏰ ${label("متأخر", "Overdue")}`, counts.overdue, filters.quick === "overdue", "border-rose-500/60 bg-rose-600 text-white")}
+        ${chipButton("unscheduled", label("غير مجدول", "Unscheduled"), counts.unscheduled, filters.quick === "unscheduled", "border-amber-500/60 bg-amber-600 text-white")}
+        ${chipButton("unassigned", unassignedLabel(), counts.unassigned, filters.quick === "unassigned", "border-sky-500/60 bg-sky-600 text-white")}
+        ${chipButton("downtime", `⚡ ${label("توقف الخط", "Line downtime")}`, counts.downtime, filters.downtime === "true", "border-orange-500/60 bg-orange-600 text-white")}
         <button type="button" id="pmOrdersRefresh" class="ms-auto rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-bold text-white hover:bg-gray-700">↻ ${label("تحديث", "Refresh")}</button>
       </div>
 
-      <div class="space-y-2 rounded-xl border border-gray-800 bg-[#1E293B] p-3">
+      <div class="space-y-2 rounded-xl border border-gray-800 bg-[#1E293B] text-white p-3">
         <div class="flex flex-wrap items-center gap-2">
-          <input id="pmFilterSearch" value="${escapeHtml(filters.search)}" placeholder="🔍 ${label("بحث: رقم الأمر / البلاغ / المعدة / الفني", "Search: order / ticket / machine / technician")}" class="min-w-0 flex-1 basis-56 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">
+          <input id="pmFilterSearch" value="${escapeHtml(filters.search)}" placeholder="🔍 ${label("بحث: رقم الأمر / البلاغ / المعدة / الفني", "Search: order / ticket / machine / technician")}" class="min-w-0 flex-1 basis-56 rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white placeholder-slate-400">
           ${selectOptions("pmFilterStatus", filters.status, ["unplanned", "planned", "in_progress", "completed", "completed_partial", "deferred"].map(s => [s, pmStatusLabel(s)]), label("كل الحالات", "All statuses"))}
           ${selectOptions("pmFilterLine", filters.line, uniq("line"), label("كل الخطوط", "All lines"))}
-          <button type="button" id="pmToggleFilters" class="rounded-lg border px-3 py-2 text-xs font-bold ${filtersOpen ? "border-blue-500/60 text-blue-300" : "border-gray-700 text-gray-300"} bg-[#0F172A] hover:bg-gray-800">⚙️ ${label("المزيد", "More")}</button>
+          <button type="button" id="pmToggleFilters" class="rounded-lg border px-3 py-2 text-xs font-bold ${filtersOpen ? "border-blue-500/60 text-blue-300" : "border-gray-700 text-slate-200"} bg-[#0F172A] hover:bg-gray-800">⚙️ ${label("المزيد", "More")}</button>
         </div>
         ${showExtra ? `
         <div class="grid grid-cols-1 gap-2 border-t border-gray-800 pt-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -895,20 +895,20 @@ function renderAssignedOrdersTabHtml(counts, selectedVisible, selectedCount, all
           ${selectOptions("pmFilterDowntime", filters.downtime, [["true", label("يتطلب توقف الخط", "Downtime required")], ["false", label("لا يتطلب توقفاً", "No downtime")]], label("كل متطلبات التوقف", "All downtime needs"))}
           ${dateInput("pmFilterFrom", filters.from, label("من", "From"))}
           ${dateInput("pmFilterTo", filters.to, label("إلى", "To"))}
-          <button type="button" id="pmResetFiltersBtn" class="rounded-lg border border-gray-700 bg-[#0F172A] px-3 py-2 text-xs font-bold text-gray-300 hover:bg-gray-800 sm:col-span-2">${label("إعادة ضبط الفلاتر", "Reset filters")}</button>
+          <button type="button" id="pmResetFiltersBtn" class="rounded-lg border border-gray-700 bg-[#0F172A] px-3 py-2 text-xs font-bold text-slate-200 hover:bg-gray-800 sm:col-span-2">${label("إعادة ضبط الفلاتر", "Reset filters")}</button>
         </div>` : ""}
       </div>
 
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <label class="flex cursor-pointer items-center gap-2 text-gray-300">
+        <label class="flex cursor-pointer items-center gap-2 text-slate-700 dark:text-slate-200 font-semibold">
           <input type="checkbox" id="pmSelectAll" ${allSelected ? "checked" : ""} class="h-4 w-4 cursor-pointer rounded border-gray-600 bg-slate-900 text-blue-600">
           <span>${selectedCount ? label(`محدد ${selectedCount} من ${visibleOrders.length}`, `${selectedCount} of ${visibleOrders.length} selected`) : label(`تحديد الكل (${visibleOrders.length})`, `Select all (${visibleOrders.length})`)}</span>
         </label>
-        ${selectedCount ? `<button type="button" id="pmClearSelectionBtn" class="font-bold text-blue-400 underline">${label("إلغاء التحديد", "Clear")}</button>` : ""}
+        ${selectedCount ? `<button type="button" id="pmClearSelectionBtn" class="font-bold text-blue-700 dark:text-blue-400 underline">${label("إلغاء التحديد", "Clear")}</button>` : ""}
         <div class="ms-auto flex flex-wrap items-center gap-2">
           ${selectedCount && canPlanPmOrders() ? `
-            <button type="button" id="pmBulkDowntimeOn" class="rounded-lg border border-rose-500/50 bg-rose-500/20 px-3 py-2 font-bold text-rose-200 hover:bg-rose-500/30">⚡ ${label("علّم توقف الخط", "Mark downtime")}</button>
-            <button type="button" id="pmBulkDowntimeOff" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 font-bold text-gray-300 hover:bg-gray-700">${label("إلغاء التوقف", "Unmark")}</button>` : ""}
+            <button type="button" id="pmBulkDowntimeOn" class="rounded-lg border border-rose-500/50 bg-rose-600 px-3 py-2 font-bold text-white hover:bg-rose-500">⚡ ${label("علّم توقف الخط", "Mark downtime")}</button>
+            <button type="button" id="pmBulkDowntimeOff" class="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 font-bold text-slate-200 hover:bg-gray-700">${label("إلغاء التوقف", "Unmark")}</button>` : ""}
           <button type="button" onclick="window.printPmCards()" class="rounded-lg bg-slate-600 px-3 py-2 font-bold text-white hover:bg-slate-500">🖨️ ${label("كروت PM", "PM cards")} (${scopeCount})</button>
           ${canExportPmOrders() ? `
             <button type="button" onclick="window.exportPmOrders('excel')" class="rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white hover:bg-emerald-600">📊 Excel (${scopeCount})</button>
@@ -917,13 +917,13 @@ function renderAssignedOrdersTabHtml(counts, selectedVisible, selectedCount, all
       </div>
 
       ${visibleOrders.length ? `
-        <div class="overflow-hidden rounded-xl border border-gray-800 bg-[#1E293B]">
-          <div class="hidden gap-2 border-b border-gray-800 bg-gray-800 p-3 ps-9 text-[11px] font-bold text-gray-300 md:grid ${GRID_COLS}">
+        <div class="overflow-hidden rounded-xl border border-gray-800 bg-[#1E293B] text-white">
+          <div class="hidden gap-2 border-b border-gray-800 bg-gray-800 p-3 ps-9 text-[11px] font-bold text-slate-200 md:grid ${GRID_COLS}">
             <span>${label("الأمر / البلاغ", "Order / ticket")}</span><span>${label("المعدة / الخط", "Machine / line")}</span><span>${label("موعد التنفيذ", "Planned")}</span><span>${label("الفني", "Technician")}</span><span>${label("الحالة", "Status")}</span><span>${label("الإجراء", "Action")}</span>
           </div>
           ${visibleOrders.map(orderRow).join("")}
         </div>
-      ` : `<div class="rounded-xl border border-gray-800 bg-[#1E293B] p-8 text-center text-sm text-gray-400">${pmOrders.length ? label("لا توجد أوامر مطابقة للفلاتر.", "No orders match these filters.") : label("لا توجد بلاغات مصنفة PM حتى الآن.", "No tickets have been classified as PM yet.")}</div>`}
+      ` : `<div class="rounded-xl border border-gray-800 bg-[#1E293B] p-8 text-center text-sm text-slate-300">${pmOrders.length ? label("لا توجد أوامر مطابقة للفلاتر.", "No orders match these filters.") : label("لا توجد بلاغات مصنفة PM حتى الآن.", "No tickets have been classified as PM yet.")}</div>`}
     </div>
   `;
 }
@@ -949,17 +949,17 @@ function renderPmOrders() {
   const scopeCount = selectedCount || visibleOrders.length;
   const hasExtra = !!(filters.machine || filters.priority || filters.assignment || filters.from || filters.to || filters.downtime);
   const showExtra = filtersOpen || hasExtra;
-  const dateInput = (id, value, text) => `<label class="flex items-center gap-1.5 text-[11px] text-gray-400"><span>${text}</span><input id="${id}" type="date" value="${escapeHtml(value)}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#0F172A] p-1.5 text-xs text-white"></label>`;
+  const dateInput = (id, value, text) => `<label class="flex items-center gap-1.5 text-[11px] text-slate-200"><span>${text}</span><input id="${id}" type="date" value="${escapeHtml(value)}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#0F172A] p-1.5 text-xs text-white"></label>`;
 
   const overduePlansCount = pmPlans.filter(p => getPlanDueBucket(p) === "due").length;
   const assignedOpenCount = pmOrders.filter(isOpenOrder).length;
 
   const pmDashboardHtml = `
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" dir="${isEn() ? "ltr" : "rtl"}">
-      <div class="rounded-xl border border-blue-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-gray-400 font-semibold">${label("إجمالي الخطط", "Total Plans")}</div><div class="text-lg leading-tight font-black text-blue-400 mt-1">${pmPlans.length}</div></div>
-      <div class="rounded-xl border border-red-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-red-300 font-semibold">${label("مستحق / متأخر", "Due / Overdue")}</div><div class="text-lg leading-tight font-black text-red-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "due").length}</div></div>
-      <div class="rounded-xl border border-emerald-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-emerald-300 font-semibold">${label("ساري ومجدول", "Scheduled")}</div><div class="text-lg leading-tight font-black text-emerald-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "upcoming").length}</div></div>
-      <div class="rounded-xl border border-amber-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[10px] leading-tight text-amber-300 font-semibold">${label("بانتظار التنفيذ", "Awaiting First Run")}</div><div class="text-lg leading-tight font-black text-amber-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "never").length}</div></div>
+      <div class="rounded-xl border border-blue-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[11px] leading-tight text-slate-300 font-semibold">${label("إجمالي الخطط", "Total Plans")}</div><div class="text-lg leading-tight font-black text-blue-400 mt-1">${pmPlans.length}</div></div>
+      <div class="rounded-xl border border-red-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[11px] leading-tight text-red-200 font-semibold">${label("مستحق / متأخر", "Due / Overdue")}</div><div class="text-lg leading-tight font-black text-red-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "due").length}</div></div>
+      <div class="rounded-xl border border-emerald-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[11px] leading-tight text-emerald-200 font-semibold">${label("ساري ومجدول", "Scheduled")}</div><div class="text-lg leading-tight font-black text-emerald-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "upcoming").length}</div></div>
+      <div class="rounded-xl border border-amber-500/30 bg-[#0F172A] px-2 py-2 text-center"><div class="text-[11px] leading-tight text-amber-200 font-semibold">${label("بانتظار التنفيذ", "Awaiting First Run")}</div><div class="text-lg leading-tight font-black text-amber-400 mt-1">${pmPlans.filter(p => getPlanDueBucket(p) === "never").length}</div></div>
     </div>
   `;
   const tabsNavHtml = `
@@ -968,19 +968,19 @@ function renderPmOrders() {
         type="button"
         id="tabBtnPlans"
         onclick="window.switchPmTab('plans')"
-        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-blue-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${activePmTab === 'plans' ? 'border-blue-300 bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'border-gray-600 bg-gray-800 text-slate-200 hover:border-blue-400 hover:bg-gray-700'}"
       >
         <span>📋</span>
         <span>${label("خطط PM الدورية للماكينات", "Periodic PM Plans")}</span>
-        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmPlans.length}</span>
-        ${overduePlansCount ? `<span class="rounded-full bg-red-500 px-1.5 py-0.5 text-[9px] font-black text-white animate-pulse">${overduePlansCount} ${label("مستحق", "due")}</span>` : ""}
+        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[11px]">${pmPlans.length}</span>
+        ${overduePlansCount ? `<span class="rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-black text-white animate-pulse">${overduePlansCount} ${label("مستحق", "due")}</span>` : ""}
       </button>
 
       <button
         type="button"
         id="tabBtnDowntime"
         onclick="window.switchPmTab('downtime')"
-        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-amber-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 ${activePmTab === 'downtime' ? 'border-amber-300 bg-amber-600 text-white shadow-lg shadow-amber-500/20' : 'border-gray-600 bg-gray-800 text-slate-200 hover:border-amber-400 hover:bg-gray-700'}"
       >
         <span>⚡</span>
         <span>${label("استخراج PM عند توقف الخط", "Line Stoppage Quick PM")}</span>
@@ -991,12 +991,12 @@ function renderPmOrders() {
         type="button"
         id="tabBtnAssigned"
         onclick="window.switchPmTab('assigned')"
-        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-gray-200 hover:border-indigo-400 hover:bg-gray-700'}"
+        class="min-h-11 w-full flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2.5 text-xs sm:text-sm font-bold leading-snug text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${activePmTab === 'assigned' ? 'border-indigo-300 bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'border-gray-600 bg-gray-800 text-slate-200 hover:border-indigo-400 hover:bg-gray-700'}"
       >
         <span>🛠️</span>
         <span>${label("أوامر PM المسندة من الأعطال", "Assigned PM Work Orders")}</span>
-        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">${pmOrders.length}</span>
-        ${assignedOpenCount ? `<span class="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[9px] text-blue-200">${assignedOpenCount} ${label("مفتوح", "open")}</span>` : ""}
+        <span class="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-[11px]">${pmOrders.length}</span>
+        ${assignedOpenCount ? `<span class="rounded-full bg-blue-500/30 px-1.5 py-0.5 text-[11px] text-blue-200">${assignedOpenCount} ${label("مفتوح", "open")}</span>` : ""}
       </button>
     </div>
   `;
@@ -1405,15 +1405,15 @@ window.setPmDowntimeSelected = async function(value) {
 };
 
 export const PmOrdersView = () => `
-  <section class="app-page space-y-3 p-3 pb-24 text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
+  <section class="app-page space-y-3 p-3 pb-24 text-slate-900 dark:text-white sm:p-5" dir="${isEn() ? "ltr" : "rtl"}">
     <div>
-      <h2 class="flex items-center gap-2 text-lg font-black text-blue-400">
+      <h2 class="flex items-center gap-2 text-lg font-black text-blue-700 dark:text-blue-400">
         <span>🗓️</span>
         <span>${label("أوامر الصيانة الوقائية (PM)", "Preventive Maintenance Orders (PM)")}</span>
       </h2>
-      <p class="mt-1 text-xs text-gray-400">${label("تخطيط وتنفيذ أوامر PM وطباعة كروت الفنيين وتصدير أوامر توقف الخط.", "Plan and execute PM orders, print technician cards and export line-downtime orders.")}</p>
+      <p class="mt-1 text-xs text-slate-600 dark:text-slate-300 font-medium">${label("تخطيط وتنفيذ أوامر PM وطباعة كروت الفنيين وتصدير أوامر توقف الخط.", "Plan and execute PM orders, print technician cards and export line-downtime orders.")}</p>
     </div>
-    <div id="pmOrdersContainer" aria-live="polite" class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-gray-400">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>
+    <div id="pmOrdersContainer" aria-live="polite" class="rounded-xl border border-gray-800 bg-[#1E293B] p-6 text-center text-xs text-slate-300">${label("جاري تحميل أوامر PM...", "Loading PM orders...")}</div>
   </section>
 `;
 
@@ -1470,7 +1470,7 @@ window.loadPmOrdersBoard = async function(force = false) {
     return;
   }
   window.cleanupPmOrdersBoard();
-  container.innerHTML = `<div class="py-6 text-center text-xs text-gray-400">${label("جاري تحميل بيانات الصيانة الوقائية...", "Loading PM data...")}</div>`;
+  container.innerHTML = `<div class="py-6 text-center text-xs text-slate-300">${label("جاري تحميل بيانات الصيانة الوقائية...", "Loading PM data...")}</div>`;
 
   pmOrdersLoadError = "";
   pmPlansLoadError = "";
@@ -1608,16 +1608,16 @@ function renderPmTasksModal() {
 
   const taskCards = tasks.map((task, index) => {
     const st = task.status || "pending";
-    const badgeCls = st === "done" ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-      : st === "not_done" ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-      : "bg-amber-500/20 text-amber-300 border border-amber-500/30";
+    const badgeCls = st === "done" ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/40"
+      : st === "not_done" ? "bg-rose-500/20 text-rose-200 border border-rose-500/40"
+      : "bg-amber-500/20 text-amber-200 border border-amber-500/40";
     const badgeText = st === "done" ? label("✅ تم", "✅ Done") : st === "not_done" ? label("❌ لم يتم", "❌ Not done") : label("⏳ بانتظار", "⏳ Pending");
-    const who = st !== "pending" && task.completedBy ? `<div class="text-[10px] text-gray-500">${escapeHtml(task.completedBy)}${task.completedAt ? " · " + escapeHtml(formatDisplayDate(task.completedAt)) : ""}</div>` : "";
+    const who = st !== "pending" && task.completedBy ? `<div class="text-[11px] text-slate-300">${escapeHtml(task.completedBy)}${task.completedAt ? " · " + escapeHtml(formatDisplayDate(task.completedAt)) : ""}</div>` : "";
     let actions = "";
     if (editable) {
       if (state.reasonFor === task.id) {
         actions = `
-          <textarea id="pmReasonInput" rows="2" placeholder="${label("سبب عدم التنفيذ (مطلوب)", "Reason (required)")}" class="w-full rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white">${escapeHtml(state.reasonText)}</textarea>
+          <textarea id="pmReasonInput" rows="2" placeholder="${label("سبب عدم التنفيذ (مطلوب)", "Reason (required)")}" class="w-full rounded-lg border border-gray-700 bg-[#0F172A] p-2 text-xs text-white placeholder-slate-400">${escapeHtml(state.reasonText)}</textarea>
           <div class="flex gap-2">${btn("save", task.id, "bg-rose-600 hover:bg-rose-500", label("حفظ السبب", "Save reason"))}${btn("cancel", task.id, "bg-gray-600 hover:bg-gray-500", label("إلغاء", "Cancel"))}</div>`;
       } else {
         const canDelete = tasks.length > 1 && st === "pending";
@@ -1625,48 +1625,48 @@ function renderPmTasksModal() {
           ${st !== "done" ? btn("done", task.id, "bg-emerald-600 hover:bg-emerald-500", label("✅ تم التنفيذ", "✅ Done")) : ""}
           ${st !== "not_done" ? btn("notdone", task.id, "bg-rose-600 hover:bg-rose-500", label("❌ لم يتم", "❌ Not done")) : ""}
           ${st !== "pending" ? btn("pending", task.id, "bg-gray-600 hover:bg-gray-500", label("↩️ إعادة للانتظار", "↩️ Reset")) : ""}
-          ${canDelete ? `<button type="button" ${dis} data-pm-act="delete_manual_task" data-task="${escapeHtml(task.id)}" title="${label("حذف المهمة", "Delete task")}" class="rounded-lg border border-gray-700 bg-gray-800/80 px-2.5 py-2 text-xs text-gray-400 hover:border-rose-500/50 hover:text-rose-300">🗑️</button>` : ""}
+          ${canDelete ? `<button type="button" ${dis} data-pm-act="delete_manual_task" data-task="${escapeHtml(task.id)}" title="${label("حذف المهمة", "Delete task")}" class="rounded-lg border border-gray-700 bg-gray-800/90 px-2.5 py-2 text-xs text-slate-300 hover:border-rose-500/50 hover:text-rose-200">🗑️</button>` : ""}
         </div>`;
       }
     }
     return `
       <div class="space-y-2 rounded-lg border border-gray-700 bg-[#0F172A] p-3">
         <div class="flex items-start justify-between gap-2">
-          <span class="text-sm font-bold text-gray-100">${index + 1}. ${escapeHtml(task.description || "")}</span>
-          <span class="whitespace-nowrap rounded px-2 py-0.5 text-[10px] font-bold ${badgeCls}">${badgeText}</span>
+          <span class="text-sm font-bold text-white">${index + 1}. ${escapeHtml(task.description || "")}</span>
+          <span class="whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-bold ${badgeCls}">${badgeText}</span>
         </div>
-        ${st === "not_done" && task.reason ? `<div class="rounded bg-rose-500/10 p-2 text-[11px] text-rose-300">${label("السبب:", "Reason:")} ${escapeHtml(task.reason)}</div>` : ""}
+        ${st === "not_done" && task.reason ? `<div class="rounded bg-rose-500/15 p-2 text-[11px] text-rose-200">${label("السبب:", "Reason:")} ${escapeHtml(task.reason)}</div>` : ""}
         ${who}
         ${actions}
       </div>`;
   }).join("");
 
   overlay.innerHTML = `
-    <div dir="${isEn() ? "ltr" : "rtl"}" class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-700 bg-[#1E293B] p-4 shadow-2xl">
+    <div dir="${isEn() ? "ltr" : "rtl"}" class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-700 bg-[#1E293B] text-white p-4 shadow-2xl">
       <div class="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h3 class="text-sm font-bold text-blue-400">${editable ? label("تنفيذ مهام PM", "Execute PM tasks") : label("مهام PM (عرض فقط)", "PM tasks (view only)")}</h3>
-          <div class="mt-1 text-xs text-gray-300">${escapeHtml(displayRecordNumber(order))} · ${escapeHtml(valueOrDash(order.machine))} · ${escapeHtml(valueOrDash(order.line))}</div>
+          <h3 class="text-sm font-bold text-blue-300">${editable ? label("تنفيذ مهام PM", "Execute PM tasks") : label("مهام PM (عرض فقط)", "PM tasks (view only)")}</h3>
+          <div class="mt-1 text-xs text-slate-200">${escapeHtml(displayRecordNumber(order))} · ${escapeHtml(valueOrDash(order.machine))} · ${escapeHtml(valueOrDash(order.line))}</div>
         </div>
         ${pmStatusBadge(order.pmStatus)}
       </div>
       <div class="mb-3">
-        <div class="mb-1 flex justify-between text-[11px] text-gray-400"><span>${label("التقدم", "Progress")}</span><span>${done}/${total} (${pct}%)</span></div>
+        <div class="mb-1 flex justify-between text-[11px] text-slate-300"><span>${label("التقدم", "Progress")}</span><span>${done}/${total} (${pct}%)</span></div>
         <div class="h-2 w-full overflow-hidden rounded bg-gray-700"><div class="h-full bg-emerald-500" style="width:${pct}%"></div></div>
       </div>
-      ${state.error ? `<div role="alert" class="mb-3 rounded bg-red-500/10 p-2 text-[11px] text-red-300">${escapeHtml(state.error)}</div>` : ""}
+      ${state.error ? `<div role="alert" class="mb-3 rounded bg-red-500/15 p-2 text-[11px] text-red-200">${escapeHtml(state.error)}</div>` : ""}
       ${editable ? `
-        <div class="mb-3 rounded-xl border border-gray-700/80 bg-[#0F172A]/80 p-3 space-y-2">
-          <div class="text-[11px] font-bold text-gray-300">➕ ${label("إضافة مهمة صيانة يدوياً", "Add maintenance task manually")}</div>
+        <div class="mb-3 rounded-xl border border-gray-700/80 bg-[#0F172A]/90 p-3 space-y-2">
+          <div class="text-[11px] font-bold text-slate-200">➕ ${label("إضافة مهمة صيانة يدوياً", "Add maintenance task manually")}</div>
           <div class="flex gap-2">
-            <input type="text" id="pmNewTaskDesc" placeholder="${label("اكتب وصف المهمة الإضافية هنا...", "Type additional task description here...")}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#1E293B] p-2 text-xs text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none" />
+            <input type="text" id="pmNewTaskDesc" placeholder="${label("اكتب وصف المهمة الإضافية هنا...", "Type additional task description here...")}" class="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#1E293B] p-2 text-xs text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none" />
             <button type="button" ${dis} data-pm-act="add_manual_task" class="whitespace-nowrap rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-500 disabled:opacity-50">
               ${label("إضافة", "Add")}
             </button>
           </div>
         </div>
       ` : ""}
-      <div class="space-y-3">${taskCards || `<div class="p-4 text-center text-xs text-gray-400">${label("لا توجد مهام.", "No tasks.")}</div>`}</div>
+      <div class="space-y-3">${taskCards || `<div class="p-4 text-center text-xs text-slate-300">${label("لا توجد مهام.", "No tasks.")}</div>`}</div>
       <div class="mt-4 flex gap-2 border-t border-gray-700 pt-3">
         <button type="button" data-pm-act="close" class="flex-1 rounded-lg bg-gray-700 py-2.5 text-xs font-bold text-white hover:bg-gray-600">${label("إغلاق", "Close")}</button>
         ${editable ? `<button type="button" ${dis} data-pm-act="complete" class="flex-1 rounded-lg bg-indigo-600 py-2.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50">${label("إنهاء الأمر", "Complete order")}</button>` : ""}
@@ -2199,14 +2199,14 @@ function renderPlanEditModal() {
           <span>📋</span>
           <span>${state.isEdit ? label("تعديل خطة PM دورية", "Edit Periodic PM Plan") : label("إنشاء خطة PM دورية جديدة", "New Periodic PM Plan")}</span>
         </h3>
-        <button type="button" onclick="window.closePlanEditModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closePlanEditModal()" class="text-slate-300 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
       ${state.error ? `<div role="alert" class="p-2.5 rounded-lg bg-red-500/20 text-red-200 border border-red-500/40 text-xs">${e(state.error)}</div>` : ""}
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("خط الإنتاج", "Production Line")} <span class="text-red-400">*</span></label>
+          <label class="block font-bold text-slate-200 mb-1">${label("خط الإنتاج", "Production Line")} <span class="text-red-400">*</span></label>
           <select id="editPlanLine" ${state.isEdit ? "disabled" : ""} class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500">
             <option value="Line 1" ${state.line === "Line 1" ? "selected" : ""}>Line 1</option>
             <option value="Line 2" ${state.line === "Line 2" ? "selected" : ""}>Line 2</option>
@@ -2214,9 +2214,9 @@ function renderPlanEditModal() {
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("المعدة / الماكينة", "Equipment / Machine")} <span class="text-red-400">*</span></label>
+          <label class="block font-bold text-slate-200 mb-1">${label("المعدة / الماكينة", "Equipment / Machine")} <span class="text-red-400">*</span></label>
           ${state.isEdit ? `
-            <input type="text" disabled value="${e(state.machine)}" class="w-full p-2.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 font-bold" />
+            <input type="text" disabled value="${e(state.machine)}" class="w-full p-2.5 rounded-lg bg-gray-800 border border-gray-700 text-slate-200 font-bold" />
           ` : `
             ${pmMachinePickerHtml("editPlanMachine", state.line, state.machine, {
               pendingType: state.machineType || "",
@@ -2227,7 +2227,7 @@ function renderPlanEditModal() {
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("دورية الصيانة", "PM Frequency")} <span class="text-red-400">*</span></label>
+          <label class="block font-bold text-slate-200 mb-1">${label("دورية الصيانة", "PM Frequency")} <span class="text-red-400">*</span></label>
           <select id="editPlanFreq" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500">
             ${PM_FREQUENCIES.map(f => `
               <option value="${f.id}" ${state.frequency === f.id ? "selected" : ""}>
@@ -2238,37 +2238,37 @@ function renderPlanEditModal() {
         </div>
 
         <div id="customDaysContainer" class="${state.frequency === "custom" ? "" : "hidden"}">
-          <label class="block font-bold text-gray-300 mb-1">${label("عدد الأيام بين كل صيانة", "Days Interval")}</label>
+          <label class="block font-bold text-slate-200 mb-1">${label("عدد الأيام بين كل صيانة", "Days Interval")}</label>
           <input type="number" min="1" id="editPlanCustomDays" value="${state.customDays || 14}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500" />
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("المدة المقدرة (بالدقائق)", "Estimated Duration (min)")}</label>
+          <label class="block font-bold text-slate-200 mb-1">${label("المدة المقدرة (بالدقائق)", "Estimated Duration (min)")}</label>
           <input type="number" min="5" step="5" id="editPlanDuration" value="${state.estimatedDurationMinutes || 30}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500" />
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${state.isEdit ? label("موعد الاستحقاق القادم", "Next Due Date") : label("تاريخ بدء / استحقاق الخطة", "First Scheduled Date")}</label>
+          <label class="block font-bold text-slate-200 mb-1">${state.isEdit ? label("موعد الاستحقاق القادم", "Next Due Date") : label("تاريخ بدء / استحقاق الخطة", "First Scheduled Date")}</label>
           <input type="date" id="editPlanStartDate" value="${escapeHtml(state.startDate || localDateKey())}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500" />
         </div>
       </div>
 
       <!-- منشئ قائمة المهام -->
       <div class="space-y-2 border-t border-gray-700/80 pt-3">
-        <div class="flex items-center justify-between text-xs font-bold text-gray-200">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-100">
           <span>📋 ${label("مهام الصيانة الوقائية بالخطة:", "Maintenance Tasks Checklist:")}</span>
-          <span class="text-blue-400 font-normal text-[11px]">${state.tasks.length} ${label("مهام", "tasks")}</span>
+          <span class="text-blue-300 font-normal text-[11px]">${state.tasks.length} ${label("مهام", "tasks")}</span>
         </div>
 
         <!-- أزرار الإضافة السريعة المقترحة -->
         <div class="bg-[#0F172A] p-2.5 rounded-xl border border-gray-800 space-y-1.5">
-          <div class="text-[10px] font-bold text-gray-400">${label("إضافة سريعة لبنود قياسية:", "Quick presets:")}</div>
+          <div class="text-[11px] font-bold text-slate-300">${label("إضافة سريعة لبنود قياسية:", "Quick presets:")}</div>
           <div class="flex flex-wrap gap-1.5">
             ${PM_COMMON_TASK_PRESETS.map(preset => `
               <button
                 type="button"
                 onclick="window.addPresetPlanTask('${escapeJsArg(preset)}')"
-                class="text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 px-2 py-1 rounded border border-gray-700 transition"
+                class="text-[11px] bg-gray-800 hover:bg-gray-700 text-slate-200 px-2 py-1 rounded border border-gray-700 transition"
               >
                 + ${e(preset.slice(0, 28))}...
               </button>
@@ -2284,7 +2284,7 @@ function renderPlanEditModal() {
             value="${escapeHtml(state.pendingTaskText || "")}"
             onkeydown="if(event.key==='Enter'){event.preventDefault();window.addPlanTaskItem();}"
             placeholder="${label("اكتب نص مهمة الصيانة الجديدة...", "Enter maintenance task description...")}"
-            class="flex-1 p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            class="flex-1 p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
           />
           <button
             type="button"
@@ -2299,12 +2299,12 @@ function renderPlanEditModal() {
         <div class="space-y-1.5 max-h-48 overflow-y-auto pt-1">
           ${state.tasks.map((task, idx) => `
             <div class="flex items-center gap-2 p-2 rounded-lg bg-[#0F172A] border border-gray-800 text-xs">
-              <span class="w-5 text-center font-bold text-gray-500 shrink-0">${idx + 1}</span>
+              <span class="w-5 text-center font-bold text-slate-300 shrink-0">${idx + 1}</span>
               <input
                 type="text"
                 value="${e(task.text)}"
                 oninput="window.updatePlanTaskText(${idx}, this.value)"
-                class="flex-1 bg-transparent border-0 text-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1.5 py-0.5"
+                class="flex-1 bg-transparent border-0 text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1.5 py-0.5"
               />
               <div class="flex items-center gap-1 shrink-0">
                 <button
@@ -2312,14 +2312,14 @@ function renderPlanEditModal() {
                   title="${label("تحريك لأعلى", "Move up")}"
                   onclick="window.movePlanTaskItem(${idx}, -1)"
                   ${idx === 0 ? "disabled" : ""}
-                  class="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+                  class="p-1 text-slate-300 hover:text-white disabled:opacity-30"
                 >⬆️</button>
                 <button
                   type="button"
                   title="${label("تحريك لأسفل", "Move down")}"
                   onclick="window.movePlanTaskItem(${idx}, 1)"
                   ${idx === state.tasks.length - 1 ? "disabled" : ""}
-                  class="p-1 text-gray-400 hover:text-white disabled:opacity-30"
+                  class="p-1 text-slate-300 hover:text-white disabled:opacity-30"
                 >⬇️</button>
                 <button
                   type="button"
@@ -2335,8 +2335,8 @@ function renderPlanEditModal() {
 
       <!-- ملاحظات عامة -->
       <div>
-        <label class="block font-bold text-gray-300 text-xs mb-1">${label("ملاحظات / تعليمات الصيانة", "Maintenance Notes")}</label>
-        <textarea id="editPlanNotes" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 resize-none">${e(state.notes)}</textarea>
+        <label class="block font-bold text-slate-200 text-xs mb-1">${label("ملاحظات / تعليمات الصيانة", "Maintenance Notes")}</label>
+        <textarea id="editPlanNotes" rows="2" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 resize-none">${e(state.notes)}</textarea>
       </div>
 
       <!-- أزرار الحفظ والإلغاء -->
@@ -2601,11 +2601,11 @@ function renderExecutionModal() {
             <span>✅</span>
             <span>${label("تسجيل نتيجة التنفيذ الفعلي لـ PM", "Record Actual PM Execution")}</span>
           </h3>
-          <div class="text-xs text-gray-300 mt-1">
+          <div class="text-xs text-slate-200 mt-1">
             ⚙️ ${e(plan.machine)} · ${e(plan.line || "Line 1")} · 🔄 ${e(plan.frequencyLabel || plan.frequency)}
           </div>
         </div>
-        <button type="button" onclick="window.closeExecutionModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closeExecutionModal()" class="text-slate-300 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
       ${state.error ? `<div role="alert" class="p-2.5 rounded-lg bg-red-500/20 text-red-200 border border-red-500/40 text-xs">${e(state.error)}</div>` : ""}
@@ -2613,7 +2613,7 @@ function renderExecutionModal() {
       <!-- بيانات الفني والتاريخ -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("الفني المنفذ", "Executing Technician")} <span class="text-red-400">*</span></label>
+          <label class="block font-bold text-slate-200 mb-1">${label("الفني المنفذ", "Executing Technician")} <span class="text-red-400">*</span></label>
           <input
             type="text"
             id="execTechName"
@@ -2623,27 +2623,27 @@ function renderExecutionModal() {
         </div>
 
         <div>
-          <label class="block font-bold text-gray-300 mb-1">${label("مشرف الصيانة (اختياري)", "Supervisor (optional)")}</label>
+          <label class="block font-bold text-slate-200 mb-1">${label("مشرف الصيانة (اختياري)", "Supervisor (optional)")}</label>
           <input
             type="text"
             id="execSupervisorName"
             value="${e(state.supervisorName)}"
             placeholder="${label("اسم المشرف المعتمد...", "Supervisor name...")}"
-            class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-emerald-500"
+            class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500"
           />
         </div>
       </div>
 
       <!-- قائمة التحقق من المهام المنفذة وغير المنفذة -->
       <div class="space-y-2 border-t border-gray-700/80 pt-3">
-        <div class="flex items-center justify-between text-xs font-bold text-gray-200">
+        <div class="flex items-center justify-between text-xs font-bold text-slate-100">
           <span>📋 ${label("التحقق من تنفيذ المهام:", "Tasks Execution Verification:")}</span>
-          <span class="text-[11px] text-gray-400">${state.tasks.length} ${label("مهام", "tasks")}</span>
+          <span class="text-[11px] text-slate-300">${state.tasks.length} ${label("مهام", "tasks")}</span>
         </div>
 
         <div class="space-y-2 max-h-52 overflow-y-auto">
           ${state.tasks.map((task, idx) => `
-            <div class="p-2.5 rounded-xl border ${task.status === "done" ? "border-emerald-500/40 bg-emerald-950/20" : "border-rose-500/40 bg-rose-950/20"} space-y-1.5 text-xs transition">
+            <div class="p-2.5 rounded-xl border ${task.status === "done" ? "border-emerald-500/40 bg-emerald-950/30" : "border-rose-500/40 bg-rose-950/30"} space-y-1.5 text-xs transition">
               <div class="flex items-center justify-between gap-2">
                 <label class="flex items-center gap-2 cursor-pointer font-bold ${task.status === "done" ? "text-emerald-200" : "text-rose-200"} flex-1">
                   <input
@@ -2654,7 +2654,7 @@ function renderExecutionModal() {
                   />
                   <span>${idx + 1}. ${e(task.text)}</span>
                 </label>
-                <span class="text-[10px] font-black uppercase ${task.status === "done" ? "text-emerald-400" : "text-rose-400"}">
+                <span class="text-[11px] font-black uppercase ${task.status === "done" ? "text-emerald-300" : "text-rose-300"}">
                   ${task.status === "done" ? label("تم", "Done") : label("لم يتم", "Not Done")}
                 </span>
               </div>
@@ -2665,7 +2665,7 @@ function renderExecutionModal() {
                   placeholder="${label("سبب عدم التنفيذ أو ملاحظة...", "Reason for not completing...")}"
                   value="${e(task.note)}"
                   oninput="window.setExecutionTaskNote(${idx}, this.value)"
-                  class="w-full p-1.5 rounded-lg bg-[#0F172A] border border-rose-500/50 text-[11px] text-rose-200 placeholder-rose-400/50"
+                  class="w-full p-1.5 rounded-lg bg-[#0F172A] border border-rose-500/50 text-[11px] text-rose-100 placeholder-rose-300/80"
                 />
               ` : ""}
             </div>
@@ -2675,17 +2675,17 @@ function renderExecutionModal() {
 
       <!-- نتيجة التنفيذ العامة -->
       <div class="space-y-1.5 border-t border-gray-700/80 pt-3">
-        <label class="block font-bold text-xs text-gray-200">${label("نتيجة التنفيذ العامة:", "Overall Result:")}</label>
+        <label class="block font-bold text-xs text-slate-100">${label("نتيجة التنفيذ العامة:", "Overall Result:")}</label>
         <div class="grid grid-cols-3 gap-2 text-xs">
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed" ? "border-emerald-500 bg-emerald-600/30 text-emerald-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed" ? "border-emerald-500 bg-emerald-600/30 text-emerald-200" : "border-gray-700 bg-[#0F172A] text-slate-300"}">
             <input type="radio" name="execResultRadio" value="completed" ${state.result === "completed" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>✅ ${label("مكتمل", "Completed")}</span>
           </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed_partial" ? "border-amber-500 bg-amber-600/30 text-amber-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "completed_partial" ? "border-amber-500 bg-amber-600/30 text-amber-200" : "border-gray-700 bg-[#0F172A] text-slate-300"}">
             <input type="radio" name="execResultRadio" value="completed_partial" ${state.result === "completed_partial" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>⚠️ ${label("جزئي", "Partial")}</span>
           </label>
-          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "deferred" ? "border-rose-500 bg-rose-600/30 text-rose-200" : "border-gray-700 bg-[#0F172A] text-gray-400"}">
+          <label class="flex items-center justify-center gap-1.5 p-2 rounded-xl border cursor-pointer font-bold ${state.result === "deferred" ? "border-rose-500 bg-rose-600/30 text-rose-200" : "border-gray-700 bg-[#0F172A] text-slate-300"}">
             <input type="radio" name="execResultRadio" value="deferred" ${state.result === "deferred" ? "checked" : ""} onchange="window.setExecutionResult(this.value)" class="sr-only" />
             <span>⏸️ ${label("مؤجل", "Deferred")}</span>
           </label>
@@ -2694,8 +2694,8 @@ function renderExecutionModal() {
 
       <!-- ملاحظات ختامية -->
       <div>
-        <label class="block font-bold text-gray-300 text-xs mb-1">${label("ملاحظات / أعمال إضافية تم تنفيذها", "Observations & Handover Notes")}</label>
-        <textarea id="execNotes" rows="2" placeholder="${label("هل ظهرت أصوات غير طبيعية أو تسريبات أثناء التشغيل؟", "Any unusual noises or leaks during test?")}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white focus:outline-none focus:border-emerald-500 resize-none">${e(state.notes)}</textarea>
+        <label class="block font-bold text-slate-200 text-xs mb-1">${label("ملاحظات / أعمال إضافية تم تنفيذها", "Observations & Handover Notes")}</label>
+        <textarea id="execNotes" rows="2" placeholder="${label("هل ظهرت أصوات غير طبيعية أو تسريبات أثناء التشغيل؟", "Any unusual noises or leaks during test?")}" class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 resize-none">${e(state.notes)}</textarea>
       </div>
 
       <!-- أزرار الإجراءات -->
@@ -2829,12 +2829,12 @@ window.openPmExecutionsHistoryModal = async function(planId) {
             <span>📜</span>
             <span>${label("سجل تنفيذات الصيانة الوقائية", "PM Execution History")}</span>
           </h3>
-          <div class="text-xs text-gray-300 mt-1">⚙️ ${e(plan.machine)} · ${e(plan.line || "Line 1")}</div>
+          <div class="text-xs text-slate-200 mt-1">⚙️ ${e(plan.machine)} · ${e(plan.line || "Line 1")}</div>
         </div>
-        <button type="button" onclick="window.closeHistoryModal()" class="text-gray-400 hover:text-white font-bold text-sm p-1">✕</button>
+        <button type="button" onclick="window.closeHistoryModal()" class="text-slate-300 hover:text-white font-bold text-sm p-1">✕</button>
       </div>
 
-      <div id="pmHistoryListContainer" class="py-8 text-center text-xs text-gray-400">
+      <div id="pmHistoryListContainer" class="py-8 text-center text-xs text-slate-300">
         ${label("جاري تحميل سجل التنفيذ...", "Loading execution history...")}
       </div>
     </div>
@@ -2855,36 +2855,36 @@ window.openPmExecutionsHistoryModal = async function(planId) {
         <div class="space-y-3 text-start">
           ${res.data.map((exec, idx) => {
             const stBadge = exec.result === "completed"
-              ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✅ ${label("مكتمل", "Done")}</span>`
+              ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-500/40">✅ ${label("مكتمل", "Done")}</span>`
               : exec.result === "completed_partial"
-              ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${label("جزئي", "Partial")}</span>`
-              : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">⏸️ ${label("مؤجل", "Deferred")}</span>`;
+              ? `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/40">⚠️ ${label("جزئي", "Partial")}</span>`
+              : `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-200 border border-rose-500/40">⏸️ ${label("مؤجل", "Deferred")}</span>`;
 
             return `
               <div class="p-3.5 rounded-xl bg-[#0F172A] border border-gray-800 space-y-2 text-xs">
                 <div class="flex items-start justify-between gap-2">
-                  <div class="font-bold text-gray-200">
+                  <div class="font-bold text-slate-100">
                     <span>📅 ${formatDisplayDate(exec.executedAt)}</span>
-                    <span class="text-gray-400 font-normal text-[11px] block sm:inline sm:ms-2">👤 ${e(exec.technicianName || exec.executedBy || "")}</span>
+                    <span class="text-slate-300 font-normal text-[11px] block sm:inline sm:ms-2">👤 ${e(exec.technicianName || exec.executedBy || "")}</span>
                   </div>
                   ${stBadge}
                 </div>
 
                 ${exec.tasksSummary ? `
-                  <div class="text-[11px] text-gray-400 flex items-center gap-3">
-                    <span>${label("المهام المنجزة:", "Completed:")} <strong class="text-emerald-400">${exec.tasksSummary.done || 0}/${exec.tasksSummary.total || 0}</strong></span>
-                    ${exec.tasksSummary.notDone ? `<span class="text-rose-400">${label("لم تنفذ:", "Not done:")} ${exec.tasksSummary.notDone}</span>` : ""}
+                  <div class="text-[11px] text-slate-300 flex items-center gap-3">
+                    <span>${label("المهام المنجزة:", "Completed:")} <strong class="text-emerald-300">${exec.tasksSummary.done || 0}/${exec.tasksSummary.total || 0}</strong></span>
+                    ${exec.tasksSummary.notDone ? `<span class="text-rose-300">${label("لم تنفذ:", "Not done:")} ${exec.tasksSummary.notDone}</span>` : ""}
                   </div>
                 ` : ""}
 
                 ${(exec.tasks || []).filter(t => t.status === "not_done").length ? `
-                  <ul class="text-[11px] text-rose-300 space-y-0.5 list-disc ps-4">
+                  <ul class="text-[11px] text-rose-200 space-y-0.5 list-disc ps-4">
                     ${(exec.tasks || []).filter(t => t.status === "not_done").map(t => `<li>${e(t.text)}${t.note ? ` — ${e(t.note)}` : ""}</li>`).join("")}
                   </ul>
                 ` : ""}
 
                 ${exec.notes ? `
-                  <div class="p-2 rounded bg-gray-800/80 text-[11px] text-gray-300 border border-gray-700/60">
+                  <div class="p-2 rounded bg-gray-800/80 text-[11px] text-slate-200 border border-gray-700/60">
                     <strong>${label("ملاحظات:", "Notes:")}</strong> ${e(exec.notes)}
                   </div>
                 ` : ""}
@@ -2895,7 +2895,7 @@ window.openPmExecutionsHistoryModal = async function(planId) {
       `;
     } else {
       container.innerHTML = `
-        <div class="p-6 text-center text-xs text-gray-400">
+        <div class="p-6 text-center text-xs text-slate-300">
           <div class="text-2xl mb-1">📋</div>
           ${label("لا توجد سجلات تنفيذ مسجلة لهذه الماكينة حتى الآن.", "No execution records found for this machine yet.")}
         </div>

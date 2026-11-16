@@ -58,7 +58,7 @@ export const RegisterView = () => {
         required
         class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectShift}</option>
+        <option value="" disabled selected class="bg-[#0F172A] text-slate-300">${t.selectShift}</option>
         <option value="Green" class="bg-[#0F172A] text-white">Green</option>
         <option value="Red" class="bg-[#0F172A] text-white">Red</option>
         <option value="Blue" class="bg-[#0F172A] text-white">Blue</option>
@@ -85,7 +85,7 @@ export const RegisterView = () => {
             p.type = isPass ? 'text' : 'password';
             this.innerHTML = isPass ? '🙈' : '👁';
           "
-          class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-gray-400"
+          class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-slate-300 hover:text-white"
           aria-label="${t.password}"
         >
           👁
@@ -113,7 +113,7 @@ export const RegisterView = () => {
             p.type = isPass ? 'text' : 'password';
             this.innerHTML = isPass ? '🙈' : '👁';
           "
-          class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-gray-400"
+          class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-slate-300 hover:text-white"
           aria-label="${t.confirmPassword}"
         >
           👁
@@ -129,7 +129,7 @@ export const RegisterView = () => {
         required
         class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectJob}</option>
+        <option value="" disabled selected class="bg-[#0F172A] text-slate-300">${t.selectJob}</option>
         <option value="Technician" class="bg-[#0F172A] text-white">Technician</option>
         <option value="Operator" class="bg-[#0F172A] text-white">Operator</option>
         <option value="Maintainer" class="bg-[#0F172A] text-white">Maintainer</option>
@@ -147,7 +147,7 @@ export const RegisterView = () => {
         required
         class="w-full p-3 rounded-lg bg-[#0F172A] border border-gray-700 text-white focus:outline-none focus:border-blue-500 transition text-sm shadow-sm appearance-none"
       >
-        <option value="" disabled selected class="bg-[#0F172A] text-gray-400">${t.selectDepartment}</option>
+        <option value="" disabled selected class="bg-[#0F172A] text-slate-300">${t.selectDepartment}</option>
         <option value="Production" class="bg-[#0F172A] text-white">${t.deptProduction}</option>
         <option value="Mechanical" class="bg-[#0F172A] text-white">${t.deptMechanical}</option>
         <option value="Electrical" class="bg-[#0F172A] text-white">${t.deptElectrical}</option>

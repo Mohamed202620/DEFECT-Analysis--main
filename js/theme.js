@@ -23,4 +23,10 @@ window.toggleDarkMode = function () {
   if (typeof window.refreshHeader === "function") {
     window.refreshHeader();
   }
+
+  const activeEl = document.activeElement;
+  const isTyping = activeEl && ["INPUT", "TEXTAREA", "SELECT"].includes(activeEl.tagName);
+  if (!isTyping && typeof window.render === "function") {
+    window.render();
+  }
 };

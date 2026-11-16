@@ -53,10 +53,10 @@ export const BottomNav = (activeTab) => {
             class="flex flex-col items-center justify-center flex-1 h-12 py-1 rounded-xl cursor-pointer select-none transition-all duration-150 active:scale-95 ${
               isActive
                 ? 'bg-gradient-to-b from-blue-600 to-indigo-600 text-white font-black shadow-md shadow-blue-600/40 border border-blue-400/40 relative'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                : 'text-slate-200 hover:text-white hover:bg-slate-800/60'
             }">
             <span class="text-base leading-none">${item.icon}</span>
-            <span class="text-[10px] mt-0.5 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
+            <span class="text-[11px] mt-0.5 font-bold tracking-tight whitespace-nowrap">${item.label}</span>
             ${isActive ? '<span class="absolute -bottom-0.5 w-4 h-0.5 bg-blue-300 rounded-full shadow-sm"></span>' : ''}
           </button>
         `;

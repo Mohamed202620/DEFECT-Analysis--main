@@ -23,56 +23,56 @@ const TYPE_CONFIG = {
     icon: "🛠️",
     badgeAr: "إسناد بلاغ",
     badgeEn: "Assigned",
-    theme: "border-blue-500/40 bg-blue-500/10 text-blue-400",
+    theme: "border-blue-500/40 bg-blue-500/15 text-blue-300",
     glow: "bg-blue-500"
   },
   resolved: {
     icon: "✅",
     badgeAr: "تم الإصلاح",
     badgeEn: "Resolved",
-    theme: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+    theme: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
     glow: "bg-emerald-500"
   },
   closed: {
     icon: "✔️",
     badgeAr: "مغلق نهائياً",
     badgeEn: "Closed",
-    theme: "border-cyan-500/40 bg-cyan-500/10 text-cyan-400",
+    theme: "border-cyan-500/40 bg-cyan-500/15 text-cyan-300",
     glow: "bg-cyan-500"
   },
   rejected: {
     icon: "❌",
     badgeAr: "رفض / تنبيه",
     badgeEn: "Rejected",
-    theme: "border-red-500/40 bg-red-500/10 text-red-400",
+    theme: "border-red-500/40 bg-red-500/15 text-red-300",
     glow: "bg-red-500"
   },
   under_review: {
     icon: "⏳",
     badgeAr: "قيد المراجعة",
     badgeEn: "Under Review",
-    theme: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+    theme: "border-amber-500/40 bg-amber-500/15 text-amber-300",
     glow: "bg-amber-500"
   },
   revision_requested: {
     icon: "✏️",
     badgeAr: "مطلوب تعديل",
     badgeEn: "Revision",
-    theme: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+    theme: "border-amber-500/40 bg-amber-500/15 text-amber-300",
     glow: "bg-amber-500"
   },
   in_progress: {
     icon: "⚙️",
     badgeAr: "جاري العمل",
     badgeEn: "In Progress",
-    theme: "border-indigo-500/40 bg-indigo-500/10 text-indigo-400",
+    theme: "border-indigo-500/40 bg-indigo-500/15 text-indigo-300",
     glow: "bg-indigo-500"
   },
   implemented: {
     icon: "🏆",
     badgeAr: "تم الاعتماد",
     badgeEn: "Implemented",
-    theme: "border-purple-500/40 bg-purple-500/10 text-purple-400",
+    theme: "border-purple-500/40 bg-purple-500/15 text-purple-300",
     glow: "bg-purple-500"
   }
 };
@@ -137,8 +137,8 @@ function renderNotificationCard(n) {
       onclick="window.handleGlobalNotificationClick('${escapeJsArg(n.id)}', '${escapeJsArg(n.ticketId || "")}', '${escapeJsArg(n.suggestionId || "")}')"
       class="group relative text-start p-3.5 sm:p-4 rounded-xl border transition-all duration-200 cursor-pointer active:scale-[0.99] select-none ${
         isUnread
-          ? "bg-gradient-to-r from-blue-950/60 via-slate-900 to-slate-900/90 border-blue-500/50 shadow-md shadow-blue-950/40 hover:border-blue-400"
-          : "bg-slate-900/40 border-slate-800/80 hover:bg-slate-800/60 hover:border-slate-700 text-slate-300"
+          ? "bg-gradient-to-r from-[#0f2447] via-slate-900 to-slate-900 border-blue-500/50 shadow-md shadow-blue-950/40 hover:border-blue-400"
+          : "bg-slate-900/95 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600 text-slate-200"
       }"
     >
       ${isUnread ? `
@@ -156,36 +156,36 @@ function renderNotificationCard(n) {
         <div class="flex-1 min-w-0 pr-1 rtl:pr-1 ltr:pl-1">
           <div class="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
             <div class="flex items-center gap-1.5">
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-bold border ${conf.theme}">
+              <span class="px-2 py-0.5 rounded-md text-[11px] font-bold border ${conf.theme}">
                 ${badgeText}
               </span>
               ${isUnread ? `
-                <span class="inline-flex items-center gap-1 text-[10px] font-black text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded-full">
-                  <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                <span class="inline-flex items-center gap-1 text-[11px] font-black text-blue-300 bg-blue-500/20 px-1.5 py-0.5 rounded-full">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-300 animate-ping"></span>
                   ${isEn ? "New" : "جديد"}
                 </span>
               ` : ""}
             </div>
 
-            <span class="text-[11px] text-slate-400 font-medium inline-flex items-center gap-1">
+            <span class="text-[11px] text-slate-300 font-medium inline-flex items-center gap-1">
               <span>🕒</span>
               <span>${timeFormatted}</span>
             </span>
           </div>
 
           <!-- نص الرسالة بخط عريض وواضح -->
-          <p class="text-xs sm:text-sm leading-relaxed ${isUnread ? "text-white font-bold" : "text-slate-300 font-normal"}">
+          <p class="text-xs sm:text-sm leading-relaxed ${isUnread ? "text-white font-bold" : "text-slate-200 font-normal"}">
             ${escapeHtml(n.message || "")}
           </p>
 
           <!-- زر/سهم الانتقال للمصدر -->
-          <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800/70 text-[11px]">
-            <span class="text-blue-400 group-hover:text-blue-300 font-bold flex items-center gap-1 transition-colors">
+          <div class="mt-2.5 flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
+            <span class="text-blue-300 group-hover:text-blue-200 font-bold flex items-center gap-1 transition-colors">
               <span>${n.ticketId ? (isEn ? "View Ticket Details" : "عرض تفاصيل البلاغ") : (n.suggestionId ? (isEn ? "View Kaizen Idea" : "عرض فكرة الكايزن") : (isEn ? "Details" : "التفاصيل"))}</span>
               <span class="rtl:rotate-180 transition-transform group-hover:translate-x-1">‹</span>
             </span>
 
-            ${n.ticketId ? `<span class="text-[10px] font-mono text-slate-500">#${escapeHtml(n.ticketId)}</span>` : ""}
+            ${n.ticketId ? `<span class="text-[11px] font-mono text-slate-300">#${escapeHtml(n.ticketId)}</span>` : ""}
           </div>
         </div>
       </div>
@@ -216,8 +216,8 @@ function renderListHtml(notifications, filter) {
         <div class="w-16 h-16 rounded-2xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-center text-3xl shadow-inner">
           🔔
         </div>
-        <p class="text-sm font-bold text-slate-300">${emptyMsg}</p>
-        <p class="text-xs text-slate-500 max-w-xs leading-relaxed">
+        <p class="text-sm font-bold text-slate-200">${emptyMsg}</p>
+        <p class="text-xs text-slate-300 max-w-xs leading-relaxed">
           ${isEn ? "New ticket updates, assignments, and Kaizen approvals will appear here automatically." : "تحديثات بلاغات الصيانة، الإسنادات، واعتمادات الكايزن ستظهر هنا فور إرسالها."}
         </p>
       </div>
@@ -268,13 +268,13 @@ export function openNotificationsModal() {
     "fixed inset-0 z-[120] bg-black/75 backdrop-blur-md flex items-end sm:items-center justify-center p-2 sm:p-4 animate-fade-in";
 
   overlay.innerHTML = `
-    <div class="bg-[#1E293B] border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-lg sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
+    <div class="bg-[#1E293B] text-white border border-slate-700/80 rounded-2xl sm:rounded-3xl w-full max-w-lg sm:max-w-xl shadow-2xl flex flex-col max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
       
       <!-- الهيدر الرئيسي -->
-      <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/60 shrink-0">
+      <div class="p-4 sm:p-5 border-b border-slate-800 bg-slate-900/90 shrink-0">
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-2.5">
-            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center text-lg shadow-inner shrink-0">
+            <div class="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-300 flex items-center justify-center text-lg shadow-inner shrink-0">
               🔔
             </div>
             <div>
@@ -282,11 +282,11 @@ export function openNotificationsModal() {
                 <h3 class="text-base sm:text-lg font-black text-white">
                   ${isEn ? "Notifications Center" : "مركز الإشعارات والتنبيهات"}
                 </h3>
-                <span id="modalUnreadCountBadge" class="hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                <span id="modalUnreadCountBadge" class="hidden px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
                   0 ${isEn ? "new" : "جديد"}
                 </span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">
+              <p class="text-xs text-slate-300 mt-0.5">
                 ${isEn ? "Real-time updates on defects, assignments & Kaizen" : "متابعة حية للأعطال المسندة، التحديثات، ومقترحات الكايزن"}
               </p>
             </div>
@@ -298,7 +298,7 @@ export function openNotificationsModal() {
               id="globalNotif_close"
               type="button"
               aria-label="${isEn ? "Close" : "إغلاق"}"
-              class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center text-sm font-bold transition active:scale-95 cursor-pointer">
+              class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white flex items-center justify-center text-sm font-bold transition active:scale-95 cursor-pointer">
               ✕
             </button>
           </div>
@@ -312,28 +312,28 @@ export function openNotificationsModal() {
               data-tab="all"
               class="notif-tab-btn active px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-blue-600 border-blue-500 text-white shadow-sm">
               ${isEn ? "All" : "الكل"}
-              <span id="tabCountAll" class="mr-1 text-[10px] opacity-80">(0)</span>
+              <span id="tabCountAll" class="mr-1 text-[11px] text-slate-100">(0)</span>
             </button>
 
             <button
               type="button"
               data-tab="unread"
-              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-600">
+              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600">
               ${isEn ? "Unread" : "غير المقروءة"}
-              <span id="tabCountUnread" class="mr-1 text-[10px] text-amber-400 font-bold">(0)</span>
+              <span id="tabCountUnread" class="mr-1 text-[11px] text-amber-300 font-bold">(0)</span>
             </button>
 
             <button
               type="button"
               data-tab="tickets"
-              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-600">
+              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600">
               ${isEn ? "Tickets" : "الأعطال"}
             </button>
 
             <button
               type="button"
               data-tab="kaizen"
-              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-600">
+              class="notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600">
               ${isEn ? "Kaizen" : "الكايزن"}
             </button>
           </div>
@@ -341,7 +341,7 @@ export function openNotificationsModal() {
           <button
             id="globalNotif_markAll"
             type="button"
-            class="text-[11px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-500/10 transition active:scale-95 cursor-pointer">
+            class="text-[11px] font-bold text-blue-300 hover:text-blue-200 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-blue-500/10 transition active:scale-95 cursor-pointer">
             <span>✓✓</span>
             <span>${tr.markAll || (isEn ? "Mark all as read" : "تحديد الكل كمقروء")}</span>
           </button>
@@ -350,15 +350,15 @@ export function openNotificationsModal() {
 
       <!-- جسم القائمة -->
       <div id="globalNotif_body" class="p-3 sm:p-4 overflow-y-auto flex-1 min-h-[220px] max-h-[60vh]">
-        <div class="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+        <div class="flex flex-col items-center justify-center py-12 text-center text-slate-300">
           <div class="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
           <span class="text-xs font-medium">${tr.loading || "جاري تحميل الإشعارات..."}</span>
         </div>
       </div>
 
       <!-- الفوتر -->
-      <div class="p-3 border-t border-slate-800 bg-slate-900/40 text-center shrink-0">
-        <span class="text-[11px] text-slate-400 font-medium">
+      <div class="p-3 border-t border-slate-800 bg-slate-900/90 text-center shrink-0">
+        <span class="text-[11px] text-slate-300 font-medium">
           💡 ${isEn ? "Tap any notification to view full details" : "اضغط على أي إشعار للانتقال مباشرة إلى تفاصيل البلاغ أو المقترح"}
         </span>
       </div>
@@ -420,7 +420,7 @@ export function openNotificationsModal() {
   tabBtns.forEach(btn => {
     btn.addEventListener("click", () => {
       tabBtns.forEach(b => {
-        b.className = "notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800/80 border-slate-700 text-slate-300 hover:border-slate-600";
+        b.className = "notif-tab-btn px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-600";
       });
       btn.className = "notif-tab-btn active px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer bg-blue-600 border-blue-500 text-white shadow-sm";
       activeFilterTab = btn.getAttribute("data-tab") || "all";

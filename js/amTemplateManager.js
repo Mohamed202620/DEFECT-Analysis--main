@@ -191,20 +191,20 @@ window.openAmBulkImportModal = function() {
 
   const modalHtml = `
     <div id="amBulkImportModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[999] flex items-center justify-center p-3 sm:p-4">
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#0F172A]">
           <div class="flex items-center gap-2.5">
-            <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">📊</span>
+            <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 text-sm">📊</span>
             <div>
               <h3 class="font-black text-white text-sm">
                 ${isEn ? 'Bulk AM Checklists Importer' : 'تغذية قوالب فحص الماكينات (AM) من الإكسيل'}
               </h3>
-              <p class="text-[10px] text-gray-400">
+              <p class="text-[11px] text-slate-300">
                 ${isEn ? 'Import or update multiple machine checklists instantly via Excel' : 'استيراد وتحديث بنود الفحص لكل ماكينات المصنع دفعة واحدة'}
               </p>
             </div>
           </div>
-          <button onclick="document.getElementById('amBulkImportModal').remove()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
+          <button onclick="document.getElementById('amBulkImportModal').remove()" class="text-slate-300 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition">
             ✕
           </button>
         </div>
@@ -216,11 +216,11 @@ window.openAmBulkImportModal = function() {
               <div class="text-xs font-bold text-blue-300">
                 ${isEn ? '1. Download standard template' : '1. نزّل النموذج الإرشادي المنظم'}
               </div>
-              <div class="text-[10px] text-gray-400">
+              <div class="text-[11px] text-slate-300">
                 ${isEn ? 'Fill in inspection items for all machines in one sheet' : 'قالب إكسيل جاهز يحتوي على الأعمدة المطلوبة وأمثلة لبنود المشغل والصيانة'}
               </div>
             </div>
-            <button onclick="window.downloadAmMasterTemplate()" class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/40 text-blue-300 hover:bg-blue-600/30 text-xs font-bold transition flex items-center gap-1.5 active:scale-95">
+            <button onclick="window.downloadAmMasterTemplate()" class="shrink-0 px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/40 text-blue-200 hover:bg-blue-600/30 text-xs font-bold transition flex items-center gap-1.5 active:scale-95">
               <span>📥</span>
               <span>${isEn ? 'Download Excel' : 'تحميل القالب'}</span>
             </button>
@@ -228,10 +228,10 @@ window.openAmBulkImportModal = function() {
 
           <!-- رفع الملف -->
           <div class="space-y-2">
-            <label class="block text-xs font-bold text-gray-300">
+            <label class="block text-xs font-bold text-slate-200">
               ${isEn ? '2. Choose completed Excel file' : '2. اختر ملف الإكسيل بعد ملئه'}
             </label>
-            <input type="file" id="amExcelFileInput" accept=".xlsx, .xls" onchange="window.previewAmExcelFile(this)" class="w-full text-xs text-gray-400 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer bg-[#0F172A] p-2 rounded-xl border border-gray-700">
+            <input type="file" id="amExcelFileInput" accept=".xlsx, .xls" onchange="window.previewAmExcelFile(this)" class="w-full text-xs text-slate-200 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 file:cursor-pointer bg-[#0F172A] p-2 rounded-xl border border-gray-700">
           </div>
 
           <!-- حاوية المعاينة -->
@@ -239,7 +239,7 @@ window.openAmBulkImportModal = function() {
         </div>
 
         <div class="p-4 border-t border-gray-800 bg-[#0F172A] flex justify-between items-center">
-          <button onclick="document.getElementById('amBulkImportModal').remove()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold text-gray-300 transition">
+          <button onclick="document.getElementById('amBulkImportModal').remove()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-xl text-xs font-bold text-slate-200 transition">
             ${isEn ? 'Cancel' : 'إلغاء'}
           </button>
           <button id="amConfirmImportBtn" onclick="window.confirmAmExcelImport()" disabled class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-xs font-black text-white transition active:scale-95">
@@ -273,7 +273,7 @@ window.previewAmExcelFile = async function(inputEl) {
 
   if (previewBox) {
     previewBox.innerHTML = `
-      <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-4 text-center text-xs text-gray-400">
+      <div class="bg-[#0F172A] border border-gray-800 rounded-xl p-4 text-center text-xs text-slate-300">
         ⏳ ${isEn ? 'Reading and verifying Excel file...' : 'جاري قراءة وفحص ملف الإكسيل...'}
       </div>
     `;
@@ -360,16 +360,16 @@ window.previewAmExcelFile = async function(inputEl) {
 
       diffSummaryHtml = `
         <div class="mt-2 pt-2 border-t border-gray-700/50 space-y-1">
-          <div class="text-[10px] font-bold text-gray-300">📊 ${isEn ? 'Diff Preview vs Existing Templates:' : 'معاينة الفروق مقارنة بالقوالب الحالية:'}</div>
+          <div class="text-[11px] font-bold text-slate-200">📊 ${isEn ? 'Diff Preview vs Existing Templates:' : 'معاينة الفروق مقارنة بالقوالب الحالية:'}</div>
           <div class="max-h-36 overflow-y-auto space-y-1">
             ${diffResults.map(d => `
-              <div class="bg-[#0F172A]/70 px-2 py-1 rounded text-[10px] flex items-center justify-between">
+              <div class="bg-[#0F172A] px-2 py-1 rounded text-[11px] flex items-center justify-between">
                 <span class="font-medium text-white">${escapeHtml(d.machine)}</span>
                 <span class="flex items-center gap-1.5 font-mono">
-                  ${d.isNew ? `<span class="text-blue-400 font-bold">${isEn ? 'New Template' : 'قالب جديد'}</span>` : `
-                    <span class="text-emerald-400">+${d.added} ${isEn ? 'add' : 'مضاف'}</span>
-                    <span class="text-amber-400">~${d.modified} ${isEn ? 'mod' : 'معدل'}</span>
-                    <span class="text-red-400">-${d.removed} ${isEn ? 'del' : 'محذوف'}</span>
+                  ${d.isNew ? `<span class="text-blue-300 font-bold">${isEn ? 'New Template' : 'قالب جديد'}</span>` : `
+                    <span class="text-emerald-300">+${d.added} ${isEn ? 'add' : 'مضاف'}</span>
+                    <span class="text-amber-300">~${d.modified} ${isEn ? 'mod' : 'معدل'}</span>
+                    <span class="text-red-300">-${d.removed} ${isEn ? 'del' : 'محذوف'}</span>
                   `}
                 </span>
               </div>
@@ -381,16 +381,16 @@ window.previewAmExcelFile = async function(inputEl) {
 
     if (previewBox) {
       previewBox.innerHTML = `
-        <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 space-y-2">
-          <div class="flex items-center justify-between text-xs font-bold text-emerald-400">
+        <div class="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-3 space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold text-emerald-300">
             <span>✅ ${isEn ? 'File analyzed successfully' : 'تم تحليل الملف بنجاح'}</span>
             <span>${machineNames.length} ${isEn ? 'Machines' : 'ماكينة'} (${totalItems} ${isEn ? 'Total Items' : 'بند فحص إجمالاً'})</span>
           </div>
           <div class="max-h-32 overflow-y-auto space-y-1.5 pr-1">
             ${machineNames.map(m => `
-              <div class="bg-[#0F172A] border border-gray-800 rounded-lg p-2 flex items-center justify-between text-[11px]">
+              <div class="bg-[#0F172A] border border-slate-700 rounded-lg p-2 flex items-center justify-between text-[11px]">
                 <span class="font-bold text-white">🏭 ${m}</span>
-                <span class="text-gray-400 font-bold bg-[#1E293B] px-2 py-0.5 rounded-full">${machineMap[m].length} ${isEn ? 'items' : 'بنود'}</span>
+                <span class="text-slate-200 font-bold bg-[#1E293B] px-2 py-0.5 rounded-full">${machineMap[m].length} ${isEn ? 'items' : 'بنود'}</span>
               </div>
             `).join('')}
           </div>
@@ -404,7 +404,7 @@ window.previewAmExcelFile = async function(inputEl) {
     console.error('Error previewing AM Excel:', err);
     if (previewBox) {
       previewBox.innerHTML = `
-        <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">
+        <div class="bg-red-500/15 border border-red-500/30 rounded-xl p-3 text-xs text-red-300">
           ❌ ${escapeHtml(err.message)}
         </div>
       `;

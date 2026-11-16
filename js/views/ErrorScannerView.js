@@ -34,10 +34,10 @@ export const ErrorScannerView = () => {
       ].join('');
 
   return `
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-slate-900 dark:text-white">
 
   <!-- زر الرجوع والعنوان -->
-  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+  <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
     <div class="flex items-center gap-3">
       <button
         type="button"
@@ -47,20 +47,20 @@ export const ErrorScannerView = () => {
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
       </button>
       <div>
-        <h2 class="text-base font-black text-indigo-400 flex items-center gap-2">
+        <h2 class="text-base font-black text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
           <span>🔎</span> ${t.title || (currentLang === 'en' ? 'Machine Error Scanner' : 'فاحص شاشات وأكواد الأعطال')}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
   </div>
 
   <!-- بطاقة النموذج الرئيسية -->
-  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
+  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] text-white rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
 
     <!-- اختيار نوع الماكينة: يتم حفظه محلياً للاستخدام لاحقاً -->
     <div>
-      <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-gray-300">
+      <label for="machineTypeSelect" class="mb-2 flex items-center gap-2 text-xs font-bold text-slate-200">
         <span class="text-xs" aria-hidden="true">🏭</span>
         <span>${t.machineType || (currentLang === 'en' ? 'Machine Type' : 'نوع الماكينة')}</span>
       </label>
@@ -84,14 +84,14 @@ export const ErrorScannerView = () => {
       <input id="errScanGallery" type="file" accept="image/*" class="hidden">
       <button type="button"
         onclick="document.getElementById('errScanGallery').click()"
-        class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-gray-300 font-black transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2 cursor-pointer">
+        class="bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-xl p-3 text-slate-200 font-black transition active:scale-95 shadow-sm text-sm flex items-center justify-center gap-2 cursor-pointer">
         <span>🖼️</span> ${t.galleryBtn || (currentLang === 'en' ? 'Gallery' : 'المعرض')}
       </button>
     </div>
 
     <!-- معاينة الصورة + مستطيل تحديد سطر العطل (سجل الأعطال فيه أكثر من سطر، والمستخدم يحدد المطلوب) -->
     <div id="errScanCropWrap" class="hidden space-y-2">
-      <div class="text-[11px] text-gray-400 text-center">
+      <div class="text-[11px] text-slate-300 text-center">
         ${t.cropHint || (currentLang === 'en'
           ? 'Press Analyze all faults, or tap one line (or drag the box) and press Read selected line.'
           : 'اضغط "تحليل كل الأعطال"، أو اضغط على سطر واحد (أو اسحب المستطيل) ثم "قراءة السطر المحدد".')}
@@ -126,39 +126,39 @@ export const ErrorScannerView = () => {
     <div id="errScanRows" class="space-y-2"></div>
 
     <!-- النص الخام المستخرج من الصورة (للمراجعة فقط، لا يدخل أي حقل) -->
-    <details id="errScanRawDetails" class="text-[11px] text-gray-400">
+    <details id="errScanRawDetails" class="text-[11px] text-slate-300">
       <summary class="cursor-pointer select-none font-bold">${t.ocrRawTextTitle || (currentLang === 'en' ? 'Raw OCR text (review only)' : 'النص الخام من الصورة (للمراجعة فقط)')}</summary>
       <textarea id="errScanRaw" rows="4" readonly dir="ltr"
-        class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-gray-300 outline-none text-[11px] resize-none"></textarea>
+        class="mt-2 w-full p-2 rounded-xl bg-[#0F172A] border border-gray-700 text-slate-200 outline-none text-[11px] resize-none"></textarea>
     </details>
 
     <!-- كود العطل -->
     <div>
-      <label for="errScanCode" class="block mb-2 text-xs font-bold text-gray-300">
+      <label for="errScanCode" class="block mb-2 text-xs font-bold text-slate-200">
         ${t.errorCode || (currentLang === 'en' ? 'Error Code' : 'كود العطل')}
       </label>
       <input id="errScanCode" type="text"
         placeholder="${t.errorCodePlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner">
+        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 outline-none focus:border-indigo-500 transition text-sm shadow-inner">
     </div>
 
     <!-- النص/الرسالة المستخرجة -->
     <div>
-      <label for="errScanMessage" class="block mb-2 text-xs font-bold text-gray-300">
+      <label for="errScanMessage" class="block mb-2 text-xs font-bold text-slate-200">
         ${t.errorMessage || (currentLang === 'en' ? 'Error Message / Description' : 'رسالة أو وصف العطل')}
       </label>
       <textarea id="errScanMessage" rows="3"
         placeholder="${t.errorMessagePlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm resize-none shadow-inner"></textarea>
+        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 outline-none focus:border-indigo-500 transition text-sm resize-none shadow-inner"></textarea>
     </div>
 
     <div>
-      <label for="errScanManual" class="block mb-2 text-xs font-bold text-gray-300">
+      <label for="errScanManual" class="block mb-2 text-xs font-bold text-slate-200">
         ${t.manualSearch || (currentLang === 'en' ? 'Manual Search' : 'بحث يدوي')}
       </label>
       <input id="errScanManual" type="text"
         placeholder="${t.manualPlaceholder || ''}"
-        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white outline-none focus:border-indigo-500 transition text-sm shadow-inner" />
+        class="w-full p-3 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 outline-none focus:border-indigo-500 transition text-sm shadow-inner" />
     </div>
 
     <button type="button"

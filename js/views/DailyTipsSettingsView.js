@@ -47,10 +47,10 @@ export const DailyTipsSettingsView = () => {
   return PageView(
     isEn ? "Daily Tips Settings" : "إعدادات معلومة على الماشي",
     `
-    <div class="space-y-5 text-white max-w-4xl mx-auto pb-10">
+    <div class="space-y-5 text-slate-900 dark:text-white max-w-4xl mx-auto pb-10">
       
       <!-- الهيدر والملخص -->
-      <div class="bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#0A0F1D] border border-amber-500/40 rounded-2xl p-4 shadow-xl relative overflow-hidden">
+      <div class="bg-gradient-to-br from-[#1E293B] via-[#0F172A] to-[#0A0F1D] text-white border border-amber-500/40 rounded-2xl p-4 shadow-xl relative overflow-hidden">
         <div class="absolute -top-10 rtl:-left-10 ltr:-right-10 w-28 h-28 bg-amber-500/10 rounded-full blur-xl pointer-events-none"></div>
         <div class="flex items-center justify-between flex-wrap gap-3">
           <div class="flex items-center gap-3">
@@ -61,7 +61,7 @@ export const DailyTipsSettingsView = () => {
               <h2 class="text-base font-black text-amber-400">
                 ${isEn ? 'Daily Insights & Tips Management' : 'إدارة بنك المعلومات والجرعات اليومية'}
               </h2>
-              <p class="text-xs text-gray-300 mt-0.5">
+              <p class="text-xs text-slate-200 mt-0.5">
                 ${isEn ? 'Add new custom insights or browse system tips' : 'أضف معلومات جديدة تظهر للمستخدمين في الكارت اليومي والرسائل المنبثقة'}
               </p>
             </div>
@@ -69,11 +69,11 @@ export const DailyTipsSettingsView = () => {
 
           <div class="flex items-center gap-2 text-xs">
             <div class="bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
-              <span class="block text-[10px] text-gray-400">${isEn ? 'Total Tips' : 'إجمالي البنك'}</span>
+              <span class="block text-[11px] text-slate-300">${isEn ? 'Total Tips' : 'إجمالي البنك'}</span>
               <span id="statTotalTips" class="font-bold text-amber-400">--</span>
             </div>
             <div class="bg-slate-800/80 border border-slate-700 px-3 py-1.5 rounded-xl text-center">
-              <span class="block text-[10px] text-gray-400">${isEn ? 'Custom Added' : 'المُضافة مخصص'}</span>
+              <span class="block text-[11px] text-slate-300">${isEn ? 'Custom Added' : 'المُضافة مخصص'}</span>
               <span id="statCustomTips" class="font-bold text-emerald-400">--</span>
             </div>
           </div>
@@ -81,13 +81,13 @@ export const DailyTipsSettingsView = () => {
       </div>
 
       <!-- نموذج إضافة معلومة جديدة -->
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-md">
+      <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-md">
         <div class="flex items-center justify-between border-b border-gray-800 pb-3">
           <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
             <span>➕</span>
             <span>${isEn ? 'Add New Daily Insight' : 'إضافة معلومة جديدة لبنك المعلومات'}</span>
           </h3>
-          <span class="text-[10px] bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-full font-semibold">
+          <span class="text-[11px] bg-amber-500/10 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-full font-semibold">
             ${isEn ? 'Instant Sync' : 'مزامنة فورية'}
           </span>
         </div>
@@ -97,7 +97,7 @@ export const DailyTipsSettingsView = () => {
             
             <!-- التصنيف -->
             <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">
+              <label class="block text-xs font-semibold text-slate-200 mb-1">
                 ${isEn ? 'Category' : 'فئة المعلومة'} <span class="text-red-400">*</span>
               </label>
               <select
@@ -114,20 +114,20 @@ export const DailyTipsSettingsView = () => {
 
             <!-- عنوان الفئة الفرعي -->
             <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">
+              <label class="block text-xs font-semibold text-slate-200 mb-1">
                 ${isEn ? 'Sub-category Title' : 'العنوان الفرعي للفئة'}
               </label>
               <input
                 id="tipCategoryTitle"
                 type="text"
                 placeholder="${isEn ? 'e.g. Safety First' : 'مثال: سلامة وإتقان'}"
-                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs focus:border-amber-500 focus:outline-none"
+                class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs focus:border-amber-500 focus:outline-none"
               >
             </div>
 
             <!-- اللغة -->
             <div>
-              <label class="block text-xs font-semibold text-gray-300 mb-1">
+              <label class="block text-xs font-semibold text-slate-200 mb-1">
                 ${isEn ? 'Target Language' : 'لغة العرض'}
               </label>
               <select
@@ -143,7 +143,7 @@ export const DailyTipsSettingsView = () => {
 
           <!-- عنوان المعلومة -->
           <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1">
+            <label class="block text-xs font-semibold text-slate-200 mb-1">
               ${isEn ? 'Insight Title' : 'عنوان المعلومة الرئيسي'} <span class="text-red-400">*</span>
             </label>
             <input
@@ -151,13 +151,13 @@ export const DailyTipsSettingsView = () => {
               type="text"
               required
               placeholder="${isEn ? 'e.g. Importance of Calibration' : 'مثال: أهمية المعايرة الدورية للمستشعرات'}"
-              class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs focus:border-amber-500 focus:outline-none"
+              class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs focus:border-amber-500 focus:outline-none"
             >
           </div>
 
           <!-- نص المعلومة -->
           <div>
-            <label class="block text-xs font-semibold text-gray-300 mb-1">
+            <label class="block text-xs font-semibold text-slate-200 mb-1">
               ${isEn ? 'Insight Details / Content' : 'نص المعلومة التفصيلي'} <span class="text-red-400">*</span>
             </label>
             <textarea
@@ -165,7 +165,7 @@ export const DailyTipsSettingsView = () => {
               rows="3"
               required
               placeholder="${isEn ? 'Write detailed tip text here...' : 'اكتب نص المعلومة المفيدة بأسلوب واضح ومختصر...'}"
-              class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs focus:border-amber-500 focus:outline-none leading-relaxed"
+              class="w-full p-2.5 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs focus:border-amber-500 focus:outline-none leading-relaxed"
             ></textarea>
           </div>
 
@@ -193,7 +193,7 @@ export const DailyTipsSettingsView = () => {
       <!-- شريط البحث والفلترة -->
       <div class="space-y-2.5">
         <div class="flex items-center justify-between flex-wrap gap-2">
-          <h3 class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+          <h3 class="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
             <span>📚</span>
             <span>${isEn ? 'All Insights Repository' : 'بنك المعلومات الحالي'}</span>
           </h3>
@@ -209,35 +209,35 @@ export const DailyTipsSettingsView = () => {
             </button>
             <button
               onclick="window.filterDailyTipsList('custom')"
-              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-gray-300 cursor-pointer transition hover:bg-slate-700"
+              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 cursor-pointer transition hover:bg-slate-700"
               data-filter="custom"
             >
               ⭐ ${isEn ? 'Custom' : 'المخصصة'}
             </button>
             <button
               onclick="window.filterDailyTipsList('religious')"
-              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-gray-300 cursor-pointer transition hover:bg-slate-700"
+              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 cursor-pointer transition hover:bg-slate-700"
               data-filter="religious"
             >
               🕌 ${isEn ? 'Religious' : 'دينية'}
             </button>
             <button
               onclick="window.filterDailyTipsList('motivational')"
-              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-gray-300 cursor-pointer transition hover:bg-slate-700"
+              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 cursor-pointer transition hover:bg-slate-700"
               data-filter="motivational"
             >
               ⚡ ${isEn ? 'Motivational' : 'تحفيزية'}
             </button>
             <button
               onclick="window.filterDailyTipsList('industrial')"
-              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-gray-300 cursor-pointer transition hover:bg-slate-700"
+              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 cursor-pointer transition hover:bg-slate-700"
               data-filter="industrial"
             >
               🏭 ${isEn ? 'Industrial' : 'صناعية'}
             </button>
             <button
               onclick="window.filterDailyTipsList('general')"
-              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-gray-300 cursor-pointer transition hover:bg-slate-700"
+              class="tip-filter-btn px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 cursor-pointer transition hover:bg-slate-700"
               data-filter="general"
             >
               💡 ${isEn ? 'General' : 'عامة'}
@@ -251,13 +251,13 @@ export const DailyTipsSettingsView = () => {
           type="text"
           oninput="window.handleTipSearchInput(this.value)"
           placeholder="${isEn ? '🔍 Search insights by title, text, or category...' : '🔍 ابحث في بنك المعلومات بالعنوان، الكلمات، أو التصنيف...'}"
-          class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-gray-800 text-white text-xs focus:border-amber-500 focus:outline-none"
+          class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-gray-800 text-white placeholder-slate-400 text-xs focus:border-amber-500 focus:outline-none"
         >
       </div>
 
       <!-- قائمة الحاويات -->
       <div id="dailyTipsListContainer" class="space-y-2.5">
-        <div class="text-center text-gray-400 text-xs py-8">
+        <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8">
           ${isEn ? 'Loading insights database...' : 'جاري تحميل بنك المعلومات...'}
         </div>
       </div>
@@ -316,9 +316,9 @@ function renderDailyTipsList() {
 
   if (list.length === 0) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-6 text-center text-gray-400 text-xs">
+      <div class="bg-[#1E293B] text-slate-300 border border-gray-800 rounded-xl p-6 text-center text-xs">
         <div class="text-2xl mb-2">🔍</div>
-        ${isEn ? 'No insights match your search or filter' : 'لا توجد معلومات تطابق خيارات الفلترة والبحث أداة الحالية.'}
+        ${isEn ? 'No insights match your search or filter' : 'لا توجد معلومات تطابق خيارات الفلترة والبحث الحالية.'}
       </div>
     `;
     return;
@@ -330,22 +330,22 @@ function renderDailyTipsList() {
     const isCustom = Boolean(tip.isCustom);
 
     return `
-      <div class="bg-[#1E293B] border ${isCustom ? 'border-amber-500/50 bg-gradient-to-r from-[#1E293B] via-[#233147] to-[#1E293B]' : 'border-gray-800'} rounded-2xl p-3.5 space-y-2 transition hover:border-gray-700">
+      <div class="bg-[#1E293B] text-white border ${isCustom ? 'border-amber-500/50 bg-gradient-to-r from-[#1E293B] via-[#233147] to-[#1E293B]' : 'border-gray-800'} rounded-2xl p-3.5 space-y-2 transition hover:border-gray-700">
         <div class="flex items-center justify-between gap-2">
           <div class="flex items-center gap-2">
-            <span class="w-7 h-7 rounded-lg ${isCustom ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-gray-300 border border-slate-700'} flex items-center justify-center text-sm">
+            <span class="w-7 h-7 rounded-lg ${isCustom ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-200 border border-slate-700'} flex items-center justify-center text-sm">
               ${icon}
             </span>
             <div>
               <span class="text-xs font-bold text-white flex items-center gap-1.5">
                 <span>${escapeHtml(tip.title)}</span>
                 ${isCustom ? `
-                  <span class="text-[9px] bg-amber-500/20 border border-amber-500/40 text-amber-300 px-1.5 py-0.2 rounded font-bold">
+                  <span class="text-[11px] bg-amber-500/20 border border-amber-500/40 text-amber-300 px-1.5 py-0.2 rounded font-bold">
                     ⭐ ${isEn ? 'Custom' : 'مخصص'}
                   </span>
                 ` : ''}
               </span>
-              <span class="text-[10px] text-gray-400">
+              <span class="text-[11px] text-slate-300">
                 ${escapeHtml(catText)} ${tip.id ? `#${tip.id}` : ''}
               </span>
             </div>
@@ -355,7 +355,7 @@ function renderDailyTipsList() {
             <button
               type="button"
               onclick="window.previewSingleTipToast(${idx})"
-              class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold border border-slate-700 transition cursor-pointer active:scale-95"
+              class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-bold border border-slate-700 transition cursor-pointer active:scale-95"
               title="${isEn ? 'Preview Popup' : 'معاينة منبثقة'}"
             >
               👁️ ${isEn ? 'Preview' : 'معاينة'}
@@ -364,7 +364,7 @@ function renderDailyTipsList() {
               <button
                 type="button"
                 onclick="window.handleDeleteDailyTip('${escapeJsArg(tip.id)}')"
-                class="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[10px] font-bold border border-red-500/30 transition cursor-pointer active:scale-95"
+                class="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-[11px] font-bold border border-red-500/30 transition cursor-pointer active:scale-95"
                 title="${isEn ? 'Delete Custom Tip' : 'حذف المعلومة المخصصة'}"
               >
                 🗑️ ${isEn ? 'Delete' : 'حذف'}
@@ -373,7 +373,7 @@ function renderDailyTipsList() {
           </div>
         </div>
 
-        <p class="text-xs text-gray-200 leading-relaxed font-normal bg-[#0F172A]/50 p-2.5 rounded-xl border border-slate-800">
+        <p class="text-xs text-slate-100 leading-relaxed font-normal bg-[#0F172A]/60 p-2.5 rounded-xl border border-slate-800">
           ${escapeHtml(tip.text)}
         </p>
       </div>

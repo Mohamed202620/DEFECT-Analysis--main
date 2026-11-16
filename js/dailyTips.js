@@ -962,11 +962,11 @@ export function renderDailyTipCard(overrideIndex = null) {
           ✨
         </span>
         <div>
-          <h3 class="text-xs font-black text-amber-400 tracking-wide flex items-center gap-1.5">
+          <h3 class="text-xs font-black text-amber-300 tracking-wide flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/70 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
+            <span class="text-[11px] font-semibold text-amber-200 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/40">#${escapeHtml(tip.id)}</span>
           </h3>
-          <span class="text-[10px] text-gray-400 flex items-center gap-1">
+          <span class="text-[11px] text-slate-200 flex items-center gap-1">
             <span>${icon}</span>
             <span>${escapeHtml(tip.categoryTitle)}</span>
           </span>
@@ -977,13 +977,13 @@ export function renderDailyTipCard(overrideIndex = null) {
         <button
           type="button"
           onclick="window.cycleDailyTipCard()"
-          class="text-[9.5px] font-bold text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 px-2 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm"
+          class="text-[11px] font-bold text-amber-200 hover:text-white bg-amber-500/25 hover:bg-amber-500/35 px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 active:scale-95 transition-all cursor-pointer shadow-sm"
           title="${isEn ? 'Show another tip' : 'عرض معلومة أخرى'}"
         >
           <span>🔄</span>
           <span>${isEn ? 'Next Tip' : 'معلومة أخرى'}</span>
         </button>
-        <div class="text-[9px] font-medium text-amber-400/80 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 hidden sm:flex items-center gap-1">
+        <div class="text-[11px] font-medium text-amber-200 bg-amber-500/15 px-2 py-1 rounded-lg border border-amber-500/30 hidden sm:flex items-center gap-1">
           <span>⏰</span>
           <span>${isEn ? '12:00 PM' : 'تتجدد 12 ظهراً'}</span>
         </div>
@@ -992,18 +992,18 @@ export function renderDailyTipCard(overrideIndex = null) {
 
     <!-- عنوان المعلومة -->
     <h4 class="text-xs font-bold text-white mb-1.5 flex items-center gap-1.5">
-      <span class="text-amber-400 font-black">▫</span>
+      <span class="text-amber-300 font-black">▫</span>
       <span>${escapeHtml(tip.title)}</span>
     </h4>
 
     <!-- نص المعلومة -->
-    <p class="text-[11.5px] leading-relaxed text-slate-200 font-normal select-text pr-1 pl-1">
+    <p class="text-xs leading-relaxed text-slate-100 font-normal select-text pr-1 pl-1">
       ${escapeHtml(tip.text)}
     </p>
 
     <!-- شريط سفلي خفيف -->
-    <div class="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[9px] text-gray-400">
-      <span class="flex items-center gap-1 text-gray-400">
+    <div class="mt-3 pt-2 border-t border-slate-700/80 flex items-center justify-between text-[11px] text-slate-200">
+      <span class="flex items-center gap-1 text-slate-200">
         <span>🏭</span>
         <span>${isEn ? 'CMMS Excellence Tip' : 'إرشادات التميز والجودة'}</span>
       </span>
@@ -1011,11 +1011,11 @@ export function renderDailyTipCard(overrideIndex = null) {
         <button
           type="button"
           onclick="window.showDailyTipToast()"
-          class="text-amber-400/90 hover:text-amber-300 underline underline-offset-2 transition-colors cursor-pointer"
+          class="text-amber-300 hover:text-amber-200 underline underline-offset-2 transition-colors cursor-pointer"
         >
           ${isEn ? 'Popup preview' : 'معاينة منبثقة'}
         </button>
-        <span class="text-amber-500/80 font-mono">MSCANCO</span>
+        <span class="text-amber-300 font-mono font-semibold">MSCANCO</span>
       </div>
     </div>
   </div>
@@ -1179,14 +1179,14 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
           ✨
         </span>
         <div>
-          <div class="text-xs font-black text-amber-400 flex items-center gap-1.5">
+          <div class="text-xs font-black text-amber-300 flex items-center gap-1.5">
             <span>${isEn ? 'Daily Insight' : 'معلومة على الماشي'}</span>
-            <span class="text-[9px] font-normal text-amber-300/80 bg-amber-950/70 px-1.5 py-0.5 rounded border border-amber-500/30">#${escapeHtml(tip.id)}</span>
-            <span id="tipPauseIndicator" class="hidden text-[8.5px] font-bold text-amber-300 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
+            <span class="text-[11px] font-semibold text-amber-200 bg-amber-950/80 px-1.5 py-0.5 rounded border border-amber-500/40">#${escapeHtml(tip.id)}</span>
+            <span id="tipPauseIndicator" class="hidden text-[10.5px] font-bold text-amber-200 bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 items-center gap-1 animate-pulse">
               ⏸️ ${isEn ? 'Reading paused' : 'المؤقت متوقف للقراءة'}
             </span>
           </div>
-          <div class="text-[10px] text-gray-400 flex items-center gap-1">
+          <div class="text-[11px] text-slate-200 flex items-center gap-1">
             <span>${icon}</span>
             <span>${escapeHtml(tip.categoryTitle)}</span>
           </div>
@@ -1198,7 +1198,7 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <button
           type="button"
           id="nextDailyTipToastBtn"
-          class="text-amber-300 hover:text-white text-[10px] font-bold px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 active:scale-95 rounded-lg transition-all cursor-pointer border border-amber-500/30 flex items-center gap-1"
+          class="text-amber-200 hover:text-white text-[11px] font-bold px-2.5 py-1 bg-amber-500/25 hover:bg-amber-500/35 active:scale-95 rounded-lg transition-all cursor-pointer border border-amber-500/40 flex items-center gap-1"
           title="${isEn ? 'Show next tip' : 'عرض المعلومة التالية'}"
         >
           <span>↻</span>
@@ -1209,7 +1209,7 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
         <button
           type="button"
           id="closeDailyTipToastBtn"
-          class="text-gray-400 hover:text-white text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg transition-all cursor-pointer border border-slate-700"
+          class="text-slate-200 hover:text-white text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:scale-95 rounded-lg transition-all cursor-pointer border border-slate-600"
           title="${isEn ? 'Close' : 'إغلاق'}"
         >
           ✕
@@ -1218,23 +1218,23 @@ export function showDailyTipToast(tipIndex = null, isManualTrigger = false) {
     </div>
 
     <!-- العنوان -->
-    <div class="text-xs font-bold text-amber-300 mb-1.5 flex items-center gap-1.5">
+    <div class="text-xs font-bold text-amber-200 mb-1.5 flex items-center gap-1.5">
       <span>💡</span>
       <span>${escapeHtml(tip.title)}</span>
     </div>
 
     <!-- نص المعلومة (مريح للقراءة وواضح) -->
-    <div class="text-xs sm:text-[12.5px] leading-relaxed text-slate-100 mb-3 select-text font-normal">
+    <div class="text-xs sm:text-[13px] leading-relaxed text-white mb-3 select-text font-normal">
       ${escapeHtml(tip.text)}
     </div>
 
     <!-- معلومات الشريط السفلي -->
-    <div class="flex items-center justify-between text-[9px] text-slate-400 mb-2">
-      <span class="flex items-center gap-1 text-amber-400/80">
+    <div class="flex items-center justify-between text-[11px] text-slate-200 mb-2">
+      <span class="flex items-center gap-1 text-amber-200">
         <span>⏱️</span>
         <span>${isEn ? 'Stays for 25s (hover to pause)' : 'تبقى 25 ثانية (ثبت المؤشر للقراءة)'}</span>
       </span>
-      <span class="text-slate-400">
+      <span class="text-slate-200">
         ${isEn ? `Today's view: ${state.shownCount}/${MAX_TIPS_PER_DAY}` : `مرات اليوم: ${state.shownCount} من ${MAX_TIPS_PER_DAY}`}
       </span>
     </div>

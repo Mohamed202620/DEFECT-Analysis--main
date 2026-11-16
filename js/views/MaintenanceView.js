@@ -11,17 +11,17 @@ export const MaintenanceView = () => {
   const t = (translations[currentLang] || translations.ar).maintenance;
 
   return `
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-slate-900 dark:text-white">
 
   <!-- الهيدر الرئيسي -->
-  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+  <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
     <div>
-      <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+      <h2 class="text-base font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">
         <span>🛠️</span> ${t.title || (currentLang === 'en' ? 'Maintenance Center' : 'مركز الصيانة')}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+      <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">${t.subtitle || ''}</p>
     </div>
-    <span class="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-2.5 py-1 rounded-full font-black shadow-sm">
+    <span class="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[11px] px-2.5 py-1 rounded-full font-black shadow-sm">
       ${t.badge || (currentLang === 'en' ? 'Live System' : 'نظام حي')}
     </span>
   </div>
@@ -36,7 +36,7 @@ export const MaintenanceView = () => {
       id="maintenanceCardIssue"
       onclick="window.navigateTo('issue')" 
       aria-label="${t.issueTitle || (currentLang === 'en' ? 'Report Breakdown' : 'تسجيل عطل')}"
-      class="relative text-start border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/50 to-orange-950/40 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-lg shadow-red-950/50 hover:shadow-red-600/30 group overflow-hidden">
+      class="relative text-start text-white border-2 border-red-500/70 hover:border-red-400 bg-gradient-to-br from-red-950/90 via-red-900/60 to-orange-950/50 p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-lg shadow-red-950/50 hover:shadow-red-600/30 group overflow-hidden">
       <div class="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-red-500 via-amber-500 to-red-500 animate-pulse"></div>
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       
@@ -47,7 +47,7 @@ export const MaintenanceView = () => {
         <span>${t.issueTitle || (currentLang === 'en' ? 'Report Breakdown' : 'تسجيل عطل')}</span>
         <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
       </span>
-      <span class="text-[10px] text-red-300/80 mt-1 font-medium line-clamp-1">${t.issueDesc || ''}</span>
+      <span class="text-[11px] text-red-100 mt-1 font-medium line-clamp-1">${t.issueDesc || ''}</span>
     </button>
 
     <!-- متابعة البلاغات (دورة حياة التذكرة) -->
@@ -56,13 +56,13 @@ export const MaintenanceView = () => {
       id="maintenanceCardTickets"
       onclick="window.navigateTo('tickets')" 
       aria-label="${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}"
-      class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
+      class="relative text-start text-white border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📋
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.ticketsDesc || ''}</span>
+      <span class="font-bold text-xs text-white">${t.ticketsTitle || (currentLang === 'en' ? 'Track Tickets' : 'متابعة البلاغات')}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${t.ticketsDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -73,13 +73,13 @@ export const MaintenanceView = () => {
       id="maintenanceCardKaizen"
       onclick="window.navigateTo('suggestions')" 
       aria-label="${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}"
-      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
+      class="relative text-start text-white border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         💡
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenDesc || ''}</span>
+      <span class="font-bold text-xs text-white">${t.kaizenTitle || (currentLang === 'en' ? 'Submit Kaizen' : 'نظام كايزن')}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${t.kaizenDesc || ''}</span>
     </button>
 
     <!-- متابعة الكايزن (مراجعة واعتماد المقترحات) -->
@@ -88,13 +88,13 @@ export const MaintenanceView = () => {
       id="maintenanceCardKaizenBoard"
       onclick="window.navigateTo('kaizenBoard')" 
       aria-label="${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}"
-      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
+      class="relative text-start text-white border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         🏆
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
+      <span class="font-bold text-xs text-white">${t.kaizenBoardTitle || (currentLang === 'en' ? 'Kaizen Board' : 'متابعة الكايزن')}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${t.kaizenBoardDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -104,11 +104,11 @@ export const MaintenanceView = () => {
       id="maintenanceCardPmOrders"
       onclick="window.navigateTo('pmOrders')"
       aria-label="${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}"
-      class="relative text-start border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden">
+      class="relative text-start text-white border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-300 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">🗓️</div>
-      <span class="font-bold text-xs text-gray-100">${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
+      <span class="font-bold text-xs text-white">${currentLang === 'en' ? 'PM Work Orders' : 'أوامر الصيانة الوقائية PM'}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${currentLang === 'en' ? 'Plan PM tickets, line downtime & exports' : 'متابعة أوامر PM وتوقف الخط والتقارير'}</span>
     </button>
     ` : ''}
 
@@ -119,13 +119,13 @@ export const MaintenanceView = () => {
       id="maintenanceCardKb"
       onclick="window.navigateTo('kb')" 
       aria-label="${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}"
-      class="relative text-start border border-cyan-500/40 hover:border-cyan-400/70 bg-gradient-to-br from-cyan-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-cyan-900/30 group overflow-hidden">
+      class="relative text-start text-white border border-cyan-500/40 hover:border-cyan-400/70 bg-gradient-to-br from-cyan-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-cyan-900/30 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📚
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.kbDesc || ''}</span>
+      <span class="font-bold text-xs text-white">${t.kbTitle || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${t.kbDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -136,13 +136,13 @@ export const MaintenanceView = () => {
       id="maintenanceCardStats"
       onclick="window.navigateTo('stats')" 
       aria-label="${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}"
-      class="relative text-start border border-indigo-500/40 hover:border-indigo-400/80 bg-gradient-to-br from-indigo-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-indigo-900/40 group overflow-hidden">
+      class="relative text-start text-white border border-indigo-500/40 hover:border-indigo-400/80 bg-gradient-to-br from-indigo-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-indigo-900/40 group overflow-hidden">
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
       <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
         📊
       </div>
-      <span class="font-bold text-xs text-gray-100">${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}</span>
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
+      <span class="font-bold text-xs text-white">${t.statsTitle || (currentLang === 'en' ? 'Maintenance Dashboard' : 'داشبورد الصيانة والتحليلات')}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${t.statsDesc || ''}</span>
     </button>
     ` : ''}
 
@@ -153,18 +153,18 @@ export const MaintenanceView = () => {
       id="maintenanceCardSearch"
       onclick="window.navigateTo('maintenanceSearch')" 
       aria-label="${t.searchTitle || (currentLang === 'en' ? 'Advanced Search' : 'البحث والفلترة المتقدمة')}"
-      class="col-span-2 md:col-span-2 relative text-start bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-blue-500/30 hover:border-blue-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+      class="col-span-2 md:col-span-2 relative text-start text-white bg-gradient-to-r from-[#1E293B] to-[#0F172A] hover:from-[#283548] hover:to-[#1E293B] border border-blue-500/30 hover:border-blue-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
           🔎
         </div>
         <div>
-          <span class="font-bold text-xs text-gray-100 block">${t.searchTitle || (currentLang === 'en' ? 'Advanced Search' : 'البحث والفلترة المتقدمة')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.searchDesc || ''}</span>
+          <span class="font-bold text-xs text-white block">${t.searchTitle || (currentLang === 'en' ? 'Advanced Search' : 'البحث والفلترة المتقدمة')}</span>
+          <span class="text-[11px] text-slate-300 mt-0.5 block">${t.searchDesc || ''}</span>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-blue-400 font-bold bg-blue-500/15 px-3 py-1.5 rounded-lg border border-blue-500/30 shadow-sm">
+        <span class="text-xs text-blue-300 font-bold bg-blue-500/15 px-3 py-1.5 rounded-lg border border-blue-500/30 shadow-sm">
           ${t.searchOpen || (currentLang === 'en' ? 'Search' : 'بحث')}
         </span>
         <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
@@ -179,18 +179,18 @@ export const MaintenanceView = () => {
       id="maintenanceCardErrorScanner"
       onclick="window.navigateTo('errorScanner')" 
       aria-label="${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}"
-      class="col-span-2 md:col-span-2 relative text-start bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
+      class="col-span-2 md:col-span-2 relative text-start text-white bg-gradient-to-r from-indigo-950/60 via-[#1E293B] to-[#0F172A] hover:from-indigo-900/60 hover:to-[#1E293B] border border-indigo-500/30 hover:border-indigo-400/60 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all duration-200 active:scale-95 shadow-md group overflow-hidden">
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform shrink-0" aria-hidden="true">
           📷
         </div>
         <div>
-          <span class="font-bold text-xs text-gray-100 block">${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
-          <span class="text-[10px] text-gray-400 mt-0.5 block">${t.scannerDesc || ''}</span>
+          <span class="font-bold text-xs text-white block">${t.scannerTitle || (currentLang === 'en' ? 'Error Code Scanner' : 'فاحص شاشات الأعطال')}</span>
+          <span class="text-[11px] text-slate-300 mt-0.5 block">${t.scannerDesc || ''}</span>
         </div>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <span class="text-xs text-indigo-400 font-bold bg-indigo-500/15 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
+        <span class="text-xs text-indigo-300 font-bold bg-indigo-500/15 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-sm">
           ${t.scannerBtn || (currentLang === 'en' ? 'Scan' : 'فحص')}
         </span>
         <span class="text-amber-400 text-lg font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>

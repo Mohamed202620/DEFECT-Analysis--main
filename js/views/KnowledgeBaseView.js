@@ -7,10 +7,10 @@ export const KnowledgeBaseView = () => {
   const common = (translations[currentLang] || translations.ar).common;
 
   return `
-<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-slate-900 dark:text-white">
 
   <!-- زر الرجوع والعنوان -->
-  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+  <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
     <div class="flex items-center gap-3">
       <button
         type="button"
@@ -21,23 +21,23 @@ export const KnowledgeBaseView = () => {
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
       </button>
       <div>
-        <h2 class="text-base font-black text-cyan-400 flex items-center gap-2">
+        <h2 class="text-base font-black text-cyan-700 dark:text-cyan-400 flex items-center gap-2">
           <span>📚</span> ${t.title || (currentLang === 'en' ? 'Knowledge Base' : 'قاعدة المعرفة')}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
   </div>
 
-  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
+  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] text-white rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
 
     <!-- بحث -->
     <div class="relative">
       <input id="kbSearchInput" type="text"
         oninput="window.filterKbView()"
         placeholder="${t.searchPlaceholder || (currentLang === 'en' ? 'Search solutions and breakdowns...' : 'ابحث في الحلول والأعطال السابقة...')}"
-        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-cyan-500 transition shadow-inner">
-      <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
+        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-cyan-500 transition shadow-inner">
+      <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-slate-300 text-xs pointer-events-none">🔍</span>
     </div>
 
     <!-- تبويبات الفترة الزمنية (يومي / أسبوعي / شهري / الكل) -->

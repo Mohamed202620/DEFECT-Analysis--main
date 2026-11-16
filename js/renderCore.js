@@ -162,8 +162,8 @@ try {
   const isEnErr = currentLang === "en";
   app.innerHTML =
     '<div class="min-h-[60vh] flex items-center justify-center p-4 text-center">' +
-    '<div class="bg-red-950/60 border border-red-500/50 text-red-200 p-6 rounded-2xl max-w-sm w-full space-y-3">' +
-    '<h3 class="text-base font-bold text-red-400">' + (isEnErr ? "⚠️ Could not load this page" : "⚠️ تعذر تحميل هذه الصفحة") + '</h3>' +
+    '<div class="bg-red-950 border border-red-500/50 text-red-100 p-6 rounded-2xl max-w-sm w-full space-y-3">' +
+    '<h3 class="text-base font-bold text-red-300">' + (isEnErr ? "⚠️ Could not load this page" : "⚠️ تعذر تحميل هذه الصفحة") + '</h3>' +
     '<button onclick="location.reload()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white">' +
     (isEnErr ? "Retry" : "إعادة المحاولة") + '</button></div></div>';
 }

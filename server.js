@@ -6,7 +6,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = 3000;
+let PORT = 3000;
+let HOST = '0.0.0.0';
+
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--port' && args[i + 1]) {
+    PORT = parseInt(args[i + 1], 10) || PORT;
+    i++;
+  } else if (args[i] === '--host' && args[i + 1]) {
+    HOST = args[i + 1];
+    i++;
+  }
+}
+
+if (process.env.PORT) {
+  PORT = parseInt(process.env.PORT, 10) || PORT;
+}
+
 
 app.get('/api/config.js', (req, res) => {
   res.type('application/javascript');
@@ -40,6 +57,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });

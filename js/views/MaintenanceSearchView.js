@@ -16,10 +16,10 @@ export const MaintenanceSearchView = () => {
   const common = (translations[currentLang] || translations.ar).common;
 
   return `
-<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-slate-900 dark:text-white">
 
   <!-- زر الرجوع والعنوان -->
-  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+  <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
     <div class="flex items-center gap-3">
       <button
         type="button"
@@ -29,41 +29,41 @@ export const MaintenanceSearchView = () => {
         <span class="text-xs text-slate-200">${common.back || (currentLang === 'en' ? 'Back' : 'رجوع')}</span>
       </button>
       <div>
-        <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+        <h2 class="text-base font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">
           <span>🔎</span> ${t.title || (currentLang === 'en' ? 'Advanced Maintenance Search' : 'البحث والفلترة المتقدمة')}
         </h2>
-        <p class="text-[11px] text-gray-400 mt-0.5 font-medium">${t.subtitle || ''}</p>
+        <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 font-medium">${t.subtitle || ''}</p>
       </div>
     </div>
   </div>
 
-  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
+  <div class="bg-gradient-to-b from-[#1E293B] to-[#0F172A] text-white rounded-2xl p-4 border border-gray-800 shadow-xl space-y-4">
 
     <!-- بحث نصي -->
     <div class="relative">
       <input id="mSearchInput" type="text"
         oninput="window.applyMaintenanceSearchFilters()"
         placeholder="${t.searchPlaceholder || (currentLang === 'en' ? 'Search tickets, records, keywords...' : 'ابحث برقم البلاغ، اسم الماكينة، العطل...')}"
-        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
-      <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
+        class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition shadow-inner">
+      <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-slate-300 text-xs pointer-events-none">🔍</span>
     </div>
 
     <!-- نوع السجل -->
     <div class="grid grid-cols-4 gap-1.5" id="mTypeTabs">
       <button type="button" onclick="window.switchMaintenanceSearchType('all')" data-type="all"
-        class="m-type-btn py-2 rounded-xl text-[10px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="m-type-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.typeAll || (currentLang === 'en' ? 'All' : 'الكل')}
       </button>
       <button type="button" onclick="window.switchMaintenanceSearchType('ticket')" data-type="ticket"
-        class="m-type-btn py-2 rounded-xl text-[10px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="m-type-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.typeTicket || (currentLang === 'en' ? 'Tickets' : 'البلاغات')}
       </button>
       <button type="button" onclick="window.switchMaintenanceSearchType('pm')" data-type="pm"
-        class="m-type-btn py-2 rounded-xl text-[10px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="m-type-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.typePm || (currentLang === 'en' ? 'PM Records' : 'الوقائية')}
       </button>
       <button type="button" onclick="window.switchMaintenanceSearchType('suggestion')" data-type="suggestion"
-        class="m-type-btn py-2 rounded-xl text-[10px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
+        class="m-type-btn py-2 rounded-xl text-[11px] font-black border transition-all duration-150 active:scale-95 cursor-pointer">
         ${t.typeSuggestion || (currentLang === 'en' ? 'Kaizen' : 'كايزن')}
       </button>
     </div>
@@ -82,7 +82,7 @@ export const MaintenanceSearchView = () => {
 
       <div id="mCustomDatesRow" class="hidden grid grid-cols-2 gap-2">
         <div class="rounded-xl border border-gray-700 bg-[#0F172A] p-2 flex flex-col justify-between">
-          <label for="mDateFrom" class="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 text-blue-300">
+          <label for="mDateFrom" class="text-[11px] font-bold text-blue-300 mb-1 flex items-center gap-1">
             <span>📅</span>
             <span>${currentLang === 'en' ? 'From Date' : 'من تاريخ'}</span>
           </label>
@@ -90,7 +90,7 @@ export const MaintenanceSearchView = () => {
             class="w-full p-1.5 rounded-lg bg-slate-900 border border-gray-700 text-white text-[11px] outline-none focus:border-blue-500 transition">
         </div>
         <div class="rounded-xl border border-gray-700 bg-[#0F172A] p-2 flex flex-col justify-between">
-          <label for="mDateTo" class="text-[10px] font-bold text-gray-400 mb-1 flex items-center gap-1 text-blue-300">
+          <label for="mDateTo" class="text-[11px] font-bold text-blue-300 mb-1 flex items-center gap-1">
             <span>📅</span>
             <span>${currentLang === 'en' ? 'To Date' : 'إلى تاريخ'}</span>
           </label>
@@ -158,14 +158,14 @@ export const MaintenanceSearchView = () => {
 
     <!-- ملخص النتائج + تصدير -->
     <div class="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-gray-800">
-      <div id="mResultsSummary" class="text-[10px] text-gray-400 px-1 font-medium"></div>
+      <div id="mResultsSummary" class="text-[11px] text-slate-300 px-1 font-medium"></div>
       <div class="flex items-center gap-1.5">
         <button type="button" onclick="window.exportMaintenanceSearchResults()"
-          class="shrink-0 text-[10px] font-black px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 active:scale-95 transition-all duration-150 shadow-sm cursor-pointer">
+          class="shrink-0 text-[11px] font-black px-3 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 active:scale-95 transition-all duration-150 shadow-sm cursor-pointer">
           📊 ${t.exportExcel || (currentLang === 'en' ? 'Excel' : 'تصدير إكسيل')}
         </button>
         <button type="button" id="mExportPdfBtn" onclick="window.exportMaintenanceSearchResultsPdf()"
-          class="shrink-0 text-[10px] font-black px-3 py-1.5 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 active:scale-95 transition-all duration-150 shadow-sm cursor-pointer">
+          class="shrink-0 text-[11px] font-black px-3 py-1.5 rounded-xl bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 active:scale-95 transition-all duration-150 shadow-sm cursor-pointer">
           📄 ${t.exportPdf || (currentLang === 'en' ? 'PDF' : 'تصدير PDF')}
         </button>
       </div>

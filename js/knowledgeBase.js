@@ -66,7 +66,7 @@ function periodMeta(period) {
   return META[period];
 }
 
-const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-gray-400';
+const INACTIVE_CLASS = 'bg-[#0F172A] border-gray-700 text-slate-200';
 
 function el(id) {
   return document.getElementById(id);
@@ -98,7 +98,7 @@ export async function initKbView() {
 
   const summaryBox = el('kbSummaryBox');
   if (summaryBox) {
-    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${t().loadingKb}</div>`;
+    summaryBox.innerHTML = `<div class="text-center text-slate-300 text-[11px] py-4">${t().loadingKb}</div>`;
   }
 
   const result = await fetchAllMachineErrorsApi();
@@ -138,7 +138,7 @@ window.switchKbPeriod = async function (period) {
 
   const summaryBox = el('kbSummaryBox');
   if (summaryBox) {
-    summaryBox.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-3">${t().calculating}</div>`;
+    summaryBox.innerHTML = `<div class="text-center text-slate-300 text-[11px] py-3">${t().calculating}</div>`;
   }
 
   const sinceIso = computeSinceIso(period);
@@ -180,16 +180,16 @@ function renderKbSummary() {
 
   if (currentPeriod === 'all') {
     box.innerHTML = `
-      <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 flex items-center justify-between">
+      <div class="bg-[#0F172A] text-white border ${meta.summaryClass} rounded-xl p-3 flex items-center justify-between">
         <div class="text-xs font-bold">${meta.icon} ${escapeHtml(meta.label)}</div>
-        <div class="text-lg font-bold">${allErrors.length} <span class="text-[10px] font-normal">${tr.loggedError}</span></div>
+        <div class="text-lg font-bold">${allErrors.length} <span class="text-[11px] font-normal text-slate-200">${tr.loggedError}</span></div>
       </div>
     `;
     return;
   }
 
   if (periodLoadError) {
-    box.innerHTML = `<div class="bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl p-3 text-xs">${tr.periodLoadError}</div>`;
+    box.innerHTML = `<div class="bg-amber-500/15 border border-amber-500/35 text-amber-200 rounded-xl p-3 text-xs">${tr.periodLoadError}</div>`;
     return;
   }
 
@@ -198,13 +198,13 @@ function renderKbSummary() {
   const totalOccurrences = periodLogs.length;
 
   box.innerHTML = `
-    <div class="bg-[#0F172A] border ${meta.summaryClass} rounded-xl p-3 grid grid-cols-2 gap-2">
+    <div class="bg-[#0F172A] text-white border ${meta.summaryClass} rounded-xl p-3 grid grid-cols-2 gap-2">
       <div>
-        <div class="text-[10px] opacity-80">${meta.icon} ${tr.totalOccurrences} (${escapeHtml(meta.label)})</div>
+        <div class="text-[11px] text-slate-200">${meta.icon} ${tr.totalOccurrences} (${escapeHtml(meta.label)})</div>
         <div class="text-lg font-bold">${totalOccurrences}</div>
       </div>
       <div>
-        <div class="text-[10px] opacity-80">${tr.distinctCodes}</div>
+        <div class="text-[11px] text-slate-200">${tr.distinctCodes}</div>
         <div class="text-lg font-bold">${distinctCodes}</div>
       </div>
     </div>
@@ -246,7 +246,7 @@ function renderKbList() {
 
   if (!list.length) {
     box.innerHTML = `
-      <div class="text-center text-gray-500 text-[11px] py-8">
+      <div class="text-center text-slate-600 dark:text-slate-300 text-[11px] py-8 font-medium">
         ${currentPeriod === 'all' ? tr.emptyAll : tr.emptyPeriod}
       </div>
     `;
@@ -258,20 +258,20 @@ function renderKbList() {
     const count = freq[e.errorCode];
 
     return `
-      <details class="bg-[#0F172A] border border-gray-700 rounded-xl p-3 text-xs">
-        <summary class="cursor-pointer flex items-center justify-between font-bold text-gray-100">
+      <details class="bg-[#0F172A] text-white border border-gray-700 rounded-xl p-3 text-xs">
+        <summary class="cursor-pointer flex items-center justify-between font-bold text-white">
           <span class="flex items-center gap-2">
-            <span class="text-blue-400">${e.errorCode || '-'}</span>
-            ${isPending ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">${tr.pendingReview}</span>` : ''}
+            <span class="text-blue-300">${e.errorCode || '-'}</span>
+            ${isPending ? `<span class="text-[11px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">${tr.pendingReview}</span>` : ''}
           </span>
-          ${count ? `<span class="text-[10px] text-gray-400">${tr.repeatedTimes.replace('{n}', count)}</span>` : ''}
+          ${count ? `<span class="text-[11px] text-slate-300">${tr.repeatedTimes.replace('{n}', count)}</span>` : ''}
         </summary>
 
-        <div class="mt-2 pt-2 border-t border-gray-800 space-y-1.5 text-gray-300">
-          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-gray-500">${tr.machineLine}</span> ${escapeHtml(e.machine || '-')} ${e.line ? escapeHtml('· ' + e.line) : ''}</div>` : ''}
-          <div class="text-[11px]"><span class="text-gray-500">${tr.probableCause}</span> ${e.cause || tr.notSpecified}</div>
-          <div class="text-[11px]"><span class="text-gray-500">${tr.solution}</span> ${e.solution || tr.notSpecified}</div>
-          <div class="text-[11px] whitespace-pre-line"><span class="text-gray-500">${tr.repairSteps}</span> ${e.steps || tr.notSpecified}</div>
+        <div class="mt-2 pt-2 border-t border-gray-800 space-y-1.5 text-slate-200">
+          ${e.machine || e.line ? `<div class="text-[11px]"><span class="text-slate-300 font-semibold">${tr.machineLine}</span> ${escapeHtml(e.machine || '-')} ${e.line ? escapeHtml('· ' + e.line) : ''}</div>` : ''}
+          <div class="text-[11px]"><span class="text-slate-300 font-semibold">${tr.probableCause}</span> ${e.cause || tr.notSpecified}</div>
+          <div class="text-[11px]"><span class="text-slate-300 font-semibold">${tr.solution}</span> ${e.solution || tr.notSpecified}</div>
+          <div class="text-[11px] whitespace-pre-line"><span class="text-slate-300 font-semibold">${tr.repairSteps}</span> ${e.steps || tr.notSpecified}</div>
         </div>
       </details>
     `;

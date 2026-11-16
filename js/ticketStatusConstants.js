@@ -47,12 +47,12 @@ export const STATUS_LABELS = {
 // كلاسات Tailwind لعرض حالة البلاغ - نسخة "خفيفة" مستخدمة في كروت
 // نتائج البحث والفلترة المتقدمة (maintenanceSearch.js)
 export const STATUS_CLASSES = {
-  pending: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  assigned: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20",
-  resolved: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-  closed: "bg-gray-500/10 text-gray-400 border border-gray-500/20",
-  reopened: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+  pending: "bg-amber-500/15 text-amber-300 border border-amber-500/30",
+  assigned: "bg-blue-500/15 text-blue-300 border border-blue-500/30",
+  in_progress: "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30",
+  resolved: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
+  closed: "bg-slate-600/40 text-slate-200 border border-slate-500/40",
+  reopened: "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
 };
 
 // نسخة "بارزة" من نفس كلاسات الحالة - مستخدمة في شارة الحالة الأكبر

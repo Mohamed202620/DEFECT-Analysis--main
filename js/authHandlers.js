@@ -491,7 +491,7 @@ container.innerHTML = `
   class="  
     text-center  
     py-8  
-    text-gray-400  
+    text-slate-600 dark:text-slate-300 font-medium  
   "  
 >  
 
@@ -522,7 +522,7 @@ if (
 
     <div  
       class="  
-        text-red-400  
+        text-red-600 dark:text-red-300 font-medium  
         text-center  
         py-6  
       "  
@@ -559,7 +559,7 @@ if (!usersList.length) {
     <div  
       class="  
         text-center  
-        text-gray-500  
+        text-slate-600 dark:text-slate-300 font-medium  
         py-6  
       "  
     >  
@@ -602,26 +602,26 @@ usersList.forEach(
           </b>  
         </div>  
 
-        <div class="text-gray-400">  
+        <div class="text-slate-200">  
           📱 ${escapeHtml(user.phone || "")}  
         </div>  
 
-        <div class="text-blue-400">  
+        <div class="text-blue-300">  
           ${t().roleLabel}  
           ${escapeHtml(user.role || "pending")}  
         </div>  
 
-        <div class="text-gray-400">  
+        <div class="text-slate-200">  
           ${t().statusLabel}  
           ${escapeHtml(user.status || "-")}  
         </div>  
 
-        <div class="text-gray-400">  
+        <div class="text-slate-200">  
           ${t().shiftLabel}  
           ${escapeHtml(user.shift || "-")}  
         </div>  
 
-        <div class="text-gray-400">  
+        <div class="text-slate-200">  
           ${t().departmentLabel}  
           ${escapeHtml(user.department || "-")}  
         </div>  
@@ -649,7 +649,7 @@ container.innerHTML = `
 
   <div  
     class="  
-      text-red-400  
+      text-red-600 dark:text-red-300 font-medium  
       text-center  
       py-6  
     "  

@@ -16,7 +16,7 @@ window.selectIssueLine = function(lineVal) {
   const btn1 = document.getElementById('btnLine1');
   const btn2 = document.getElementById('btnLine2');
   const activeClass = "flex-1 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-blue-600 border-blue-400 text-white shadow-sm shadow-blue-600/30";
-  const inactiveClass = "flex-1 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-400 hover:border-slate-600";
+  const inactiveClass = "flex-1 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white";
   if (btn1 && btn2) {
     if (lineVal === 'Line 1') {
       btn1.className = activeClass;
@@ -62,21 +62,21 @@ window.checkActiveTicketForMachine = async function() {
               <span class="text-base animate-bounce">⚠️</span>
               <span>${isEn ? 'Active ticket already open for this machine' : 'يوجد بلاغ عطل مفتوح بالفعل لهذه الماكينة'}</span>
             </div>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-200 border border-amber-500/40">
               ${escapeHtml(t.status)}
             </span>
           </div>
 
-          <div class="bg-[#0F172A]/90 p-2.5 rounded-lg border border-slate-700/80 space-y-1 text-[11px] text-slate-300">
+          <div class="bg-[#0F172A]/95 p-2.5 rounded-lg border border-slate-700/80 space-y-1 text-[11px] text-slate-200">
             <div class="flex items-center justify-between gap-2">
               <span class="font-bold text-white font-mono">${escapeHtml(displayRecordNumber(t))}</span>
-              <span class="text-slate-400 text-[10px]">${createdDate}</span>
+              <span class="text-slate-300 text-[11px]">${createdDate}</span>
             </div>
-            <div class="text-slate-200 line-clamp-2">
-              <span class="text-gray-400">${isEn ? 'Description:' : 'الوصف:'}</span> ${escapeHtml(t.description || '')}
+            <div class="text-slate-100 line-clamp-2">
+              <span class="text-slate-300">${isEn ? 'Description:' : 'الوصف:'}</span> ${escapeHtml(t.description || '')}
             </div>
-            <div class="flex items-center gap-3 text-[10px] text-slate-400 pt-0.5 flex-wrap">
-              <span>👤 ${isEn ? 'Reported by:' : 'المُبلّغ:'} <b class="text-slate-200">${escapeHtml(t.reportedBy || t.reporter?.name || (isEn ? 'Unknown' : 'غير محدد'))}</b></span>
+            <div class="flex items-center gap-3 text-[11px] text-slate-300 pt-0.5 flex-wrap">
+              <span>👤 ${isEn ? 'Reported by:' : 'المُبلّغ:'} <b class="text-white">${escapeHtml(t.reportedBy || t.reporter?.name || (isEn ? 'Unknown' : 'غير محدد'))}</b></span>
               ${t.reporter?.shift ? `<span>🕒 ${isEn ? 'Shift:' : 'الوردية:'} <b class="text-amber-300">${escapeHtml(t.reporter.shift)}</b></span>` : ''}
               ${t.assignedTo ? `<span>🛠️ ${isEn ? 'Assigned to:' : 'المسند إليه:'} <b class="text-blue-300">${escapeHtml(t.assignedTo)}</b></span>` : ''}
             </div>
@@ -131,27 +131,27 @@ window.openShiftHandoverModal = function(ticketId) {
           <span>🔄</span>
           <span>${isEn ? 'Shift Handover & Update on Existing Ticket' : 'تسليم الوردية وتحديث البلاغ القائم'}</span>
         </h3>
-        <button type="button" onclick="document.getElementById('shiftHandoverOverlay')?.remove()" class="text-gray-400 hover:text-white text-lg">✕</button>
+        <button type="button" onclick="document.getElementById('shiftHandoverOverlay')?.remove()" class="text-slate-300 hover:text-white text-lg">✕</button>
       </div>
 
       <div class="space-y-1">
-        <label class="block text-[11px] font-bold text-gray-300">
+        <label class="block text-[11px] font-bold text-slate-200">
           ${isEn ? 'Shift Name / Number' : 'اسم / رقم الوردية الحالية'}
         </label>
         <input type="text" id="handoverShiftInput" value="${localStorage.getItem('shift') || ''}" placeholder="${isEn ? 'e.g. Shift B / Evening Shift' : 'مثال: وردية ب / مسائية'}"
-          class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white outline-none focus:border-emerald-500 transition" />
+          class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 outline-none focus:border-emerald-500 transition" />
       </div>
 
       <div class="space-y-1">
-        <label class="block text-[11px] font-bold text-gray-300">
+        <label class="block text-[11px] font-bold text-slate-200">
           ${isEn ? 'Shift Observations / Progress Notes' : 'ملاحظات الوردية الحالية / الموقف الحالي للإصلاح'} <span class="text-red-400">*</span>
         </label>
         <textarea id="handoverNoteInput" rows="3" placeholder="${isEn ? 'Write what your shift observed, inspected, or parts needed...' : 'اكتب ملاحظات ورديتك، ما تم فحصه، أو قطع الغيار المطلوبة...'}"
-          class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white outline-none focus:border-emerald-500 transition resize-none"></textarea>
+          class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-xs text-white placeholder-slate-400 outline-none focus:border-emerald-500 transition resize-none"></textarea>
       </div>
 
       <div class="space-y-1">
-        <label class="block text-[11px] font-bold text-gray-300">
+        <label class="block text-[11px] font-bold text-slate-200">
           📷 ${isEn ? 'Attach Photos (Optional)' : 'صور من الوردية الحالية (اختياري)'}
         </label>
         ${buildAttachmentPickerHtml("handoverImages", {
@@ -167,7 +167,7 @@ window.openShiftHandoverModal = function(ticketId) {
           <span>${isEn ? 'Save Shift Update' : 'حفظ تحديث الوردية'}</span>
         </button>
         <button type="button" onclick="document.getElementById('shiftHandoverOverlay')?.remove()"
-          class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 font-bold text-xs text-gray-300 transition cursor-pointer">
+          class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 font-bold text-xs text-slate-200 transition cursor-pointer">
           ${isEn ? 'Cancel' : 'إلغاء'}
         </button>
       </div>
@@ -238,7 +238,7 @@ window.selectIssuePriority = function(priorityVal) {
         btn.className = "flex-1 py-1.5 px-1.5 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-emerald-600 border-emerald-400 text-white shadow-sm shadow-emerald-600/30";
       }
     } else {
-      btn.className = "flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
+      btn.className = "flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white";
     }
   });
 };
@@ -251,10 +251,10 @@ window.selectIssueType = function(typeVal) {
   const btnObs = document.getElementById('btnTypeObs');
   const btnPM = document.getElementById('btnTypePM');
 
-  const activeRed = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-300 shadow-sm";
-  const activeBlue = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-blue-500/20 border-blue-500 text-blue-300 shadow-sm";
-  const activeTeal = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-teal-500/20 border-teal-500 text-teal-300 shadow-sm";
-  const inactive = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
+  const activeRed = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-200 shadow-sm";
+  const activeBlue = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-blue-500/20 border-blue-500 text-blue-200 shadow-sm";
+  const activeTeal = "flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-teal-500/20 border-teal-500 text-teal-200 shadow-sm";
+  const inactive = "flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white";
 
   if (typeVal === 'Breakdown') {
     if (breakdownRadio) breakdownRadio.checked = true;
@@ -296,7 +296,7 @@ window.selectIssueCategory = function(catVal) {
     if (c === catVal) {
       btn.className = "py-1.5 px-1.5 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-indigo-600 border-indigo-400 text-white shadow-sm shadow-indigo-600/30";
     } else {
-      btn.className = "py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700";
+      btn.className = "py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white";
     }
   });
 };
@@ -307,7 +307,7 @@ export const IssueView = () => {
   const isAr = currentLang === 'ar';
 
   return `
-  <div class="app-page p-2.5 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-2.5 pb-20 lg:pb-8 text-white">
+  <div class="app-page p-2.5 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto space-y-2.5 pb-20 lg:pb-8 text-slate-900 dark:text-white">
 
     <!-- زر الرجوع وشارة البلاغ السريع -->
     <div class="flex items-center justify-between">
@@ -319,14 +319,14 @@ export const IssueView = () => {
         <span>${t.back || "رجوع"}</span>
       </button>
 
-      <span class="text-[11px] font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-500/20 flex items-center gap-1">
+      <span class="text-[11px] font-bold text-blue-700 dark:text-blue-400 bg-blue-500/15 px-2.5 py-1 rounded-md border border-blue-500/30 flex items-center gap-1">
         <span>⚡</span>
         <span>${isAr ? "تسجيل سريع" : "Fast Report"}</span>
       </span>
     </div>
 
     <!-- بطاقة النموذج الرئيسية المدمجة -->
-    <div class="bg-[#1E293B] rounded-xl p-3.5 sm:p-4 border border-slate-800 shadow-xl space-y-2.5">
+    <div class="bg-[#1E293B] text-white rounded-xl p-3.5 sm:p-4 border border-slate-800 shadow-xl space-y-2.5">
 
       <!-- هيدر الكارت -->
       <div class="border-b border-slate-800/80 pb-2 flex items-center gap-2">
@@ -335,7 +335,7 @@ export const IssueView = () => {
           <h2 class="text-sm sm:text-base font-black text-white leading-tight">
             ${escapeHtml(t.issueTitle || "تسجيل عطل أو ملاحظة")}
           </h2>
-          <p class="text-[11px] text-slate-400 leading-none mt-0.5">
+          <p class="text-[11px] text-slate-300 leading-none mt-0.5">
             ${isAr ? "أدخل بيانات العطل بسرعة بلمسة واحدة" : "Quick equipment defect reporting"}
           </p>
         </div>
@@ -355,7 +355,7 @@ export const IssueView = () => {
               <span>🏭 Line 1</span>
             </button>
             <button type="button" id="btnLine2" onclick="window.selectIssueLine('Line 2')"
-              class="flex-1 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-400 hover:border-slate-600">
+              class="flex-1 py-1.5 px-3 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
               <span>🏭 Line 2</span>
             </button>
           </div>
@@ -363,7 +363,7 @@ export const IssueView = () => {
 
         <!-- 2. الماكينة -->
         <div class="space-y-1">
-          <label for="issueMachineType" class="block text-[11px] font-bold text-slate-300">
+          <label for="issueMachineType" class="block text-[11px] font-bold text-slate-200">
             ⚙️ ${escapeHtml(t.machine || "الماكينة")} <span class="text-red-400">*</span>
           </label>
           ${buildMachineDropdownHtml("issueMachine", {
@@ -382,7 +382,7 @@ export const IssueView = () => {
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <!-- 3. نوع البلاغ -->
         <div class="space-y-1">
-          <label class="block text-[11px] font-bold text-slate-300">
+          <label class="block text-[11px] font-bold text-slate-200">
             🏷️ ${t.issueType || "نوع البلاغ"}
           </label>
           <div class="hidden">
@@ -392,15 +392,15 @@ export const IssueView = () => {
           </div>
           <div class="flex gap-1.5">
             <button type="button" id="btnTypeBreakdown" onclick="window.selectIssueType('Breakdown')"
-              class="flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-300 shadow-sm">
+              class="flex-1 py-1.5 px-2 rounded-lg font-black text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-red-500/20 border-red-500 text-red-200 shadow-sm">
               <span>⚠️ ${isAr ? "عطل مفاجئ" : "Breakdown"}</span>
             </button>
             <button type="button" id="btnTypeObs" onclick="window.selectIssueType('Observation')"
-              class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+              class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
               <span>👁️ ${isAr ? "ملاحظة" : "Observation"}</span>
             </button>
             <button type="button" id="btnTypePM" onclick="window.selectIssueType('PM')"
-              class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+              class="flex-1 py-1.5 px-2 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1.5 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
               <span>🗓️ ${isAr ? "صيانة وقائية PM" : "PM"}</span>
             </button>
           </div>
@@ -408,13 +408,13 @@ export const IssueView = () => {
 
         <!-- 4. درجة الأولوية -->
         <div class="space-y-1">
-          <label class="block text-[11px] font-bold text-slate-300">
+          <label class="block text-[11px] font-bold text-slate-200">
             ⚡ ${escapeHtml(t.priority || "درجة الأولوية")}
           </label>
           <input type="hidden" id="issuePriority" value="Medium" />
           <div class="flex gap-1.5">
             <button type="button" id="btnPriority_High" onclick="window.selectIssuePriority('High')"
-              class="flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+              class="flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
               <span class="text-xs leading-none">🔴</span>
               <span>${isAr ? "عالية" : "High"}</span>
             </button>
@@ -424,7 +424,7 @@ export const IssueView = () => {
               <span>${isAr ? "متوسطة" : "Medium"}</span>
             </button>
             <button type="button" id="btnPriority_Low" onclick="window.selectIssuePriority('Low')"
-              class="flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+              class="flex-1 py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
               <span class="text-xs leading-none">🟢</span>
               <span>${isAr ? "منخفضة" : "Low"}</span>
             </button>
@@ -434,33 +434,33 @@ export const IssueView = () => {
 
       <!-- 5. تصنيف العطل (شرائح تفاعلية سريعة ومدمجة) -->
       <div class="space-y-1">
-        <label class="block text-[11px] font-bold text-slate-300">
+        <label class="block text-[11px] font-bold text-slate-200">
           🛠️ ${escapeHtml(t.category || "تصنيف العطل")} <span class="text-red-400">*</span>
         </label>
         <input type="hidden" id="issueCategory" value="" />
         <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
           <button type="button" id="btnCat_كهرباء" onclick="window.selectIssueCategory('كهرباء')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>⚡ كهرباء</span>
           </button>
           <button type="button" id="btnCat_ميكانيكا" onclick="window.selectIssueCategory('ميكانيكا')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>⚙️ ميكانيكا</span>
           </button>
           <button type="button" id="btnCat_برمجة" onclick="window.selectIssueCategory('برمجة')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>💻 برمجة</span>
           </button>
           <button type="button" id="btnCat_Safety" onclick="window.selectIssueCategory('Safety')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>🛡️ سلامة</span>
           </button>
           <button type="button" id="btnCat_جودة" onclick="window.selectIssueCategory('جودة')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>📦 جودة</span>
           </button>
           <button type="button" id="btnCat_أخرى" onclick="window.selectIssueCategory('أخرى')"
-            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-800 text-slate-400 hover:border-slate-700">
+            class="py-1.5 px-1.5 rounded-lg font-bold text-xs border transition-all flex items-center justify-center gap-1 active:scale-95 bg-[#0F172A] border-slate-700 text-slate-300 hover:border-slate-500 hover:text-white">
             <span>❓ أخرى</span>
           </button>
         </div>
@@ -468,60 +468,60 @@ export const IssueView = () => {
 
       <!-- 6. وصف المشكلة -->
       <div class="space-y-1">
-        <label for="issueDescription" class="block text-[11px] font-bold text-slate-300">
+        <label for="issueDescription" class="block text-[11px] font-bold text-slate-200">
           📋 ${escapeHtml(t.description || "وصف المشكلة")} <span class="text-red-400">*</span>
         </label>
         <textarea id="issueDescription" rows="2"
           placeholder="${escapeHtml(t.enterDescription || "اكتب وصف المشكلة بدقة...")}"
-          class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs resize-none shadow-inner placeholder-slate-500"></textarea>
+          class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs resize-none shadow-inner placeholder-slate-400"></textarea>
       </div>
 
       <!-- 7 & 8: مكان العطل داخل الماكينة + مقترح الحل في صف متجاوب -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         <div class="space-y-1">
-          <label for="issueLocation" class="block text-[11px] font-bold text-slate-300">
+          <label for="issueLocation" class="block text-[11px] font-bold text-slate-200">
             📍 ${t.locationInMachine || "مكان العطل بالتحديد"}
           </label>
           <input id="issueLocation" type="text"
             placeholder="مثال: Main Motor - Sensor - Bearing"
-            class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-500">
+            class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-400">
         </div>
 
         <div class="space-y-1">
-          <label for="issueSuggestion" class="block text-[11px] font-bold text-slate-300">
+          <label for="issueSuggestion" class="block text-[11px] font-bold text-slate-200">
             💡 ${escapeHtml(t.suggestion || "اقتراح الحل (اختياري)")}
           </label>
           <input id="issueSuggestion" type="text"
             placeholder="${t.enterSuggestion || "إذا كان لديك مقترح أولي للحل..."}"
-            class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-500">
+            class="w-full p-2 px-2.5 rounded-lg bg-[#0F172A] border border-slate-700 text-white outline-none focus:border-blue-500 transition text-xs shadow-inner placeholder-slate-400">
         </div>
       </div>
 
       <!-- 9. الصور المرفقة -->
       <div class="space-y-1">
-        <label class="block text-[11px] font-bold text-slate-300">
+        <label class="block text-[11px] font-bold text-slate-200">
           📷 ${t.attachPhoto || "صور توضيحية (اختياري)"}
         </label>
         ${buildAttachmentPickerHtml("issueImages", {
           emptyText: "لا توجد صور مرفقة",
-          cameraButtonClass: "bg-blue-600/20 border border-blue-500/40 hover:bg-blue-600/30 rounded-lg py-1.5 px-2.5 text-blue-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
-          galleryButtonClass: "bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg py-1.5 px-2.5 text-slate-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
+          cameraButtonClass: "bg-blue-600/20 border border-blue-500/40 hover:bg-blue-600/30 rounded-lg py-1.5 px-2.5 text-blue-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
+          galleryButtonClass: "bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-lg py-1.5 px-2.5 text-slate-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5",
           buttonsWrapperClass: "grid grid-cols-2 gap-2 mb-1"
         })}
       </div>
 
       <!-- 9.5. خيار الإصلاح الذاتي بواسطة المُبلغ -->
-      <div class="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/40 space-y-2">
+      <div class="p-2.5 rounded-xl bg-emerald-950/35 border border-emerald-500/40 space-y-2">
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input type="checkbox" id="isSelfResolved" onchange="window.toggleSelfResolvedFields(this.checked)" class="w-4 h-4 rounded border-gray-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 cursor-pointer">
-          <span class="text-xs font-bold text-emerald-300">🛠️ ${isAr ? "تم إصلاح العطل فورياً (صيانة ذاتية بواسطة المُبلغ)" : "Fixed immediately (Self-resolved by reporter)"}</span>
+          <span class="text-xs font-bold text-emerald-200">🛠️ ${isAr ? "تم إصلاح العطل فورياً (صيانة ذاتية بواسطة المُبلغ)" : "Fixed immediately (Self-resolved by reporter)"}</span>
         </label>
         <div id="selfResolvedBox" class="hidden space-y-2 pt-1 border-t border-emerald-500/20">
           <div>
-            <label class="block text-[11px] font-bold text-slate-300 mb-1">
+            <label class="block text-[11px] font-bold text-slate-200 mb-1">
               ${isAr ? "خطوات وطريقة الإصلاح الذاتي" : "Self-repair steps"}
             </label>
-            <input id="selfResolvedNotes" type="text" placeholder="${isAr ? "اكتب باختصار كيف تم إصلاح العطل..." : "Describe how the breakdown was resolved..."}" class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-emerald-500 transition">
+            <input id="selfResolvedNotes" type="text" placeholder="${isAr ? "اكتب باختصار كيف تم إصلاح العطل..." : "Describe how the breakdown was resolved..."}" class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-400 outline-none focus:border-emerald-500 transition">
           </div>
         </div>
       </div>

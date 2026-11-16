@@ -101,10 +101,10 @@ function renderUsersManagementPage({
 
 return `
 
-<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-white">
+<div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 lg:pb-8 space-y-4 md:space-y-6 text-slate-900 dark:text-white">
 
     <!-- Header & Back Button -->
-    <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
         <div class="flex items-center gap-3">
             <button
                 type="button"
@@ -114,10 +114,10 @@ return `
                 <span class="text-xs text-slate-200">رجوع</span>
             </button>
             <div>
-                <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+                <h2 class="text-base font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">
                     <span>👥</span> ${escapeHtml(title)}
                 </h2>
-                <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+                <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
                     ${subtitle}
                 </p>
             </div>
@@ -132,9 +132,9 @@ return `
             id="userSearch"
             oninput="window.searchUsers()"
             placeholder="🔍 بحث بالاسم أو رقم الهاتف..."
-            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner"
+            class="w-full p-3 rtl:pr-10 ltr:pl-10 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition shadow-inner"
         >
-        <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-gray-400 text-xs pointer-events-none">🔍</span>
+        <span class="absolute top-3.5 rtl:right-3.5 ltr:left-3.5 text-slate-300 text-xs pointer-events-none">🔍</span>
     </div>
 
 
@@ -211,7 +211,7 @@ return `
     <div class="flex justify-end">
         <button
             onclick="window.migrateEmployeeCodes()"
-            class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 transition font-bold text-xs">
+            class="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition font-bold text-xs">
             🔐 حماية أكواد الموظفين (مرة واحدة)
         </button>
     </div>
@@ -220,7 +220,7 @@ return `
 
     <div
         id="usersCount"
-        class="text-xs text-gray-400">
+        class="text-xs font-semibold text-slate-600 dark:text-slate-300">
 
         إجمالي المستخدمين : 0
 
@@ -233,7 +233,7 @@ return `
         id="usersContainer"
         class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
 
-        <div class="col-span-full text-center text-gray-500 py-8">
+        <div class="col-span-full text-center text-slate-600 dark:text-slate-300 py-8 text-xs">
 
             جاري تحميل المستخدمين...
 
@@ -297,7 +297,7 @@ function permissionCheckbox(
             ${disabled ? "disabled" : ""}
         >
 
-        <span class="text-[11px]">
+        <span class="text-[11px] text-slate-200">
             ${escapeHtml(label)}
         </span>
 
@@ -335,7 +335,7 @@ function renderUsers(users) {
 
         container.innerHTML = `
 
-        <div class="text-center text-gray-400 py-10">
+        <div class="col-span-full text-center text-slate-600 dark:text-slate-300 py-10 text-xs">
 
             لا يوجد مستخدمون
 
@@ -377,6 +377,7 @@ function renderUsers(users) {
             <div
                 class="
                 bg-[#1E293B]
+                text-white
                 rounded-2xl
                 border border-gray-700
                 p-4
@@ -399,7 +400,7 @@ function renderUsers(users) {
 
 
                     <div
-                        class="text-xs text-gray-300 mt-1">
+                        class="text-xs text-slate-200 mt-1">
 
                         📱 ${escapeHtml(user.phone || "")}
 
@@ -407,7 +408,7 @@ function renderUsers(users) {
 
 
                     <div
-                        class="text-xs text-gray-300">
+                        class="text-xs text-slate-200">
 
                         💼 ${escapeHtml(user.job || "")}
 
@@ -415,7 +416,7 @@ function renderUsers(users) {
 
 
                     <div
-                        class="text-xs text-gray-300">
+                        class="text-xs text-slate-200">
 
                         🔵 ${escapeHtml(user.shift || "")}
 
@@ -426,16 +427,16 @@ function renderUsers(users) {
 
                 <!-- الحالة -->
 
-                <div class="text-xs">
+                <div class="text-xs text-slate-200">
 
                     الحالة :
 
                     <span class="${
                         user.status === "active"
-                            ? "text-green-400"
+                            ? "text-emerald-400 font-bold"
                             : user.status === "pending"
-                                ? "text-yellow-400"
-                                : "text-red-400"
+                                ? "text-amber-300 font-bold"
+                                : "text-red-400 font-bold"
                     }">
 
                         ${escapeHtml(user.status || "-")}
@@ -450,7 +451,7 @@ function renderUsers(users) {
                 <div>
 
                     <label
-                        class="text-xs text-gray-400">
+                        class="text-xs font-semibold text-slate-300">
 
                         الدور
 
@@ -467,6 +468,7 @@ function renderUsers(users) {
                         bg-[#0F172A]
                         border
                         border-gray-700
+                        text-white
                         text-sm
                         "
                         ${protectedAdmin ? "disabled" : ""}>
@@ -545,7 +547,7 @@ function renderUsers(users) {
                 <div>
 
                     <label
-                        class="text-xs text-gray-400">
+                        class="text-xs font-semibold text-slate-300">
 
                         تصنيف الماكينات (Backend / Frontend)
 
@@ -562,6 +564,7 @@ function renderUsers(users) {
                         bg-[#0F172A]
                         border
                         border-gray-700
+                        text-white
                         text-sm
                         ">
 
@@ -599,7 +602,7 @@ function renderUsers(users) {
                 <div>
 
                     <div
-                        class="text-xs text-gray-400 mb-2">
+                        class="text-xs font-semibold text-slate-300 mb-2">
 
                         الصلاحيات
 
@@ -1110,7 +1113,7 @@ export async function loadUsersManagement() {
     }
 
     container.innerHTML = `
-        <div class="text-center py-8 text-gray-400">
+        <div class="col-span-full text-center py-8 text-slate-600 dark:text-slate-300 text-xs">
             جاري تحميل المستخدمين...
         </div>
     `;

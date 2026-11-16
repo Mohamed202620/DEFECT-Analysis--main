@@ -100,7 +100,7 @@ export const QrScannerView = () => {
   initVisibilityListener(); // QR-IMPROVE
 
   return `
-  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl mx-auto pb-24 text-white">
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-3xl mx-auto pb-24 text-slate-900 dark:text-white">
     <!-- شريط الرجوع والأدوات -->
     <div class="flex items-center justify-between mb-4">
       <button onclick="window.goBack('home')" class="bg-gray-800 hover:bg-gray-700 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm min-h-[38px] cursor-pointer">
@@ -112,7 +112,7 @@ export const QrScannerView = () => {
       <button
         type="button"
         onclick="window.openBatchQrPrintModal()"
-        class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 active:scale-95 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+        class="bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 active:scale-95 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
         <span>🖨️</span>
         <span class="hidden sm:inline">${isEn ? 'Print QR Sheet' : 'طباعة ملصقات QR'}</span>
         <span class="sm:hidden">${isEn ? 'Print' : 'طباعة'}</span>
@@ -121,13 +121,13 @@ export const QrScannerView = () => {
     </div>
 
     <!-- العنوان والوصف -->
-    <div class="mb-4 border-b border-gray-800 pb-2.5">
-      <h2 class="text-lg font-bold text-blue-400 flex items-center gap-2">${tr.title}</h2>
-      <p class="text-[11px] text-gray-400 mt-1">${tr.subtitle}</p>
+    <div class="mb-4 border-b border-slate-300 dark:border-gray-800 pb-2.5">
+      <h2 class="text-lg font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2">${tr.title}</h2>
+      <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1">${tr.subtitle}</p>
     </div>
 
     <!-- بطاقة الكاميرا الرئيسية والمسح -->
-    <div class="bg-[#1E293B] p-4 rounded-2xl border border-gray-800 space-y-3 shadow-lg">
+    <div class="bg-[#1E293B] text-white p-4 rounded-2xl border border-gray-800 space-y-3 shadow-lg">
       
       <!-- نافذة الكاميرا التفاعلية مع إطار التركيز البصري والتحكم -->
       <div id="qrVideoBox" class="hidden relative rounded-2xl overflow-hidden bg-black aspect-square max-w-xs mx-auto border-2 border-blue-500/50 shadow-inner">
@@ -141,7 +141,7 @@ export const QrScannerView = () => {
             onclick="window.toggleQrTorch()"
             class="hidden px-2.5 py-1.5 rounded-xl bg-black/70 backdrop-blur-md text-amber-300 border border-amber-500/30 active:scale-90 transition text-xs font-bold flex items-center gap-1 cursor-pointer">
             <span id="qrTorchIcon">🔦</span>
-            <span id="qrTorchText" class="text-[10px]">${isEn ? 'Torch' : 'فلاش'}</span>
+            <span id="qrTorchText" class="text-[11px]">${isEn ? 'Torch' : 'فلاش'}</span>
           </button>
 
           <button
@@ -151,7 +151,7 @@ export const QrScannerView = () => {
             class="px-2.5 py-1.5 rounded-xl bg-black/70 backdrop-blur-md text-white border border-white/20 active:scale-90 transition text-xs font-bold flex items-center gap-1 ms-auto cursor-pointer"
             title="${tr.flipCam}">
             <span>🔄</span>
-            <span class="text-[10px] hidden sm:inline">${isEn ? 'Flip' : 'تبديل'}</span>
+            <span class="text-[11px] hidden sm:inline">${isEn ? 'Flip' : 'تبديل'}</span>
           </button>
         </div>
 
@@ -170,7 +170,7 @@ export const QrScannerView = () => {
       </div>
 
       <!-- صندوق حالة الكاميرا -->
-      <div id="qrStatusBox" class="text-center text-xs text-gray-400 py-1 font-medium min-h-[20px]"></div>
+      <div id="qrStatusBox" class="text-center text-xs text-slate-300 py-1 font-medium min-h-[20px]"></div>
 
       <!-- أزرار بدء وإيقاف الكاميرا -->
       <div class="flex gap-2">
@@ -189,13 +189,13 @@ export const QrScannerView = () => {
     <div id="qrResultBox" class="mt-4"></div>
 
     <!-- قسم الاختيار اليدوي للماكينة -->
-    <div id="qrManualSection" class="bg-[#1E293B] p-4 rounded-2xl border border-gray-800 space-y-3 mt-4 shadow-lg">
+    <div id="qrManualSection" class="bg-[#1E293B] text-white p-4 rounded-2xl border border-gray-800 space-y-3 mt-4 shadow-lg">
       <div>
-        <h3 class="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+        <h3 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">
           <span>⚙️</span>
           <span>${tr.manualTitle}</span>
         </h3>
-        <p class="text-[10px] text-gray-400 mt-0.5">${tr.manualDesc}</p>
+        <p class="text-[11px] text-slate-300 mt-0.5">${tr.manualDesc}</p>
       </div>
 
       ${buildMachineDropdownHtml('qrManualMachine', {
@@ -386,7 +386,7 @@ function renderQuickActionResultCard(machine, line, lineLabel) {
   const canReportIssue = hasPermission("issue") || hasPermission("maintenance");
 
   const deptBadge = machine.department
-    ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+    ? `<span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ${
         machine.department === 'frontend'
           ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
           : 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
@@ -394,11 +394,11 @@ function renderQuickActionResultCard(machine, line, lineLabel) {
     : '';
 
   const lineBadge = lineLabel
-    ? `<span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">🏭 ${escapeHtml(lineLabel)}</span>`
+    ? `<span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">🏭 ${escapeHtml(lineLabel)}</span>`
     : '';
 
   resultBox.innerHTML = `
-    <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] rounded-2xl p-4 sm:p-5 border-2 border-emerald-500/40 shadow-xl space-y-3.5 animate-fade-in">
+    <div class="bg-gradient-to-br from-[#1E293B] to-[#0F172A] text-white rounded-2xl p-4 sm:p-5 border-2 border-emerald-500/40 shadow-xl space-y-3.5 animate-fade-in">
       
       <!-- هيدر النتيجة -->
       <div class="flex items-start justify-between border-b border-gray-800/80 pb-3">
@@ -419,7 +419,7 @@ function renderQuickActionResultCard(machine, line, lineLabel) {
         <button
           type="button"
           onclick="window.resetQrScan()"
-          class="px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition active:scale-95 flex items-center gap-1 cursor-pointer"
+          class="px-2.5 py-1.5 text-[11px] font-bold rounded-xl bg-gray-800 hover:bg-gray-700 text-slate-200 transition active:scale-95 flex items-center gap-1 cursor-pointer"
           title="${tr.scanAgain}">
           <span>🔄</span>
           <span class="hidden sm:inline">${tr.scanAgain}</span>
@@ -523,17 +523,17 @@ function renderQrErrorCard({ tone = 'error', title, desc, rawCode = '' }) {
   const truncatedCode = rawCode.length > 55 ? rawCode.slice(0, 52) + '...' : rawCode;
 
   resultBox.innerHTML = `
-    <div class="rounded-2xl p-4 border ${border} text-center space-y-3 shadow-lg animate-fade-in">
+    <div class="rounded-2xl p-4 border ${border} bg-[#0F172A] text-white text-center space-y-3 shadow-lg animate-fade-in">
       <div class="text-sm font-black ${titleColor}">${escapeHtml(title)}</div>
-      <div class="text-xs text-gray-300 leading-relaxed max-w-md mx-auto">${desc}</div>
+      <div class="text-xs text-slate-200 leading-relaxed max-w-md mx-auto">${desc}</div>
 
       ${rawCode ? `
-      <div class="flex items-center justify-center gap-2 p-2 rounded-xl bg-[#0F172A] border border-gray-800 text-[11px] font-mono text-gray-400 max-w-sm mx-auto">
+      <div class="flex items-center justify-center gap-2 p-2 rounded-xl bg-[#1E293B] border border-gray-800 text-[11px] font-mono text-slate-300 max-w-sm mx-auto">
         <span class="truncate" title="${escapeHtml(rawCode)}">${escapeHtml(truncatedCode)}</span>
         <button
           type="button"
           onclick="navigator.clipboard.writeText('${escapeHtml(rawCode).replace(/'/g, "\\'")}'); this.textContent='${tr.copied}'; setTimeout(() => this.textContent='${tr.copyCode}', 2000)"
-          class="shrink-0 px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400 text-[10px] font-sans font-bold transition cursor-pointer">
+          class="shrink-0 px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-blue-400 text-[11px] font-sans font-bold transition cursor-pointer">
           ${tr.copyCode}
         </button>
       </div>
@@ -606,7 +606,7 @@ function setQrStatus(message, isError = false) {
   box.textContent = message;
   box.className = isError
     ? "text-center text-xs text-red-400 py-1 font-bold min-h-[20px]"
-    : "text-center text-xs text-gray-400 py-1 font-medium min-h-[20px]";
+    : "text-center text-xs text-slate-300 py-1 font-medium min-h-[20px]";
 }
 
 // ============================================================
@@ -990,7 +990,7 @@ window.openBatchQrPrintModal = async function () {
   }).join('');
 
   modal.innerHTML = `
-    <div class="max-w-4xl w-full mx-auto bg-[#1E293B] border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto max-h-[92vh]">
+    <div class="max-w-4xl w-full mx-auto bg-[#1E293B] text-white border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto max-h-[92vh]">
       <!-- Header -->
       <div class="p-4 bg-[#0F172A] border-b border-gray-800 flex items-center justify-between shrink-0">
         <div>
@@ -998,7 +998,7 @@ window.openBatchQrPrintModal = async function () {
             <span>🖨️</span>
             <span>${tr.printModalTitle}</span>
           </h3>
-          <p class="text-xs text-gray-400 mt-0.5">
+          <p class="text-xs text-slate-300 mt-0.5">
             ${isEn ? `Generated ${flatMachines.length} printable machine stickers (MID standard format)` : `تم توليد (${flatMachines.length}) ملصق ماكينة بالصيغة المعيارية MID`}
           </p>
         </div>
@@ -1013,7 +1013,7 @@ window.openBatchQrPrintModal = async function () {
           <button
             type="button"
             onclick="document.getElementById('${escapeJsArg(modalId)}')?.remove()"
-            class="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition cursor-pointer">
+            class="p-2 text-slate-300 hover:text-white hover:bg-gray-800 rounded-xl transition cursor-pointer">
             ✕
           </button>
         </div>

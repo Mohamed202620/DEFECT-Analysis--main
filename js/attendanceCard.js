@@ -517,16 +517,16 @@ export async function openEarlyDepartureModal(targetDate = null) {
         <div class="text-center mb-3">
           <div class="text-2xl mb-1">🚪</div>
           <div class="text-white font-black text-sm">تسجيل خروج مبكر</div>
-          <div class="text-[10px] text-slate-400 mt-1">أدخل عدد ساعات الخروج المبكر لتخصم من ساعات الوردية الرسمية (12س):</div>
+          <div class="text-xs text-slate-300 mt-1">أدخل عدد ساعات الخروج المبكر لتخصم من ساعات الوردية الرسمية (12س):</div>
         </div>
-        <label class="block text-[11px] text-slate-300 mb-1">ساعات الخروج المبكر (خصم بالساعات)</label>
+        <label class="block text-xs text-slate-200 mb-1">ساعات الخروج المبكر (خصم بالساعات)</label>
         <input id="earlyHoursInput" type="number" min="0.25" max="12" step="0.25" value="${currentEarly || 1}"
           class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3 focus:border-amber-400 outline-none" />
-        <div class="text-center text-[11px] text-slate-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mb-3">
+        <div class="text-center text-xs text-slate-200 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mb-3">
           صافي الساعات العادية اليوم: <strong id="earlyNetHours" class="text-amber-300 font-black">11</strong> س
         </div>
         <div class="grid grid-cols-2 gap-2">
-          <button id="earlyCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="earlyCancel" class="py-2.5 rounded-xl bg-slate-700/80 text-slate-100 text-xs font-bold">إلغاء</button>
           <button id="earlySave" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 text-xs font-black">💾 حفظ الخروج المبكر</button>
         </div>
       </div>
@@ -593,13 +593,13 @@ export async function openDailyOvertimeModal(targetDate = null) {
         <div class="text-center mb-3">
           <div class="text-2xl mb-1">⏱️</div>
           <div class="text-white font-black text-sm">إضافة ساعات إضافية (Overtime)</div>
-          <div class="text-[10px] text-slate-400 mt-1">ساعات عمل بعد نهاية الوردية الرسمية (12س):</div>
+          <div class="text-xs text-slate-300 mt-1">ساعات عمل بعد نهاية الوردية الرسمية (12س):</div>
         </div>
-        <label class="block text-[11px] text-slate-300 mb-1">عدد الساعات الإضافية (س)</label>
+        <label class="block text-xs text-slate-200 mb-1">عدد الساعات الإضافية (س)</label>
         <input id="overtimeHoursInput" type="number" min="0.25" max="24" step="0.25" value="${currentOt || 2}"
           class="w-full text-center text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-3 focus:border-cyan-400 outline-none" />
         <div class="grid grid-cols-2 gap-2">
-          <button id="otCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="otCancel" class="py-2.5 rounded-xl bg-slate-700/80 text-slate-100 text-xs font-bold">إلغاء</button>
           <button id="otSave" class="py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 text-slate-900 text-xs font-black">💾 حفظ الإضافي</button>
         </div>
       </div>
@@ -657,23 +657,23 @@ export async function openAttendanceOptionsModal(targetDate = null) {
       <div class="text-center">
         <div class="text-2xl mb-1">📋</div>
         <div class="text-white font-black text-sm">خيارات حضور اليوم</div>
-        <div class="text-[10px] text-slate-400 mt-0.5">مسجل حالياً: ${currentRecord.hoursWorked || 12} ساعة</div>
+        <div class="text-xs text-slate-300 mt-0.5">مسجل حالياً: ${currentRecord.hoursWorked || 12} ساعة</div>
       </div>
       <div class="space-y-2">
-        <button id="optEarly" class="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+        <button id="optEarly" class="w-full py-2.5 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
           <span>🚪 تسجيل خروج مبكر (خصم ساعات)</span>
           <span>←</span>
         </button>
-        <button id="optOvertime" class="w-full py-2.5 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+        <button id="optOvertime" class="w-full py-2.5 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
           <span>⏱️ إضافة ساعات إضافية (Overtime)</span>
           <span>←</span>
         </button>
-        <button id="optReset" class="w-full py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-300 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
+        <button id="optReset" class="w-full py-2.5 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 text-xs font-bold text-right flex items-center justify-between cursor-pointer">
           <span>🗑️ إلغاء تسجيل حضور اليوم</span>
           <span>✕</span>
         </button>
       </div>
-      <button id="optClose" class="w-full py-2 rounded-xl bg-slate-700/60 text-slate-300 text-xs font-bold cursor-pointer">إغلاق</button>
+      <button id="optClose" class="w-full py-2 rounded-xl bg-slate-700/80 text-slate-100 text-xs font-bold cursor-pointer">إغلاق</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -723,13 +723,13 @@ export async function addExtraDay(targetDate = null) {
       <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-amber-400/40 rounded-2xl p-5 shadow-2xl text-center space-y-3">
         <div class="text-3xl mb-1">⭐</div>
         <div class="text-white font-black text-sm">إضافة يوم إضافي كامل</div>
-        <p class="text-xs text-slate-300 leading-relaxed">
-          هل تريد تسجيل يوم عمل إضافي كامل (<span class="text-amber-400 font-bold">12 ساعة</span>) لتاريخ <span class="text-cyan-300 font-bold dir-ltr">${contextDate}</span>؟
+        <p class="text-xs text-slate-200 leading-relaxed">
+          هل تريد تسجيل يوم عمل إضافي كامل (<span class="text-amber-300 font-bold">12 ساعة</span>) لتاريخ <span class="text-cyan-300 font-bold dir-ltr">${contextDate}</span>؟
           <br>
-          <span class="text-[10px] text-slate-400 mt-1 block">سيُحتسب ضمن فئة "العمل في يوم OFF" بمعامل ×2.</span>
+          <span class="text-[11px] text-slate-300 mt-1 block">سيُحتسب ضمن فئة "العمل في يوم OFF" بمعامل ×2.</span>
         </p>
         <div class="grid grid-cols-2 gap-2 pt-2">
-          <button id="extraCancel" class="py-2.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer">إلغاء</button>
+          <button id="extraCancel" class="py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-100 text-xs font-bold transition cursor-pointer">إلغاء</button>
           <button id="extraConfirm" class="py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black transition shadow-lg cursor-pointer">تأكيد الإضافة</button>
         </div>
       </div>
@@ -776,13 +776,13 @@ export async function takeLeave(targetDate = null) {
       <div class="w-full max-w-xs bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-emerald-400/40 rounded-2xl p-5 shadow-2xl text-center space-y-3">
         <div class="text-3xl mb-1">🏖️</div>
         <div class="text-white font-black text-sm">تسجيل إجازة من الرصيد</div>
-        <p class="text-xs text-slate-300 leading-relaxed">
+        <p class="text-xs text-slate-200 leading-relaxed">
           هل تريد تسجيل إجازة من الرصيد لتاريخ <span class="text-cyan-300 font-bold dir-ltr">${contextDate}</span>؟
           <br>
-          <span class="text-[10px] text-slate-400 mt-1 block">تُحتسب <span class="text-emerald-400 font-bold">8 ساعات</span> مدفوعة الأجر ضمن الساعات العادية.</span>
+          <span class="text-[11px] text-slate-300 mt-1 block">تُحتسب <span class="text-emerald-300 font-bold">8 ساعات</span> مدفوعة الأجر ضمن الساعات العادية.</span>
         </p>
         <div class="grid grid-cols-2 gap-2 pt-2">
-          <button id="leaveCancel" class="py-2.5 rounded-xl bg-slate-700/60 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer">إلغاء</button>
+          <button id="leaveCancel" class="py-2.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-100 text-xs font-bold transition cursor-pointer">إلغاء</button>
           <button id="leaveConfirm" class="py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 text-xs font-black transition shadow-lg cursor-pointer">تأكيد الإجازة</button>
         </div>
       </div>
@@ -1658,14 +1658,14 @@ export function requestPayrollUnlock() {
         <div class="text-center mb-3">
           <div class="text-2xl mb-1">🔒</div>
           <div class="text-white font-black text-sm">${pinIsSet ? "أدخل PIN المرتب" : "تعيين PIN جديد للمرتب"}</div>
-          <div class="text-[10px] text-slate-400 mt-1">${pinIsSet ? "4 أرقام لعرض بيانات مرتبك" : "PIN من 4 أرقام لحماية بيانات مرتبك محلياً على جهازك فقط"}</div>
+          <div class="text-xs text-slate-300 mt-1">${pinIsSet ? "4 أرقام لعرض بيانات مرتبك" : "PIN من 4 أرقام لحماية بيانات مرتبك محلياً على جهازك فقط"}</div>
         </div>
         <input id="payrollPinInput" type="password" inputmode="numeric" maxlength="4" placeholder="••••"
           class="w-full text-center tracking-[10px] text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-2" />
         ${!pinIsSet ? `<input id="payrollPinConfirm" type="password" inputmode="numeric" maxlength="4" placeholder="تأكيد PIN" class="w-full text-center tracking-[10px] text-xl p-3 rounded-xl bg-slate-950 border border-slate-700 text-white mb-2" />` : ""}
-        <div id="payrollPinError" class="text-[11px] text-rose-400 text-center mb-2 hidden"></div>
+        <div id="payrollPinError" class="text-xs text-rose-300 text-center mb-2 hidden"></div>
         <div class="grid grid-cols-2 gap-2 mt-2">
-          <button id="payrollPinCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+          <button id="payrollPinCancel" class="py-2.5 rounded-xl bg-slate-700/80 text-slate-100 text-xs font-bold">إلغاء</button>
           <button id="payrollPinSubmit" class="py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-amber-500 text-slate-900 text-xs font-black">${pinIsSet ? "دخول" : "تعيين"}</button>
         </div>
       </div>
@@ -1754,27 +1754,27 @@ window.openPayrollSettingsModal = async function () {
   overlay.innerHTML = `
     <div class="w-full max-w-sm bg-gradient-to-br from-[#1E293B] to-[#0F172A] border border-[#D4AF37]/40 rounded-2xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="text-white font-black text-sm mb-3 flex items-center gap-2"><span>⚙️</span><span>بيانات المرتب (معادلة TAX EG 2026)</span></div>
-      <p class="text-[10px] text-slate-400 mb-3">أدخل الأساسي فقط ويتم حساب التأمينات والضريبة وأجر الإضافي (الأساسي ÷ 240) وبدل الانتقال تلقائياً - البيانات محفوظة محلياً على جهازك فقط.</p>
+      <p class="text-[11px] text-slate-300 mb-3">أدخل الأساسي فقط ويتم حساب التأمينات والضريبة وأجر الإضافي (الأساسي ÷ 240) وبدل الانتقال تلقائياً - البيانات محفوظة محلياً على جهازك فقط.</p>
 
-      <label class="block text-[11px] text-slate-300 mb-1">المرتب الأساسي (ج.م) - basicSalary</label>
+      <label class="block text-xs text-slate-200 mb-1">المرتب الأساسي (ج.م) - basicSalary</label>
       <input id="cfgBaseSalary" type="number" min="0" step="0.01" value="${currentBasicSalary || ""}" placeholder="أدخل الأساسي فقط..." class="w-full p-2.5 rounded-lg bg-slate-950 border border-slate-700 text-white text-sm mb-3 focus:border-[#D4AF37] outline-none" />
 
-      <div id="cfgLiveSummary" class="bg-slate-950/80 border border-[#D4AF37]/30 rounded-xl p-2.5 mb-3 text-[10px] space-y-1">
-        <div class="text-[10px] font-bold text-[#D4AF37] mb-1">📊 الحساب التلقائي (TAX EG 2026):</div>
-        <div class="flex justify-between text-slate-400"><span>الأجر التأميني (أقصى 14,500):</span><span id="cfgLiveInsurable" class="font-bold text-white">0 ج.م</span></div>
-        <div class="flex justify-between text-slate-400"><span>التأمينات (11%):</span><span id="cfgLiveInsurance" class="font-bold text-rose-300">0 ج.م</span></div>
-        <div class="flex justify-between text-slate-400"><span>ضريبة الدخل الشهرية:</span><span id="cfgLiveTax" class="font-bold text-rose-300">0 ج.م</span></div>
-        <div class="flex justify-between text-slate-400"><span>سعر ساعة الإضافي (الأساسي ÷ 240):</span><span id="cfgLiveOtRate" class="font-bold text-cyan-300">0 ج.م</span></div>
-        <div class="flex justify-between text-slate-400"><span>بدل انتقال (ثابت):</span><span class="font-bold text-emerald-400">750 ج.م</span></div>
-        <div class="flex justify-between text-slate-300 border-t border-white/10 pt-1"><span>صافي المرتب الشهري (30 يوم):</span><span id="cfgLiveNet" class="font-black text-[#D4AF37]">0 ج.م</span></div>
+      <div id="cfgLiveSummary" class="bg-slate-950/80 border border-[#D4AF37]/30 rounded-xl p-2.5 mb-3 text-[11px] space-y-1">
+        <div class="text-xs font-bold text-[#D4AF37] mb-1">📊 الحساب التلقائي (TAX EG 2026):</div>
+        <div class="flex justify-between text-slate-300"><span>الأجر التأميني (أقصى 14,500):</span><span id="cfgLiveInsurable" class="font-bold text-white">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-300"><span>التأمينات (11%):</span><span id="cfgLiveInsurance" class="font-bold text-rose-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-300"><span>ضريبة الدخل الشهرية:</span><span id="cfgLiveTax" class="font-bold text-rose-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-300"><span>سعر ساعة الإضافي (الأساسي ÷ 240):</span><span id="cfgLiveOtRate" class="font-bold text-cyan-300">0 ج.م</span></div>
+        <div class="flex justify-between text-slate-300"><span>بدل انتقال (ثابت):</span><span class="font-bold text-emerald-300">750 ج.م</span></div>
+        <div class="flex justify-between text-slate-100 border-t border-white/10 pt-1"><span>صافي المرتب الشهري (30 يوم):</span><span id="cfgLiveNet" class="font-black text-[#D4AF37]">0 ج.م</span></div>
       </div>
 
       <div class="grid grid-cols-2 gap-2 mb-2">
-        <button id="payrollCfgCancel" class="py-2.5 rounded-xl bg-slate-700/60 text-slate-200 text-xs font-bold">إلغاء</button>
+        <button id="payrollCfgCancel" class="py-2.5 rounded-xl bg-slate-700/80 text-slate-100 text-xs font-bold">إلغاء</button>
         <button id="payrollCfgSave" class="py-2.5 rounded-xl bg-gradient-to-r from-[#D4AF37] to-amber-500 text-slate-900 text-xs font-black">💾 حفظ</button>
       </div>
-      <button id="payrollCfgChangePin" class="w-full py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-300 text-[11px] font-bold mb-1">🔑 تغيير PIN المرتب</button>
-      <button id="payrollCfgRemovePin" class="w-full py-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] font-bold">🗑️ إلغاء PIN (بدون حماية)</button>
+      <button id="payrollCfgChangePin" class="w-full py-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-200 text-xs font-bold mb-1">🔑 تغيير PIN المرتب</button>
+      <button id="payrollCfgRemovePin" class="w-full py-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-bold">🗑️ إلغاء PIN (بدون حماية)</button>
     </div>
   `;
   document.body.appendChild(overlay);
@@ -1877,13 +1877,13 @@ export function renderAttendanceCard(customProfile = null) {
     actionButtonHtml = `
       <button type="button" onclick="window.openAttendanceOptionsModal()" title="خيارات اليوم (تعديل / إلغاء)"
         class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
-        <span>⭐</span><span>إضافي مسجل</span><span class="text-[9px] text-amber-400/80">⚙️</span>
+        <span>⭐</span><span>إضافي مسجل</span><span class="text-[11px] text-amber-300">⚙️</span>
       </button>`;
   } else if (isLeave) {
     actionButtonHtml = `
       <button type="button" onclick="window.openAttendanceOptionsModal()" title="خيارات اليوم (تعديل / إلغاء)"
-        class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
-        <span>🏖️</span><span>إجازة رصيد</span><span class="text-[9px] text-emerald-400/80">⚙️</span>
+        class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
+        <span>🏖️</span><span>إجازة رصيد</span><span class="text-[11px] text-emerald-300">⚙️</span>
       </button>`;
   } else if (isCheckedIn) {
     // زر واحد واضح "تسجيل حضور" - نفس المُعالِج (handleAttendanceButton)
@@ -1898,8 +1898,8 @@ export function renderAttendanceCard(customProfile = null) {
       <div class="flex items-center gap-1">
         <button type="button" id="btnAttendanceAction" onclick="window.handleAttendanceButton()"
           title="خيارات الوردية (خروج مبكر / ساعات إضافية / إلغاء)"
-          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
-          <span>✅</span><span>تمت الوردية</span><span class="text-[9px] text-emerald-400/80">⚙️</span>
+          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition active:scale-95">
+          <span>✅</span><span>تمت الوردية</span><span class="text-[11px] text-emerald-300">⚙️</span>
         </button>
       </div>`;
   } else {
@@ -1929,22 +1929,22 @@ export function renderAttendanceCard(customProfile = null) {
           <div class="min-w-0">
             <div class="flex items-center gap-1">
               <span class="font-black text-xs text-white truncate max-w-[120px] sm:max-w-[180px]">حاسبة الحضور</span>
-              <span class="text-[8.5px] text-[#D4AF37] font-bold px-1 py-0.2 bg-[#D4AF37]/15 rounded border border-[#D4AF37]/30">MSCANCO</span>
+              <span class="text-[10.5px] text-[#FDE68A] font-bold px-1.5 py-0.5 bg-[#D4AF37]/20 rounded border border-[#D4AF37]/40">MSCANCO</span>
             </div>
-            <div class="text-[9.5px] text-slate-300 font-medium truncate max-w-[130px] sm:max-w-[200px]">${escapeHtml(name)} · ${escapeHtml(job)}</div>
+            <div class="text-[11px] text-slate-200 font-medium truncate max-w-[140px] sm:max-w-[220px]">${escapeHtml(name)} · ${escapeHtml(job)}</div>
           </div>
         </div>
 
         <div class="flex items-center gap-1 shrink-0">
-          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${escapeHtml(dayInfo.colorBadge.text)}">
+          <span class="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold flex items-center gap-1 border ${dayInfo.colorBadge.bg} ${dayInfo.colorBadge.border} ${escapeHtml(dayInfo.colorBadge.text)}">
             <span class="w-1 h-1 rounded-full ${dayInfo.colorBadge.dot}"></span><span>${escapeHtml(dayInfo.colorBadge.label)}</span>
           </span>
-          <span class="px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${dayInfo.badgeColorClass}">
+          <span class="px-1.5 py-0.5 rounded-md text-[10.5px] font-bold border ${dayInfo.badgeColorClass}">
             ${dayInfo.shiftType === "ليلي" ? "🌙 ليلي" : (dayInfo.shiftType === "نهاري" ? "☀️ نهاري" : "🏖️ راحة")}
           </span>
           <button type="button" id="attendanceToggleBtn" onclick="window.toggleAttendanceCard()" aria-expanded="${attendanceCardExpanded ? "true" : "false"}" aria-controls="attendanceExpandableContent"
             title="${attendanceCardExpanded ? "طي التفاصيل" : "عرض كل التفاصيل"}"
-            class="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-colors cursor-pointer shrink-0">
+            class="w-6 h-6 rounded-md bg-white/15 hover:bg-white/25 border border-white/25 flex items-center justify-center transition-colors cursor-pointer shrink-0">
             <svg id="attendanceToggleChevron" xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white transition-transform duration-300 ${attendanceCardExpanded ? "rotate-180" : ""}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
@@ -1954,9 +1954,9 @@ export function renderAttendanceCard(customProfile = null) {
 
       <div id="attendanceRow3" class="flex items-center justify-between gap-2 ${todayRowClasses}">
         <div class="flex items-center gap-2.5 text-xs">
-          <div><span class="text-[9px] text-slate-400 block font-medium leading-tight">الدخول:</span><span class="font-black text-emerald-400 text-xs dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
-          <div class="h-4 w-px bg-white/10"></div>
-          <div><span class="text-[9px] text-slate-400 block font-medium leading-tight">الخروج:</span><span class="font-black text-amber-400 text-xs dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
+          <div><span class="text-[11px] text-slate-200 block font-medium leading-tight">الدخول:</span><span class="font-black text-emerald-300 text-xs dir-ltr">${todayRecord.checkIn || "--:--"}</span></div>
+          <div class="h-4 w-px bg-white/15"></div>
+          <div><span class="text-[11px] text-slate-200 block font-medium leading-tight">الخروج:</span><span class="font-black text-amber-300 text-xs dir-ltr">${todayRecord.checkOut || "--:--"}</span></div>
         </div>
         <div>${actionButtonHtml}</div>
       </div>
@@ -1965,63 +1965,63 @@ export function renderAttendanceCard(customProfile = null) {
         style="max-height: ${attendanceCardExpanded ? "2400px" : "0px"}; opacity: ${attendanceCardExpanded ? "1" : "0"};"
         aria-hidden="${attendanceCardExpanded ? "false" : "true"}">
 
-      <div id="attendanceRow2" class="grid grid-cols-3 gap-1.5 bg-slate-900/60 p-2 rounded-lg border border-white/5 text-center items-center">
-        <div><div class="text-[8.5px] text-slate-400 font-medium">الدورة الحالية</div><div class="text-[11px] font-black text-[#D4AF37] mt-0.5">${escapeHtml(dayInfo.dayInCycleText)}</div></div>
-        <div class="border-x border-white/10 px-0.5"><div class="text-[8.5px] text-slate-400 font-medium">تاريخ اليوم</div><div class="text-[10px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
-        <div><div class="text-[8.5px] text-slate-400 font-medium">ميعاد الوردية</div><div class="text-[10px] font-black text-cyan-300 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
+      <div id="attendanceRow2" class="grid grid-cols-3 gap-1.5 bg-slate-900/75 p-2 rounded-lg border border-white/10 text-center items-center">
+        <div><div class="text-[10.5px] text-slate-300 font-medium">الدورة الحالية</div><div class="text-xs font-black text-[#FDE68A] mt-0.5">${escapeHtml(dayInfo.dayInCycleText)}</div></div>
+        <div class="border-x border-white/10 px-0.5"><div class="text-[10.5px] text-slate-300 font-medium">تاريخ اليوم</div><div class="text-[11px] font-bold text-white mt-0.5 truncate" title="${formattedToday}">${formattedToday}</div></div>
+        <div><div class="text-[10.5px] text-slate-300 font-medium">ميعاد الوردية</div><div class="text-[11px] font-black text-cyan-200 mt-0.5 dir-ltr">${dayInfo.shiftTime}</div></div>
       </div>
 
-      <div id="attendanceDayStatus" class="flex items-center gap-1.5 bg-slate-900/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] text-slate-200 font-bold">
+      <div id="attendanceDayStatus" class="flex items-center gap-1.5 bg-slate-900/75 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-100 font-bold">
         <span>${escapeHtml(dayStatusText)}</span>
-        ${dayInfo.source === "cycle" ? '<span class="text-[8.5px] text-slate-500 font-normal">(محسوبة تلقائياً)</span>' : ""}
+        ${dayInfo.source === "cycle" ? '<span class="text-[10.5px] text-slate-300 font-normal">(محسوبة تلقائياً)</span>' : ""}
       </div>
 
       ${isHolidayToday ? `
-        <div id="attendanceHolidayBadge" class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5 text-[10px] text-amber-200 font-bold">
+        <div id="attendanceHolidayBadge" class="flex items-center gap-1.5 bg-amber-500/15 border border-amber-400/40 rounded-lg px-2.5 py-1.5 text-[11px] text-amber-100 font-bold">
           <span>🎉</span>
           <span>${!dayInfo.isWorkDay ? "اليوم إجازة رسمية (راحة دورية)" : "اليوم إجازة رسمية ويوم عمل مُجدوَل"}</span>
         </div>` : ""}
 
-      <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/50 px-2.5 py-1.5 rounded-lg border border-blue-400/20 text-[11px]">
-        <div class="flex items-center gap-1.5"><span class="text-blue-300 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
+      <div id="attendanceRow4" class="flex items-center justify-between bg-blue-950/60 px-2.5 py-1.5 rounded-lg border border-blue-400/30 text-xs">
+        <div class="flex items-center gap-1.5"><span class="text-blue-200 font-bold">📊 ساعات اليوم:</span><span class="text-white font-black">${todayRecord.hoursWorked || 0} س</span></div>
         <div class="flex items-center gap-1">
-          <button type="button" onclick="window.openEarlyDepartureModal()" title="تسجيل خروج مبكر وخصم ساعات" class="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-300 font-bold text-[10px] active:scale-95 transition cursor-pointer">
+          <button type="button" onclick="window.openEarlyDepartureModal()" title="تسجيل خروج مبكر وخصم ساعات" class="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 font-bold text-[11px] active:scale-95 transition cursor-pointer">
             🚪 خروج مبكر
           </button>
-          <button type="button" onclick="window.openDailyOvertimeModal()" title="إضافة ساعات عمل إضافية بعد ساعات الوردية" class="px-2 py-0.5 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-300 font-bold text-[10px] active:scale-95 transition cursor-pointer">
+          <button type="button" onclick="window.openDailyOvertimeModal()" title="إضافة ساعات عمل إضافية بعد ساعات الوردية" class="px-2 py-0.5 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 font-bold text-[11px] active:scale-95 transition cursor-pointer">
             ⏱️ + إضافي
           </button>
         </div>
       </div>
 
-      <div id="attendanceRow5" class="space-y-1 bg-slate-900/80 p-2 rounded-lg border border-white/10">
-        <div class="text-[8.5px] text-slate-500 font-medium text-center">دورة الحضور: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
-        <div class="grid grid-cols-2 gap-1 text-[10px] font-bold text-slate-200">
-          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عادي</div><div class="text-emerald-400 text-xs font-black">${cycleData.regularHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">إضافي عادي</div><div class="text-amber-400 text-xs font-black">${cycleData.normalOvertimeHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عمل OFF</div><div class="text-rose-400 text-xs font-black">${cycleData.offWorkHours}س</div></div>
-          <div class="bg-slate-950/50 rounded-md p-1 text-center"><div class="text-slate-400 text-[8.5px]">عمل إجازة رسمية</div><div class="text-cyan-300 text-xs font-black">${cycleData.holidayWorkHours}س</div></div>
+      <div id="attendanceRow5" class="space-y-1.5 bg-slate-900/85 p-2 rounded-lg border border-white/10">
+        <div class="text-[10.5px] text-slate-300 font-medium text-center">دورة الحضور: ${cycleData.cycleStart} → ${cycleData.cycleEnd}</div>
+        <div class="grid grid-cols-2 gap-1 text-[11px] font-bold text-slate-100">
+          <div class="bg-slate-950/60 rounded-md p-1 text-center"><div class="text-slate-300 text-[10.5px]">عادي</div><div class="text-emerald-300 text-xs font-black">${cycleData.regularHours}س</div></div>
+          <div class="bg-slate-950/60 rounded-md p-1 text-center"><div class="text-slate-300 text-[10.5px]">إضافي عادي</div><div class="text-amber-300 text-xs font-black">${cycleData.normalOvertimeHours}س</div></div>
+          <div class="bg-slate-950/60 rounded-md p-1 text-center"><div class="text-slate-300 text-[10.5px]">عمل OFF</div><div class="text-rose-300 text-xs font-black">${cycleData.offWorkHours}س</div></div>
+          <div class="bg-slate-950/60 rounded-md p-1 text-center"><div class="text-slate-300 text-[10.5px]">عمل إجازة رسمية</div><div class="text-cyan-200 text-xs font-black">${cycleData.holidayWorkHours}س</div></div>
         </div>
 
         <div class="grid grid-cols-2 gap-1 pt-0.5">
           <div>
-            <label class="text-[8.5px] text-slate-400 font-medium block mb-0.5">الساعات المطلوبة</label>
+            <label class="text-[10.5px] text-slate-200 font-medium block mb-0.5">الساعات المطلوبة</label>
             <input type="text" readonly value="${cycleData.requiredHours} س"
-              class="w-full text-center text-[10px] font-black text-white bg-slate-950/70 border border-white/10 rounded-md py-1 cursor-not-allowed" />
+              class="w-full text-center text-[11px] font-black text-white bg-slate-950/75 border border-white/15 rounded-md py-1 cursor-not-allowed" />
           </div>
           <div>
-            <label class="text-[8.5px] text-slate-400 font-medium block mb-0.5">الساعات المسجّلة</label>
+            <label class="text-[10.5px] text-slate-200 font-medium block mb-0.5">الساعات المسجّلة</label>
             <input type="text" readonly value="${cycleData.registeredHours} س"
-              class="w-full text-center text-[10px] font-black text-cyan-300 bg-slate-950/70 border border-white/10 rounded-md py-1 cursor-not-allowed" />
+              class="w-full text-center text-[11px] font-black text-cyan-200 bg-slate-950/75 border border-white/15 rounded-md py-1 cursor-not-allowed" />
           </div>
         </div>
 
         <div class="space-y-0.5 pt-0.5">
-          <div class="flex justify-between text-[9px] text-slate-400 font-medium">
+          <div class="flex justify-between text-[11px] text-slate-200 font-medium">
             <span>المطلوب: ${cycleData.requiredHours} س</span>
-            <span class="text-cyan-300 font-bold">${cycleData.progressPercent}%</span>
+            <span class="text-cyan-200 font-bold">${cycleData.progressPercent}%</span>
           </div>
-          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/10">
             <div class="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-[#D4AF37] rounded-full transition-all duration-500" style="width: ${cycleData.progressPercent}%"></div>
           </div>
         </div>
@@ -2030,32 +2030,32 @@ export function renderAttendanceCard(customProfile = null) {
       <!-- الملخص المالي - مخفي دايماً خلف PIN -->
       <div id="attendancePayrollBox" class="space-y-1 bg-gradient-to-br from-slate-900 to-slate-950 p-2 rounded-lg border border-[#D4AF37]/30">
         <div class="flex items-center justify-between">
-          <span class="text-[10px] font-black text-[#D4AF37] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
+          <span class="text-[11px] font-black text-[#FDE68A] flex items-center gap-1"><span>💰</span><span>الملخص المالي</span></span>
           <div class="flex items-center gap-1">
-            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">⚙️ بيانات</button>
+            <button type="button" onclick="window.openPayrollSettingsModal()" class="text-[10.5px] px-1.5 py-0.5 rounded-md bg-white/10 hover:bg-white/15 border border-white/15 text-slate-100">⚙️ بيانات</button>
             ${unlocked
-              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300">🙈 إخفاء</button>`
-              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[9px] px-1.5 py-0.5 rounded-md bg-[#D4AF37]/20 hover:bg-[#D4AF37]/30 border border-[#D4AF37]/40 text-[#D4AF37] font-bold">🔓 إظهار</button>`}
+              ? `<button type="button" onclick="window.hidePayrollAmounts()" class="text-[10.5px] px-1.5 py-0.5 rounded-md bg-white/10 hover:bg-white/15 border border-white/15 text-slate-100">🙈 إخفاء</button>`
+              : `<button type="button" onclick="window.showPayrollAmounts()" class="text-[10.5px] px-1.5 py-0.5 rounded-md bg-[#D4AF37]/25 hover:bg-[#D4AF37]/35 border border-[#D4AF37]/50 text-[#FDE68A] font-bold">🔓 إظهار</button>`}
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-1 text-[10px]">
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.basicSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">بدل انتقال</span><span class="font-bold text-emerald-400">${unlocked ? "750 ج.م" : "🔒 ••••••"}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">سعر س الإضافي</span><span class="font-bold text-cyan-300">${unlocked ? `${financials.otHourRate} ج.م` : "🔒 ••••••"}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">إجمالي الإضافي</span><span class="font-bold text-amber-300">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">التأمينات</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الضريبة</span><span class="font-bold text-rose-300">${unlocked ? "-" : ""}${maskMoney(financials.monthlyTax, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-400">الصافي (30 يوم)</span><span class="font-bold text-slate-200">${maskMoney(financials.netSalary, unlocked)}</span></div>
-          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1 col-span-2 border border-[#D4AF37]/30 bg-amber-500/10"><span class="text-amber-200 font-bold">صافي المستحق المتوقع</span><span class="font-black text-[#D4AF37]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
+        <div class="grid grid-cols-2 gap-1 text-[11px]">
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">الأساسي</span><span class="font-bold text-white">${maskMoney(financials.basicSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">بدل انتقال</span><span class="font-bold text-emerald-300">${unlocked ? "750 ج.م" : "🔒 ••••••"}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">سعر س الإضافي</span><span class="font-bold text-cyan-200">${unlocked ? `${financials.otHourRate} ج.م` : "🔒 ••••••"}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">إجمالي الإضافي</span><span class="font-bold text-amber-200">${maskMoney(financials.totalOvertimeMoney, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">التأمينات</span><span class="font-bold text-rose-200">${unlocked ? "-" : ""}${maskMoney(financials.insuranceAmount, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">الضريبة</span><span class="font-bold text-rose-200">${unlocked ? "-" : ""}${maskMoney(financials.monthlyTax, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1"><span class="text-slate-300">الصافي (30 يوم)</span><span class="font-bold text-slate-100">${maskMoney(financials.netSalary, unlocked)}</span></div>
+          <div class="flex justify-between bg-slate-950/60 rounded-md px-1.5 py-1 col-span-2 border border-[#D4AF37]/40 bg-amber-500/15"><span class="text-amber-100 font-bold">صافي المستحق المتوقع</span><span class="font-black text-[#FDE68A]">${maskMoney(financials.netExpectedSalary, unlocked)}</span></div>
         </div>
       </div>
 
       <div id="attendanceRow6" class="grid grid-cols-2 gap-1.5 pt-0.5">
-        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
-        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-sky-200 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>حضور سابق</span></button>
-        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-emerald-200 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
-        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
-        <button type="button" id="btnExportPdfNow" onclick="window.exportMonthlySalaryPDF()" class="col-span-2 px-2 py-1.5 rounded-lg text-[10px] font-bold text-cyan-200 bg-gradient-to-r from-blue-600/30 to-cyan-600/30 hover:from-blue-600/50 hover:to-cyan-600/50 border border-cyan-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📥</span><span>تصدير PDF الآن</span></button>
+        <button type="button" id="btnAddExtraDay" onclick="window.addExtraDayShift()" class="px-2 py-1.5 rounded-lg text-[11px] font-bold text-amber-100 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>➕</span><span>يوم إضافي</span></button>
+        <button type="button" id="btnAddPastAttendance" onclick="window.openPastAttendanceModal()" class="px-2 py-1.5 rounded-lg text-[11px] font-bold text-sky-100 bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🗓️</span><span>حضور سابق</span></button>
+        <button type="button" id="btnTakeLeave" onclick="window.takeLeaveShift()" class="px-2 py-1.5 rounded-lg text-[11px] font-bold text-emerald-100 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>🏖️</span><span>إجازة رصيد</span></button>
+        <button type="button" id="btnExportPdf" onclick="window.exportAttendancePDF()" class="px-2 py-1.5 rounded-lg text-[11px] font-bold text-cyan-100 bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📄</span><span>تصدير PDF</span></button>
+        <button type="button" id="btnExportPdfNow" onclick="window.exportMonthlySalaryPDF()" class="col-span-2 px-2 py-1.5 rounded-lg text-[11px] font-bold text-cyan-100 bg-gradient-to-r from-blue-600/35 to-cyan-600/35 hover:from-blue-600/50 hover:to-cyan-600/50 border border-cyan-400/50 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"><span>📥</span><span>تصدير PDF الآن</span></button>
       </div>
 
       </div>

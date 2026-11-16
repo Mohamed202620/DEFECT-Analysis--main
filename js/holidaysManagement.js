@@ -76,14 +76,14 @@ window.loadHolidays = async function () {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="text-center text-gray-500 text-xs py-6">جاري تحميل الإجازات الرسمية...</div>
+    <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-6 font-medium">جاري تحميل الإجازات الرسمية...</div>
   `;
 
   const result = await fetchOfficialHolidaysApi();
 
   if (result.status !== "success") {
     container.innerHTML = `
-      <div class="text-center text-red-400 text-xs py-6">
+      <div class="text-center text-red-600 dark:text-red-300 text-xs py-6 font-medium">
         تعذر تحميل الإجازات الرسمية: ${escapeHtml(result.message || "")}
       </div>
     `;
@@ -92,7 +92,7 @@ window.loadHolidays = async function () {
 
   if (!result.data.length) {
     container.innerHTML = `
-      <div class="text-center text-gray-500 text-xs py-6">
+      <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-6 font-medium">
         لا توجد إجازات رسمية مضافة بعد.
       </div>
     `;
@@ -100,14 +100,14 @@ window.loadHolidays = async function () {
   }
 
   container.innerHTML = result.data.map(h => `
-    <div class="flex items-center justify-between bg-[#1E293B] border border-gray-800 rounded-xl p-3">
+    <div class="flex items-center justify-between bg-[#1E293B] text-white border border-gray-800 rounded-xl p-3">
       <div>
-        <div class="text-xs font-bold text-gray-100">${escapeHtml(h.label || "إجازة رسمية")}</div>
-        <div class="text-[10px] text-gray-500 mt-0.5">${formatHolidayDate(h.date)}</div>
+        <div class="text-xs font-bold text-white">${escapeHtml(h.label || "إجازة رسمية")}</div>
+        <div class="text-[11px] text-slate-300 mt-0.5">${formatHolidayDate(h.date)}</div>
       </div>
       <button
         onclick="window.deleteHoliday('${escapeJsArg(h.id)}', '${escapeJsArg(h.label || "")}')"
-        class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 active:scale-95 transition-all">
+        class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 active:scale-95 transition-all">
         🗑️ حذف
       </button>
     </div>
@@ -142,11 +142,11 @@ window.syncGoogleHolidaysNow = async function () {
   if (btn) { btn.disabled = false; btn.textContent = "🔄 تحديث من جوجل"; }
 
   if (result.status !== "success") {
-    if (statusEl) statusEl.innerHTML = `<span class="text-rose-400">❌ فشلت المزامنة الحية (${escapeHtml(result.message || "خطأ غير معروف")}) - يحتاج الإعداد مفتاح Google Calendar API صالح. سيتم استخدام آخر نسخة محفوظة إن وجدت.</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="text-rose-300">❌ فشلت المزامنة الحية (${escapeHtml(result.message || "خطأ غير معروف")}) - يحتاج الإعداد مفتاح Google Calendar API صالح. سيتم استخدام آخر نسخة محفوظة إن وجدت.</span>`;
   } else if (result.offline) {
-    if (statusEl) statusEl.innerHTML = `<span class="text-amber-400">⚠️ تعذر الاتصال بجوجل حاليًا - تم استخدام آخر نسخة محفوظة محليًا (${formatSyncTimestamp(result.updatedAt)}).</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="text-amber-300">⚠️ تعذر الاتصال بجوجل حاليًا - تم استخدام آخر نسخة محفوظة محليًا (${formatSyncTimestamp(result.updatedAt)}).</span>`;
   } else {
-    if (statusEl) statusEl.innerHTML = `<span class="text-emerald-400">✅ تمت المزامنة بنجاح من Google Calendar - آخر تحديث: ${formatSyncTimestamp(result.updatedAt)}</span>`;
+    if (statusEl) statusEl.innerHTML = `<span class="text-emerald-300">✅ تمت المزامنة بنجاح من Google Calendar - آخر تحديث: ${formatSyncTimestamp(result.updatedAt)}</span>`;
   }
 
   window.loadGoogleHolidaysDropdown();
@@ -169,7 +169,7 @@ window.loadGoogleHolidaysDropdown = function () {
   if (statusEl) {
     statusEl.innerHTML = holidays.length
       ? `آخر مزامنة: ${formatSyncTimestamp(updatedAt)} - ${holidays.length} إجازة متاحة`
-      : `<span class="text-amber-400">⚠️ لا توجد إجازات مزامَنة من جوجل بعد - اضغط "تحديث من جوجل"</span>`;
+      : `<span class="text-amber-300">⚠️ لا توجد إجازات مزامَنة من جوجل بعد - اضغط "تحديث من جوجل"</span>`;
   }
 
   if (select) {
@@ -185,12 +185,12 @@ window.loadGoogleHolidaysDropdown = function () {
   if (listContainer) {
     listContainer.innerHTML = holidays.length
       ? holidays.map(h => `
-          <div class="flex items-center justify-between bg-[#0F172A] border border-gray-800 rounded-lg px-2.5 py-1.5 text-[10px]">
-            <span class="text-gray-300">${escapeHtml(h.label)}</span>
-            <span class="text-gray-500 dir-ltr">${h.date}</span>
+          <div class="flex items-center justify-between bg-[#0F172A] text-white border border-slate-700 rounded-lg px-2.5 py-1.5 text-[11px]">
+            <span class="text-slate-100">${escapeHtml(h.label)}</span>
+            <span class="text-slate-300 dir-ltr">${h.date}</span>
           </div>
         `).join("")
-      : `<div class="text-center text-gray-500 text-[10px] py-3">مفيش بيانات لعرضها بعد</div>`;
+      : `<div class="text-center text-slate-300 text-[11px] py-3">مفيش بيانات لعرضها بعد</div>`;
   }
 };
 

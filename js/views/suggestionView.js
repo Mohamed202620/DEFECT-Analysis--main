@@ -95,7 +95,7 @@ export const SuggestionView = () => {
   };
 
   return `
-  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-16">
+  <div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-16 text-slate-900 dark:text-white">
     <!-- زر الرجوع -->
     <button onclick="window.goBack('home')" class="mb-4 bg-gray-800 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2">
       <span>${isEn ? '← Back' : '← رجوع'}</span>
@@ -103,30 +103,30 @@ export const SuggestionView = () => {
     
     <!-- العنوان الرئيسي -->
     <div class="mb-4">
-      <h2 class="text-lg font-bold text-amber-400 flex items-center gap-2">
+      <h2 class="text-lg font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
         <span>💡</span> ${isEn ? 'Kaizen & Continuous Improvement' : 'المقترحات والتحسينات (كايزن)'}
       </h2>
-      <p class="text-[11px] text-gray-400 mt-1">
+      <p class="text-[11px] text-slate-600 dark:text-slate-300 mt-1 font-medium">
         ${isEn ? 'Share your ideas to eliminate waste and improve work environment' : 'شارِك بأفكارك لتقليل الهدر وتطوير بيئة العمل'}
       </p>
     </div>
     
     <!-- نموذج الكايزن -->
-    <form onsubmit="window.handleKaizenSubmit(event)" class="bg-[#1E293B] p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
+    <form onsubmit="window.handleKaizenSubmit(event)" class="bg-[#1E293B] text-white p-5 rounded-xl border border-gray-800 space-y-4 shadow-lg">
       
       <!-- عنوان المقترح -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Suggestion Title / Idea' : 'عنوان المقترح / الفكرة'} <span class="text-red-400">*</span>
         </label>
-        <input type="text" id="suggestionTitle" required placeholder="${isEn ? 'e.g., Reduce packing time...' : 'مثال: تقليل وقت التغليف...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
+        <input type="text" id="suggestionTitle" required placeholder="${isEn ? 'e.g., Reduce packing time...' : 'مثال: تقليل وقت التغليف...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors">
       </div>
 
       <!-- الخط والماكينة -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold text-gray-300 mb-1">
-            ${isEn ? 'Line Number' : 'رقم الخط'} <span class="text-red-500">*</span>
+          <label class="block text-xs font-bold text-slate-200 mb-1">
+            ${isEn ? 'Line Number' : 'رقم الخط'} <span class="text-red-400">*</span>
           </label>
           <select id="suggestionLine" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
             <option value="" disabled selected>${isEn ? 'Select...' : 'اختر...'}</option>
@@ -136,8 +136,8 @@ export const SuggestionView = () => {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-300 mb-1">
-            ${isEn ? 'Machine' : 'الماكينة'} <span class="text-red-500">*</span>
+          <label class="block text-xs font-bold text-slate-200 mb-1">
+            ${isEn ? 'Machine' : 'الماكينة'} <span class="text-red-400">*</span>
           </label>
           ${buildMachineDropdownHtml("suggestionMachine", {
             placeholderLabel: isEn ? 'Select...' : 'اختر...',
@@ -150,7 +150,7 @@ export const SuggestionView = () => {
 
       <!-- تصنيف الكايزن -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Improvement Category' : 'تصنيف التحسين (مجال الكايزن)'} <span class="text-red-400">*</span>
         </label>
         <select id="suggestionCategory" required class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
@@ -165,31 +165,31 @@ export const SuggestionView = () => {
       
       <!-- الوضع الحالي (المشكلة) -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Current Situation (The Problem)' : 'الوضع الحالي (المشكلة / الهدر)'} <span class="text-red-400">*</span>
         </label>
-        <textarea id="suggestionProblem" required placeholder="${isEn ? 'Describe current problem or waste...' : 'صف المشكلة الحالية أو الهدر الموجود...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
+        <textarea id="suggestionProblem" required placeholder="${isEn ? 'Describe current problem or waste...' : 'صف المشكلة الحالية أو الهدر الموجود...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white placeholder-slate-400 h-20 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
       </div>
 
       <!-- الحل المقترح -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Proposed Kaizen Solution' : 'الحل المقترح (طريقة التحسين)'} <span class="text-red-400">*</span>
         </label>
-        <textarea id="suggestionSolution" required placeholder="${isEn ? 'Describe your proposed solution...' : 'اكتب خطوات الحل أو الفكرة الجديدة...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white h-20 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
+        <textarea id="suggestionSolution" required placeholder="${isEn ? 'Describe your proposed solution...' : 'اكتب خطوات الحل أو الفكرة الجديدة...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white placeholder-slate-400 h-20 focus:outline-none focus:border-blue-500 transition-colors resize-none"></textarea>
       </div>
 
       <!-- الأثر المتوقع -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Expected Impact (Optional)' : 'الأثر المتوقع (اختياري)'}
         </label>
-        <input type="text" id="suggestionImpact" placeholder="${isEn ? 'e.g., Saves 15 mins daily, reduces defects...' : 'مثال: توفير 15 دقيقة يومياً، تقليل الأخطاء...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors">
+        <input type="text" id="suggestionImpact" placeholder="${isEn ? 'e.g., Saves 15 mins daily, reduces defects...' : 'مثال: توفير 15 دقيقة يومياً، تقليل الأخطاء...'}" class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors">
       </div>
 
       <!-- مرفقات وصور -->
       <div>
-        <label class="block text-xs font-bold text-gray-300 mb-1">
+        <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Attach Photos (Optional)' : 'إرفاق صور (قبل / بعد)'}
         </label>
         ${buildAttachmentPickerHtml("suggestionImages", {
@@ -202,7 +202,7 @@ export const SuggestionView = () => {
       <!-- إرسال مجهول -->
       <div class="flex items-center gap-2 pt-1">
         <input type="checkbox" id="anonymousSuggestion" class="rounded bg-[#0E1117] border-gray-700 text-amber-500 focus:ring-0 focus:ring-offset-0">
-        <label for="anonymousSuggestion" class="text-xs text-gray-400 cursor-pointer select-none">
+        <label for="anonymousSuggestion" class="text-xs text-slate-200 cursor-pointer select-none">
           ${isEn ? 'Submit anonymously' : 'إرسال المقترح بدون إظهار اسمي'}
         </label>
       </div>

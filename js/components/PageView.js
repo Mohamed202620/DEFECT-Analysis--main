@@ -14,7 +14,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
     }[backTarget] || (isEn ? "Back" : "رجوع");
 
     return `
-    <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 sm:pb-20 lg:pb-8">
+    <div class="app-page p-3 sm:p-4 md:p-6 lg:p-8 max-w-md sm:max-w-xl md:max-w-5xl lg:max-w-7xl xl:max-w-[1550px] mx-auto pb-24 sm:pb-20 lg:pb-8 text-slate-900 dark:text-white">
         <!-- زر الرجوع -->
         <button
             type="button"
@@ -25,7 +25,7 @@ export function PageView(title, content, currentLang = window.currentLang || "ar
         </button>
 
         <!-- عنوان الصفحة: يُخفى عندما يكون العنوان فارغًا -->
-        ${title ? `<h2 class="text-lg font-bold mb-5 text-blue-400 border-b border-gray-800 pb-2">${title}</h2>` : ""}
+        ${title ? `<h2 class="text-lg font-bold mb-5 text-blue-700 dark:text-blue-400 border-b border-slate-300 dark:border-gray-800 pb-2">${title}</h2>` : ""}
 
         <!-- محتوى الصفحة الديناميكي -->
         <div class="animate-fade-in">

@@ -222,7 +222,7 @@ export const Sidebar = (activeTab) => {
         ${!isCollapsed ? `
           <div class="flex items-center gap-2 overflow-hidden">
             <span class="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-            <span class="text-[11px] font-bold tracking-wider text-slate-300 uppercase truncate">
+            <span class="text-xs font-bold tracking-wider text-slate-800 dark:text-slate-100 uppercase truncate">
               ${isAr ? 'نظام الصيانة والتشغيل' : 'Navigation'}
             </span>
           </div>
@@ -232,7 +232,7 @@ export const Sidebar = (activeTab) => {
           type="button"
           id="btnToggleSidebar"
           onclick="window.toggleSidebarCollapse()"
-          class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/50 transition active:scale-90 cursor-pointer shadow-sm"
+          class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-600 transition active:scale-90 cursor-pointer shadow-sm"
           title="${isCollapsed ? (isAr ? 'توسيع القائمة الجانبية ( [ )' : 'Expand Sidebar ( [ )') : (isAr ? 'طي القائمة الجانبية ( [ )' : 'Collapse Sidebar ( [ )')}"
           aria-label="${isCollapsed ? (isAr ? 'توسيع القائمة الجانبية' : 'Expand Sidebar') : (isAr ? 'طي القائمة الجانبية' : 'Collapse Sidebar')}">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -250,11 +250,11 @@ export const Sidebar = (activeTab) => {
         ${groups.map(group => `
           <div class="space-y-1">
             ${!isCollapsed ? `
-              <div class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 opacity-80">
+              <div class="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                 ${escapeHtml(group.title)}
               </div>
             ` : `
-              <div class="w-6 h-px mx-auto my-2 bg-slate-700/50"></div>
+              <div class="w-6 h-px mx-auto my-2 bg-slate-300 dark:bg-slate-700"></div>
             `}
 
             ${group.items.map(item => {
@@ -268,15 +268,15 @@ export const Sidebar = (activeTab) => {
                     isCollapsed ? 'justify-center' : ''
                   } ${
                     active
-                      ? 'bg-blue-600/20 text-blue-400 font-bold border border-blue-500/40 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/70 font-medium'
+                      ? 'bg-blue-600/15 dark:bg-blue-600/25 text-blue-700 dark:text-blue-300 font-bold border border-blue-500/40 shadow-sm'
+                      : 'text-slate-700 dark:text-slate-200 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/80 font-semibold'
                   }">
-                  <span class="inline-flex items-center justify-center w-5 h-5 shrink-0 ${active ? 'text-blue-400' : 'text-slate-400'}">
+                  <span class="inline-flex items-center justify-center w-5 h-5 shrink-0 ${active ? 'text-blue-600 dark:text-blue-300' : 'text-slate-600 dark:text-slate-300'}">
                     ${item.iconSvg}
                   </span>
                   ${!isCollapsed ? `
                     <span class="truncate flex-1 text-start">${escapeHtml(item.label)}</span>
-                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold ${item.badgeClass || 'bg-slate-700 text-slate-300'}">${item.badge}</span>` : ''}
+                    ${item.badge ? `<span class="px-1.5 py-0.5 rounded-full text-[10.5px] font-bold ${item.badgeClass || 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'}">${item.badge}</span>` : ''}
                     ${active ? `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>` : ''}
                   ` : ''}
                 </button>
@@ -287,13 +287,13 @@ export const Sidebar = (activeTab) => {
       </div>
 
       <!-- أسفل الشريط الجانبي: حالة الاتصال والنسخة -->
-      <div class="p-2.5 border-t shrink-0 flex items-center justify-between text-[11px] text-slate-400" style="border-color: var(--app-border);">
+      <div class="p-2.5 border-t shrink-0 flex items-center justify-between text-xs text-slate-700 dark:text-slate-200" style="border-color: var(--app-border);">
         ${!isCollapsed ? `
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-[10px] font-medium text-slate-300">${isAr ? 'متصل بالسيرفر' : 'Connected'}</span>
+            <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">${isAr ? 'متصل بالسيرفر' : 'Connected'}</span>
           </div>
-          <span class="text-[10px] font-mono text-slate-400">v2.4</span>
+          <span class="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300">v2.4</span>
         ` : `
           <div class="w-full flex justify-center">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="${isAr ? 'متصل بالسيرفر' : 'Connected'}"></span>

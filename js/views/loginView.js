@@ -55,7 +55,7 @@ export const LoginView = () => {
               p.type = isPass ? 'text' : 'password';
               this.innerHTML = isPass ? '🙈' : '👁';
             "
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-gray-400"
+            class="absolute left-3 top-1/2 -translate-y-1/2 text-xl focus:outline-none text-slate-300 hover:text-white"
             aria-label="${t.showHidePass}"
           >
             👁
@@ -97,7 +97,7 @@ export const LoginView = () => {
     <div id="forgotPasswordModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-[#1E293B] border border-gray-700 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <h3 class="text-lg font-bold text-white mb-2">${t.resetPasswordTitle}</h3>
-        <p class="text-xs text-gray-400 mb-4">${t.resetPasswordDesc}</p>
+        <p class="text-xs text-slate-300 mb-4">${t.resetPasswordDesc}</p>
         <form onsubmit="event.preventDefault(); window.doForgotPassword();">
           <input 
             id="forgotPhone" 

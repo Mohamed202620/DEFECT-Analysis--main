@@ -60,10 +60,10 @@ function canEditMachineDepartment() {
 
 export const MachinesView = () => `
 
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-white">
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-4 text-slate-900 dark:text-white">
 
     <!-- Header & Back Button -->
-    <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+    <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
         <div class="flex items-center gap-3">
             <button
                 type="button"
@@ -73,10 +73,10 @@ export const MachinesView = () => `
                 <span class="text-xs text-slate-200">رجوع</span>
             </button>
             <div>
-                <h2 class="text-base font-black text-blue-400 flex items-center gap-2">
+                <h2 class="text-base font-black text-blue-700 dark:text-blue-400 flex items-center gap-2">
                     <span>🏭</span> إدارة الماكينات
                 </h2>
-                <p class="text-[11px] text-gray-400 mt-0.5 font-medium">
+                <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
                     إضافة/تعديل أنواع الماكينات المستخدمة في تسجيل الأعطال والكايزن
                 </p>
             </div>
@@ -85,7 +85,7 @@ export const MachinesView = () => `
 
 
     <!-- فورم إضافة/تعديل -->
-    <div id="machineFormBox" class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
+    <div id="machineFormBox" class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 space-y-3">
 
         <h3 id="machineFormTitle" class="text-sm font-bold text-blue-400">➕ إضافة نوع ماكينة جديد</h3>
 
@@ -93,14 +93,14 @@ export const MachinesView = () => `
             id="machineKeyInput"
             type="text"
             placeholder="اسم نوع الماكينة (مثال: Bodymaker)"
-            class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition"
+            class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition"
         >
 
         <!-- القسم (Backend/Frontend) - Required. في وضع "إضافة" دايماً
              قابل للاختيار؛ في وضع "تعديل" بيتحول تلقائياً لعرض فقط لو
              المستخدم الحالي مش أدمن (راجع window.editMachineType) -->
         <div>
-            <label class="block text-[10px] font-bold mb-1 text-gray-400">القسم (Department) *</label>
+            <label class="block text-[11px] font-bold mb-1 text-slate-300">القسم (Department) *</label>
             <select
                 id="machineDepartmentInput"
                 required
@@ -109,7 +109,7 @@ export const MachinesView = () => `
                 <option value="backend">🛠️ Backend</option>
                 <option value="frontend">🖥️ Frontend</option>
             </select>
-            <div id="machineDepartmentReadonly" class="hidden mt-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
+            <div id="machineDepartmentReadonly" class="hidden mt-1 text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
                 🔒 تعديل القسم مقصور على الأدمن فقط - القسم الحالي:
                 <span id="machineDepartmentReadonlyValue" class="text-white"></span>
             </div>
@@ -121,7 +121,7 @@ export const MachinesView = () => `
              المشتركة بين الخطين تفضل بدون خط محدد. تعديله مقصور
              على الأدمن زي القسم بالظبط (راجع updateMachineTypeApi) -->
         <div>
-            <label class="block text-[10px] font-bold mb-1 text-gray-400">خط الإنتاج (Line)</label>
+            <label class="block text-[11px] font-bold mb-1 text-slate-300">خط الإنتاج (Line)</label>
             <select
                 id="machineLineInput"
                 class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition appearance-none">
@@ -129,7 +129,7 @@ export const MachinesView = () => `
                 <option value="1">🏭 Line 1</option>
                 <option value="2">🏭 Line 2</option>
             </select>
-            <div id="machineLineReadonly" class="hidden mt-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
+            <div id="machineLineReadonly" class="hidden mt-1 text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-2">
                 🔒 تعديل خط الإنتاج مقصور على الأدمن فقط - الخط الحالي:
                 <span id="machineLineReadonlyValue" class="text-white"></span>
             </div>
@@ -140,12 +140,12 @@ export const MachinesView = () => `
                 id="machineUnitsInput"
                 type="text"
                 placeholder="الوحدات الفرعية مفصولة بفاصلة (اختياري - مثال: 01,02,03)"
-                class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition"
+                class="w-full p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition"
             >
             <button
                 type="button"
                 onclick="window.generateMachineUnits()"
-                class="mt-1.5 text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 hover:bg-amber-500/20 transition active:scale-95">
+                class="mt-1.5 text-[11px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 hover:bg-amber-500/20 transition active:scale-95">
                 🔢 توليد أرقام تلقائي (01، 02، ...)
             </button>
         </div>
@@ -170,10 +170,10 @@ export const MachinesView = () => `
 
     <!-- عدد الأنواع + تحديث -->
     <div class="flex items-center justify-between">
-        <div id="machinesCount" class="text-xs text-gray-400">جاري التحميل...</div>
+        <div id="machinesCount" class="text-xs font-semibold text-slate-600 dark:text-slate-300">جاري التحميل...</div>
         <button
             onclick="window.loadMachinesAdmin()"
-            class="text-[11px] font-bold text-gray-300 bg-[#1E293B] border border-gray-700 rounded-lg px-2.5 py-1.5 hover:border-gray-600 transition">
+            class="text-[11px] font-bold text-slate-200 bg-[#1E293B] border border-gray-700 rounded-lg px-2.5 py-1.5 hover:border-gray-600 transition">
             🔄 تحديث
         </button>
     </div>
@@ -181,14 +181,14 @@ export const MachinesView = () => `
 
     <!-- القائمة -->
     <div id="machinesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div class="col-span-full text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
+        <div class="col-span-full text-center text-slate-600 dark:text-slate-300 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     </div>
 
 
     <!-- استرجاع القائمة الافتراضية -->
     <button
         onclick="window.seedDefaultMachineTypesAdmin()"
-        class="w-full py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 font-bold text-[11px] text-amber-300 transition active:scale-95">
+        class="w-full py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 hover:bg-amber-500/25 font-bold text-xs text-amber-800 dark:text-amber-300 transition active:scale-95">
         📋 استرجاع أي نوع ناقص من القائمة الافتراضية
     </button>
 
@@ -212,14 +212,14 @@ window.loadMachinesAdmin = async function () {
     if (!container) return;
 
     container.innerHTML = `
-        <div class="text-center text-gray-500 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
+        <div class="col-span-full text-center text-slate-600 dark:text-slate-300 py-8 text-xs">جاري تحميل أنواع الماكينات...</div>
     `;
 
     const result = await fetchMachineTypesApi();
 
     if (result.status !== "success") {
         container.innerHTML = `
-            <div class="text-center text-red-400 py-8 text-xs">❌ فشل تحميل أنواع الماكينات</div>
+            <div class="col-span-full text-center text-red-600 dark:text-red-400 py-8 text-xs font-bold">❌ فشل تحميل أنواع الماكينات</div>
         `;
         if (count) count.textContent = "إجمالي الأنواع : 0";
         return;
@@ -242,35 +242,35 @@ window.loadMachinesAdmin = async function () {
 
     if (!types.length) {
         container.innerHTML = `
-            <div class="text-center text-gray-500 py-8 text-xs">لا توجد أنواع ماكينات مضافة بعد.</div>
+            <div class="col-span-full text-center text-slate-600 dark:text-slate-300 py-8 text-xs">لا توجد أنواع ماكينات مضافة بعد.</div>
         `;
         return;
     }
 
     container.innerHTML = types.map(m => `
-        <div class="bg-[#1E293B] border border-gray-800 rounded-xl p-3 ${m.active === false ? "opacity-60" : ""}">
+        <div class="${m.active === false ? "bg-slate-900/95 border-red-900/50" : "bg-[#1E293B] border-gray-800"} text-white border rounded-xl p-3">
             <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="text-xs font-bold text-gray-100">${escapeHtml(m.key)}</span>
+                        <span class="text-xs font-bold ${m.active === false ? "text-slate-300 line-through" : "text-white"}">${escapeHtml(m.key)}</span>
                         ${m.active === false
-                            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-700 text-gray-300">معطّل</span>`
-                            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-green-500/15 text-green-400">مفعّل</span>`
+                            ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-gray-700 text-slate-200">معطّل</span>`
+                            : `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-green-500/15 text-green-300">مفعّل</span>`
                         }
                         ${m.department === "frontend"
-                            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">🖥️ Frontend</span>`
-                            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-300">🛠️ Backend</span>`
+                            ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300">🖥️ Frontend</span>`
+                            : `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300">🛠️ Backend</span>`
                         }
                         ${formatLineLabel(m.line)
-                            ? `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">🏭 ${formatLineLabel(m.line)}</span>`
-                            : `<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-400">🏭 بدون خط</span>`
+                            ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/15 text-amber-300">🏭 ${formatLineLabel(m.line)}</span>`
+                            : `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-700/80 text-slate-300">🏭 بدون خط</span>`
                         }
                     </div>
                     ${m.units && m.units.length
                         ? `<div class="flex flex-wrap gap-1 mt-1.5">
-                            ${m.units.map(u => `<span class="text-[10px] bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-slate-300">${u}</span>`).join("")}
+                            ${m.units.map(u => `<span class="text-[11px] bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-slate-200">${u}</span>`).join("")}
                            </div>`
-                        : `<div class="text-[10px] text-gray-500 mt-1">بدون وحدات فرعية</div>`
+                        : `<div class="text-[11px] text-slate-300 mt-1">بدون وحدات فرعية</div>`
                     }
                 </div>
             </div>
@@ -278,17 +278,17 @@ window.loadMachinesAdmin = async function () {
             <div class="grid grid-cols-3 gap-1.5 mt-2.5">
                 <button
                     onclick="window.editMachineType('${escapeJsArg(m.id)}')"
-                    class="py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[10px] font-bold hover:bg-blue-600/30 transition active:scale-95">
+                    class="py-1.5 rounded-lg bg-blue-600/25 border border-blue-500/40 text-blue-200 text-[11px] font-bold hover:bg-blue-600/35 transition active:scale-95">
                     ✏️ تعديل
                 </button>
                 <button
                     onclick="window.toggleMachineTypeActive('${escapeJsArg(m.id)}', ${m.active !== false})"
-                    class="py-1.5 rounded-lg ${m.active !== false ? "bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30" : "bg-green-600/20 border border-green-500/30 text-green-300 hover:bg-green-600/30"} text-[10px] font-bold transition active:scale-95">
+                    class="py-1.5 rounded-lg ${m.active !== false ? "bg-amber-600/25 border border-amber-500/40 text-amber-200 hover:bg-amber-600/35" : "bg-green-600/25 border border-green-500/40 text-green-200 hover:bg-green-600/35"} text-[11px] font-bold transition active:scale-95">
                     ${m.active !== false ? "⏸️ تعطيل" : "▶️ تفعيل"}
                 </button>
                 <button
                     onclick="window.deleteMachineType('${escapeJsArg(m.id)}', '${m.key.replace(/'/g, "\\'")}')"
-                    class="py-1.5 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-[10px] font-bold hover:bg-red-600/30 transition active:scale-95">
+                    class="py-1.5 rounded-lg bg-red-600/25 border border-red-500/40 text-red-200 text-[11px] font-bold hover:bg-red-600/35 transition active:scale-95">
                     🗑️ حذف
                 </button>
             </div>

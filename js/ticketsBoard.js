@@ -111,7 +111,7 @@ function ticketCardHtml(ticket) {
   ` : "";
 
   return `
-    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-4 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all flex flex-col justify-between h-full">
+    <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl p-4 relative overflow-hidden shadow-xl hover:border-slate-700 transition-all flex flex-col justify-between h-full">
       <!-- شريط الحالة الجانبي عالي التباين لتحديد نوع العطل فورا بالعين -->
       <div class="absolute inset-y-0 rtl:right-0 ltr:left-0 w-2 ${accentClass} shadow-sm"></div>
 
@@ -120,40 +120,40 @@ function ticketCardHtml(ticket) {
           <div class="flex justify-between items-center gap-2">
             <div class="flex items-center gap-2">
               ${bulkCheckboxHtml}
-              <span class="font-black text-sm text-slate-100">${escapeHtml(machineName)}</span>
-              <span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(displayRecordNumber(ticket, ""))}</span>
-              ${ticket.line ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">${escapeHtml(ticket.line)}</span>` : ""}
+              <span class="font-black text-sm text-white">${escapeHtml(machineName)}</span>
+              <span class="text-[11px] font-mono font-bold text-amber-300">${escapeHtml(displayRecordNumber(ticket, ""))}</span>
+              ${ticket.line ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-600">${escapeHtml(ticket.line)}</span>` : ""}
             </div>
-            <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-300"}">
+            <span class="text-[11px] px-2.5 py-0.5 rounded-full ${STATUS_CLASSES_BOARD[status] || "bg-slate-700 text-slate-200"}">
               ${escapeHtml(tr.status[status] || status)}
             </span>
           </div>
 
-          <p class="text-xs font-medium text-slate-300 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+          <p class="text-xs font-medium text-slate-200 bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/80 leading-relaxed">
             ${escapeHtml(ticket.description || "")}
           </p>
 
-          <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-400">
-            ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-500">${tr.reportedByLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.reportedBy)}</b></span>` : ""}
-            ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-500">${tr.assignedToLabel}</span> <b class="text-slate-300">${escapeHtml(ticket.assignedTo)}</b></span>` : ""}
-            ${String(ticket.maintenanceType || "").toUpperCase() === "PM" ? `<span class="px-2 py-0.5 rounded text-[10px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM</span>` : ""}
-            ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-[10px] font-bold text-slate-300">🏷️ ${escapeHtml(ticket.type)}</span>` : ""}
-            ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[10px] font-black ${
+          <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-[11px] text-slate-200">
+            ${ticket.reportedBy ? `<span class="flex items-center gap-1">👤 <span class="text-slate-300">${tr.reportedByLabel}</span> <b class="text-white">${escapeHtml(ticket.reportedBy)}</b></span>` : ""}
+            ${ticket.assignedTo ? `<span class="flex items-center gap-1">🛠️ <span class="text-slate-300">${tr.assignedToLabel}</span> <b class="text-white">${escapeHtml(ticket.assignedTo)}</b></span>` : ""}
+            ${String(ticket.maintenanceType || "").toUpperCase() === "PM" ? `<span class="px-2 py-0.5 rounded text-[11px] font-black bg-teal-500/20 text-teal-300 border border-teal-500/30">🗓️ PM</span>` : ""}
+            ${ticket.type ? `<span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-600 text-[11px] font-bold text-slate-200">🏷️ ${escapeHtml(ticket.type)}</span>` : ""}
+            ${ticket.priority ? `<span class="px-2 py-0.5 rounded text-[11px] font-black ${
               ticket.priority === 'High' ? 'bg-red-500/20 text-red-300 border border-red-500/30' :
               ticket.priority === 'Medium' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
               'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
             }">⚡ ${escapeHtml(ticket.priority)}</span>` : ""}
-            ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[10px] font-black bg-red-600/20 text-red-300 border border-red-600/40 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
+            ${isOverdueTicket(ticket) ? `<span title="${tr.overdueThresholdHint ? tr.overdueThresholdHint.replace('{n}', getOverdueThresholdHours(ticket.priority)) : ''}" class="px-2 py-0.5 rounded text-[11px] font-black bg-red-600/25 text-red-200 border border-red-500/50 animate-pulse">⏰ ${tr.overdueBadge || 'متأخر'}</span>` : ""}
           </div>
 
           ${ticket.mechanicNotes ? `
-            <div class="text-xs bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-2.5 text-emerald-300">
+            <div class="text-xs bg-emerald-950/70 border border-emerald-500/40 rounded-xl p-2.5 text-emerald-200">
               🔧 <span class="font-bold">${tr.mechanicNotesLabel}</span> ${escapeHtml(ticket.mechanicNotes)}
             </div>
           ` : ""}
 
           ${ticket.operatorFeedback ? `
-            <div class="text-xs bg-red-950/40 border border-red-500/30 rounded-xl p-2.5 text-red-300">
+            <div class="text-xs bg-red-950/70 border border-red-500/40 rounded-xl p-2.5 text-red-200">
               ⚠️ <span class="font-bold">${tr.operatorFeedbackLabel}</span> ${escapeHtml(ticket.operatorFeedback)}
             </div>
           ` : ""}
@@ -173,7 +173,7 @@ function renderTicketsList(containerId, tickets, emptyMessage) {
 
   if (!tickets.length) {
     container.innerHTML = `
-      <div class="text-center text-gray-500 text-xs py-8">${escapeHtml(emptyMessage)}</div>
+      <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">${escapeHtml(emptyMessage)}</div>
     `;
     return;
   }
@@ -252,19 +252,19 @@ function renderBoardPage(containerId, emptyMessage) {
   };
   const isEnUi = (window.currentLang || "ar") === "en";
   const activeBannerHtml = isHomeCard ? `
-    <div class="mb-3 p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/40 flex items-center justify-between text-xs">
+    <div class="mb-3 p-2.5 rounded-xl bg-[#0f2447] text-white border border-blue-500/50 flex items-center justify-between text-xs shadow-sm">
       <div class="flex items-center gap-2">
-        <span class="font-bold text-blue-300">
+        <span class="font-bold text-blue-200">
           ${(homeCardLabels[currentStatusFilter] || {})[isEnUi ? 'en' : 'ar'] || currentStatusFilter}
         </span>
-        <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full font-mono font-bold">
+        <span class="text-[11px] bg-blue-500/25 text-blue-200 px-2 py-0.5 rounded-full font-mono font-bold">
           ${filteredTickets.length}
         </span>
       </div>
       <button
         type="button"
         onclick="window.setTicketsStatusFilter('all')"
-        class="text-[11px] font-bold text-blue-400 hover:text-white underline cursor-pointer">
+        class="text-[11px] font-bold text-blue-300 hover:text-white underline cursor-pointer">
         ${isEnUi ? 'Show All Tickets' : 'إلغاء التصفية وعرض الكل'}
       </button>
     </div>
@@ -273,10 +273,10 @@ function renderBoardPage(containerId, emptyMessage) {
   const visibleItems = filteredTickets.slice(0, boardVisibleCount);
   const listHtml = visibleItems.length
     ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${visibleItems.map(ticketCardHtml).join("")}</div>`
-    : `<div class="text-center text-gray-500 text-xs py-8">${escapeHtml(boardSearchTerm ? (isEnUi ? 'No tickets matched your search' : 'لا توجد بلاغات تطابق بحثك الحالي') : emptyMessage)}</div>`;
+    : `<div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">${escapeHtml(boardSearchTerm ? (isEnUi ? 'No tickets matched your search' : 'لا توجد بلاغات تطابق بحثك الحالي') : emptyMessage)}</div>`;
 
   const loaderHtml = boardVisibleCount < filteredTickets.length 
-    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-gray-500 text-[11px] animate-pulse">
+    ? `<div id="infiniteScrollTarget" class="py-4 text-center text-slate-600 dark:text-slate-300 text-[11px] font-medium animate-pulse">
          جاري تحميل المزيد... ( ${boardVisibleCount} من ${filteredTickets.length} )
        </div>` 
     : ``;
@@ -375,7 +375,7 @@ function renderBulkSelectToggle() {
       class="w-full text-xs font-bold py-2 rounded-lg border transition-all active:scale-95 ${
         bulkSelectMode
           ? "bg-amber-600 border-amber-500 text-white"
-          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+          : "bg-[#1E293B] border-gray-800 text-slate-200 hover:border-gray-600"
       }">
       ${bulkSelectMode ? (tr.bulkSelectExit || "إنهاء وضع التحديد") : (tr.bulkSelectEnter || "☑️ تحديد للإجراءات الجماعية")}
     </button>
@@ -532,7 +532,7 @@ function renderStatusTabs(role) {
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
         highlightKey === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
-          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+          : "bg-[#1E293B] border-gray-800 text-slate-200 hover:border-gray-600"
       }">
       ${escapeHtml(tab.label)}
     </button>
@@ -570,7 +570,7 @@ window.loadTicketsBoard = function () {
   }
 
   container.innerHTML = `
-    <div class="text-center text-gray-400 text-xs py-8">${t().loadingTickets}</div>
+    <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">${t().loadingTickets}</div>
   `;
 
   unsubscribeTicketsListener = subscribeToTicketsBoardApi(
@@ -580,7 +580,7 @@ window.loadTicketsBoard = function () {
       if (!result || result.status !== "success") {
         console.error("Ticket subscription error:", result?.message);
         container.innerHTML = `
-          <div class="text-red-400 text-center text-xs py-6">
+          <div class="text-red-600 dark:text-red-300 text-center text-xs py-6 font-medium">
             ${t().loadError}
           </div>
         `;
@@ -952,19 +952,19 @@ window.toggleNotificationsPanel = async function () {
   }
 
   panel.classList.remove("hidden");
-  panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${common().loading}</div>`;
+  panel.innerHTML = `<div class="text-center text-slate-300 text-[11px] py-4">${common().loading}</div>`;
 
   const myUid = localStorage.getItem("userId") || "";
   const result = await fetchMyNotificationsApi(myUid);
 
   if (result.status !== "success" || !result.data.length) {
-    panel.innerHTML = `<div class="text-center text-gray-500 text-[11px] py-4">${notifT().empty}</div>`;
+    panel.innerHTML = `<div class="text-center text-slate-300 text-[11px] py-4">${notifT().empty}</div>`;
     return;
   }
 
   panel.innerHTML = result.data.map(n => `
     <div onclick="window.handleNotificationClick('${escapeJsArg(n.id)}', '${escapeJsArg(n.ticketId || "")}', '${escapeJsArg(n.suggestionId || "")}')"
-      class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-transparent border-gray-800 text-gray-500" : "bg-blue-500/5 border-blue-500/20 text-gray-200"}">
+      class="p-2.5 rounded-lg mb-1.5 cursor-pointer border ${n.read ? "bg-[#0F172A] border-slate-700 text-slate-300" : "bg-blue-500/15 border-blue-500/35 text-white"}">
       <div class="text-[11px]">${NOTIFICATION_ICONS[n.type] || "🔔"} ${escapeHtml(n.message)}</div>
     </div>
   `).join("");

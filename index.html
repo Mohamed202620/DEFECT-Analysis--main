@@ -33,9 +33,15 @@
        js/branding.js -> getCompanyLogoDataUrl) -->
   <link rel="preload" as="image" href="assets/branding/company-banner.png">
 
+  <!-- Google Fonts: Cairo لوضوح الحروف العربية بأوزان متوازنة -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap">
+
   <!-- Chart.js & Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <script>
-    tailwind = {
+    tailwind.config = {
       darkMode: 'class',
       theme: {
         extend: {
@@ -47,7 +53,6 @@
       }
     };
   </script>
-  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
   <!-- Test 17: chart.js/dayjs/jsPDF/html2canvas كانت سكربتات مانعة للرسم في <head> (حوالي مئات KB من CDN قبل ظهور أي شيء، وبتعلّق الشاشة لو الـ CDN بطيء). كلها بتُستخدم بعد تفاعل المستخدم فقط، و defer بيضمن تنفيذها قبل وحدات ES (type=module) بنفس الترتيب -->
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js"></script>
 
@@ -108,21 +113,23 @@
          خلفية غامقة أصلاً - راجع js/branding.js -> renderHeader) */
       --app-header-bg: rgba(15, 23, 42, 0.93);
       --app-card-bg: #ffffff;
-      --app-border: rgba(15, 23, 42, 0.12);
+      --app-border: rgba(15, 23, 42, 0.14);
       --app-text: #0f172a;
+      --app-muted-text: #475569;
     }
     
     .dark, body.dark, html.dark, [data-theme="dark"] {
       --app-main-bg: #0f172a; 
-      --app-header-bg: rgba(15, 23, 42, 0.93);
-      --app-card-bg: rgba(30, 41, 59, 0.4);
-      --app-border: rgba(255, 255, 255, 0.08);
-      --app-text: #f3f4f6;
+      --app-header-bg: rgba(15, 23, 42, 0.95);
+      --app-card-bg: #1e293b;
+      --app-border: rgba(148, 163, 184, 0.18);
+      --app-text: #f8fafc;
+      --app-muted-text: #cbd5e1;
     }
 
     * { 
       box-sizing: border-box; 
-      font-family: system-ui, -apple-system, sans-serif; 
+      font-family: 'Cairo', system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif; 
       -webkit-tap-highlight-color: transparent;
       -webkit-overflow-scrolling: touch;
     }
@@ -137,6 +144,9 @@
       overflow-x: hidden;
       -webkit-text-size-adjust: 100%;
       text-size-adjust: 100%;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
       -webkit-overflow-scrolling: touch;
     }
 
@@ -232,7 +242,21 @@
     }
 
     .dyn-text-muted {
-      color: var(--app-text);
+      color: var(--app-muted-text);
+    }
+
+    /* ضمان وراثة لون فاتح واضح داخل البطاقات ذات الخلفية الداكنة الثابتة حتى في الوضع الفاتح (صفر أولوية عبر :where) */
+    :where(
+      [class*="bg-[#0F172A]"],
+      [class*="bg-[#1E293B]"],
+      [class*="bg-slate-900"],
+      [class*="bg-slate-800"],
+      [class*="bg-gray-900"],
+      [class*="bg-gray-800"],
+      [class*="from-[#1E293B]"],
+      [class*="from-[#1E3A8A]"]
+    ) {
+      color: #f8fafc;
     }
 
      #appShell {
@@ -665,7 +689,7 @@
                   <p class="text-xs text-yellow-300 font-mono break-all my-2 text-left" style="direction:ltr">
                       ${String(errorMsg).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}
                   </p>
-                  <p class="text-[11px] text-gray-400 mt-3">
+                  <p class="text-xs text-slate-200 mt-3">
                       اضغط على أداة Eruda لمعاينة تفاصيل الـ Console.
                   </p>
               </div>

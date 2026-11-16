@@ -50,12 +50,12 @@ const KAIZEN_STATUS_LABELS = {
 };
 
 const KAIZEN_STATUS_CLASSES = {
-  new: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
-  under_review: "bg-blue-500/10 text-blue-400 border border-blue-500/20",
-  in_progress: "bg-purple-500/10 text-purple-400 border border-purple-500/20",
-  revision_requested: "bg-orange-500/10 text-orange-400 border border-orange-500/20",
-  rejected: "bg-red-500/10 text-red-400 border border-red-500/20",
-  implemented: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+  new: "bg-amber-500/15 text-amber-300 border border-amber-500/30",
+  under_review: "bg-blue-500/15 text-blue-300 border border-blue-500/30",
+  in_progress: "bg-purple-500/15 text-purple-300 border border-purple-500/30",
+  revision_requested: "bg-orange-500/15 text-orange-300 border border-orange-500/30",
+  rejected: "bg-red-500/15 text-red-300 border border-red-500/30",
+  implemented: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
 };
 
 // دعم الاسم الجديد (imageUrls - عدة صور) مع التوافق مع الاسم القديم
@@ -95,7 +95,7 @@ function suggestionCardHtml(suggestion) {
       ${suggestionActions.map(a => `
         <button
           onclick="window.handleKaizenAction('${escapeJsArg(suggestion.id)}', '${escapeJsArg(a.key)}')"
-          class="text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95 bg-[#0E1117] border-gray-700 text-gray-300 hover:border-blue-500/50 hover:text-blue-400">
+          class="text-[11px] font-bold px-2.5 py-1 rounded-lg border transition-all active:scale-95 bg-[#0E1117] border-gray-700 text-slate-200 hover:border-blue-500/50 hover:text-blue-300">
           ${escapeHtml(a.label)}
         </button>
       `).join("")}
@@ -147,25 +147,25 @@ function suggestionCardHtml(suggestion) {
   `;
 
   return `
-    <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 flex flex-col justify-between h-full">
+    <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 flex flex-col justify-between h-full">
       <div class="space-y-2.5">
         <div class="flex justify-between items-center gap-2">
-          <span class="font-bold text-sm text-gray-100">${escapeHtml(suggestion.title || "-")}</span>
-          ${suggestion.unifiedNumber ? `<span class="text-[10px] font-mono font-bold text-amber-400">${escapeHtml(displayRecordNumber(suggestion))}</span>` : ""}
-          <span class="text-[10px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
+          <span class="font-bold text-sm text-white">${escapeHtml(suggestion.title || "-")}</span>
+          ${suggestion.unifiedNumber ? `<span class="text-[11px] font-mono font-bold text-amber-300">${escapeHtml(displayRecordNumber(suggestion))}</span>` : ""}
+          <span class="text-[11px] px-2 py-0.5 rounded-full ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/15 text-slate-300"}">
             ${KAIZEN_STATUS_LABELS[status] || status}
           </span>
         </div>
 
-        ${suggestion.problem ? `<p class="text-xs text-gray-400 leading-relaxed">${escapeHtml(suggestion.problem)}</p>` : ""}
+        ${suggestion.problem ? `<p class="text-xs text-slate-200 leading-relaxed">${escapeHtml(suggestion.problem)}</p>` : ""}
 
         ${suggestion.solution ? `
-          <div class="text-[11px] bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-2 text-emerald-300">
+          <div class="text-[11px] bg-emerald-500/10 border border-emerald-500/25 rounded-lg p-2 text-emerald-200">
             💡 الحل المقترح: ${escapeHtml(suggestion.solution)}
           </div>
         ` : ""}
 
-        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500">
+        <div class="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300">
           <span>👤 ${escapeHtml(displayName)}</span>
           ${suggestion.line ? `<span>🏭 ${escapeHtml(suggestion.line)}</span>` : ""}
           ${suggestion.machine ? `<span>⚙️ ${escapeHtml(suggestion.machine)}</span>` : ""}
@@ -214,7 +214,7 @@ function renderKaizenTabs() {
       class="shrink-0 px-3.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
         kaizenCurrentStatusFilter === tab.key
           ? "bg-blue-600 border-blue-600 text-white"
-          : "bg-[#1E293B] border-gray-800 text-gray-400 hover:border-gray-700"
+          : "bg-[#1E293B] border-gray-800 text-slate-200 hover:border-gray-600"
       }">
       ${escapeHtml(tab.label)}
     </button>
@@ -238,35 +238,35 @@ function renderKaizenPage() {
   const pageItems = kaizenCappedItems.slice(pageStart, pageStart + KAIZEN_PAGE_SIZE);
 
   const bannerHtml = `
-    <div class="text-[11px] text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2.5 mb-3">
+    <div class="text-[11px] font-semibold text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-500/15 border border-blue-300 dark:border-blue-500/30 rounded-lg p-2.5 mb-3">
       ℹ️ يتم عرض آخر ${MAX_KAIZEN_ITEMS} مقترح فقط.
     </div>
   `;
 
   const listHtml = pageItems.length
     ? `<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">${pageItems.map(suggestionCardHtml).join("")}</div>`
-    : `<div class="text-center text-gray-500 text-xs py-8">لا توجد مقترحات حالياً في قائمتك.</div>`;
+    : `<div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">لا توجد مقترحات حالياً في قائمتك.</div>`;
 
   const paginationHtml = totalPages > 1 ? `
     <div class="flex items-center justify-center gap-1.5 pt-3">
       <button
         onclick="window.setKaizenPage(${kaizenCurrentPage - 1})"
         ${kaizenCurrentPage <= 1 ? "disabled" : ""}
-        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
-          kaizenCurrentPage <= 1 ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
+        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-300 dark:border-gray-700 transition-all ${
+          kaizenCurrentPage <= 1 ? "text-slate-400 dark:text-slate-500 cursor-not-allowed" : "text-slate-700 dark:text-slate-200 hover:border-slate-500 active:scale-95"
         }">السابق</button>
       ${Array.from({ length: totalPages }, (_, i) => i + 1).map(p => `
         <button
           onclick="window.setKaizenPage(${p})"
           class="w-7 h-7 rounded-lg text-[11px] font-bold border transition-all active:scale-95 ${
-            p === kaizenCurrentPage ? "bg-blue-600 border-blue-600 text-white" : "border-gray-800 text-gray-400 hover:border-gray-700"
+            p === kaizenCurrentPage ? "bg-blue-600 border-blue-600 text-white" : "border-slate-300 dark:border-gray-700 text-slate-700 dark:text-slate-200 hover:border-slate-500"
           }">${p}</button>
       `).join("")}
       <button
         onclick="window.setKaizenPage(${kaizenCurrentPage + 1})"
         ${kaizenCurrentPage >= totalPages ? "disabled" : ""}
-        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-gray-800 transition-all ${
-          kaizenCurrentPage >= totalPages ? "text-gray-600 cursor-not-allowed" : "text-gray-300 hover:border-gray-700 active:scale-95"
+        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-slate-300 dark:border-gray-700 transition-all ${
+          kaizenCurrentPage >= totalPages ? "text-slate-400 dark:text-slate-500 cursor-not-allowed" : "text-slate-700 dark:text-slate-200 hover:border-slate-500 active:scale-95"
         }">التالي</button>
     </div>
   ` : "";
@@ -299,7 +299,7 @@ window.loadKaizenBoard = function () {
   const myUid = localStorage.getItem("userId") || "";
 
   container.innerHTML = `
-    <div class="text-center text-gray-400 text-xs py-8">جاري تحميل المقترحات...</div>
+    <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">جاري تحميل المقترحات...</div>
   `;
 
   unsubscribeKaizenListener = subscribeToSuggestionsBoardApi(
@@ -309,7 +309,7 @@ window.loadKaizenBoard = function () {
       if (!result || result.status !== "success") {
         console.error("Kaizen subscription error:", result?.message);
         container.innerHTML = `
-          <div class="text-red-400 text-center text-xs py-6">
+          <div class="text-red-600 dark:text-red-300 text-center text-xs py-6 font-medium">
             تعذر تحميل المقترحات حالياً. حاول مرة أخرى، ولو استمرت المشكلة تواصل مع الأدمن.
           </div>
         `;
@@ -570,8 +570,8 @@ function kaizenDetailRowHtml(icon, label, value) {
     <div class="flex gap-2.5 items-start py-2.5 border-b border-gray-800/70 last:border-b-0">
       <span class="text-sm shrink-0 mt-0.5">${icon}</span>
       <div class="min-w-0 flex-1">
-        <div class="text-[10px] font-bold text-gray-500 mb-0.5">${escapeHtml(label)}</div>
-        <div class="text-xs text-gray-100 leading-relaxed break-words whitespace-pre-line">${escapeHtml(value)}</div>
+        <div class="text-[11px] font-bold text-slate-300 mb-0.5">${escapeHtml(label)}</div>
+        <div class="text-xs text-white leading-relaxed break-words whitespace-pre-line">${escapeHtml(value)}</div>
       </div>
     </div>
   `;
@@ -585,7 +585,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
   const suggestionImages = getSuggestionImages(suggestion);
   const imageHtml = suggestionImages.length ? `
     <div class="pt-1">
-      <div class="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5">
+      <div class="text-[11px] font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
         <span>🖼️</span> ${suggestionImages.length > 1 ? "الصور المرفقة" : "الصورة المرفقة"}
       </div>
       <div class="grid ${suggestionImages.length > 1 ? "grid-cols-3 gap-1.5" : "grid-cols-1"}">
@@ -600,7 +600,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
 
   const implementationImagesHtml = (suggestion.implementationImages || []).length ? `
     <div class="pt-2">
-      <div class="text-[10px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5">
+      <div class="text-[11px] font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
         <span>🏁</span> صور بعد التنفيذ
       </div>
       <div class="grid grid-cols-3 gap-1.5">
@@ -617,20 +617,20 @@ function buildKaizenDetailsModalHtml(suggestion) {
       class="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
       onclick="if (event.target === this) window.closeKaizenSuggestionDetails()"
     >
-      <div class="bg-[#1E293B] border border-gray-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl">
+      <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl">
 
         <!-- Header -->
         <div class="flex items-start justify-between gap-2 p-4 border-b border-gray-800 shrink-0">
           <div class="min-w-0 flex-1">
-            <div class="text-[10px] font-bold text-amber-400 mb-1 flex items-center gap-1">
+            <div class="text-[11px] font-bold text-amber-300 mb-1 flex items-center gap-1">
               <span>💡</span> تفاصيل مقترح الكايزن
             </div>
-            <h3 class="text-sm font-bold text-gray-100 break-words">${escapeHtml(suggestion.title || "-")}</h3>
+            <h3 class="text-sm font-bold text-white break-words">${escapeHtml(suggestion.title || "-")}</h3>
           </div>
           <button
             onclick="window.closeKaizenSuggestionDetails()"
             aria-label="إغلاق"
-            class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-[#0E1117] border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 transition-all active:scale-95">
+            class="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-[#0E1117] border border-gray-700 text-slate-300 hover:text-white hover:border-gray-600 transition-all active:scale-95">
             ✕
           </button>
         </div>
@@ -639,8 +639,8 @@ function buildKaizenDetailsModalHtml(suggestion) {
         <div class="overflow-y-auto p-4 space-y-0.5">
 
           <div class="flex items-center justify-between pb-2.5 mb-1 border-b border-gray-800/70">
-            <span class="text-[10px] font-bold text-gray-500">الحالة الحالية</span>
-            <span class="text-[10px] px-2.5 py-1 rounded-full font-bold ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/10 text-gray-400"}">
+            <span class="text-[11px] font-bold text-slate-300">الحالة الحالية</span>
+            <span class="text-[11px] px-2.5 py-1 rounded-full font-bold ${KAIZEN_STATUS_CLASSES[status] || "bg-gray-500/15 text-slate-300"}">
               ${KAIZEN_STATUS_LABELS[status] || status}
             </span>
           </div>
@@ -666,10 +666,10 @@ function buildKaizenDetailsModalHtml(suggestion) {
           عبر fetchSuggestionLogsApi، من غير ما يعطّل ظهور باقي
           التفاصيل فوراً -->
           <div class="pt-3 mt-2 border-t border-gray-800">
-            <div class="text-[10px] font-bold text-gray-500 mb-2 flex items-center gap-1.5">
+            <div class="text-[11px] font-bold text-slate-200 mb-2 flex items-center gap-1.5">
               <span>🕘</span> السجل الزمني للإجراءات
             </div>
-            <div id="kaizenTimelineContainer" class="text-[11px] text-gray-500">
+            <div id="kaizenTimelineContainer" class="text-[11px] text-slate-300">
               جاري تحميل السجل...
             </div>
           </div>
@@ -680,7 +680,7 @@ function buildKaizenDetailsModalHtml(suggestion) {
         <div class="p-3 border-t border-gray-800 shrink-0">
           <button
             onclick="window.closeKaizenSuggestionDetails()"
-            class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs font-bold text-gray-300 hover:border-gray-600 transition-all active:scale-95">
+            class="w-full p-2.5 rounded-lg bg-[#0E1117] border border-gray-700 text-xs font-bold text-slate-200 hover:border-gray-600 transition-all active:scale-95">
             إغلاق
           </button>
         </div>
@@ -721,7 +721,7 @@ async function loadAndRenderKaizenTimeline(suggestionId) {
   if (!stillOpen) return;
 
   if (result.status !== "success" || !result.data.length) {
-    stillOpen.innerHTML = `<div class="text-[11px] text-gray-600">لا يوجد سجل إجراءات بعد.</div>`;
+    stillOpen.innerHTML = `<div class="text-[11px] text-slate-300">لا يوجد سجل إجراءات بعد.</div>`;
     return;
   }
 
@@ -729,13 +729,13 @@ async function loadAndRenderKaizenTimeline(suggestionId) {
     <div class="flex gap-2 items-start py-1.5 border-b border-gray-800/50 last:border-b-0">
       <span class="text-xs shrink-0 mt-0.5">•</span>
       <div class="min-w-0 flex-1">
-        <div class="text-[11px] text-gray-200 font-bold">
+        <div class="text-[11px] text-white font-bold">
           ${KAIZEN_LOG_ACTION_LABELS[log.action] || log.action}
         </div>
-        <div class="text-[10px] text-gray-500">
+        <div class="text-[11px] text-slate-300">
           بواسطة ${log.by || "-"} (${log.byRole || "-"}) - ${formatKaizenDetailsDate(log.at)}
         </div>
-        ${log.note ? `<div class="text-[10px] text-gray-400 mt-0.5 whitespace-pre-line">${escapeHtml(log.note)}</div>` : ""}
+        ${log.note ? `<div class="text-[11px] text-slate-200 mt-0.5 whitespace-pre-line">${escapeHtml(log.note)}</div>` : ""}
       </div>
     </div>
   `).join("");

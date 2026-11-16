@@ -62,9 +62,9 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
   const emptyText = options.emptyText || (window.currentLang === "en" ? "No images attached" : "لا توجد صور مرفقة");
   const buttonsWrapperClass = options.buttonsWrapperClass || "grid grid-cols-2 gap-2 mb-2";
   const cameraButtonClass = options.cameraButtonClass ||
-    "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2.5 text-blue-400 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5";
+    "bg-blue-600/20 border border-blue-500/50 hover:bg-blue-600/30 rounded-lg p-2.5 text-blue-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5";
   const galleryButtonClass = options.galleryButtonClass ||
-    "bg-gray-700/50 border border-gray-600 hover:bg-gray-700 rounded-lg p-2.5 text-gray-300 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5";
+    "bg-gray-700/60 border border-gray-600 hover:bg-gray-700 rounded-lg p-2.5 text-slate-200 font-bold transition active:scale-95 text-xs flex items-center justify-center gap-1.5";
   const gridClass = options.gridClass || "grid grid-cols-3 sm:grid-cols-4 gap-2 mb-2";
 
   return `
@@ -105,10 +105,10 @@ export function buildAttachmentPickerHtml(groupId, options = {}) {
       <div id="${escapeHtml(groupId)}_preview_grid" class="${gridClass}"></div>
 
       <!-- نص الحالة عند عدم وجود صور -->
-      <p id="${escapeHtml(groupId)}_empty_text" class="text-xs text-gray-400 text-center py-2">
+      <p id="${escapeHtml(groupId)}_empty_text" class="text-xs text-slate-300 text-center py-2">
         ${escapeHtml(emptyText)}
       </p>
-      <p id="${escapeHtml(groupId)}_error" class="hidden text-xs text-red-400 text-center py-2" role="alert" aria-live="polite"></p>
+      <p id="${escapeHtml(groupId)}_error" class="hidden text-xs text-red-300 text-center py-2" role="alert" aria-live="polite"></p>
     </div>
   `;
 }
@@ -143,7 +143,7 @@ function renderAttachmentPreviews(groupId, config = {}) {
         class="attachment-delete-btn absolute top-1 right-1 bg-red-600/80 hover:bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold transition-transform active:scale-90 shadow">
         ✕
       </button>
-      <span class="absolute bottom-1 left-1 bg-black/60 text-[10px] text-white px-1 rounded">
+      <span class="absolute bottom-1 left-1 bg-black/75 text-[11px] font-bold text-white px-1.5 rounded">
         #${index + 1}
       </span>
     </div>

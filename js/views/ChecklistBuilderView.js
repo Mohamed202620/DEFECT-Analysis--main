@@ -225,17 +225,17 @@ export const ChecklistBuilderView = () => {
   const role = getCurrentRole();
   if (!isAdminRole(role) && !isManagerRole(role)) {
     return `
-      <div class="app-page p-4 max-w-md mx-auto text-center space-y-4 pt-12 text-white">
+      <div class="app-page p-4 max-w-md mx-auto text-center space-y-4 pt-12 text-slate-900 dark:text-white">
         <div class="text-4xl">🔒</div>
-        <h2 class="text-lg font-bold text-red-400">${isEn ? 'Access Denied' : 'غير مصرح بالدخول'}</h2>
-        <p class="text-xs text-gray-400">${isEn ? 'Only Managers and Admins can access the Checklist Editor.' : 'محرر بنود الفحص مخصص للمديرين ورؤساء الأقسام والأدمن فقط.'}</p>
+        <h2 class="text-lg font-bold text-red-600 dark:text-red-400">${isEn ? 'Access Denied' : 'غير مصرح بالدخول'}</h2>
+        <p class="text-xs text-slate-600 dark:text-slate-300">${isEn ? 'Only Managers and Admins can access the Checklist Editor.' : 'محرر بنود الفحص مخصص للمديرين ورؤساء الأقسام والأدمن فقط.'}</p>
         <button onclick="window.goBack('home')" class="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-bold">${isEn ? 'Back' : 'رجوع'}</button>
       </div>
     `;
   }
 
   return `
-  <div class="app-page p-3 sm:p-4 md:p-6 max-w-5xl mx-auto pb-28 text-white space-y-4">
+  <div class="app-page p-3 sm:p-4 md:p-6 max-w-5xl mx-auto pb-28 text-slate-900 dark:text-white space-y-4">
     <!-- الشريط العلوي -->
     <div class="flex items-center justify-between">
       <button onclick="window.goBack('home')" class="bg-[#1E293B] hover:bg-[#283548] active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700/80 shadow-sm cursor-pointer">
@@ -244,20 +244,20 @@ export const ChecklistBuilderView = () => {
       </button>
 
       <div class="flex items-center gap-2">
-        <span id="cbOnlineBadge" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="cbOnlineBadge" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse"></span>
           <span>${isEn ? 'System Live' : 'مُصلح وقابل للتخصيص'}</span>
         </span>
       </div>
     </div>
 
     <!-- ترويسة الصفحة -->
-    <div class="bg-gradient-to-r from-[#1E293B] via-[#1E293B] to-[#0F172A] p-4 rounded-2xl border border-slate-800 shadow-lg flex items-center justify-between flex-wrap gap-3">
+    <div class="bg-gradient-to-r from-[#1E293B] via-[#1E293B] to-[#0F172A] text-white p-4 rounded-2xl border border-slate-800 shadow-lg flex items-center justify-between flex-wrap gap-3">
       <div class="flex items-center gap-3">
         <span class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center text-xl shrink-0 shadow-inner">🛠️</span>
         <div>
           <h1 class="text-base sm:text-lg font-black text-white leading-tight">${tr.pageTitle}</h1>
-          <p class="text-[11px] text-slate-400 mt-0.5">${tr.pageSubtitle}</p>
+          <p class="text-[11px] text-slate-300 mt-0.5">${tr.pageSubtitle}</p>
         </div>
       </div>
 
@@ -274,21 +274,21 @@ export const ChecklistBuilderView = () => {
           type="button"
           id="cbTab5sBtn"
           onclick="window.switchChecklistTab('5s')"
-          class="py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer">
+          class="py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer">
           ${tr.tab5s}
         </button>
       </div>
     </div>
 
     <!-- شريط التحكم واختيار الماكينة والقالب -->
-    <div class="bg-[#1E293B] border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3.5 shadow-xl">
+    <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl p-3.5 sm:p-4 space-y-3.5 shadow-xl">
       
       <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
         <!-- اختيار الماكينة -->
         <div class="sm:col-span-8">
-          <label class="block text-[11px] font-bold text-slate-300 mb-1 flex items-center justify-between">
+          <label class="block text-[11px] font-bold text-slate-200 mb-1 flex items-center justify-between">
             <span>🏭 ${isEn ? 'Select Target Machine:' : 'الماكينة المستهدفة للتعود والتخصيص:'}</span>
-            <span id="cbMachineLineTag" class="text-[10px] text-blue-400 font-normal"></span>
+            <span id="cbMachineLineTag" class="text-[11px] text-blue-400 font-normal"></span>
           </label>
           <div class="relative">
             <select
@@ -302,7 +302,7 @@ export const ChecklistBuilderView = () => {
 
         <!-- معلومات النسخة وزر الحفظ -->
         <div class="sm:col-span-4 flex items-center justify-end gap-2 pt-1 sm:pt-4">
-          <span id="cbVersionBadge" class="text-[10px] font-mono font-bold text-slate-300 bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shadow-inner">
+          <span id="cbVersionBadge" class="text-[11px] font-mono font-bold text-slate-200 bg-slate-800 px-2.5 py-1.5 rounded-xl border border-slate-700 shadow-inner">
             v1
           </span>
           <button
@@ -363,25 +363,25 @@ export const ChecklistBuilderView = () => {
     </div>
 
     <!-- فلتر وبحث البنود داخل الماكينة الحالية -->
-    <div id="cbItemFilterBar" class="hidden bg-[#1E293B] border border-slate-800 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+    <div id="cbItemFilterBar" class="hidden bg-[#1E293B] text-white border border-slate-800 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2 text-xs">
       <div class="flex items-center gap-2 flex-1 min-w-[200px]">
-        <span class="text-slate-400">🔍</span>
+        <span class="text-slate-300">🔍</span>
         <input
           id="cbItemSearchInput"
           type="text"
           oninput="window.filterChecklistItems()"
           placeholder="${isEn ? 'Search points in current machine...' : 'بحث سريع في بنود الفحص المفتوحة...'}"
-          class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white outline-none focus:border-blue-500 transition">
+          class="w-full bg-[#0F172A] border border-slate-700 rounded-lg p-2 text-xs text-white placeholder-slate-400 outline-none focus:border-blue-500 transition">
       </div>
 
       <div class="flex items-center gap-1.5 shrink-0 text-[11px]">
         <button type="button" onclick="window.setChecklistFilterStatus('all')" id="btnFilterAll" class="px-2.5 py-1 rounded-lg font-bold bg-blue-600 text-white transition">
           ${isEn ? 'All' : 'الكل'}
         </button>
-        <button type="button" onclick="window.setChecklistFilterStatus('active')" id="btnFilterActive" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition">
+        <button type="button" onclick="window.setChecklistFilterStatus('active')" id="btnFilterActive" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-300 hover:text-white transition">
           🟢 ${isEn ? 'Active' : 'المفعلة'}
         </button>
-        <button type="button" onclick="window.setChecklistFilterStatus('critical')" id="btnFilterCritical" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition">
+        <button type="button" onclick="window.setChecklistFilterStatus('critical')" id="btnFilterCritical" class="px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-300 hover:text-white transition">
           ⚠️ ${isEn ? 'Critical' : 'الحرجة'}
         </button>
       </div>
@@ -389,7 +389,7 @@ export const ChecklistBuilderView = () => {
 
     <!-- حاوية بنود الفحص -->
     <div id="cbItemsContainer" class="space-y-2.5">
-      <div class="bg-[#1E293B] rounded-2xl p-10 border border-slate-800 text-center text-xs text-slate-400 shadow-md">
+      <div class="bg-[#1E293B] rounded-2xl p-10 border border-slate-800 text-center text-xs text-slate-300 shadow-md">
         ${tr.noMachineSelected}
       </div>
     </div>
@@ -451,10 +451,10 @@ window.switchChecklistTab = function (tabKey) {
 
   if (tabKey === 'am') {
     amBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all bg-blue-600 text-white shadow-sm cursor-pointer';
-    fiveSBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer';
+    fiveSBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer';
   } else {
     fiveSBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all bg-emerald-600 text-white shadow-sm cursor-pointer';
-    amBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-400 hover:text-white cursor-pointer';
+    amBtn.className = 'py-1.5 px-3.5 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer';
   }
 
   // إعادة تحميل بنود الماكينة الحالية للتبويب الجديد
@@ -484,7 +484,7 @@ window.onChecklistMachineSelected = async function (machineVal) {
   const container = document.getElementById('cbItemsContainer');
   if (container) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] rounded-2xl p-8 border border-slate-800 text-center text-xs text-slate-400 animate-pulse">
+      <div class="bg-[#1E293B] rounded-2xl p-8 border border-slate-800 text-center text-xs text-slate-300 animate-pulse">
         ⏳ ${isEn ? 'Loading checklist template...' : 'جاري تحميل بنود الفحص...'}
       </div>
     `;
@@ -533,7 +533,7 @@ window.setChecklistFilterStatus = function(status) {
       if (st.toLowerCase() === status) {
         btn.className = 'px-2.5 py-1 rounded-lg font-bold bg-blue-600 text-white transition';
       } else {
-        btn.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-400 hover:text-white transition';
+        btn.className = 'px-2.5 py-1 rounded-lg font-bold bg-slate-800 text-slate-300 hover:text-white transition';
       }
     }
   });
@@ -558,8 +558,8 @@ function renderItemsList() {
 
   if (!currentItems || currentItems.length === 0) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] rounded-2xl p-8 border border-slate-800 text-center space-y-3">
-        <p class="text-xs text-slate-400">${isEn ? 'No inspection points in this template.' : 'لا توجد بنود فحص في هذا القالب.'}</p>
+      <div class="bg-[#1E293B] text-white rounded-2xl p-8 border border-slate-800 text-center space-y-3">
+        <p class="text-xs text-slate-300">${isEn ? 'No inspection points in this template.' : 'لا توجد بنود فحص في هذا القالب.'}</p>
         <button onclick="window.openAddItemModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md cursor-pointer">
           ➕ ${tr.addItemBtn}
         </button>
@@ -585,7 +585,7 @@ function renderItemsList() {
 
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div class="bg-[#1E293B] rounded-2xl p-6 border border-slate-800 text-center text-xs text-slate-400">
+      <div class="bg-[#1E293B] rounded-2xl p-6 border border-slate-800 text-center text-xs text-slate-300">
         🔍 ${isEn ? 'No inspection points matched your search query.' : 'لم يتم العثور على بنود مطابقة لنتائج الفلترة.'}
       </div>
     `;
@@ -600,27 +600,27 @@ function renderItemsList() {
 
     // Badges
     const typeBadge = item.type === 'numeric'
-      ? `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono">🔢 ${item.unit || tr.numericType}</span>`
+      ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 font-mono">🔢 ${item.unit || tr.numericType}</span>`
       : item.type === 'text'
-      ? `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">📝 ${tr.textType}</span>`
-      : `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-slate-700/60 text-slate-300 border border-slate-600/50">✅ ${tr.okNokType}</span>`;
+      ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">📝 ${tr.textType}</span>`
+      : `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-700/60 text-slate-200 border border-slate-600/50">✅ ${tr.okNokType}</span>`;
 
     const criticalBadge = item.critical
-      ? `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${tr.criticalBadge}</span>`
+      ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${tr.criticalBadge}</span>`
       : '';
 
     const photoBadge = item.photoRequired
-      ? `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">📷 ${tr.photoReqBadge}</span>`
+      ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-sky-500/15 text-sky-300 border border-sky-500/30">📷 ${tr.photoReqBadge}</span>`
       : '';
 
     const pillarBadge = item.pillar
-      ? `<span class="text-[9.5px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">🏛️ ${item.pillar.toUpperCase()}</span>`
+      ? `<span class="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono">🏛️ ${item.pillar.toUpperCase()}</span>`
       : '';
 
     return `
       <div
         id="cbItemRow_${escapeHtml(item.id)}"
-        class="bg-[#1E293B] rounded-2xl p-3.5 sm:p-4 border ${isActive ? 'border-slate-800' : 'border-red-900/40 opacity-60 bg-slate-900/40'} transition hover:border-slate-700 shadow-md space-y-2.5">
+        class="text-white rounded-2xl p-3.5 sm:p-4 border ${isActive ? 'bg-[#1E293B] border-slate-800' : 'border-red-900/50 bg-slate-900/95'} transition hover:border-slate-700 shadow-md space-y-2.5">
         
         <!-- الصف الرئيسي: الترتيب + العنوان + الإجراءات -->
         <div class="flex items-start justify-between gap-2.5">
@@ -631,36 +631,36 @@ function renderItemsList() {
                 type="button"
                 onclick="window.moveChecklistItem(${originalIndex}, -1)"
                 ${originalIndex === 0 ? 'disabled' : ''}
-                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-slate-300 transition cursor-pointer"
+                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[11px] flex items-center justify-center text-slate-200 transition cursor-pointer"
                 title="${isEn ? 'Move Up' : 'تحريك لأعلى'}">▲</button>
               <button
                 type="button"
                 onclick="window.moveChecklistItem(${originalIndex}, 1)"
                 ${originalIndex === currentItems.length - 1 ? 'disabled' : ''}
-                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[10px] flex items-center justify-center text-slate-300 transition cursor-pointer"
+                class="w-6 h-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-20 rounded text-[11px] flex items-center justify-center text-slate-200 transition cursor-pointer"
                 title="${isEn ? 'Move Down' : 'تحريك لأسفل'}">▼</button>
             </div>
 
             <!-- اسم البند والبادجات -->
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
-                <span class="text-[10px] font-mono font-bold text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded">#${originalIndex + 1}</span>
+                <span class="text-[11px] font-mono font-bold text-slate-300 bg-slate-800/80 px-1.5 py-0.5 rounded">#${originalIndex + 1}</span>
                 ${pillarBadge}
                 ${typeBadge}
                 ${criticalBadge}
                 ${photoBadge}
               </div>
-              <h4 class="text-xs sm:text-sm font-bold text-white break-words ${!isActive ? 'line-through text-slate-400' : ''}">
+              <h4 class="text-xs sm:text-sm font-bold break-words ${!isActive ? 'line-through text-slate-300' : 'text-white'}">
                 ${escapeHtml(labelText)}
               </h4>
               ${howToText ? `
-                <div class="text-[10px] text-slate-300 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80 mt-1.5 flex items-start gap-1.5">
+                <div class="text-[11px] text-slate-200 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80 mt-1.5 flex items-start gap-1.5">
                   <span class="text-amber-400">💡</span>
                   <span class="leading-relaxed">${escapeHtml(howToText)}</span>
                 </div>
               ` : ''}
               ${item.type === 'numeric' && (item.min != null || item.max != null) ? `
-                <div class="text-[10px] text-blue-300 font-mono mt-1 bg-blue-950/30 px-2 py-0.5 rounded w-fit border border-blue-500/20">
+                <div class="text-[11px] text-blue-300 font-mono mt-1 bg-blue-950/30 px-2 py-0.5 rounded w-fit border border-blue-500/20">
                   [${item.min != null ? `Min: ${item.min} ` : ''}${item.max != null ? `Max: ${item.max} ` : ''}${item.unit || ''}]
                 </div>
               ` : ''}
@@ -673,7 +673,7 @@ function renderItemsList() {
             <button
               type="button"
               onclick="window.toggleChecklistItemActive('${escapeJsArg(item.id)}')"
-              class="px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 cursor-pointer ${
+              class="px-2.5 py-1 rounded-xl text-[11px] font-bold transition flex items-center gap-1 cursor-pointer ${
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
                   : 'bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25'
@@ -716,9 +716,9 @@ function renderItemsList() {
   }).join('');
 
   container.innerHTML = `
-    <div class="flex items-center justify-between px-1 text-xs text-slate-400 font-bold mb-1">
+    <div class="flex items-center justify-between px-1 text-xs text-slate-700 dark:text-slate-200 font-bold mb-1">
       <span>${filtered.length} من أصل ${currentItems.length} ${tr.itemsCount}</span>
-      <span class="text-[10px] text-slate-500 font-normal">${isEn ? 'Use ▲▼ to reorder items' : 'استخدم الأسهم ▲▼ لإعادة ترتيب البنود'}</span>
+      <span class="text-[11px] text-slate-600 dark:text-slate-300 font-normal">${isEn ? 'Use ▲▼ to reorder items' : 'استخدم الأسهم ▲▼ لإعادة ترتيب البنود'}</span>
     </div>
     <div class="space-y-2">
       ${itemsHtml}
@@ -817,8 +817,8 @@ function renderItemFormModal(itemData) {
   const howToEn = itemData.howTo?.en || '';
 
   modalContainer.innerHTML = `
-    <div id="cbItemFormModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
+    <div id="cbItemFormModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[92vh]">
         
         <!-- Header -->
         <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
@@ -828,7 +828,7 @@ function renderItemFormModal(itemData) {
               ${isEdit ? (isEn ? 'Edit Inspection Point' : 'تعديل بند الفحص') : (isEn ? 'Add New Inspection Point' : 'إضافة بند فحص جديد')}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbItemFormModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbItemFormModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <!-- Form Body -->
@@ -916,19 +916,19 @@ function renderItemFormModal(itemData) {
 
             <!-- الحقول الرقمية المخصصة (تظهر فقط عند اختيار numeric) -->
             <div id="cbfNumericFields" class="${itemData.type === 'numeric' ? '' : 'hidden'} p-3 rounded-xl bg-[#0F172A] border border-slate-800 space-y-2">
-              <div class="text-[10px] font-bold text-blue-300">⚙️ ${isEn ? 'Numeric Limits & Unit:' : 'الحدود الرقمية ووحدة القياس:'}</div>
+              <div class="text-[11px] font-bold text-blue-300">⚙️ ${isEn ? 'Numeric Limits & Unit:' : 'الحدود الرقمية ووحدة القياس:'}</div>
               <div class="grid grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Min' : 'الحد الأدنى'}</label>
+                  <label class="block text-[11px] text-slate-300 mb-1">${isEn ? 'Min' : 'الحد الأدنى'}</label>
                   <input id="cbfMin" type="number" step="any" value="${itemData.min != null ? itemData.min : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Max' : 'الحد الأقصى'}</label>
+                  <label class="block text-[11px] text-slate-300 mb-1">${isEn ? 'Max' : 'الحد الأقصى'}</label>
                   <input id="cbfMax" type="number" step="any" value="${itemData.max != null ? itemData.max : ''}" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-[9.5px] text-slate-400 mb-1">${isEn ? 'Unit' : 'الوحدة'}</label>
-                  <input id="cbfUnit" type="text" value="${escapeHtml(itemData.unit || '')}" placeholder="Bar / °C" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white text-xs">
+                  <label class="block text-[11px] text-slate-300 mb-1">${isEn ? 'Unit' : 'الوحدة'}</label>
+                  <input id="cbfUnit" type="text" value="${escapeHtml(itemData.unit || '')}" placeholder="Bar / °C" class="w-full p-2 rounded-lg bg-[#1E293B] border border-slate-700 text-white placeholder-slate-400 text-xs">
                 </div>
               </div>
             </div>
@@ -936,12 +936,12 @@ function renderItemFormModal(itemData) {
 
           <!-- STEP 2: خيارات متقدمة قابلة للطي (Collapsible) -->
           <details class="group rounded-xl border border-slate-800 bg-[#0F172A]/50 overflow-hidden" open>
-            <summary class="p-3 text-[11px] font-bold text-slate-300 cursor-pointer flex items-center justify-between select-none hover:bg-slate-800/40">
+            <summary class="p-3 text-[11px] font-bold text-slate-200 cursor-pointer flex items-center justify-between select-none hover:bg-slate-800/40">
               <span class="flex items-center gap-1.5">
                 <span>2️⃣</span>
                 <span>${isEn ? 'Advanced Options (Critical, Photos, How-To)' : 'خيارات متقدمة (حرج، صور، إرشادات الفحص)'}</span>
               </span>
-              <span class="text-xs text-slate-500 transition-transform group-open:rotate-180">▼</span>
+              <span class="text-xs text-slate-300 transition-transform group-open:rotate-180">▼</span>
             </summary>
 
             <div class="p-3 pt-1 space-y-3 border-t border-slate-800/80">
@@ -960,7 +960,7 @@ function renderItemFormModal(itemData) {
 
               <!-- تعليمات الفحص (How-To) -->
               <div>
-                <label class="block text-[10px] font-bold text-slate-400 mb-1">
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">
                   💡 ${isEn ? 'Inspection Instructions / How-To (Arabic):' : 'تعليمات/إرشادات الفحص السريع للفني:'}
                 </label>
                 <input
@@ -968,11 +968,11 @@ function renderItemFormModal(itemData) {
                   type="text"
                   value="${escapeHtml(howToAr)}"
                   placeholder="${isEn ? 'Short instruction for the technician...' : 'مثال: وجّه مقياس الحرارة لمنتصف محرك السحب...'}"
-                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition">
               </div>
 
               <div>
-                <label class="block text-[10px] font-bold text-slate-400 mb-1">
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">
                   💡 ${isEn ? 'Inspection Instructions (English):' : 'تعليمات الفحص بالإنجليزي:'}
                 </label>
                 <input
@@ -980,7 +980,7 @@ function renderItemFormModal(itemData) {
                   type="text"
                   value="${escapeHtml(howToEn)}"
                   placeholder="Short instruction in English..."
-                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white text-xs outline-none focus:border-blue-500 transition">
+                  class="w-full p-2.5 rounded-xl bg-[#1E293B] border border-slate-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition">
               </div>
             </div>
           </details>
@@ -990,7 +990,7 @@ function renderItemFormModal(itemData) {
             <button
               type="button"
               onclick="document.getElementById('cbItemFormModal')?.remove()"
-              class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition cursor-pointer">
+              class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 transition cursor-pointer">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
             <button
@@ -1107,12 +1107,12 @@ window.openPresetsModal = function () {
           <div class="flex items-center justify-between p-2 rounded-lg bg-[#1E293B] hover:bg-slate-800/80 transition text-xs border border-slate-700/50">
             <div class="min-w-0 pr-2">
               <div class="font-bold text-white text-[11px] truncate">${escapeHtml(it.label.ar)}</div>
-              <div class="text-[9.5px] text-slate-400 truncate">${escapeHtml(it.label.en || '')}</div>
+              <div class="text-[11px] text-slate-300 truncate">${escapeHtml(it.label.en || '')}</div>
             </div>
             <button
               type="button"
               onclick="window.addPresetItem(${catIdx}, ${itIdx})"
-              class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] active:scale-95 transition shrink-0 cursor-pointer">
+              class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] active:scale-95 transition shrink-0 cursor-pointer">
               ➕ ${isEn ? 'Add' : 'إضافة'}
             </button>
           </div>
@@ -1122,8 +1122,8 @@ window.openPresetsModal = function () {
   `).join('');
 
   modalContainer.innerHTML = `
-    <div id="cbPresetsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+    <div id="cbPresetsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
         <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <span>💡</span>
@@ -1131,10 +1131,10 @@ window.openPresetsModal = function () {
               ${isEn ? 'Common Checklist Presets Library' : 'مكتبة بنود الفحص الشائعة'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbPresetsModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbPresetsModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 overflow-y-auto space-y-3">
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-300">
             ${isEn ? 'Add ready-made standardized points to your checklist with a single click:' : 'أضف بنود فحص قياسية معتمدة إلى قائمة فحص الماكينة بضغطة واحدة:'}
           </p>
           ${categoriesHtml}
@@ -1176,10 +1176,10 @@ window.addPresetItem = function (catIdx, itIdx) {
   const btn = event?.currentTarget;
   if (btn) {
     btn.textContent = isEn ? 'Added ✅' : 'تمت الإضافة ✅';
-    btn.className = 'px-2.5 py-1 rounded-lg bg-slate-700 text-emerald-400 font-bold text-[10px] shrink-0';
+    btn.className = 'px-2.5 py-1 rounded-lg bg-slate-700 text-emerald-400 font-bold text-[11px] shrink-0';
     setTimeout(() => {
       btn.textContent = isEn ? 'Add' : 'إضافة';
-      btn.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] active:scale-95 transition shrink-0 cursor-pointer';
+      btn.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] active:scale-95 transition shrink-0 cursor-pointer';
     }, 1500);
   }
 };
@@ -1195,8 +1195,8 @@ window.openCopyFromModal = function () {
   const otherMachines = allMachineOptions.filter(m => m.value !== currentTargetId);
 
   modalContainer.innerHTML = `
-    <div id="cbCopyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto">
+    <div id="cbCopyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto">
         <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span>📋</span>
@@ -1204,10 +1204,10 @@ window.openCopyFromModal = function () {
               ${isEn ? 'Copy Template from Another Machine' : 'نسخ القالب من ماكينة أخرى'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 space-y-3">
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-300">
             ${isEn
               ? `Select a source machine to copy its ${currentTab.toUpperCase()} inspection points to <strong>${escapeHtml(currentTargetId)}</strong>:`
               : `اختر ماكينة المصدر لنسخ بنود فحص الـ ${currentTab.toUpperCase()} منها إلى <strong>${escapeHtml(currentTargetId)}</strong>:`}
@@ -1232,7 +1232,7 @@ window.openCopyFromModal = function () {
           </div>
 
           <div class="pt-2 flex items-center justify-end gap-2">
-            <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">
+            <button type="button" onclick="document.getElementById('cbCopyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-200">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
             <button type="button" onclick="window.confirmCopyFromMachine()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
@@ -1302,8 +1302,8 @@ window.openApplyToOthersModal = function (itemId) {
   const otherMachines = allMachineOptions.filter(m => m.value !== currentTargetId);
 
   modalContainer.innerHTML = `
-    <div id="cbApplyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+    <div id="cbApplyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
         <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span>🚀</span>
@@ -1311,7 +1311,7 @@ window.openApplyToOthersModal = function (itemId) {
               ${isEn ? 'Apply Item to Other Machines' : 'تطبيق هذا البند على ماكينات أخرى'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto">
@@ -1319,7 +1319,7 @@ window.openApplyToOthersModal = function (itemId) {
             ${escapeHtml(labelText)}
           </div>
 
-          <p class="text-[11px] text-slate-400">
+          <p class="text-[11px] text-slate-300">
             ${isEn ? 'Select target machines to add or sync this item into:' : 'حدد الماكينات التي ترغب في إضافة أو مزامنة هذا البند إليها:'}
           </p>
 
@@ -1327,7 +1327,7 @@ window.openApplyToOthersModal = function (itemId) {
             <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = true)" class="text-blue-400 hover:underline cursor-pointer font-bold">
               ${isEn ? 'Select All' : 'تحديد الكل'}
             </button>
-            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = false)" class="text-slate-400 hover:underline cursor-pointer font-bold">
+            <button type="button" onclick="document.querySelectorAll('.cb-target-chk').forEach(c => c.checked = false)" class="text-slate-300 hover:underline cursor-pointer font-bold">
               ${isEn ? 'Deselect All' : 'إلغاء التحديد'}
             </button>
           </div>
@@ -1337,13 +1337,13 @@ window.openApplyToOthersModal = function (itemId) {
               <label class="flex items-center gap-2 p-2 rounded-lg bg-[#0F172A] border border-slate-800 hover:border-slate-700 cursor-pointer text-xs">
                 <input type="checkbox" value="${escapeHtml(m.value)}" class="cb-target-chk w-4 h-4 rounded text-blue-600 bg-slate-800 border-slate-700">
                 <span class="font-medium text-white">${escapeHtml(m.value)}</span>
-                ${m.line ? `<span class="text-[10px] text-slate-500">(${formatLineLabel(m.line)})</span>` : ''}
+                ${m.line ? `<span class="text-[11px] text-slate-300">(${formatLineLabel(m.line)})</span>` : ''}
               </label>
             `).join('')}
           </div>
 
           <div class="pt-2 flex items-center justify-end gap-2 border-t border-slate-800">
-            <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-300">
+            <button type="button" onclick="document.getElementById('cbApplyModal')?.remove()" class="px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-bold text-slate-200">
               ${isEn ? 'Cancel' : 'إلغاء'}
             </button>
             <button type="button" onclick="window.confirmApplyItemToMachines('${escapeJsArg(item.id)}')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-xs font-bold text-white shadow-md active:scale-95 transition cursor-pointer">
@@ -1418,50 +1418,50 @@ window.openTechPreviewModal = function () {
     const howToText = item.howTo ? (isEn ? item.howTo.en : item.howTo.ar) : '';
 
     return `
-      <div class="bg-[#1E293B] p-3.5 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-slate-800'} space-y-2.5">
+      <div class="bg-[#1E293B] text-white p-3.5 rounded-xl border ${item.critical ? 'border-amber-500/40' : 'border-slate-800'} space-y-2.5">
         <div class="flex items-start justify-between gap-2">
-          <div class="text-xs font-bold text-slate-200">
+          <div class="text-xs font-bold text-white">
             <span class="text-blue-400 font-mono">#${idx + 1}</span> ${escapeHtml(labelText)}
           </div>
-          ${item.critical ? `<span class="shrink-0 text-[9.5px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>` : ''}
+          ${item.critical ? `<span class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">⚠️ ${isEn ? 'Critical' : 'حرج'}</span>` : ''}
         </div>
-        ${howToText ? `<div class="text-[10px] text-sky-300 bg-sky-950/40 p-2 rounded-xl border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>` : ''}
+        ${howToText ? `<div class="text-[11px] text-sky-300 bg-sky-950/40 p-2 rounded-xl border border-sky-800/40">💡 ${escapeHtml(howToText)}</div>` : ''}
 
         ${item.type === 'numeric' ? `
           <div class="flex items-center gap-2 bg-[#0F172A] p-2 rounded-lg border border-slate-700 w-full sm:w-1/2">
-            <input type="number" placeholder="${isEn ? 'Enter reading' : 'أدخل القراءة'}" class="w-full bg-transparent text-xs text-white outline-none">
-            <span class="text-xs text-slate-400 font-bold px-1">${item.unit || ''}</span>
+            <input type="number" placeholder="${isEn ? 'Enter reading' : 'أدخل القراءة'}" class="w-full bg-transparent text-xs text-white placeholder-slate-400 outline-none">
+            <span class="text-xs text-slate-300 font-bold px-1">${item.unit || ''}</span>
           </div>
           ${(item.min != null || item.max != null) ? `
-            <div class="text-[9.5px] text-slate-400 font-mono">
+            <div class="text-[11px] text-slate-300 font-mono">
               [Min: ${item.min != null ? item.min : '-'} | Max: ${item.max != null ? item.max : '-'}]
             </div>
           ` : ''}
         ` : item.type === 'text' ? `
-          <input type="text" placeholder="${isEn ? 'Notes / Observations...' : 'ملاحظات الفني...'}" class="w-full p-2 bg-[#0F172A] rounded-lg border border-slate-700 text-xs text-white outline-none">
+          <input type="text" placeholder="${isEn ? 'Notes / Observations...' : 'ملاحظات الفني...'}" class="w-full p-2 bg-[#0F172A] rounded-lg border border-slate-700 text-xs text-white placeholder-slate-400 outline-none">
         ` : ''}
 
         <div class="grid grid-cols-3 gap-1.5 pt-1">
           <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-emerald-400 hover:bg-emerald-950/30">${isEn ? 'OK' : 'سليم'}</button>
           <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-red-400 hover:bg-red-950/30">${isEn ? 'Not OK' : 'غير سليم'}</button>
-          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-slate-400 hover:bg-slate-800">${isEn ? 'N/A' : 'لا ينطبق'}</button>
+          <button type="button" class="py-2 rounded-lg text-xs font-bold border border-slate-700 bg-[#0F172A] text-slate-300 hover:bg-slate-800">${isEn ? 'N/A' : 'لا ينطبق'}</button>
         </div>
       </div>
     `;
   }).join('');
 
   modalContainer.innerHTML = `
-    <div id="cbTechPreviewModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#0F172A] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]">
+    <div id="cbTechPreviewModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#0F172A] text-white border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col my-auto max-h-[90vh]">
         <div class="p-4 bg-[#1E293B] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div>
             <h3 class="font-bold text-white text-sm flex items-center gap-1.5">
               <span>👁️</span>
               <span>${isEn ? 'Technician View Simulation' : 'معاينة شاشة الفحص كما يراها الفني'}</span>
             </h3>
-            <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(currentTargetId)} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
+            <p class="text-[11px] text-slate-300 mt-0.5">${escapeHtml(currentTargetId)} • ${activeItems.length} ${isEn ? 'active points' : 'بند مفعل'}</p>
           </div>
-          <button type="button" onclick="document.getElementById('cbTechPreviewModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbTechPreviewModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
         <div class="p-4 overflow-y-auto space-y-3 bg-[#0F172A]">
           ${previewCards}
@@ -1482,8 +1482,8 @@ window.openHistoryModal = function () {
   const historyEntries = loadedHistory || [];
 
   modalContainer.innerHTML = `
-    <div id="cbHistoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div class="bg-[#1E293B] border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
+    <div id="cbHistoryModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 overflow-y-auto text-white">
+      <div class="bg-[#1E293B] text-white border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col my-auto max-h-[85vh]">
         <div class="p-4 bg-[#0F172A] border-b border-slate-800 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
             <span>🕒</span>
@@ -1491,7 +1491,7 @@ window.openHistoryModal = function () {
               ${isEn ? 'Template Version History' : 'سجل تعديلات وإصدارات القالب'}
             </h3>
           </div>
-          <button type="button" onclick="document.getElementById('cbHistoryModal')?.remove()" class="p-1.5 text-slate-400 hover:text-white rounded-lg transition cursor-pointer">✕</button>
+          <button type="button" onclick="document.getElementById('cbHistoryModal')?.remove()" class="p-1.5 text-slate-300 hover:text-white rounded-lg transition cursor-pointer">✕</button>
         </div>
 
         <div class="p-4 overflow-y-auto space-y-2">
@@ -1501,7 +1501,7 @@ window.openHistoryModal = function () {
           </div>
 
           ${historyEntries.length === 0 ? `
-            <div class="text-center py-6 text-xs text-slate-500">
+            <div class="text-center py-6 text-xs text-slate-300">
               ${isEn ? 'No previous revisions recorded yet.' : 'لا توجد إصدارات سابقة مسجلة حتى الآن.'}
             </div>
           ` : `
@@ -1509,8 +1509,8 @@ window.openHistoryModal = function () {
               ${historyEntries.slice().reverse().map(h => `
                 <div class="p-2.5 rounded-xl bg-[#0F172A] border border-slate-800 text-xs flex items-center justify-between">
                   <div>
-                    <div class="font-bold text-slate-200">v${h.version} • ${h.itemsCount || 0} ${isEn ? 'items' : 'بند'}</div>
-                    <div class="text-[10px] text-slate-500 mt-0.5">${escapeHtml(h.updatedBy || 'Manager')} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
+                    <div class="font-bold text-slate-100">v${h.version} • ${h.itemsCount || 0} ${isEn ? 'items' : 'بند'}</div>
+                    <div class="text-[11px] text-slate-300 mt-0.5">${escapeHtml(h.updatedBy || 'Manager')} • ${new Date(h.updatedAt).toLocaleString(isEn ? 'en-US' : 'ar-EG')}</div>
                   </div>
                 </div>
               `).join('')}

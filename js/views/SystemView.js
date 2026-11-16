@@ -44,16 +44,17 @@ const t = (translations[currentLang] || translations.ar).system;
 
 return `
 
-<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-white">  
+<div class="app-page p-3 sm:p-4 max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-5xl mx-auto pb-24 space-y-5 text-slate-900 dark:text-white">  
   <!-- ========================================================
        الهيدر الرئيسي
        ======================================================== -->  
-  <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+  <div class="flex items-center justify-between border-b border-slate-300 dark:border-gray-800 pb-3">
     <div>
       <h2 class="
         text-base
         font-bold
-        text-blue-400
+        text-blue-700
+        dark:text-blue-400
         flex
         items-center
         gap-2
@@ -63,8 +64,9 @@ return `
       </h2>
 
       <p class="
-        text-[11px]
-        text-gray-400
+        text-xs
+        text-slate-600
+        dark:text-slate-300
         mt-0.5
       ">
         ${t.subtitle}
@@ -72,11 +74,12 @@ return `
     </div>
 
     <span class="
-      bg-blue-500/10
-      text-blue-400
+      bg-blue-500/15
+      text-blue-700
+      dark:text-blue-300
       border
-      border-blue-500/20
-      text-[10px]
+      border-blue-500/30
+      text-[11px]
       px-2.5
       py-1
       rounded-full
@@ -98,18 +101,18 @@ return `
     <button
       type="button"
       onclick="window.navigateTo('users')"
-      class="relative text-start border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden"
+      class="relative text-start text-white border border-blue-500/40 hover:border-blue-400/70 bg-gradient-to-br from-blue-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-blue-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       <div class="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-500/30 text-blue-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         👥
       </div>
 
-      <span class="font-bold text-xs text-gray-100">
+      <span class="font-bold text-xs text-white">
         ${t.usersTitle || (currentLang === 'en' ? 'User Directory' : 'إدارة المستخدمين')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">
         ${t.usersDesc || ''}
       </span>
     </button>
@@ -123,7 +126,7 @@ return `
     <button
       type="button"
       onclick="window.navigateTo('requests')"
-      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
+      class="relative text-start text-white border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
 
@@ -132,18 +135,18 @@ return `
            أكبر من صفر (راجع loadSystemHubBadges تحت) -->
       <span
         id="pendingRequestsBadge"
-        class="hidden absolute top-2 rtl:right-2.5 ltr:left-2.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow"
+        class="hidden absolute top-2 rtl:right-2.5 ltr:left-2.5 min-w-[20px] h-[20px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center leading-none shadow"
       >0</span>
 
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         ⏳
       </div>
 
-      <span class="font-bold text-xs text-gray-100">
+      <span class="font-bold text-xs text-white">
         ${t.requestsTitle || (currentLang === 'en' ? 'Join Requests' : 'طلبات الانضمام')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">
         ${t.requestsDesc || ''}
       </span>
     </button>
@@ -157,18 +160,18 @@ return `
     <button
       type="button"
       onclick="window.navigateTo('machines')"
-      class="relative text-start border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden"
+      class="relative text-start text-white border border-emerald-500/40 hover:border-emerald-400/70 bg-gradient-to-br from-emerald-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-emerald-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       <div class="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         🏭
       </div>
 
-      <span class="font-bold text-xs text-gray-100">
+      <span class="font-bold text-xs text-white">
         ${t.machinesTitle || (currentLang === 'en' ? 'Machines Register' : 'سجل الماكينات')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">
         ${t.machinesDesc || ''}
       </span>
     </button>
@@ -182,18 +185,18 @@ return `
     <button
       type="button"
       onclick="window.navigateTo('settings')"
-      class="relative text-start border border-purple-500/40 hover:border-purple-400/70 bg-gradient-to-br from-purple-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-purple-900/30 group overflow-hidden"
+      class="relative text-start text-white border border-purple-500/40 hover:border-purple-400/70 bg-gradient-to-br from-purple-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-purple-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         ⚙️
       </div>
 
-      <span class="font-bold text-xs text-gray-100">
+      <span class="font-bold text-xs text-white">
         ${t.settingsTitle || (currentLang === 'en' ? 'Attendance Calculator Settings' : 'إعدادات حاسبة الحضور')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">
         ${t.settingsDesc || ''}
       </span>
     </button>
@@ -207,18 +210,18 @@ return `
     <button
       type="button"
       onclick="window.navigateTo('dailyTipsSettings')"
-      class="relative text-start border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
+      class="relative text-start text-white border border-amber-500/40 hover:border-amber-400/70 bg-gradient-to-br from-amber-950/50 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-amber-900/30 group overflow-hidden"
     >
       <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180">›</span>
       <div class="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform">
         💡
       </div>
 
-      <span class="font-bold text-xs text-gray-100">
+      <span class="font-bold text-xs text-white">
         ${t.dailyTipsTitle || (currentLang === 'en' ? 'Daily Tips Settings' : 'إعدادات معلومة على الماشي')}
       </span>
 
-      <span class="text-[10px] text-gray-400 mt-1 line-clamp-1">
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">
         ${t.dailyTipsDesc || (currentLang === 'en' ? 'Add & manage daily insights' : 'إضافة وإدارة معلومات ومعارف اليوم')}
       </span>
     </button>
@@ -243,7 +246,7 @@ return `
     p-5
     text-center
     text-xs
-    text-red-400
+    text-red-300
     font-bold
   ">
     <div class="text-3xl mb-2">

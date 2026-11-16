@@ -140,7 +140,7 @@ case 'tickets':
                 onclick="window.toggleNotificationsPanel()"
                 class="relative shrink-0 bg-[#1E293B] hover:bg-[#283548] border border-gray-800 rounded-lg px-4 font-bold text-white text-sm">
                 🔔
-                <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">0</span>
+                <span id="notifBadge" class="hidden absolute -top-1.5 -left-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
               </button>
             </div>
 
@@ -151,18 +151,18 @@ case 'tickets':
                 id="ticketsBoardSearchInput"
                 oninput="window.handleTicketsBoardSearch(this.value)"
                 placeholder="${window.currentLang === 'en' ? 'Search by ticket ID, asset, technician, or issue...' : 'بحث برقم البلاغ، الماكينة، الفني، العطل...'}"
-                class="w-full p-2.5 rtl:pr-9 ltr:pl-9 rounded-xl bg-[#0F172A] border border-gray-700 text-white text-xs outline-none focus:border-blue-500 transition shadow-inner">
-              <span class="absolute top-3 rtl:right-3 ltr:left-3 text-gray-400 text-xs pointer-events-none">🔍</span>
+                class="w-full p-2.5 rtl:pr-9 ltr:pl-9 rounded-xl bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs outline-none focus:border-blue-500 transition shadow-inner">
+              <span class="absolute top-3 rtl:right-3 ltr:left-3 text-slate-300 text-xs pointer-events-none">🔍</span>
               <button
                 type="button"
                 id="ticketsBoardSearchClear"
                 onclick="window.clearTicketsBoardSearch()"
-                class="hidden absolute top-2.5 rtl:left-2.5 ltr:right-2.5 text-gray-400 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer">
+                class="hidden absolute top-2.5 rtl:left-2.5 ltr:right-2.5 text-slate-300 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded cursor-pointer">
                 ✕
               </button>
             </div>
 
-            <div id="notifPanel" class="hidden bg-[#1E293B] border border-gray-800 rounded-xl p-2 max-h-64 overflow-y-auto"></div>
+            <div id="notifPanel" class="hidden bg-[#1E293B] text-white border border-gray-800 rounded-xl p-2 max-h-64 overflow-y-auto"></div>
 
             <!-- حاوية شريط التحديد والإجراءات الجماعية -->
             <div id="bulkSelectToggleContainer"></div>
@@ -176,7 +176,7 @@ case 'tickets':
             </button>
 
             <div id="ticketsBoardContainer" class="mt-4">  
-              <div class="text-center text-gray-500 text-xs py-8">  
+              <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">  
                 ${t().loadingTickets}
               </div>  
             </div>  
@@ -217,7 +217,7 @@ case 'kaizenBoard':
             </button>
 
             <div id="kaizenBoardContainer" class="mt-4">  
-              <div class="text-center text-gray-500 text-xs py-8">  
+              <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-8 font-medium">  
                 ${t().loadingSuggestions}
               </div>  
             </div>  
@@ -408,14 +408,14 @@ case 'settings':
             <!-- ============================================ -->
             <!-- إدارة Pattern الورديات (حاسبة الحضور والمرتبات) -->
             <!-- ============================================ -->
-            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
+            <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 space-y-3">
               <h3 class="text-sm font-bold text-[#D4AF37]">🧮 Pattern الورديات (GREEN / BLUE / RED)</h3>
-              <p class="text-[11px] text-gray-400">
+              <p class="text-[11px] text-slate-300">
                 ارفع ملف Excel الرسمي لجدول الورديات (M = صباحي، N = ليلي، OFF = إجازة). سيتم استخدامه تلقائياً في "حاسبة الحضور والمرتبات" بالصفحة الرئيسية لكل المستخدمين حسب فريقهم. رفع ملف جديد يستبدل الملف الحالي بالكامل.
               </p>
 
               <div id="patternStatusContainer">
-                <div class="text-center text-gray-500 text-xs py-4">جاري تحميل حالة الـ Pattern...</div>
+                <div class="text-center text-slate-300 text-xs py-4">جاري تحميل حالة الـ Pattern...</div>
               </div>
 
               <input
@@ -423,7 +423,7 @@ case 'settings':
                 type="file"
                 accept=".xlsx,.xls"
                 onchange="window.previewAttendancePatternFile(this)"
-                class="w-full text-[11px] text-gray-300 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-[11px] file:font-bold bg-[#0F172A] border border-gray-700 rounded-lg p-1.5"
+                class="w-full text-[11px] text-slate-200 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:text-[11px] file:font-bold bg-[#0F172A] border border-gray-700 rounded-lg p-1.5"
               >
 
               <div id="patternUploadPreview"></div>
@@ -440,31 +440,31 @@ case 'settings':
             <!-- ============================================ -->
             <!-- معاملات حساب الإضافي (قابلة للتعديل) -->
             <!-- ============================================ -->
-            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
-              <h3 class="text-sm font-bold text-amber-400">⚙️ معاملات حساب الحضور والإضافي</h3>
-              <p class="text-[11px] text-gray-400">
+            <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 class="text-sm font-bold text-amber-300">⚙️ معاملات حساب الحضور والإضافي</h3>
+              <p class="text-[11px] text-slate-300">
                 هذه القيم تتحكم في حساب "حاسبة الحضور والمرتبات" لكل المستخدمين. غيّرها بحذر.
               </p>
 
               <div class="grid grid-cols-2 gap-2 text-[11px]">
                 <div>
-                  <label class="block text-gray-400 mb-1">الساعات المستهدفة شهرياً</label>
+                  <label class="block text-slate-200 font-semibold mb-1">الساعات المستهدفة شهرياً</label>
                   <input id="ruleMonthlyTargetHours" type="number" min="1" step="1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-gray-400 mb-1">خصم إجازة رسمية (ساعة/يوم)</label>
+                  <label class="block text-slate-200 font-semibold mb-1">خصم إجازة رسمية (ساعة/يوم)</label>
                   <input id="ruleHolidayHoursDeduction" type="number" min="0" step="1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-gray-400 mb-1">معامل الإضافي العادي (×)</label>
+                  <label class="block text-slate-200 font-semibold mb-1">معامل الإضافي العادي (×)</label>
                   <input id="ruleNormalOtMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
                 </div>
                 <div>
-                  <label class="block text-gray-400 mb-1">معامل العمل في OFF (×)</label>
+                  <label class="block text-slate-200 font-semibold mb-1">معامل العمل في OFF (×)</label>
                   <input id="ruleOffWorkMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
                 </div>
                 <div class="col-span-2">
-                  <label class="block text-gray-400 mb-1">معامل العمل بإجازة رسمية (×)</label>
+                  <label class="block text-slate-200 font-semibold mb-1">معامل العمل بإجازة رسمية (×)</label>
                   <input id="ruleHolidayWorkMultiplier" type="number" min="1" step="0.1" class="w-full p-2 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs">
                 </div>
               </div>
@@ -477,9 +477,9 @@ case 'settings':
             </div>
 
             <!-- نموذج إضافة إجازة رسمية جديدة -->
-            <div class="bg-[#1E293B] border border-gray-800 rounded-2xl p-4 space-y-3">
-              <h3 class="text-sm font-bold text-blue-400">🎉 الإجازات الرسمية</h3>
-              <p class="text-[11px] text-gray-400">
+            <div class="bg-[#1E293B] text-white border border-gray-800 rounded-2xl p-4 space-y-3">
+              <h3 class="text-sm font-bold text-blue-300">🎉 الإجازات الرسمية</h3>
+              <p class="text-[11px] text-slate-300">
                 تُستخدم هذه القائمة في كارت حضور الوردية بالصفحة الرئيسية: أي يوم عمل مُجدوَل (من ضمن الـ6 أيام) يقع في إجازة رسمية هنا يُحتسب بالكامل إضافي (×1.5)، وأي يوم راحة دورية للفني لا يتأثر بها.
               </p>
 
@@ -493,7 +493,7 @@ case 'settings':
                   id="newHolidayLabel"
                   type="text"
                   placeholder="اسم الإجازة (مثال: عيد الفطر)"
-                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white text-xs"
+                  class="p-2.5 rounded-lg bg-[#0F172A] border border-gray-700 text-white placeholder-slate-400 text-xs"
                 >
               </div>
 
@@ -505,19 +505,19 @@ case 'settings':
 
               <button
                 onclick="window.seedDefaultHolidays2026()"
-                class="w-full py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 font-bold text-[11px] text-amber-300 transition active:scale-95">
+                class="w-full py-2 rounded-lg bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 font-bold text-[11px] text-amber-300 transition active:scale-95">
                 📋 إضافة القائمة الافتراضية لإجازات 2026 دفعة واحدة
               </button>
             </div>
 
             <button
               onclick="window.loadHolidays()"
-              class="w-full bg-[#1E293B] border border-gray-700 hover:border-gray-600 rounded-lg p-2.5 font-bold text-gray-300 text-xs transition">
+              class="w-full bg-[#1E293B] border border-gray-700 hover:border-gray-600 rounded-lg p-2.5 font-bold text-slate-200 text-xs transition">
               🔄 تحديث القائمة
             </button>
 
             <div id="holidaysContainer" class="mt-2 space-y-2">
-              <div class="text-center text-gray-500 text-xs py-6">
+              <div class="text-center text-slate-600 dark:text-slate-300 text-xs py-6 font-medium">
                 جاري تحميل الإجازات الرسمية...
               </div>
             </div>
@@ -604,7 +604,7 @@ t().unauthorizedTitle,
       border-red-500/30  
       text-center  
       text-xs  
-      text-red-400  
+      text-red-300  
       font-bold  
     "  
   >  

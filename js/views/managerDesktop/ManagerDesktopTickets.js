@@ -44,7 +44,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
           
           <!-- حقل البحث مع اختصار / -->
           <div class="relative flex-1 min-w-[240px]">
-            <span class="absolute inset-y-0 start-3 flex items-center text-gray-400 pointer-events-none">
+            <span class="absolute inset-y-0 start-3 flex items-center text-slate-500 dark:text-slate-300 pointer-events-none">
               🔍
             </span>
             <input
@@ -52,7 +52,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
               id="mgrTicketSearchInput"
               value="${escapeHtml(currentTextSearch)}"
               placeholder="${isEn ? 'Search by machine, line, description, or technician... (Press / to focus)' : 'بحث بالماكينة، الخط، الوصف أو الفني... (اضغط / للتركيز)'}"
-              class="w-full ps-9 pe-12 py-2 text-xs rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+              class="w-full ps-9 pe-12 py-2 text-xs rounded-xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
             />
             <span class="absolute inset-y-0 end-2.5 flex items-center pointer-events-none">
               <kbd class="mgr-kbd">/</kbd>
@@ -65,7 +65,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
             <!-- فلتر الأولوية -->
             <select
               id="mgrPriorityFilterSelect"
-              class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none">
+              class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none">
               <option value="all" ${currentPriorityFilter === 'all' ? 'selected' : ''}>${isEn ? 'All Priorities' : 'كل الأولويات'}</option>
               <option value="High" ${currentPriorityFilter === 'High' ? 'selected' : ''}>🔴 ${isEn ? 'High' : 'عالية'}</option>
               <option value="Medium" ${currentPriorityFilter === 'Medium' ? 'selected' : ''}>🟡 ${isEn ? 'Medium' : 'متوسطة'}</option>
@@ -75,7 +75,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
             <!-- فلتر الأقسام والخطوط إن وجدت -->
             <select
               id="mgrSortSelect"
-              class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none">
+              class="py-2 px-2.5 text-xs rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-800 dark:text-slate-100 focus:outline-none">
               <option value="createdAt_desc" ${currentSortField === 'createdAt' && !currentSortAsc ? 'selected' : ''}>${isEn ? 'Newest first' : 'الأحدث أولاً'}</option>
               <option value="createdAt_asc" ${currentSortField === 'createdAt' && currentSortAsc ? 'selected' : ''}>${isEn ? 'Oldest first' : 'الأقدم أولاً'}</option>
               <option value="priority" ${currentSortField === 'priority' ? 'selected' : ''}>${isEn ? 'Highest Priority' : 'الأعلى خطورة'}</option>
@@ -83,10 +83,10 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
             </select>
 
             <!-- اختصارات لوحة المفاتيح المرئية -->
-            <div class="hidden xl:flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/80 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div class="hidden xl:flex items-center gap-1.5 text-[11px] text-slate-700 dark:text-slate-200 bg-gray-100 dark:bg-gray-800/80 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700">
               <span>${isEn ? 'Shortcuts:' : 'اختصارات:'}</span>
-              <kbd class="mgr-kbd">N</kbd> <span class="text-[10px]">${isEn ? 'New' : 'جديد'}</span>
-              <kbd class="mgr-kbd">J</kbd>/<kbd class="mgr-kbd">K</kbd> <span class="text-[10px]">${isEn ? 'Rows' : 'تنقل'}</span>
+              <kbd class="mgr-kbd">N</kbd> <span class="text-[11px]">${isEn ? 'New' : 'جديد'}</span>
+              <kbd class="mgr-kbd">J</kbd>/<kbd class="mgr-kbd">K</kbd> <span class="text-[11px]">${isEn ? 'Rows' : 'تنقل'}</span>
             </div>
 
           </div>
@@ -132,7 +132,7 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
         <div class="mgr-card mgr-table-container">
           <table class="w-full text-start text-xs border-collapse">
             <thead>
-              <tr class="bg-gray-50 dark:bg-gray-800/80 text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800 select-none">
+              <tr class="bg-gray-50 dark:bg-gray-800/80 text-slate-700 dark:text-slate-200 border-b border-gray-200 dark:border-gray-800 select-none">
                 <th class="py-3 px-3 w-8 text-center">
                   <input
                     type="checkbox"
@@ -161,12 +161,12 @@ export function renderManagerDesktopTicketsView(containerId, allTickets, emptyMe
       <!-- اللوحة الجانبية للمعاينة السريعة (Split Panel Preview) -->
       <div id="mgrSidePreviewPanel" class="mgr-tickets-side-preview mgr-card p-4">
         <div id="mgrSidePreviewContent" class="space-y-4">
-          <div class="py-12 text-center text-gray-400 text-xs">
+          <div class="py-12 text-center text-slate-600 dark:text-slate-300 text-xs">
             <div class="text-3xl mb-2">👈</div>
-            <div class="font-bold text-gray-600 dark:text-gray-300">
+            <div class="font-bold text-slate-800 dark:text-slate-200">
               ${isEn ? 'Select a ticket row for instant preview' : 'اضغط على أي صف لمعاينته فوراً دون مغادرة الجدول'}
             </div>
-            <div class="text-[10px] text-gray-400 mt-1">
+            <div class="text-[11px] text-slate-600 dark:text-slate-300 mt-1">
               ${isEn ? 'Use J and K keyboard keys to navigate quickly' : 'استخدم مفاتيح J و K للتنقل السريع بين التذاكر'}
             </div>
           </div>
@@ -248,7 +248,7 @@ function renderTableRows(allTickets) {
   if (!activeFilteredTickets.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="9" class="py-12 text-center text-gray-400 text-xs">
+        <td colspan="9" class="py-12 text-center text-slate-600 dark:text-slate-300 text-xs">
           <div class="text-2xl mb-1">🔍</div>
           <div>${isEn ? 'No tickets found matching your filter' : 'لا توجد بلاغات تطابق معايير البحث والفلترة'}</div>
         </td>
@@ -266,12 +266,12 @@ function renderTableRows(allTickets) {
     }
 
     const priorityCls = t.priority === 'High' 
-      ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+      ? 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30'
       : t.priority === 'Low'
-        ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-        : 'bg-amber-500/15 text-amber-500 border border-amber-500/30';
+        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+        : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30';
 
-    const statusBadgeCls = STATUS_CLASSES[t.status] || "bg-gray-500/20 text-gray-300";
+    const statusBadgeCls = STATUS_CLASSES[t.status] || "bg-gray-500/20 text-slate-700 dark:text-slate-200";
     const statusText = STATUS_LABELS[t.status] || t.status;
     const isOverdue = isOverdueTicket(t);
 
@@ -300,7 +300,7 @@ function renderTableRows(allTickets) {
 
         <!-- الحالة -->
         <td class="py-2.5 px-3">
-          <span class="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
+          <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
             ${isOverdue ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>' : ''}
             <span>${escapeHtml(statusText)}</span>
           </span>
@@ -308,7 +308,7 @@ function renderTableRows(allTickets) {
 
         <!-- الأولوية -->
         <td class="py-2.5 px-3 font-semibold">
-          <span class="inline-block text-[10px] px-2 py-0.5 rounded-md ${priorityCls}">
+          <span class="inline-block text-[11px] px-2 py-0.5 rounded-md ${priorityCls}">
             ${escapeHtml(t.priority || (isEn ? 'Normal' : 'عادية'))}
           </span>
         </td>
@@ -319,22 +319,22 @@ function renderTableRows(allTickets) {
         </td>
 
         <!-- الخط والقسم -->
-        <td class="py-2.5 px-3 text-gray-500 dark:text-gray-400">
+        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300">
           ${escapeHtml(t.line || '-')}
         </td>
 
         <!-- الوصف -->
-        <td class="py-2.5 px-3 text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title="${escapeHtml(t.description || '')}">
+        <td class="py-2.5 px-3 text-slate-700 dark:text-slate-200 max-w-[240px] truncate" title="${escapeHtml(t.description || '')}">
           ${escapeHtml(t.description || '-')}
         </td>
 
         <!-- الفني المكلف -->
-        <td class="py-2.5 px-3 text-gray-600 dark:text-gray-300 font-medium">
-          ${t.assignedTo ? `👷 ${escapeHtml(t.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+        <td class="py-2.5 px-3 text-slate-700 dark:text-slate-200 font-medium">
+          ${t.assignedTo ? `👷 ${escapeHtml(t.assignedTo)}` : `<span class="text-amber-600 dark:text-amber-400 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
         </td>
 
         <!-- الوقت -->
-        <td class="py-2.5 px-3 text-gray-400 font-mono text-[11px]">
+        <td class="py-2.5 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
           ${timeStr}
         </td>
 
@@ -410,7 +410,7 @@ function renderSidePreview(ticket) {
 
   if (!ticket) {
     container.innerHTML = `
-      <div class="py-12 text-center text-gray-400 text-xs">
+      <div class="py-12 text-center text-slate-600 dark:text-slate-300 text-xs">
         <div>${isEn ? 'No ticket selected' : 'لم يتم تحديد أي بلاغ'}</div>
       </div>
     `;
@@ -418,12 +418,12 @@ function renderSidePreview(ticket) {
   }
 
   const priorityCls = ticket.priority === 'High' 
-    ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+    ? 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30'
     : ticket.priority === 'Low'
-      ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30'
-      : 'bg-amber-500/15 text-amber-500 border border-amber-500/30';
+      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+      : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30';
 
-  const statusBadgeCls = STATUS_CLASSES[ticket.status] || "bg-gray-500/20 text-gray-300";
+  const statusBadgeCls = STATUS_CLASSES[ticket.status] || "bg-gray-500/20 text-slate-700 dark:text-slate-200";
   const statusText = STATUS_LABELS[ticket.status] || ticket.status;
 
   const mediaUrls = (ticket.imageUrls && Array.isArray(ticket.imageUrls) && ticket.imageUrls.length > 0)
@@ -434,17 +434,17 @@ function renderSidePreview(ticket) {
     <div class="flex items-start justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
       <div>
         <div class="flex items-center gap-2">
-          <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
+          <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full ${statusBadgeCls}">
             ${escapeHtml(statusText)}
           </span>
-          <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded ${priorityCls}">
+          <span class="inline-block text-[11px] font-bold px-2 py-0.5 rounded ${priorityCls}">
             ${escapeHtml(ticket.priority || 'Normal')}
           </span>
         </div>
         <h2 class="text-base font-black text-gray-900 dark:text-white mt-1.5">
           ${escapeHtml(ticket.machine || (isEn ? 'Unspecified Machine' : 'ماكينة غير محددة'))}
         </h2>
-        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono">
+        <div class="text-xs text-slate-600 dark:text-slate-300 mt-0.5 font-mono">
           ${isEn ? 'Ticket' : 'تذكرة'}: #${ticket.id ? ticket.id.slice(0, 8) : '-'}
         </div>
       </div>
@@ -452,7 +452,7 @@ function renderSidePreview(ticket) {
       <button
         type="button"
         onclick="window.openTicketDetailsModal('${escapeJsArg(ticket.id)}')"
-        class="p-1.5 text-xs text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
+        class="p-1.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition"
         title="${isEn ? 'Open Full Modal' : 'فتح المودال الكامل'}">
         ⛶
       </button>
@@ -460,10 +460,10 @@ function renderSidePreview(ticket) {
 
     <!-- Description -->
     <div class="space-y-1">
-      <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+      <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
         ${isEn ? 'Issue Description' : 'بيان العطل والملاحظات'}
       </span>
-      <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 text-xs text-gray-700 dark:text-gray-200 leading-relaxed border border-gray-100 dark:border-gray-800">
+      <div class="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/60 text-xs text-slate-800 dark:text-slate-100 leading-relaxed border border-gray-100 dark:border-gray-800">
         ${escapeHtml(ticket.description || (isEn ? 'No description provided' : 'لا يوجد وصف مسجل'))}
       </div>
     </div>
@@ -471,26 +471,26 @@ function renderSidePreview(ticket) {
     <!-- Metadata Grid -->
     <div class="grid grid-cols-2 gap-2 text-xs">
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
-        <span class="text-[10px] text-gray-400 block">${isEn ? 'Line / Location' : 'الخط / الموقع'}</span>
-        <span class="font-bold text-gray-800 dark:text-gray-200">${escapeHtml(ticket.line || '-')}</span>
+        <span class="text-[11px] text-slate-600 dark:text-slate-300 block">${isEn ? 'Line / Location' : 'الخط / الموقع'}</span>
+        <span class="font-bold text-slate-800 dark:text-slate-100">${escapeHtml(ticket.line || '-')}</span>
       </div>
 
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800">
-        <span class="text-[10px] text-gray-400 block">${isEn ? 'Reported By' : 'المُبلّغ'}</span>
-        <span class="font-bold text-gray-800 dark:text-gray-200">${escapeHtml(ticket.reportedBy || '-')}</span>
+        <span class="text-[11px] text-slate-600 dark:text-slate-300 block">${isEn ? 'Reported By' : 'المُبلّغ'}</span>
+        <span class="font-bold text-slate-800 dark:text-slate-100">${escapeHtml(ticket.reportedBy || '-')}</span>
       </div>
 
       <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 col-span-2">
-        <span class="text-[10px] text-gray-400 block">${isEn ? 'Assigned Technician' : 'الفني المكلف'}</span>
+        <span class="text-[11px] text-slate-600 dark:text-slate-300 block">${isEn ? 'Assigned Technician' : 'الفني المكلف'}</span>
         <div class="flex items-center justify-between mt-0.5">
-          <span class="font-bold text-gray-800 dark:text-gray-200">
-            ${ticket.assignedTo ? `👷 ${escapeHtml(ticket.assignedTo)}` : `<span class="text-amber-500 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
+          <span class="font-bold text-slate-800 dark:text-slate-100">
+            ${ticket.assignedTo ? `👷 ${escapeHtml(ticket.assignedTo)}` : `<span class="text-amber-600 dark:text-amber-400 font-bold">${isEn ? 'Unassigned' : 'بانتظار الإسناد'}</span>`}
           </span>
           ${['pending', 'assigned', 'in_progress', 'reopened'].includes(String(ticket.status || '').trim().toLowerCase()) ? `
           <button
             type="button"
             onclick="window.mgrPromptAssignTicket('${escapeJsArg(ticket.id)}')"
-            class="text-[11px] font-bold text-blue-500 hover:underline">
+            class="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline">
             ${String(ticket.status || '').trim().toLowerCase() === 'pending' ? (isEn ? 'Review / classify' : 'مراجعة وتصنيف') : (ticket.assignedTo ? (isEn ? 'Reassign' : 'إعادة إسناد') : (isEn ? 'Assign Now' : 'إسناد الآن'))}
           </button>` : ''}
         </div>
@@ -500,7 +500,7 @@ function renderSidePreview(ticket) {
     <!-- Media Thumbnails -->
     ${mediaUrls.length > 0 ? `
       <div class="space-y-1.5 pt-1">
-        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">
+        <span class="text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
           ${isEn ? 'Attached Images' : 'الصور المرفقة'} (${mediaUrls.length})
         </span>
         <div class="flex gap-2 overflow-x-auto pb-1">
