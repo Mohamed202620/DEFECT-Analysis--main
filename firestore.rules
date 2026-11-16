@@ -426,153 +426,180 @@ service cloud.firestore {
                     && (request.resource.data.status != "pending"
                         || request.resource.data.get("assignedToUid", null) == null);
 
-      // STEP 2 - pending -> assigned: مدير الصيانة أو أدمن فقط
-      // ملاحظة أداء: الشروط الرخيصة (الحالة) قبل isMaintenanceReviewer() لأن كل
-      // استدعاء له يقرأ مستند المستخدم، وقواعد update كلها تُقيَّم بالترتيب ضمن
-      // حدّ 1000 تعبير للطلب - تجاوزه كان يُسقط بدء الفني للعمل (STEP 3)
-      allow update: if resource.data.status == "pending"
-                    && request.resource.data.status == "assigned"
-                    && isMaintenanceReviewer()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "type", "maintenanceType", "reviewedBy", "reviewedByUid", "reviewedAt",
-                          "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
-                    && ticketAssigneeRequiredActive()
-                    && ticketReporterUnchanged();
+      function canAssignPendingTicket() {
+        return resource.data.status == "pending"
+               && request.resource.data.status == "assigned"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["status", "type", "maintenanceType", "reviewedBy", "reviewedByUid", "reviewedAt",
+                     "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+               && isMaintenanceReviewer()
+               && ticketAssigneeRequiredActive()
+               && ticketReporterUnchanged();
+      }
 
-      // تصنيف البلاغ إلى PM لا ينشئ مستنداً جديداً ولا يتطلب إسناداً.
-      // الرقم الموحد PM-xxx يُمنح مرة واحدة: لا إعادة تصنيف لبلاغ مصنّف PM بالفعل
-      // (يمنع استهلاك رقمين أو استبدال رقم أمر بآخر عند التصنيف المتزامن).
-      allow update: if resource.data.status == "pending"
-                    && request.resource.data.status == "pending"
-                    && request.resource.data.get("maintenanceType", null) == "PM"
-                    && resource.data.get("maintenanceType", null) != "PM"
-                    && isMaintenanceReviewer()
-                    && request.resource.data.get("assignedToUid", null) == null
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["maintenanceType", "pmStatus", "assignedTo", "assignedToUid",
-                          "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy",
-                          "unifiedNumber", "originalUnifiedNumber"])
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["unifiedNumber"])
-                        || (request.resource.data.unifiedNumber is string
-                            && request.resource.data.unifiedNumber.matches("^PM-[A-Z0-9]+$")))
-                    && request.resource.data.reviewedByUid == request.auth.uid
-                    && ticketReporterUnchanged();
+      // تصنيف البلاغ إلى PM لا ينشئ مستنداً جديداً؛ يمنع تكرار التصنيف
+      // أو استبدال الرقم الموحد بعد منح رقم أمر الصيانة.
+      function canClassifyTicketAsPm() {
+        return resource.data.status == "pending"
+               && request.resource.data.status == "pending"
+               && request.resource.data.get("maintenanceType", null) == "PM"
+               && resource.data.get("maintenanceType", null) != "PM"
+               && request.resource.data.get("assignedToUid", null) == null
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["maintenanceType", "pmStatus", "assignedTo", "assignedToUid",
+                     "reviewedBy", "reviewedByUid", "reviewedAt", "updatedAt", "updatedBy",
+                     "unifiedNumber", "originalUnifiedNumber"])
+               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["unifiedNumber"])
+                   || (request.resource.data.unifiedNumber is string
+                       && request.resource.data.unifiedNumber.matches("^PM-[A-Z0-9]+$")))
+               && isMaintenanceReviewer()
+               && request.resource.data.reviewedByUid == request.auth.uid
+               && ticketReporterUnchanged();
+      }
 
-      // تخطيط أمر PM على مستند البلاغ المرتبط، مع إمكانية إبقاء الموعد
-      // والفني فارغين. لا يغيّر ذلك حالة البلاغ التصحيحية.
-      allow update: if resource.data.get("maintenanceType", null) == "PM"
-                    && request.resource.data.get("maintenanceType", null) == "PM"
-                    && request.resource.data.status == resource.data.status
-                    && isMaintenanceReviewer()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["line", "machine", "location", "priority", "plannedDate", "pmStatus",
-                          "assignedTo", "assignedToUid", "maintenanceNotes", "delayReason",
-                          "downtimeRequired", "updatedAt", "updatedBy"])
-                    && request.resource.data.pmStatus in ["unplanned", "planned", "in_progress", "completed", "deferred"]
-                    && ticketAssigneeActive()
-                    && ticketReporterUnchanged();
+      // تخطيط أمر PM على البلاغ المرتبط، مع السماح ببقاء الموعد والفني فارغين.
+      function canPlanPmTicket() {
+        return resource.data.get("maintenanceType", null) == "PM"
+               && request.resource.data.get("maintenanceType", null) == "PM"
+               && request.resource.data.status == resource.data.status
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["line", "machine", "location", "priority", "plannedDate", "pmStatus",
+                     "assignedTo", "assignedToUid", "maintenanceNotes", "delayReason",
+                     "downtimeRequired", "updatedAt", "updatedBy"])
+               && request.resource.data.pmStatus in ["unplanned", "planned", "in_progress", "completed", "deferred"]
+               && isMaintenanceReviewer()
+               && ticketAssigneeActive()
+               && ticketReporterUnchanged();
+      }
 
-      // STEP PM-Tasks: تحديث مهام أمر PM (pmTasks) - الفني المُسند إليه أو أدمن/مدير
-      // يُسمح بتحديث: pmTasks، pmStatus، completedAt، completedBy، completedByUid،
-      // completedTasksCount، totalTasksCount، pendingTasksCount، hasRemainingTasks، remainingTasks
-      // الحالة المطلوبة: PM order يكون in_progress أو assigned
-      allow update: if resource.data.get("maintenanceType", null) == "PM"
-                    && resource.data.status in ["assigned", "in_progress"]
-                    && request.resource.data.status == resource.data.status
-                    && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         "pmTasks", "pmStatus", "completedAt", "completedBy", "completedByUid",
-                         "completedTasksCount", "totalTasksCount", "pendingTasksCount",
-                         "hasRemainingTasks", "remainingTasks", "updatedAt", "updatedBy",
-                         "followupTicketId"
-                       ])
-                    && ticketReporterUnchanged();
+      // مهام PM يحدّثها الفني المُسند إليه أو الأدمن/المدير فقط.
+      function canUpdatePmTasks() {
+        return resource.data.get("maintenanceType", null) == "PM"
+               && resource.data.status in ["assigned", "in_progress"]
+               && request.resource.data.status == resource.data.status
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                    "pmTasks", "pmStatus", "completedAt", "completedBy", "completedByUid",
+                    "completedTasksCount", "totalTasksCount", "pendingTasksCount",
+                    "hasRemainingTasks", "remainingTasks", "updatedAt", "updatedBy",
+                    "followupTicketId"
+                  ])
+               && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 2b - (assigned | in_progress | reopened) -> pending: اعتذار الفني المُسند إليه وإعادة العطل لقائمة الانتظار
-      // (reopened أُضيفت: الواجهة - getTicketActions في permissions.js -
-      // بتعرض زر "اعتذار" للفني على تذكرة reopened لكن القاعدة كانت بترفضه)
-      allow update: if resource.data.status in ["assigned", "in_progress", "reopened"]
-                    && request.resource.data.status == "pending"
-                    && isActive()
-                    && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "assignedTo", "assignedToUid", "declineReason", "declinedBy", "declinedAt", "updatedAt", "updatedBy"])
-                    && ticketReporterUnchanged();
+      function canDeclineTicket() {
+        return resource.data.status in ["assigned", "in_progress", "reopened"]
+               && request.resource.data.status == "pending"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["status", "assignedTo", "assignedToUid", "declineReason", "declinedBy",
+                     "declinedAt", "updatedAt", "updatedBy"])
+               && isActive()
+               && (isAdmin() || isManagerRole() || resource.data.assignedToUid == request.auth.uid)
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 3 - assigned -> in_progress: الفني المُسند له التذكرة
-      // بالتحديد (assignedToUid) بيبدأ التنفيذ فعلياً، أو أدمن
-      allow update: if isActive()
-                    && resource.data.status == "assigned"
-                    && request.resource.data.status == "in_progress"
-                    && (isAdmin() || resource.data.assignedToUid == request.auth.uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
-                    && ticketReporterUnchanged();
+      function canStartTicket() {
+        return resource.data.status == "assigned"
+               && request.resource.data.status == "in_progress"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
+               && isActive()
+               && (isAdmin() || resource.data.assignedToUid == request.auth.uid)
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 4 - (pending | in_progress | assigned | reopened) -> resolved: الفني المُسند له أو صاحب البلاغ عند الإصلاح الذاتي
-      allow update: if isActive()
-                    && resource.data.status in ["pending", "in_progress", "assigned", "reopened"]
-                    && request.resource.data.status == "resolved"
-                    && (isAdmin() || resource.data.assignedToUid == request.auth.uid || resource.data.reportedByUid == request.auth.uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "mechanicNotes", "afterImages", "resolvedAt", "resolvedAtServer",
-                          "resolvedBy", "resolvedByUid", "isSelfResolved", "updatedAt", "updatedBy"])
-                    && request.resource.data.get("resolvedAtServer", null) == request.time
-                    && ticketResolveIdentityOk()
-                    && ticketReporterUnchanged();
+      function canResolveTicket() {
+        return resource.data.status in ["pending", "in_progress", "assigned", "reopened"]
+               && request.resource.data.status == "resolved"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["status", "mechanicNotes", "afterImages", "resolvedAt", "resolvedAtServer",
+                     "resolvedBy", "resolvedByUid", "isSelfResolved", "updatedAt", "updatedBy"])
+               && request.resource.data.get("resolvedAtServer", null) == request.time
+               && isActive()
+               && (isAdmin() || resource.data.assignedToUid == request.auth.uid || resource.data.reportedByUid == request.auth.uid)
+               && ticketResolveIdentityOk()
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 5 - resolved -> closed (تأكيد) | in_progress (رفض مع
-      // سبب - الاستثناء الوحيد المسموح للرجوع للخلف): صاحب البلاغ
-      // الأصلي (reportedByUid) أو أدمن فقط
-      // إصلاح (Workflow): (1) المدير/المشرف كانوا مستبعدين رغم إن الواجهة بتعرض لهم
-      // "إغلاق جماعي" فكان بيفشل، وأي تذكرة resolved بيغادر صاحبها بتعلق للأبد.
-      // (2) الإصلاح الذاتي (المُبلّغ هو من أصلح - isSelfResolved) لا يجوز أن يغلقه
-      // المُبلّغ نفسه؛ التأكيد يكون من مدير/مشرف/أدمن. الرفض (in_progress) يفضل متاح له.
-      allow update: if isActive()
-                    && resource.data.status == "resolved"
-                    && request.resource.data.status in ["closed", "in_progress"]
-                    && (isAdmin() || isManagerRole()
-                        || (resource.data.reportedByUid == request.auth.uid
-                            && (request.resource.data.status != "closed"
-                                || resource.data.get("isSelfResolved", false) != true)))
-                    && (request.resource.data.status != "closed" || closerIsNotSelfResolver())
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
-                    && ticketReporterUnchanged();
+      // يمنع المُبلّغ من إغلاق إصلاح ذاتي أجراه بنفسه؛ يجب تأكيده من طرف آخر.
+      function canCloseOrRejectTicket() {
+        return resource.data.status == "resolved"
+               && request.resource.data.status in ["closed", "in_progress"]
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt", "updatedBy"])
+               && isActive()
+               && (isAdmin() || isManagerRole()
+                   || (resource.data.reportedByUid == request.auth.uid
+                       && (request.resource.data.status != "closed"
+                           || resource.data.get("isSelfResolved", false) != true)))
+               && (request.resource.data.status != "closed" || closerIsNotSelfResolver())
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 5b - resolved -> reopened (رفض المُبلّغ من الواجهة -
-      // reopenTicketApi): صاحب البلاغ الأصلي أو أدمن
-      allow update: if isActive()
-                    && resource.data.status == "resolved"
-                    && request.resource.data.status == "reopened"
-                    && (isAdmin() || isManagerRole() || resource.data.reportedByUid == request.auth.uid)
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "operatorFeedback", "updatedAt", "updatedBy"])
-                    && ticketReporterUnchanged();
+      function canReopenTicket() {
+        return resource.data.status == "resolved"
+               && request.resource.data.status == "reopened"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "operatorFeedback", "updatedAt", "updatedBy"])
+               && isActive()
+               && (isAdmin() || isManagerRole() || resource.data.reportedByUid == request.auth.uid)
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 6 - إعادة الإسناد (reassignTicketApi): مدير/أدمن فقط، على
-      // تذكرة مفتوحة (assigned | in_progress | reopened) وترجع assigned
-      allow update: if resource.data.status in ["assigned", "in_progress", "reopened"]
-                    && request.resource.data.status == "assigned"
-                    && isActive() && (isAdmin() || isManagerRole())
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-                         ["status", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
-                    && ticketAssigneeRequiredActive()
-                    && ticketReporterUnchanged();
+      function canReassignTicket() {
+        return resource.data.status in ["assigned", "in_progress", "reopened"]
+               && request.resource.data.status == "assigned"
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+                    ["status", "assignedTo", "assignedToUid", "updatedAt", "updatedBy"])
+               && isActive() && (isAdmin() || isManagerRole())
+               && ticketAssigneeRequiredActive()
+               && ticketReporterUnchanged();
+      }
 
-      // STEP 7 - إضافة ملاحظة تسليم وردية (appendShiftNoteToTicketApi من
-      // issueView.js): تحديث بدون تغيير الحالة - مفيش أي قاعدة أعلاه كانت
-      // بتسمح بتحديث "نفس الحالة"، فالميزة كانت بترجع permission-denied
-      // لأي فني (تشتغل بالصدفة بس لمدير/أدمن على تذكرة assigned عبر STEP 6).
-      // مقيّدة بـ: تذكرة مفتوحة، مفاتيح shiftUpdates/lastShiftUpdate/
-      // updatedAt فقط، إضافة عنصر واحد بالظبط مع الحفاظ على العناصر
-      // القديمة كما هي، وreporterUid للعنصر الجديد = المستخدم نفسه.
-      allow update: if isActive()
-                    && resource.data.status in ["pending", "assigned", "in_progress", "reopened", "resolved"]
-                    && request.resource.data.status == resource.data.status
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["shiftUpdates", "lastShiftUpdate", "updatedAt"])
-                    && request.resource.data.shiftUpdates is list
-                    && request.resource.data.shiftUpdates.size() == resource.data.get("shiftUpdates", []).size() + 1
-                    && request.resource.data.shiftUpdates[0:resource.data.get("shiftUpdates", []).size()] == resource.data.get("shiftUpdates", [])
-                    && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].reporterUid == request.auth.uid
-                    && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].get("note", "").size() <= 2000;
+      // ملاحظة الوردية تضيف عنصراً واحداً وتحافظ على السجل السابق كما هو.
+      function canAddShiftNote() {
+        return resource.data.status in ["pending", "assigned", "in_progress", "reopened", "resolved"]
+               && request.resource.data.status == resource.data.status
+               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["shiftUpdates", "lastShiftUpdate", "updatedAt"])
+               && request.resource.data.shiftUpdates is list
+               && request.resource.data.shiftUpdates.size() == resource.data.get("shiftUpdates", []).size() + 1
+               && request.resource.data.shiftUpdates[0:resource.data.get("shiftUpdates", []).size()] == resource.data.get("shiftUpdates", [])
+               && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].get("note", "").size() <= 2000
+               && isActive()
+               && request.resource.data.shiftUpdates[request.resource.data.shiftUpdates.size() - 1].reporterUid == request.auth.uid;
+      }
+
+      function canUpdateTicket() {
+        return canPlanPmTicket()
+               || (resource.data.status == "pending"
+                   ? canAssignPendingTicket()
+                     || canClassifyTicketAsPm()
+                     || canResolveTicket()
+                     || canAddShiftNote()
+                   : resource.data.status == "assigned"
+                   ? canUpdatePmTasks()
+                     || canDeclineTicket()
+                     || canStartTicket()
+                     || canResolveTicket()
+                     || canReassignTicket()
+                     || canAddShiftNote()
+                   : resource.data.status == "in_progress"
+                   ? canUpdatePmTasks()
+                     || canDeclineTicket()
+                     || canResolveTicket()
+                     || canReassignTicket()
+                     || canAddShiftNote()
+                   : resource.data.status == "reopened"
+                   ? canDeclineTicket()
+                     || canResolveTicket()
+                     || canReassignTicket()
+                     || canAddShiftNote()
+                   : resource.data.status == "resolved"
+                   ? canCloseOrRejectTicket()
+                     || canReopenTicket()
+                     || canAddShiftNote()
+                   : false);
+      }
+
+      // Status dispatch prevents unrelated update permissions from being evaluated.
+      allow update: if canUpdateTicket();
 
       // سجل التغييرات (Logs) - سجل تلقائي فقط، مفيش تعديل أو حذف
       // (append-only) - أي مستخدم مفعّل يقدر يقرأ سجل تذكرة يقدر
