@@ -12,22 +12,45 @@
   body.mgr-desktop .mgr-command-center {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: 1.5rem;
-    padding: 1.5rem 2rem 3rem 2rem;
-    max-width: 1800px;
+    gap: clamp(1rem, 1.25vw, 1.5rem);
+    padding: clamp(1rem, 1.5vw, 2rem) clamp(1rem, 1.75vw, 2rem) 3rem;
+    max-width: 1840px;
     margin: 0 auto;
     width: 100%;
+    min-width: 0;
+  }
+
+  body.mgr-desktop .mgr-command-center > .col-span-12 {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  body.mgr-desktop .mgr-command-center > .col-span-12 > div:first-child {
+    flex: 1 1 28rem;
+    min-width: min(100%, 20rem);
+  }
+
+  body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
+    flex: 1 1 28rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    min-width: 0;
   }
 
   /* KPI Cards Row (Span full 12 cols) */
   body.mgr-desktop .mgr-kpi-grid {
     grid-column: span 12 / span 12;
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.75rem), 1fr));
+    gap: clamp(0.75rem, 1vw, 1rem);
+    min-width: 0;
   }
 
   body.mgr-desktop .mgr-card {
+    min-width: 0;
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 0.875rem;
@@ -51,6 +74,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
   }
 
   /* Side Operations & Technicians Col (4 columns) */
@@ -59,6 +83,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+    min-width: 0;
   }
 
   /* Charts Container */
@@ -66,12 +91,30 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem;
+    min-width: 0;
+  }
+
+  body.mgr-desktop .mgr-charts-grid > .mgr-card,
+  body.mgr-desktop .mgr-charts-grid .relative {
+    min-width: 0;
   }
 
   /* Decisions Table Container */
   body.mgr-desktop .mgr-table-container {
+    max-width: 100%;
     overflow-x: auto;
     border-radius: 0.75rem;
+    overscroll-behavior-inline: contain;
+    scrollbar-gutter: stable;
+  }
+
+  body.mgr-desktop .mgr-table-container table {
+    min-width: 48rem;
+  }
+
+  body.mgr-desktop .mgr-table-container th:last-child,
+  body.mgr-desktop .mgr-table-container td:last-child {
+    white-space: nowrap;
   }
 
   /* Tickets Desktop Board (Split Panel View) */
@@ -122,6 +165,29 @@
     color: #94a3b8;
     background-color: #0f172a;
     border-color: #334155;
+  }
+
+  @media (max-width: 1535px) {
+    body.mgr-desktop .mgr-main-col {
+      grid-column: span 7 / span 7;
+    }
+
+    body.mgr-desktop .mgr-side-col {
+      grid-column: span 5 / span 5;
+    }
+
+    body.mgr-desktop .mgr-charts-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    body.mgr-desktop .mgr-command-center > .col-span-12 > div:first-child,
+    body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
+      flex-basis: 100%;
+    }
+
+    body.mgr-desktop .mgr-command-center > .col-span-12 > div:last-child {
+      justify-content: flex-start;
+    }
   }
 
   /* Table selected row */
