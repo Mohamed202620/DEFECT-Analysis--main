@@ -337,7 +337,8 @@ export function computeTechnicianPerformance(tickets, limitCount = 5) {
   tickets.forEach(item => {
     const status = String(item.status || '').trim().toLowerCase();
     if (!CLOSED_STATUSES.includes(status)) return;
-    const tech = String(item.assignedTo || '').trim();
+    // من نفّذ الإصلاح فعلياً هو resolvedBy؛ assignedTo بديل للسجلات القديمة فقط.
+    const tech = String(item.resolvedBy || item.assignedTo || '').trim();
     if (!tech) return;
     counts[tech] = (counts[tech] || 0) + 1;
   });
