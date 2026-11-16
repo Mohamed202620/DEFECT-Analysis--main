@@ -316,7 +316,7 @@ export function computeMTTR(tickets) {
     const created = parseTicketDate(item.createdAtServer) || parseTicketDate(item);
     const resolved =
       parseTicketDate(item.resolvedAtServer) ||
-      parseTicketDate(item.resolvedAt || item.updatedAt || item);
+      parseTicketDate(item.resolvedAt || item.updatedAt);
 
     if (!created || !resolved || resolved < created) return;
     durationsHours.push((resolved - created) / (1000 * 60 * 60));
