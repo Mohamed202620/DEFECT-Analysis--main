@@ -649,13 +649,18 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
     startOfToday.setHours(0, 0, 0, 0);
     const recentFrom = new Date(Date.now() - DASHBOARD_RECENT_DAYS * 24 * 60 * 60 * 1000);
 
-    const [totalSnap, closedSnap, todaySnap, notClosedSnap, recentSnap] = await Promise.all([
+    const recentFromIso = recentFrom.toISOString();
+    const [totalSnap, closedSnap, todaySnap, notClosedSnap, recentSnap, recentResolvedSnap, recentUpdatedSnap] = await Promise.all([
       getCountFromServer(ticketsRef),
       getCountFromServer(query(ticketsRef, where("status", "in", CLOSED_STATUSES))),
       getCountFromServer(query(ticketsRef, where("createdAt", ">=", startOfToday.toISOString()))),
       // غير مغلقة نهائياً: تشمل resolved (بانتظار التأكيد) لحساب التأخر
       getDocs(query(ticketsRef, where("status", "not-in", ["closed", "done", "مغلق"]), limit(DASHBOARD_MAX_DOCS))),
-      getDocs(query(ticketsRef, where("createdAt", ">=", recentFrom.toISOString()), orderBy("createdAt", "desc"), limit(DASHBOARD_MAX_DOCS)))
+      // بلاغات أُنشئت حديثاً + بلاغات أُصلحت حديثاً حتى لو كان إنشاؤها أقدم من 30 يوماً.
+      getDocs(query(ticketsRef, where("createdAt", ">=", recentFromIso), orderBy("createdAt", "desc"), limit(DASHBOARD_MAX_DOCS))),
+      getDocs(query(ticketsRef, where("resolvedAt", ">=", recentFromIso), limit(DASHBOARD_MAX_DOCS))),
+      // توافق مع السجلات القديمة التي لا تحتوي resolvedAt.
+      getDocs(query(ticketsRef, where("updatedAt", ">=", recentFromIso), limit(DASHBOARD_MAX_DOCS)))
     ]);
 
     if (serverOnly && (notClosedSnap.metadata?.fromCache || recentSnap.metadata?.fromCache)) {
