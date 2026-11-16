@@ -719,6 +719,19 @@ await t("MTTR يفضّل أوقات السيرفر", () => {
   const r = ST.computeMTTR([{ status: "closed", createdAt: hoursAgo(1), resolvedAt: hoursAgo(1), createdAtServer: hoursAgo(10), resolvedAtServer: hoursAgo(6) }]);
   assert.ok(Math.abs(r.avgHours - 4) < 0.01);
 });
+await t("MTTR لا يعتبر createdAt وقت إصلاح عند غياب resolvedAt", () => {
+  const r = ST.computeMTTR([{ status: "closed", createdAt: hoursAgo(10) }]);
+  assert.equal(r.sampleSize, 0);
+  assert.equal(r.avgHours, null);
+});
+await t("أفضل فني يعتمد على منفذ الإصلاح الفعلي", () => {
+  const result = ST.computeTechnicianPerformance([
+    { status: "closed", assignedTo: "فني الإسناد", resolvedBy: "فني الإصلاح" },
+    { status: "closed", assignedTo: "فني قديم" },
+    { status: "in_progress", resolvedBy: "فني آخر" }
+  ], 1);
+  assert.deepEqual(result, [["فني الإصلاح", 1]]);
+});
 
 // ---------- permissions (H5 / M1) ----------
 const PERM = await import("../js/permissions.js");
