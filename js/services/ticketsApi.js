@@ -24,6 +24,11 @@ import { normalizeLine } from "../utils/lineUtils.js";
 // (تذاكر مفتوحة حالياً، مش الأرشيف كله)
 const TICKETS_BOARD_DEFAULT_LIMIT = 300;
 import { queueOfflineTicket, getQueuedTickets, removeQueuedTicket, queueOfflineAction, getQueuedActions, removeQueuedAction, isOfflineActionOwnedBy } from "./offlineQueue.js";
+import {
+  getOfflineSyncDocumentId,
+  getOfflineSyncRetryDelay,
+  isOfflineSyncRetryDue
+} from "./offlineSyncPolicy.js";
 // إصلاح (بند مرتفع الأولوية - إشعار عند بلاغ جديد): استيراد مباشر من
 // usersApi.js (مش من services/api.js) عشان نتجنب Circular Import، بما
 // إن api.js نفسه بيعمل Re-export من ticketsApi.js
@@ -224,50 +229,58 @@ export function syncOfflineTicketsApi() {
   return _syncOfflineTicketsApiInFlight;
 }
 
-// إصلاح (فقدان بيانات - مزامنة Offline): كانت الحلقتين تحت بتحذفا أي
-// عنصر من الطابور لو رسالة الخطأ مفيهاش (fetch/network/offline/imgbb) -
-// يعني أي خطأ مؤقت من Firestore نفسه (unavailable / deadline-exceeded /
-// resource-exhausted ...) كان بيتحسب "خطأ دائم" ويتحذف بلاغ/ملاحظات
-// إصلاح/صور من الجهاز للأبد قبل ما يوصلوا للسيرفر. دلوقتي القاعدة
-// معكوسة: العنصر بيتحذف فقط لو الخطأ دائم بشكل صريح (صلاحيات/غير
-// موجود/تحقق مدخلات)، وأي خطأ غير معروف بيفضل في الطابور للمحاولة القادمة.
-function isPermanentSyncError(message) {
-  const msg = String(message || "").toLowerCase();
-  const PERMANENT_MARKERS = [
-    "permission", "insufficient", "not-found", "not found", "no document",
-    "already-exists", "invalid-argument", "invalid",
-    "checklist version conflict",
-    "غير موجود", "مطلوب", "مطلوبة", "مطلوبين", "لازم", "متاح", "غير صالح"
-  ];
-  return PERMANENT_MARKERS.some(marker => msg.includes(marker));
-}
-
-// عدّاد محاولات الأخطاء "الدائمة" (بند M10): خطأ permission/invalid وقت
-// المزامنة قد يكون مؤقتاً (دور المستخدم لسه بيتحمّل، جلسة بتتجدد...) فمنحذفش
-// العنصر (وفيه ملاحظات وصور) من أول مرة - بنحاول لحد MAX_PERMANENT_ATTEMPTS
-// مزامنات متفرقة، وبعدها بس بيتسجّل كفشل نهائي ويتشال.
+// Retain failed writes and back off retries rather than discarding local data.
 const SYNC_ATTEMPTS_KEY = "offlineSyncAttempts";
-const MAX_PERMANENT_ATTEMPTS = 5;
+const MAX_ATTEMPTS_BEFORE_WARNING = 5;
+const _syncAttemptCache = new Map();
 
-function bumpSyncAttempt(localId) {
+function getSyncAttempt(localId) {
+  if (_syncAttemptCache.has(localId)) return _syncAttemptCache.get(localId);
   try {
     const map = JSON.parse(localStorage.getItem(SYNC_ATTEMPTS_KEY) || "{}");
-    map[localId] = (map[localId] || 0) + 1;
-    localStorage.setItem(SYNC_ATTEMPTS_KEY, JSON.stringify(map));
-    return map[localId];
-  } catch (_) {
-    return MAX_PERMANENT_ATTEMPTS;
+    const saved = map[localId];
+    const state = saved && typeof saved === "object"
+      ? {
+          attempts: Math.max(0, Number(saved.attempts) || 0),
+          nextAttemptAt: Number(saved.nextAttemptAt) || 0
+        }
+      : { attempts: Math.max(0, Number(saved) || 0), nextAttemptAt: 0 };
+    _syncAttemptCache.set(localId, state);
+    return state;
+  } catch (error) {
+    console.error("[OfflineSync] Could not read retry state:", error);
+    return { attempts: 0, nextAttemptAt: 0 };
   }
 }
 
+function bumpSyncAttempt(localId) {
+  const attempts = getSyncAttempt(localId).attempts + 1;
+  const state = {
+    attempts,
+    nextAttemptAt: Date.now() + getOfflineSyncRetryDelay(attempts)
+  };
+  _syncAttemptCache.set(localId, state);
+  try {
+    const map = JSON.parse(localStorage.getItem(SYNC_ATTEMPTS_KEY) || "{}");
+    map[localId] = state;
+    localStorage.setItem(SYNC_ATTEMPTS_KEY, JSON.stringify(map));
+  } catch (error) {
+    console.error("[OfflineSync] Could not persist retry state:", error);
+  }
+  return state;
+}
+
 function clearSyncAttempt(localId) {
+  _syncAttemptCache.delete(localId);
   try {
     const map = JSON.parse(localStorage.getItem(SYNC_ATTEMPTS_KEY) || "{}");
     if (localId in map) {
       delete map[localId];
       localStorage.setItem(SYNC_ATTEMPTS_KEY, JSON.stringify(map));
     }
-  } catch (_) { /* لا شيء */ }
+  } catch (error) {
+    console.error("[OfflineSync] Could not clear retry state:", error);
+  }
 }
 
 // إجراء "بدء/إغلاق/إصلاح" اتنفّذ فعلاً قبل كده (مثلاً الإرسال الأول نجح وضاع
@@ -294,19 +307,22 @@ async function _syncOfflineTicketsApiImpl() {
     return { status: "success", synced: 0, total: 0 };
   }
 
-  // إصلاح (فقدان بيانات - مزامنة Offline): المزامنة بتتشغّل من حدث
-  // "online" / فحص بداية التشغيل، ممكن قبل ما جلسة Firebase Auth تتسترجع.
-  // وقتها addDoc بيفشل بـ permission-denied (قاعدة create بتطلب
-  // reportedByUid == auth.uid) وده كان بيتصنّف "خطأ دائم" فيتحذف البلاغ من
-  // الجهاز. بننتظر جاهزية الجلسة، ولو مفيش مستخدم مسجّل دخول بنسيب
-  // الطابور زي ما هو للمحاولة القادمة.
+  // قد تبدأ المزامنة قبل استعادة جلسة Firebase Auth؛ في هذه الحالة
+  // نترك العناصر المحلية كما هي حتى تصبح الجلسة جاهزة.
   const authUser = await ensureAuthReady();
   if (!authUser) {
     return { status: "success", synced: 0, total: queued.length, skipped: true };
   }
 
   let synced = 0;
+  let failed = 0;
   for (const item of queued) {
+    const retryState = getSyncAttempt(item.localId);
+    if (!isOfflineSyncRetryDue(retryState.nextAttemptAt)) {
+      if (retryState.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) failed++;
+      continue;
+    }
+
     try {
       // بلاغ محفوظ من مستخدم تاني على نفس الجهاز - مينفعش يترفع باسم
       // المستخدم الحالي (القاعدة هترفضه)، فبنسيبه في الطابور لحد ما
@@ -320,25 +336,17 @@ async function _syncOfflineTicketsApiImpl() {
         clearSyncAttempt(item.localId);
         synced++;
       } else {
-        const msg = (result.message || "").toLowerCase();
-        if (isPermanentSyncError(msg)) {
-          const attempts = bumpSyncAttempt(item.localId);
-          if (attempts >= MAX_PERMANENT_ATTEMPTS) {
-            console.warn(`[Sync] Permanent error for offline ticket ${item.localId} after ${attempts} attempts, removing from queue:`, msg);
-            await removeQueuedTicket(item.localId);
-            clearSyncAttempt(item.localId);
-          } else {
-            console.warn(`[Sync] Possibly-permanent error for offline ticket ${item.localId} (attempt ${attempts}/${MAX_PERMANENT_ATTEMPTS}), keeping in queue:`, msg);
-          }
-        } else {
-          console.warn(`[Sync] Transient/unknown error for offline ticket ${item.localId}, keeping in queue:`, msg);
-        }
+        const state = bumpSyncAttempt(item.localId);
+        if (state.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) failed++;
+        console.warn(`[Sync] Keeping offline ticket ${item.localId}; retry scheduled at ${new Date(state.nextAttemptAt).toISOString()}:`, result.message);
       }
     } catch (error) {
+      const state = bumpSyncAttempt(item.localId);
+      if (state.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) failed++;
       console.error("Error syncing offline ticket:", item.localId, error);
     }
   }
-  return { status: "success", synced, total: queued.length };
+  return { status: "success", synced, failed, total: queued.length };
 }
 
 // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): مزامنة إجراءات
@@ -364,8 +372,7 @@ async function _syncOfflineTicketActionsApiImpl() {
     return { status: "success", synced: 0, total: 0 };
   }
 
-  // نفس حماية _syncOfflineTicketsApiImpl: من غير جلسة Auth جاهزة أي
-  // إجراء (إصلاح/إغلاق/مقترح...) كان بيفشل بـ permission-denied ويتحذف
+  // نفس حماية _syncOfflineTicketsApiImpl: لا نرسل الإجراءات قبل جاهزية Auth
   const authUser = await ensureAuthReady();
   if (!authUser) {
     return { status: "success", synced: 0, failed: 0, total: queued.length, skipped: true };
@@ -374,6 +381,12 @@ async function _syncOfflineTicketActionsApiImpl() {
   let synced = 0;
   let failed = 0;
   for (const item of queued) {
+    const retryState = getSyncAttempt(item.localId);
+    if (!isOfflineSyncRetryDue(retryState.nextAttemptAt)) {
+      if (retryState.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) failed++;
+      continue;
+    }
+
     try {
       if (!isOfflineActionOwnedBy(item, authUser.uid)) {
         console.warn("[Sync] Preserving offline action without matching owner identity:", item.localId);
@@ -385,7 +398,7 @@ async function _syncOfflineTicketActionsApiImpl() {
       let result;
 
       if (type === "start") {
-        result = await startTicketApi(ticketId, { skipOfflineQueue: true });
+        result = await startTicketApi(ticketId, { skipOfflineQueue: true, idempotencyKey: item.localId });
       } else if (type === "resolve") {
         result = await resolveTicketApi(
           ticketId,
@@ -394,35 +407,38 @@ async function _syncOfflineTicketActionsApiImpl() {
           {
             skipOfflineQueue: true,
             allowNoImages: !!payload?.allowNoImages,
-            selfResolved: !!payload?.selfResolved
+            selfResolved: !!payload?.selfResolved,
+            idempotencyKey: item.localId
           }
         );
       } else if (type === "close") {
-        result = await closeTicketApi(ticketId, { skipOfflineQueue: true });
+        result = await closeTicketApi(ticketId, { skipOfflineQueue: true, idempotencyKey: item.localId });
       } else if (type === "reassign") {
         result = await reassignTicketApi(
           ticketId,
           { assignedTo: payload?.assignedTo, assignedToUid: payload?.assignedToUid },
-          { skipOfflineQueue: true }
+          { skipOfflineQueue: true, idempotencyKey: item.localId }
         );
       } else if (type === "new_suggestion") {
         const { saveSuggestionApi } = await import("./suggestionsApi.js");
-        result = await saveSuggestionApi(payload, { skipOfflineQueue: true });
+        result = await saveSuggestionApi(payload, { skipOfflineQueue: true, idempotencyKey: item.localId });
       } else if (type === "new_defect") {
         const { saveDefectApi } = await import("./defectsApi.js");
-        result = await saveDefectApi(payload, { skipOfflineQueue: true });
+        result = await saveDefectApi(payload, { skipOfflineQueue: true, idempotencyKey: item.localId });
       } else if (type === "save_checklist_template") {
         try {
           const { buildChecklistTemplateDocument } = await import("./checklistTemplateSync.js");
           const { collection: targetCollection, targetId } = item.action;
           const templateRef = doc(db, targetCollection, targetId);
           const current = await getDoc(templateRef);
-          const template = buildChecklistTemplateDocument(
-            item.action,
-            current.exists() ? current.data() : null
-          );
-          await setDoc(templateRef, template);
-          result = { status: "success" };
+          const currentData = current.exists() ? current.data() : null;
+          if (currentData?.updatedAt === item.action.updatedAt && currentData?.updatedBy === item.action.updatedBy) {
+            result = { status: "success", duplicate: true };
+          } else {
+            const template = buildChecklistTemplateDocument(item.action, currentData);
+            await setDoc(templateRef, template);
+            result = { status: "success" };
+          }
         } catch (error) {
           result = { status: "error", message: error?.message || "حدث خطأ غير متوقع" };
         }
@@ -431,10 +447,11 @@ async function _syncOfflineTicketActionsApiImpl() {
         result = await saveMachineErrorApi(payload, { skipOfflineQueue: true });
       } else if (type === "log_machine_error") {
         const { logMachineErrorOccurrenceApi } = await import("./machineErrorsApi.js");
-        result = await logMachineErrorOccurrenceApi(payload, { skipOfflineQueue: true });
+        result = await logMachineErrorOccurrenceApi(payload, { skipOfflineQueue: true, idempotencyKey: item.localId });
       } else {
         console.error("Unknown queued action type:", type);
-        await removeQueuedAction(item.localId);
+        bumpSyncAttempt(item.localId);
+        failed++;
         continue;
       }
 
@@ -448,35 +465,23 @@ async function _syncOfflineTicketActionsApiImpl() {
         synced++;
       } else {
         const msg = (result.message || "").toLowerCase();
-        if (isPermanentSyncError(msg) && bumpSyncAttempt(item.localId) < MAX_PERMANENT_ATTEMPTS) {
-          console.warn(`[Sync] Possibly-permanent error for offline action ${item.localId}, keeping in queue for retry:`, msg);
-        } else if (isPermanentSyncError(msg)) {
-          clearSyncAttempt(item.localId);
-          console.warn(`[Sync] Permanent error for offline action ${item.localId}, removing from queue:`, msg);
-          // إصلاح (Workflow - إجراء أوفلاين فشل بصمت): قبل كده الإجراء كان بيتمسح
-          // من الطابور مع console.warn بس (مثلاً permission-denied لأن التذكرة اتسحبت
-          // من الفني أو حالتها اتغيرت) فتضيع ملاحظات الإصلاح من غير ما المستخدم يعرف.
-          // دلوقتي بنحتفظ بنسخة توثيقية (بدون الصور) ونبلّغ المستخدم بعد المزامنة.
-          const recorded = recordFailedOfflineAction(item, msg);
+        const state = bumpSyncAttempt(item.localId);
+        if (state.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) {
           failed++;
-          if (recorded) {
-            await removeQueuedAction(item.localId);
-          } else {
-            console.error("[Sync] Could not archive failed offline action; preserving it in the queue:", item.localId);
-          }
-        } else {
-          console.warn(`[Sync] Transient/unknown error for offline action ${item.localId}, keeping in queue:`, msg);
+          if (state.attempts === MAX_ATTEMPTS_BEFORE_WARNING) recordFailedOfflineAction(item, msg);
         }
+        console.warn(`[Sync] Keeping offline action ${item.localId}; retry scheduled at ${new Date(state.nextAttemptAt).toISOString()}:`, msg);
       }
     } catch (error) {
+      const state = bumpSyncAttempt(item.localId);
+      if (state.attempts >= MAX_ATTEMPTS_BEFORE_WARNING) failed++;
       console.error("Error syncing offline ticket action:", item.localId, error);
     }
   }
   return { status: "success", synced, failed, total: queued.length };
 }
 
-// حفظ نسخة توثيقية (metadata + الملاحظات النصية بدون صور Base64 لتفادي تجاوز
-// حصة localStorage) للإجراءات الأوفلاين اللي فشلت نهائياً وقت المزامنة
+// حفظ نسخة مختصرة للمراجعة؛ يظل الإجراء الأصلي وملفاته محفوظة في IndexedDB
 const FAILED_OFFLINE_ACTIONS_KEY = "failedOfflineActions";
 function recordFailedOfflineAction(item, reason) {
   try {
@@ -554,7 +559,11 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount, serverOnl
       querySnapshot.forEach(docSnap => {
         tickets.push({ id: docSnap.id, ...docSnap.data() });
       });
-      return { status: "success", data: tickets };
+      return {
+        status: "success",
+        data: tickets,
+        fromCache: querySnapshot.metadata?.fromCache === true
+      };
     } else {
       const scopedQueries = [];
       if (myName) {
@@ -582,7 +591,11 @@ export async function fetchTicketsApi({ role, myUid, myName, maxCount, serverOnl
       if (maxCount && tickets.length > maxCount) {
         tickets = tickets.slice(0, maxCount);
       }
-      return { status: "success", data: tickets };
+      return {
+        status: "success",
+        data: tickets,
+        fromCache: snaps.some(snapshot => snapshot.metadata?.fromCache === true)
+      };
     }
   } catch (error) {
     console.error("Error fetching tickets with orderBy:", error);
@@ -625,7 +638,8 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
             return !isNaN(d) && d >= startOfToday;
           }).length,
           overdue: list.filter(t => isOverdueTicket(t)).length,
-          exact: true
+          exact: !res.fromCache,
+          cached: res.fromCache
         }
       };
     }
@@ -676,6 +690,36 @@ export async function fetchDashboardSnapshotApi({ role, myUid, myName, serverOnl
     };
   } catch (error) {
     console.error("Error in fetchDashboardSnapshotApi:", error);
+    if (!serverOnly && (error?.code === "unavailable" || (typeof navigator !== "undefined" && !navigator.onLine))) {
+      const cachedResult = await fetchTicketsApi({
+        role,
+        myUid,
+        myName,
+        maxCount: DASHBOARD_MAX_DOCS
+      });
+      if (cachedResult.status === "success" && cachedResult.fromCache) {
+        const tickets = cachedResult.data;
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const openTickets = tickets.filter(ticket => !isClosedStatus(ticket.status));
+        return {
+          status: "success",
+          data: {
+            tickets,
+            total: tickets.length,
+            closed: tickets.filter(ticket => isClosedStatus(ticket.status)).length,
+            today: tickets.filter(ticket => {
+              const createdAt = new Date(ticket.createdAt);
+              return !Number.isNaN(createdAt.getTime()) && createdAt >= startOfToday;
+            }).length,
+            open: openTickets.length,
+            overdue: openTickets.filter(ticket => isOverdueTicket(ticket)).length,
+            exact: false,
+            cached: true
+          }
+        };
+      }
+    }
     return { status: "error", code: error?.code, message: error?.message };
   }
 }
@@ -1145,11 +1189,33 @@ function ticketLogData({ action, fromStatus, toStatus, note = "" }) {
   };
 }
 
-async function updateTicketWithLog(ticketId, updateData, logData) {
+async function updateTicketWithLog(ticketId, updateData, logData, idempotencyKey = null) {
+  const logRef = idempotencyKey
+    ? doc(db, "tickets", ticketId, "logs", getOfflineSyncDocumentId(idempotencyKey))
+    : doc(collection(db, "tickets", ticketId, "logs"));
+
+  if (idempotencyKey) {
+    const existing = await getDoc(logRef);
+    if (existing.exists()) return false;
+  }
+
   const batch = writeBatch(db);
   batch.update(doc(db, "tickets", ticketId), updateData);
-  batch.set(doc(collection(db, "tickets", ticketId, "logs")), ticketLogData(logData));
-  await batch.commit();
+  batch.set(logRef, ticketLogData(logData));
+  try {
+    await batch.commit();
+  } catch (error) {
+    if (idempotencyKey) {
+      try {
+        const existing = await getDoc(logRef);
+        if (existing.exists()) return false;
+      } catch (verificationError) {
+        console.warn("[OfflineSync] Could not verify an idempotent ticket action:", verificationError);
+      }
+    }
+    throw error;
+  }
+  return true;
 }
 
 export async function fetchTicketLogsApi(ticketId) {
@@ -2451,7 +2517,11 @@ export async function reschedulePmTasksApi(ticketId, { plannedDate, assignedTo, 
 // حالة التذكرة لـ "assigned" دايماً (حتى لو كانت in_progress) عشان
 // الفني الجديد يبدأ التنفيذ بنفسه من الأول ويبقى في السجل واضح مين
 // المسؤول فعلياً عن كل مرحلة
-export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid }, { skipOfflineQueue = false } = {}) {
+export async function reassignTicketApi(
+  ticketId,
+  { assignedTo, assignedToUid },
+  { skipOfflineQueue = false, idempotencyKey = null } = {}
+) {
   if (!assignedTo) {
     return { status: "error", message: "assignedTo مطلوب" };
   }
@@ -2481,6 +2551,11 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
   }
 
   try {
+    if (idempotencyKey) {
+      const logRef = doc(db, "tickets", ticketId, "logs", getOfflineSyncDocumentId(idempotencyKey));
+      if ((await getDoc(logRef)).exists()) return { status: "success", duplicate: true };
+    }
+
     const ticketRef = doc(db, "tickets", ticketId);
     const ticketSnap = await getDoc(ticketRef);
     if (!ticketSnap.exists()) {
@@ -2502,7 +2577,7 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
       };
     }
 
-    await updateTicketWithLog(ticketId, stampUpdate({
+    const applied = await updateTicketWithLog(ticketId, stampUpdate({
         status: "assigned",
         assignedTo,
         assignedToUid: assignedToUid || null
@@ -2511,7 +2586,8 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
       fromStatus,
       toStatus: "assigned",
       note: `إعادة إسناد من "${previousAssignee}" إلى "${assignedTo}"`
-    });
+    }, idempotencyKey);
+    if (!applied) return { status: "success", duplicate: true };
 
     if (assignedToUid) {
       createNotification(assignedToUid, {
@@ -2537,7 +2613,10 @@ export async function reassignTicketApi(ticketId, { assignedTo, assignedToUid },
   }
 }
 
-export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}) {
+export async function startTicketApi(
+  ticketId,
+  { skipOfflineQueue = false, idempotencyKey = null } = {}
+) {
   // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "بدء التنفيذ"
   // مايحتاجش أي بيانات إضافية من المستخدم، فلو مفيش نت بنخزّن الإجراء
   // محلياً فوراً ونرجّعه كـ "queued" بدل ما يفشل الطلب بلا أي بديل
@@ -2560,7 +2639,7 @@ export async function startTicketApi(ticketId, { skipOfflineQueue = false } = {}
       action: "start",
       fromStatus: "assigned",
       toStatus: "in_progress"
-    });
+    }, idempotencyKey);
     return { status: "success" };
   } catch (error) {
     console.error("Error starting ticket:", error);
@@ -2577,7 +2656,7 @@ export async function resolveTicketApi(
   ticketId,
   mechanicNotes,
   afterImages = [],
-  { skipOfflineQueue = false, allowNoImages = false, selfResolved = false } = {}
+  { skipOfflineQueue = false, allowNoImages = false, selfResolved = false, idempotencyKey = null } = {}
 ) {
   if (!mechanicNotes || !mechanicNotes.trim()) {
     return { status: "error", message: "ملاحظات الفني مطلوبة" };
@@ -2664,7 +2743,7 @@ export async function resolveTicketApi(
     const isSelfResolved = !!before.reportedByUid && before.reportedByUid === resolverUid;
     const nowISO = new Date().toISOString();
 
-    await updateTicketWithLog(ticketId, stampUpdate({
+    const applied = await updateTicketWithLog(ticketId, stampUpdate({
         status: "resolved",
         mechanicNotes: mechanicNotes.trim(),
         afterImages: afterImageUrls,
@@ -2678,7 +2757,8 @@ export async function resolveTicketApi(
       fromStatus,
       toStatus: "resolved",
       note: (isSelfResolved ? "[إصلاح ذاتي من المُبلّغ] " : "") + mechanicNotes.trim()
-    });
+    }, idempotencyKey);
+    if (!applied) return { status: "success", duplicate: true };
 
     if (isSelfResolved) {
       // المُبلّغ هو من أصلح: التأكيد يحتاج طرف آخر (مدير/مشرف/أدمن)
@@ -2714,7 +2794,10 @@ export async function resolveTicketApi(
   }
 }
 
-export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}) {
+export async function closeTicketApi(
+  ticketId,
+  { skipOfflineQueue = false, idempotencyKey = null } = {}
+) {
   // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): "تأكيد
   // الإغلاق" برضه مايحتاجش بيانات إضافية - نفس أسلوب startTicketApi
   if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
@@ -2735,11 +2818,12 @@ export async function closeTicketApi(ticketId, { skipOfflineQueue = false } = {}
     const ticketSnap = await getDoc(doc(db, "tickets", ticketId));
     const assignedToUid = ticketSnap.exists() ? ticketSnap.data().assignedToUid : null;
 
-    await updateTicketWithLog(ticketId, stampUpdate({ status: "closed" }), {
+    const applied = await updateTicketWithLog(ticketId, stampUpdate({ status: "closed" }), {
       action: "close",
       fromStatus: "resolved",
       toStatus: "closed"
-    });
+    }, idempotencyKey);
+    if (!applied) return { status: "success", duplicate: true };
 
     if (assignedToUid) {
       createNotification(assignedToUid, {

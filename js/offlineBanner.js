@@ -69,8 +69,9 @@ async function getPendingCount() {
     const { getQueuedTickets, getQueuedActions } = await import('./services/offlineQueue.js');
     const [tickets, actions] = await Promise.all([getQueuedTickets(), getQueuedActions()]);
     return tickets.length + actions.length;
-  } catch (_) {
-    return 0;
+  } catch (error) {
+    console.error("[OfflineSync] Could not read pending queue:", error);
+    return null;
   }
 }
 
@@ -79,6 +80,7 @@ async function getPendingCount() {
 async function refreshPendingIndicator() {
   if (_syncRunning) return;
   const pending = await getPendingCount();
+  if (pending === null) return;
   const isEn = (window.currentLang || "ar") === "en";
   if (pending > 0) {
     const online = typeof navigator === "undefined" || navigator.onLine;
@@ -101,56 +103,37 @@ async function runOfflineSync() {
   if (_syncRunning) return;
   _syncRunning = true;
   try {
-  setBanner(true, t().syncing, "bg-green-600 text-white");
-
-  try {
-
-    // إضافة (تحسين Workflow - دعم Offline لتحديث الحالة): مزامنة
-    // البلاغات الجديدة المحفوظة محلياً + إجراءات دورة حياة التذاكر
-    // (بدء تنفيذ/تم الإصلاح/تأكيد الإغلاق) مع بعض عند عودة الاتصال
+    setBanner(true, t().syncing, "bg-green-600 text-white");
     const [ticketsResult, actionsResult] = await Promise.all([
       syncOfflineTicketsApi(),
       syncOfflineTicketActionsApi()
     ]);
     const synced = (ticketsResult?.synced || 0) + (actionsResult?.synced || 0);
-    // إصلاح (Workflow): إجراءات الأوفلاين اللي فشلت نهائياً وقت المزامنة كانت
-    // بتتمسح بصمت - دلوقتي المستخدم بيتنبه (التفاصيل في localStorage: failedOfflineActions)
-    const failed = actionsResult?.failed || 0;
-
-    if (failed > 0) {
-      const isEn = (window.currentLang || "ar") === "en";
-      setBanner(
-        true,
-        isEn
-          ? `⚠️ ${failed} offline change(s) could not be applied. Please review the pending items before continuing.`
-          : `⚠️ تعذر تطبيق ${failed} تغيير محفوظ أوفلاين. راجع العناصر المعلقة قبل المتابعة.`,
-        "bg-amber-600 text-white"
-      );
-      setTimeout(hideBanner, 10000);
+    const pending = await getPendingCount();
+    if (pending === null) {
+      setBanner(true, t().syncError, "bg-amber-600 text-white");
       return;
     }
 
-    setBanner(
-      true,
-      synced > 0 ? t().syncedWithCount.replace("{n}", synced) : t().restored,
-      "bg-green-600 text-white"
-    );
+    if (pending > 0) {
+      setBanner(true, t().syncPending.replace("{n}", pending), "bg-amber-600 text-white");
+      return;
+    }
 
+    setBanner(true, synced > 0 ? t().syncedWithCount.replace("{n}", synced) : t().restored, "bg-green-600 text-white");
+    setTimeout(hideBanner, 3000);
   } catch (error) {
     console.error("[OfflineSync] فشلت المزامنة التلقائية:", error);
-    setBanner(true, t().restored, "bg-green-600 text-white");
-  }
-
-  setTimeout(hideBanner, 3000);
+    setBanner(true, t().syncError, "bg-amber-600 text-white");
   } finally {
     _syncRunning = false;
   }
-  setTimeout(refreshPendingIndicator, 3500);
 }
 
 // بعد تسجيل الدخول: بنزامن فقط لو فيه عناصر معلقة فعلاً (من غير وميض بانر "تمت الاستعادة")
 window.triggerOfflineSync = async function () {
-  if (await getPendingCount() > 0) runOfflineSync();
+  const pending = await getPendingCount();
+  if (pending > 0) runOfflineSync();
 };
 
 window.addEventListener("online", runOfflineSync);
@@ -161,7 +144,9 @@ window.addEventListener("online", runOfflineSync);
 setInterval(async () => {
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
   if (!localStorage.getItem("userId")) return;
-  if (await getPendingCount() > 0) {
+  const pending = await getPendingCount();
+  if (pending === null) return;
+  if (pending > 0) {
     runOfflineSync();
   } else {
     refreshPendingIndicator();

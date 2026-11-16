@@ -222,6 +222,62 @@ const [ticketsApiSource, ticketDetailsSource, checklistApiSource, checklistIndex
   readFile(new URL("../.github/workflows/firebase-hosting-main.yml", import.meta.url), "utf8")
 ]);
 const suggestionsApiSource = await readFile(new URL("../js/services/suggestionsApi.js", import.meta.url), "utf8");
+const offlineBannerSource = await readFile(new URL("../js/offlineBanner.js", import.meta.url), "utf8");
+const [defectsApiSource, machineErrorLogApiSource] = await Promise.all([
+  readFile(new URL("../js/services/defectsApi.js", import.meta.url), "utf8"),
+  readFile(new URL("../js/services/machineErrorsApi.js", import.meta.url), "utf8")
+]);
+const machineTypesApiSource = await readFile(new URL("../js/services/machinesApi.js", import.meta.url), "utf8");
+const workflowSource = await readFile(new URL("../js/workflow.js", import.meta.url), "utf8");
+const offlineSyncPolicy = await import("../js/services/offlineSyncPolicy.js");
+await t("offline sync retains failed records, backs off retries, and reports pending data", () => {
+  assert.equal(offlineSyncPolicy.getOfflineSyncRetryDelay(1), 60_000);
+  assert.equal(offlineSyncPolicy.getOfflineSyncRetryDelay(2), 120_000);
+  assert.equal(offlineSyncPolicy.getOfflineSyncRetryDelay(100), 60 * 60_000);
+  assert.equal(offlineSyncPolicy.isOfflineSyncRetryDue(10_000, 10_000), true);
+  assert.equal(offlineSyncPolicy.isOfflineSyncRetryDue(10_001, 10_000), false);
+
+  const ticketSync = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("async function _syncOfflineTicketsApiImpl"),
+    ticketsApiSource.indexOf("// إضافة (تحسين Workflow - دعم Offline لتحديث الحالة)")
+  );
+  assert.ok(ticketsApiSource.includes("getOfflineSyncRetryDelay"));
+  assert.ok(ticketSync.includes("Keeping offline ticket"));
+  const ticketFailurePath = ticketSync.slice(ticketSync.indexOf("} else {"), ticketSync.indexOf("} catch (error)"));
+  assert.doesNotMatch(ticketFailurePath, /removeQueuedTicket\(item\.localId\)/);
+  const actionSync = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("async function _syncOfflineTicketActionsApiImpl"),
+    ticketsApiSource.indexOf("// حفظ نسخة توثيقية")
+  );
+  const actionResultHandling = actionSync.slice(
+    actionSync.indexOf("if (result.status === \"success\")"),
+    actionSync.indexOf("} catch (error)")
+  );
+  const actionFailurePath = actionResultHandling.slice(actionResultHandling.indexOf("} else {"));
+  assert.doesNotMatch(actionFailurePath, /removeQueuedAction\(item\.localId\)/);
+  assert.ok(offlineBannerSource.includes("t().syncPending.replace"));
+  assert.ok(offlineBannerSource.includes("t().syncError"));
+});
+await t("offline replay uses stable document IDs for created records and ticket logs", () => {
+  assert.equal(offlineSyncPolicy.getOfflineSyncDocumentId("action_123-ab"), "offline_action_123-ab");
+  assert.equal(offlineSyncPolicy.getOfflineSyncDocumentId("action/123"), "offline_action_123");
+  assert.throws(() => offlineSyncPolicy.getOfflineSyncDocumentId(""), /id is required/);
+  assert.ok(ticketsApiSource.includes("idempotencyKey: item.localId"));
+  assert.ok(ticketsApiSource.includes("getOfflineSyncDocumentId(idempotencyKey)"));
+  assert.ok(defectsApiSource.includes('doc(db, "defects", getOfflineSyncDocumentId(idempotencyKey))'));
+  assert.ok(suggestionsApiSource.includes('doc(db, "suggestions", getOfflineSyncDocumentId(idempotencyKey))'));
+  assert.ok(machineErrorLogApiSource.includes('doc(db, "machineErrorLogs", getOfflineSyncDocumentId(idempotencyKey))'));
+});
+await t("offline dashboard counts are labeled cached and machine lookup does not retry general errors", () => {
+  const dashboardSnapshot = ticketsApiSource.slice(
+    ticketsApiSource.indexOf("export async function fetchDashboardSnapshotApi"),
+    ticketsApiSource.indexOf("export async function fetchTicketCountsApi")
+  );
+  assert.ok(dashboardSnapshot.includes("cached: true"));
+  assert.ok(dashboardSnapshot.includes("exact: false"));
+  assert.ok(workflowSource.includes('snapRes.data.cached ? "cached" : "success"'));
+  assert.ok(machineTypesApiSource.includes("if (!isMissingMachineTypesIndexError(orderErr)) throw orderErr"));
+});
 await t("unknown ticket log statuses are escaped before timeline rendering", () => {
   assert.match(ticketDetailsSource, /\$\{statusLabel\(log\.toStatus\) \|\| escapeHtml\(log\.toStatus \|\| ""\)\}/);
 });
@@ -352,7 +408,7 @@ await t("machine-error history query has its index and reports retrieval errors"
 await t("ticket and Kaizen transitions commit status and history together", () => {
   assert.ok(ticketsApiSource.includes("async function updateTicketWithLog"));
   assert.ok(ticketsApiSource.includes("batch.update(doc(db, \"tickets\", ticketId), updateData)"));
-  assert.ok(ticketsApiSource.includes("batch.set(doc(collection(db, \"tickets\", ticketId, \"logs\"))"));
+  assert.ok(ticketsApiSource.includes("batch.set(logRef, ticketLogData(logData))"));
   assert.ok(suggestionsSource.includes("async function updateSuggestionWithLog"));
   assert.ok(suggestionsSource.includes('batch.update(doc(db, "suggestions", suggestionId), updateData)'));
   assert.ok(suggestionsSource.includes('doc(collection(db, "suggestions", suggestionId, "logs"))'));

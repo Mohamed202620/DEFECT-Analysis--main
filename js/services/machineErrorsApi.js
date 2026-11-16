@@ -12,10 +12,10 @@ import {
   getCurrentUserMachineContext,
   getMachineTypeReference
 } from "../machines.js";
+import { getOfflineSyncDocumentId } from "./offlineSyncPolicy.js";
 
 import {
   collection,
-  addDoc,
   setDoc,
   getDocs,
   getDoc,
@@ -248,7 +248,10 @@ export async function verifyMachineErrorApi(errorId) {
  * تسجيل ظهور جديد لعطل معروف (سجل الأعطال السابق)
  * وربط الصورة الملتقطة بهذا الظهور
  */
-export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue = false } = {}) {
+export async function logMachineErrorOccurrenceApi(
+  payload,
+  { skipOfflineQueue = false, idempotencyKey = null } = {}
+) {
   if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
     try {
       const { queueOfflineAction } = await import("./offlineQueue.js");
@@ -272,16 +275,7 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
       return { status: "error", message: "كود العطل مطلوب" };
     }
 
-    // نفس مبدأ رفع الصورة إلى Storage بدل تخزينها Base64 كاملة
     const { image, ...restPayload } = payload;
-
-    const imageUrl = await uploadBase64Image(
-      image,
-      `machineErrorLog_${normalized}`
-    );
-
-    // إصلاح (بند حرج - حماية سيرفرية لقيود القسم): نفس منطق
-    // saveMachineErrorApi فوق بالظبط
     const department =
       getDepartmentForMachineValue(restPayload.machine) ||
       getCurrentUserMachineContext().machineDepartment ||
@@ -291,19 +285,39 @@ export async function logMachineErrorOccurrenceApi(payload, { skipOfflineQueue =
       return { status: "error", message: "الماكينة غير موجودة في كتالوج الماكينات النشط" };
     }
 
-    const docRef = await addDoc(
-      collection(db, "machineErrorLogs"),
-      {
-        ...restPayload,
-        ...machineReference,
-        errorCode: normalized,
-        department,
-        ...(imageUrl && { imageUrl }),
-        scannedAt: new Date().toISOString()
-      }
-    );
+    const logRef = idempotencyKey
+      ? doc(db, "machineErrorLogs", getOfflineSyncDocumentId(idempotencyKey))
+      : doc(collection(db, "machineErrorLogs"));
+    if (idempotencyKey && (await getDoc(logRef)).exists()) {
+      return { status: "success", id: logRef.id, duplicate: true };
+    }
 
-    return { status: "success", id: docRef.id };
+    // نفس مبدأ رفع الصورة إلى Storage بدل تخزينها Base64 كاملة
+    const imageUrl = await uploadBase64Image(image, `machineErrorLog_${normalized}`);
+    const logData = {
+      ...restPayload,
+      ...machineReference,
+      errorCode: normalized,
+      department,
+      ...(imageUrl && { imageUrl }),
+      scannedAt: new Date().toISOString()
+    };
+    try {
+      await setDoc(logRef, logData);
+    } catch (writeError) {
+      if (idempotencyKey) {
+        try {
+          if ((await getDoc(logRef)).exists()) {
+            return { status: "success", id: logRef.id, duplicate: true };
+          }
+        } catch (verificationError) {
+          console.warn("[OfflineSync] Could not verify an idempotent machine error log:", verificationError);
+        }
+      }
+      throw writeError;
+    }
+
+    return { status: "success", id: logRef.id };
 
   } catch (error) {
 

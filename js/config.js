@@ -458,6 +458,7 @@ export const translations = {
       statsOverview: "ملخص المؤشرات الحية",
       dashboardLoading: "جار تحميل المؤشرات",
       dashboardUpdated: "تم تحديث المؤشرات",
+      dashboardCached: "بيانات مخزنة مؤقتاً وقد لا تشمل آخر التحديثات",
       dashboardLoadError: "تعذر تحميل المؤشرات",
       dashboardPermissionError: "لا توجد صلاحية لقراءة المؤشرات",
       kpiOpen: "أعطال مفتوحة",
@@ -829,6 +830,8 @@ export const translations = {
       syncing: "🔄 تم استعادة الاتصال - جاري المزامنة...",
       // {n} بيتستبدل بعدد البلاغات المُزامنة فعلياً (راجع offlineBanner.js)
       syncedWithCount: "✅ تم رفع {n} بلاغ محفوظ بنجاح",
+      syncPending: "⚠️ ما زال {n} عنصر بانتظار المزامنة. البيانات محفوظة محلياً وستتم إعادة المحاولة.",
+      syncError: "⚠️ تعذر إكمال المزامنة. البيانات ما زالت محفوظة محلياً.",
       restored: "✅ تم استعادة الاتصال"
     },
 
@@ -1186,6 +1189,7 @@ export const translations = {
       statsOverview: "Live Metrics Overview",
       dashboardLoading: "Loading metrics",
       dashboardUpdated: "Metrics updated",
+      dashboardCached: "Cached data; recent updates may be missing",
       dashboardLoadError: "Could not load metrics",
       dashboardPermissionError: "No permission to read metrics",
       kpiOpen: "Open Breakdowns",
@@ -1538,6 +1542,8 @@ export const translations = {
       offlineMsg: "⚠️ No internet connection - tickets will be saved locally",
       syncing: "🔄 Connection restored - syncing...",
       syncedWithCount: "✅ {n} saved ticket(s) uploaded successfully",
+      syncPending: "⚠️ {n} item(s) are still waiting to sync. Data remains saved locally and will be retried.",
+      syncError: "⚠️ Sync could not be completed. Data remains saved locally.",
       restored: "✅ Connection restored"
     },
 

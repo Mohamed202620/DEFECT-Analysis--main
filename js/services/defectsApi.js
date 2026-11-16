@@ -6,10 +6,12 @@
 
 import { db } from "../providers/backend/index.js";
 import { uploadBase64Image } from "./imageUpload.js";
+import { getOfflineSyncDocumentId } from "./offlineSyncPolicy.js";
 
 import {
   collection,
-  doc
+  doc,
+  getDoc
 } from "../providers/backend/index.js";
 
 
@@ -24,7 +26,7 @@ import {
  * روابطها فقط داخل المستند بدل الـ Base64 الكامل)
  */
 export async function saveDefectApi(
-  payload, { skipOfflineQueue = false } = {}
+  payload, { skipOfflineQueue = false, idempotencyKey = null } = {}
 ) {
   if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
     try {
@@ -55,6 +57,13 @@ export async function saveDefectApi(
     const defectId =
       payload.defectId ||
       ("DF-" + Date.now());
+    const docRef = idempotencyKey
+      ? doc(db, "defects", getOfflineSyncDocumentId(idempotencyKey))
+      : doc(collection(db, "defects"));
+
+    if (idempotencyKey && (await getDoc(docRef)).exists()) {
+      return { status: "success", id: docRef.id, duplicate: true };
+    }
 
     // رفع الصور الثلاث بالتوازي (كل صورة فارغة/null تُرجع null فوراً)
     const [image1Url, image2Url, image3Url] =
@@ -66,25 +75,32 @@ export async function saveDefectApi(
 
     // الرقم الموحد (DF-001...) يُحجز ويُكتب مع السجل في دفعة ذرّية واحدة
     const { commitWithSequence } = await import("./sequenceApi.js");
-    const docRef = doc(collection(db, "defects"));
-    const { unifiedNumber } = await commitWithSequence("defects", (batch, number) => batch.set(
+    let unifiedNumber;
+    try {
+      ({ unifiedNumber } = await commitWithSequence("defects", (batch, number) => batch.set(
         docRef,
         {
-
           ...restPayload,
-
           defectId,
           unifiedNumber: number, // الرقم الموحد الجديد: DF-001
-
           ...(image1Url && { image1Url }),
           ...(image2Url && { image2Url }),
           ...(image3Url && { image3Url }),
-
-          createdAt:
-            new Date().toISOString()
-
+          createdAt: new Date().toISOString()
         }
-      ));
+      )));
+    } catch (writeError) {
+      if (idempotencyKey) {
+        try {
+          if ((await getDoc(docRef)).exists()) {
+            return { status: "success", id: docRef.id, duplicate: true };
+          }
+        } catch (verificationError) {
+          console.warn("[OfflineSync] Could not verify an idempotent defect:", verificationError);
+        }
+      }
+      throw writeError;
+    }
 
 
     return {

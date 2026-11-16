@@ -31,6 +31,7 @@
 // ============================================================
 
 import { uploadBase64Images } from "./imageUpload.js";
+import { getOfflineSyncDocumentId } from "./offlineSyncPolicy.js";
 import { getCurrentRole } from "../permissions.js";
 import { fetchManagersAndAdminsApi } from "./usersApi.js";
 
@@ -57,7 +58,10 @@ import {
 /**
  * حفظ مقترح كايزن في مجموعة "suggestions"
  */
-export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = {}) {
+export async function saveSuggestionApi(
+  payload,
+  { skipOfflineQueue = false, idempotencyKey = null } = {}
+) {
   if (!skipOfflineQueue && typeof navigator !== "undefined" && !navigator.onLine) {
     try {
       const { queueOfflineAction } = await import("./offlineQueue.js");
@@ -80,33 +84,53 @@ export async function saveSuggestionApi(payload, { skipOfflineQueue = false } = 
     // صورة دفعة واحدة عبر "images" (الاسم الجديد)، ورفعها كلها على
     // ImgBB وتخزين الروابط فقط (imageUrls) بدل الـ Base64 الكامل
     const { image, images, ...restPayload } = payload;
+    const docRef = idempotencyKey
+      ? doc(db, "suggestions", getOfflineSyncDocumentId(idempotencyKey))
+      : doc(collection(db, "suggestions"));
+    if (idempotencyKey && (await getDoc(docRef)).exists()) {
+      return { status: "success", id: docRef.id, duplicate: true };
+    }
+
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
     const imageUrls = await uploadBase64Images(imageList, "suggestion_" + Date.now());
 
     // الرقم الموحد (KZ-001...) يُحجز ويُكتب مع المقترح في دفعة ذرّية واحدة
     const { commitWithSequence } = await import("./sequenceApi.js");
-    const docRef = doc(collection(db, "suggestions"));
-    const { unifiedNumber } = await commitWithSequence("suggestions", (batch, number) => batch.set(
-      docRef,
-      {
-        ...restPayload,
-        ...(imageUrls.length && { imageUrls }),
-        unifiedNumber: number, // الرقم الموحد الجديد: KZ-001
+    let unifiedNumber;
+    try {
+      ({ unifiedNumber } = await commitWithSequence("suggestions", (batch, number) => batch.set(
+        docRef,
+        {
+          ...restPayload,
+          ...(imageUrls.length && { imageUrls }),
+          unifiedNumber: number, // الرقم الموحد الجديد: KZ-001
 
-        // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
-        // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"
-        // اللي بتتحكم بس في العرض/الاسم الظاهر للآخرين، مش في توجيه
-        // إشعارات صاحب المقترح نفسه)
-        submittedByUid: localStorage.getItem("userId") || "",
+          // معرّف صاحب المقترح الحقيقي (UID) - مطلوب لتوجيه إشعارات
+          // تغيّر الحالة إليه لاحقاً (لا علاقة له بخاصية "مقترح مجهول"
+          // اللي بتتحكم بس في العرض/الاسم الظاهر للآخرين، مش في توجيه
+          // إشعارات صاحب المقترح نفسه)
+          submittedByUid: localStorage.getItem("userId") || "",
 
-        // مقترح جديد دايماً يبدأ "new" - أي قيمة status جاية من
-        // الواجهة بتتجاهل عمداً هنا (نفس ما تفرضه قاعدة create في
-        // firestore.rules) عشان محدش يقدر يبعت مقترح بحالة جاهزة
-        // مسبقاً (زي "implemented" مباشرة)
-        status: "new",
-        createdAt: new Date().toISOString()
+          // مقترح جديد دايماً يبدأ "new" - أي قيمة status جاية من
+          // الواجهة بتتجاهل عمداً هنا (نفس ما تفرضه قاعدة create في
+          // firestore.rules) عشان محدش يقدر يبعت مقترح بحالة جاهزة
+          // مسبقاً (زي "implemented" مباشرة)
+          status: "new",
+          createdAt: new Date().toISOString()
+        }
+      )));
+    } catch (writeError) {
+      if (idempotencyKey) {
+        try {
+          if ((await getDoc(docRef)).exists()) {
+            return { status: "success", id: docRef.id, duplicate: true };
+          }
+        } catch (verificationError) {
+          console.warn("[OfflineSync] Could not verify an idempotent suggestion:", verificationError);
+        }
       }
-    ));
+      throw writeError;
+    }
 
     // إصلاح (إشعارات): المقترح الجديد ما كانش بيبلّغ أي أدمن/مدير (بعكس
     // البلاغات الجديدة وإعادة الإرسال بعد التعديل) - الأدمن كان لازم يفتح

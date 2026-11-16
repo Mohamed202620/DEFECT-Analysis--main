@@ -260,6 +260,7 @@ function setDashboardSyncState(state) {
   const labels = {
     loading: homeTranslations.dashboardLoading,
     success: homeTranslations.dashboardUpdated,
+    cached: homeTranslations.dashboardCached,
     error: homeTranslations.dashboardLoadError,
     permissionDenied: homeTranslations.dashboardPermissionError
   };
@@ -267,7 +268,10 @@ function setDashboardSyncState(state) {
   if (status) status.textContent = labels[state];
   if (dot) {
     dot.classList.remove("bg-emerald-400", "bg-amber-400", "bg-red-400", "animate-pulse");
-    dot.classList.add(state === "success" ? "bg-emerald-400" : state === "loading" ? "bg-amber-400" : "bg-red-400");
+    dot.classList.add(
+      state === "success" ? "bg-emerald-400" :
+        state === "loading" || state === "cached" ? "bg-amber-400" : "bg-red-400"
+    );
   }
 }
 
@@ -335,10 +339,10 @@ async function _loadDashboardStatsImpl() {
   };
 
   window.dashboardData = stats;
-  setDashboardSyncState("success");
+  setDashboardSyncState(snapRes.data.cached ? "cached" : "success");
 
   // تصعيد البلاغات المتأخرة للمديرين (H6) - مرة واحدة لكل بلاغ/مدير
-  if (overdue > 0 && (role === 'admin' || role === 'manager' || role === 'supervisor')) {
+  if (!snapRes.data.cached && overdue > 0 && (role === 'admin' || role === 'manager' || role === 'supervisor')) {
     const overdueList = tickets.filter(t => isOverdueTicket(t));
     escalateOverdueTicketsApi(overdueList).catch(() => {});
   }

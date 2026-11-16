@@ -41,6 +41,9 @@ import {
 
 import { normalizeLine, extractMachineLine } from "../utils/lineUtils.js";
 
+function isMissingMachineTypesIndexError(error) {
+  return error?.code === "failed-precondition" && /index/i.test(String(error?.message || ""));
+}
 
 // إصلاح (Dead End - صلاحيات): شاشة إدارة الماكينات بتتفتح لأي مستخدم
 // معاه صلاحية "machines" (مش أدمن بس)، لكن قواعد Firestore
@@ -79,6 +82,7 @@ export async function fetchMachineTypesApi(filterDept = null) {
       const q = query(ref, orderBy("order", "asc"));
       snapshot = await getDocs(q);
     } catch (orderErr) {
+      if (!isMissingMachineTypesIndexError(orderErr)) throw orderErr;
       snapshot = await getDocs(ref);
     }
 
