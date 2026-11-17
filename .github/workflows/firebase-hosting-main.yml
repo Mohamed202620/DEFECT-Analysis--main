@@ -15,14 +15,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # Requires the GitHub Environment "production" with required reviewers.
-    # The production credential is released only after manual approval.
     environment: production
     permissions:
       contents: read
 
     steps:
       - name: Checkout repository
-        # actions/checkout v4 (pinned commit)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 2
@@ -40,14 +38,12 @@ jobs:
           fi
 
       - name: Set up Java for Firebase Emulator
-        # actions/setup-java v4.7.1 (pinned commit)
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00
         with:
           distribution: temurin
           java-version: 21
 
       - name: Set up Node.js
-        # actions/setup-node v4 (pinned commit)
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
@@ -60,12 +56,7 @@ jobs:
           key: ${{ runner.os }}-firebase-emulator-${{ hashFiles('package-lock.json', 'firebase.json') }}
 
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+        run: npm ci --no-audit --no-fund
 
       - name: Run tests and import checks
         run: npm test
@@ -73,7 +64,7 @@ jobs:
       - name: Run Firestore Emulator rules tests
         run: npm run test:rules
 
-      - name: Build project (syntax + assets + SW build id)
+      - name: Build project
         run: npm run build
 
       - name: Validate production deploy credential project
@@ -81,23 +72,26 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Firestore rules and indexes before Hosting
-        if: steps.firestore_changes.outputs.changed == 'true'
+      # Use the same normalized credential file for both deployments.
+      # Any failure stops the sequence; Hosting cannot run after a failed
+      # Firestore deployment. The temporary credential is always removed.
+      - name: Deploy Firestore (if changed), then Hosting
         shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_NORMALIZED: ${{ env.FIREBASE_SERVICE_ACCOUNT_NORMALIZED }}
+          FIRESTORE_CHANGED: ${{ steps.firestore_changes.outputs.changed }}
         run: |
           set -euo pipefail
           credential_file="$RUNNER_TEMP/firebase-production-sa.json"
           trap 'rm -f "$credential_file"' EXIT
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NORMALIZED" > "$credential_file"
+          chmod 600 "$credential_file"
           export GOOGLE_APPLICATION_CREDENTIALS="$credential_file"
-          npx firebase deploy --only firestore:rules,firestore:indexes --project maintenance-defect-system --non-interactive
 
-      - name: Deploy to Firebase Hosting
-        # FirebaseExtended/action-hosting-deploy v0 (pinned commit)
-        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
-        with:
-          firebaseServiceAccount: ${{ env.FIREBASE_SERVICE_ACCOUNT_NORMALIZED }}
-          projectId: maintenance-defect-system
-          channelId: live
-          target: main
-          disableComment: true
+          if [ "$FIRESTORE_CHANGED" = "true" ]; then
+            echo "Deploying Firestore rules and indexes first..."
+            npx firebase deploy --only firestore:rules,firestore:indexes --project maintenance-defect-system --non-interactive
+          fi
+
+          echo "Deploying Firebase Hosting target main..."
+          npx firebase deploy --only hosting:main --project maintenance-defect-system --non-interactive
