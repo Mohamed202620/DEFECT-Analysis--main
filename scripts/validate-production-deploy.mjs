@@ -59,9 +59,9 @@ export function validateProductionDeploymentConfig(env = process.env) {
   }
 
   serviceAccount.private_key = serviceAccount.private_key
-    .replace(/\\\\r\\\\n/g, "\n")
-    .replace(/\\\\n/g, "\n")
-    .replace(/\\\\r/g, "\n");
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n");
 
   if (
     serviceAccount.type !== "service_account" ||

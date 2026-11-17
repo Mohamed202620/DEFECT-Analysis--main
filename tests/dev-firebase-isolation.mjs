@@ -40,7 +40,7 @@ test("production workflow deploys sequentially to the only configured main targe
   assert.match(mainWorkflow, /GOOGLE_APPLICATION_CREDENTIALS/);
   assert.match(mainWorkflow, /firebase-production-deploy/);
   assert.match(mainWorkflow, /fetch-depth: 0/);
-  assert.match(mainWorkflow, /github\\.event\\.before/);
+  assert.match(mainWorkflow, /github\.event\.before/);
   assert.ok(mainWorkflow.indexOf("npm run test:rules") < mainWorkflow.indexOf("Deploy Firestore (if changed), then Hosting"));
 });
 
