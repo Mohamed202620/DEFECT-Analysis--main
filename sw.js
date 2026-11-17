@@ -28,7 +28,109 @@ const CORE_ASSETS = [
   './assets/icons/icon-512.png',
   './assets/branding/company-banner.png',
   './css/managerDesktop.css', // MGR-DESKTOP
-  './js/vendor/jsQR.js' // QR-IMPROVE
+  './js/vendor/jsQR.js', // QR-IMPROVE
+  // GENERATED_MODULE_ASSETS_START
+  './js/amTemplateManager.js',
+  './js/attendanceCard.js',
+  './js/attendancePatternManagement.js',
+  './js/auth/login.js',
+  './js/authHandlers.js',
+  './js/branding.js',
+  './js/companyHeaderConfig.js',
+  './js/components/ActionModal.js',
+  './js/components/BottomNav.js',
+  './js/components/NotificationsModal.js',
+  './js/components/PageView.js',
+  './js/components/Sidebar.js',
+  './js/components/TicketDetailsModal.js',
+  './js/components/attachmentPicker.js',
+  './js/components/headerComponent.js',
+  './js/config.js',
+  './js/dailyTips.js',
+  './js/errorScanner.js',
+  './js/firebase.js',
+  './js/firebaseDefaults.js',
+  './js/holidaysManagement.js',
+  './js/kaizenBoard.js',
+  './js/knowledgeBase.js',
+  './js/machines.js',
+  './js/maintenanceSearch.js',
+  './js/managerDesktopCore.js',
+  './js/notificationPermissionBanner.js',
+  './js/offlineBanner.js',
+  './js/pageRenderer.js',
+  './js/payrollLocalStore.js',
+  './js/permissions.js',
+  './js/providers/backend/firebaseBackendProvider.js',
+  './js/providers/backend/index.js',
+  './js/providers/storage/imgbbStorageProvider.js',
+  './js/providers/storage/index.js',
+  './js/providers/storage/serverProxyStorageProvider.js',
+  './js/pushNotifications.js',
+  './js/pushSubscription.js',
+  './js/renderCore.js',
+  './js/router.js',
+  './js/services/api.js',
+  './js/services/attendanceSettingsApi.js',
+  './js/services/checklistApi.js',
+  './js/services/crypto.js',
+  './js/services/dailyTipsApi.js',
+  './js/services/defectsApi.js',
+  './js/services/excelPatternParser.js',
+  './js/services/exportUtility.js',
+  './js/services/googleHolidaysSync.js',
+  './js/services/holidaysApi.js',
+  './js/services/imageUpload.js',
+  './js/services/machineErrorsApi.js',
+  './js/services/machinesApi.js',
+  './js/services/offlineQueue.js',
+  './js/services/offlineSyncPolicy.js',
+  './js/services/pmApi.js',
+  './js/services/suggestionsApi.js',
+  './js/services/ticketsApi.js',
+  './js/services/usersApi.js',
+  './js/statistics.js',
+  './js/theme.js',
+  './js/ticketStatusConstants.js',
+  './js/ticketsBoard.js',
+  './js/utils/departmentUtils.js',
+  './js/utils/errorRowsView.js',
+  './js/utils/escapeHtml.js',
+  './js/utils/lineUtils.js',
+  './js/utils/loadExternalScript.js',
+  './js/utils/machineErrorOcr.js',
+  './js/utils/managerDashboard.js',
+  './js/utils/phoneUtils.js',
+  './js/utils/pmSchedule.js',
+  './js/utils/qrPayload.js',
+  './js/utils/recordNumber.js',
+  './js/utils/reportData.js',
+  './js/views/ChecklistBuilderView.js',
+  './js/views/DailyAMView.js',
+  './js/views/DailyTipsSettingsView.js',
+  './js/views/ErrorScannerView.js',
+  './js/views/FiveSView.js',
+  './js/views/KnowledgeBaseView.js',
+  './js/views/MachineProfileView.js',
+  './js/views/MachinesView.js',
+  './js/views/MaintenanceSearchView.js',
+  './js/views/MaintenanceView.js',
+  './js/views/PmOrdersView.js',
+  './js/views/QrScannerView.js',
+  './js/views/RequestsView.js',
+  './js/views/StatsView.js',
+  './js/views/SystemView.js',
+  './js/views/homeView.js',
+  './js/views/issueView.js',
+  './js/views/loginView.js',
+  './js/views/managerDesktop/ManagerDesktopHome.js',
+  './js/views/managerDesktop/ManagerDesktopTickets.js',
+  './js/views/registerView.js',
+  './js/views/reportView.js',
+  './js/views/reportsView.js',
+  './js/views/suggestionView.js',
+  './js/workflow.js',
+  // GENERATED_MODULE_ASSETS_END
 ];
 
 // حدث التثبيت (Install Event)
@@ -44,13 +146,16 @@ self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("[SW] Caching Core Assets");
-      return cache.addAll(CORE_ASSETS).then(() =>
-        Promise.allSettled(
+      return Promise.allSettled(CORE_ASSETS.map((asset) => cache.add(asset))).then((results) => {
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') console.warn("[SW] Core asset unavailable:", CORE_ASSETS[index]);
+        });
+        return Promise.allSettled(
           OPTIONAL_CDN_WARMUP.map((url) =>
             fetch(url, { mode: 'no-cors' }).then((res) => cache.put(url, res))
           )
-        )
-      );
+        );
+      });
     })
   );
   self.skipWaiting(); // تفعيل النسخة الجديدة فوراً

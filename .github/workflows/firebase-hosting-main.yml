@@ -18,6 +18,15 @@ jobs:
       - name: Checkout repository
         # actions/checkout v4 (pinned tag commit)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+
+      - name: Require Firestore rules and indexes to be deployed separately
+        run: |
+          if git diff --name-only HEAD^ HEAD -- firestore.rules firestore.indexes.json | grep -q .; then
+            echo "::error::Firestore rules/indexes changed in this merge. Deploy them with the manual Firestore workflow before merging the Hosting release."
+            exit 1
+          fi
 
       - name: Set up Java for Firebase Emulator
         # actions/setup-java v4.7.1 (pinned tag commit)

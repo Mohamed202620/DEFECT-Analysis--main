@@ -332,9 +332,9 @@ export async function registerUserApi(userData) {
     const cleanCode = String(userData.code || "").trim();
 
     // كود الموظف هو "سر الاستعادة": المستخدم نفسه بيغيّر كلمة سره برقم هاتفه + الكود
-    // (مفيش أدمن بيعيّن كلمات سر). بنشترط ٣ أحرف على الأقل.
-    if (cleanCode.length < 3 || cleanCode.length > 40) {
-      return { status: "error", message: "كود الموظف يجب أن يكون بين ٣ و٤٠ حرفًا (يُستخدم لاستعادة كلمة السر)." };
+    // (مفيش أدمن بيعيّن كلمات سر). بنشترط ٦ أحرف على الأقل.
+    if (cleanCode.length < 6 || cleanCode.length > 40) {
+      return { status: "error", message: "كود الموظف يجب أن يكون بين ٦ و٤٠ حرفًا (يُستخدم لاستعادة كلمة السر)." };
     }
 
     if (cleanName.length < 2 || cleanName.length > 80) {

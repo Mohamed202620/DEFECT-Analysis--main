@@ -708,7 +708,7 @@ const handlers = {
   // تسجيل كود الموظف مجزّأً (مرة واحدة لكل حساب). بيتنادى وقت إنشاء الحساب بتوكن الحساب الجديد.
   async registerEmployeeCode(data, caller, env) {
     const code = normalizeCode(data?.code);
-    if (code.length < 3 || code.length > 40) throw new HttpError(400, "INVALID_ARGUMENT", "كود الموظف يجب أن يكون بين ٣ و٤٠ حرفًا.");
+    if (code.length < 6 || code.length > 40) throw new HttpError(400, "INVALID_ARGUMENT", "كود الموظف يجب أن يكون بين ٦ و٤٠ حرفًا.");
     const salt = randomHex(16);
     try {
       await fsCommit(env, [{
@@ -864,6 +864,14 @@ const PHONE_WINDOW_MS = 24 * 3600_000; // كل 24 ساعة
 const IP_ATTEMPTS = 40;               // طلبات لكل IP
 const IP_WINDOW_MS = 3600_000;        // كل ساعة
 
+function isPasswordResetRestrictedRole(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  return [
+    "admin", "superadmin", "administrator", "مدير النظام", "مدير نظام", "مدير", "ادمن", "مسؤول",
+    "manager", "supervisor"
+  ].includes(normalized);
+}
+
 async function resetPasswordWithEmployeeCode(data, request, env) {
   const { phone, code, newPassword } = data || {};
   const phoneInfo = normalizePhone(phone);
@@ -884,7 +892,7 @@ async function resetPasswordWithEmployeeCode(data, request, env) {
   const candidates = await fsRunQuery(env, {
     from: [{ collectionId: "users" }],
     where: { fieldFilter: { field: { fieldPath: "phone" }, op: "IN", value: { arrayValue: { values: phoneVariants(phone).map((v) => ({ stringValue: v })) } } } },
-    select: { fields: [{ fieldPath: "status" }] },
+    select: { fields: [{ fieldPath: "status" }, { fieldPath: "role" }] },
     limit: 5
   });
 
@@ -892,6 +900,7 @@ async function resetPasswordWithEmployeeCode(data, request, env) {
   for (const c of candidates) {
     const status = strField(c.fields.status);
     if (status !== "active" && status !== "pending") continue;
+    if (isPasswordResetRestrictedRole(strField(c.fields.role))) continue;
     const secret = await fsGetFields(env, `userSecrets/${c.id}`);
     if (!secret) continue;
     const expected = strField(secret.codeHash);

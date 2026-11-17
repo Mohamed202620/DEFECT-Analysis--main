@@ -35,7 +35,9 @@ The repository workflows currently trigger on pushes to their named branches. Re
 
 ## Publishing Firestore rules and indexes
 
-The Hosting workflow deploys Hosting only. Rules and indexes go out through the manual workflow `Deploy Firestore Rules and Indexes (manual)` (`.github/workflows/deploy-firestore-rules.yml`): run it from `main` after merging any change to `firestore.rules` or `firestore.indexes.json`. It runs the Emulator rules tests first and requires the `production` environment approval. Confirm the effective rules in Firebase Console afterwards.
+The Hosting workflow deploys Hosting only. Keep rules/indexes changes separate from the application Hosting release: if needed, merge a rules/indexes-only change first (the Hosting guard will stop that commit's Hosting deployment), then run the manual workflow `Deploy Firestore Rules and Indexes (manual)` (`.github/workflows/deploy-firestore-rules.yml`). Wait for its Emulator tests, production approval, and successful deployment; confirm the effective rules/indexes before merging the Hosting release to `main`.
+
+Keep the rules/indexes deployment separate from the Hosting merge. The main Hosting workflow compares the pushed commit with its parent and fails before deployment if either Firestore file changed in that same commit. Do not bypass this guard or configure Hosting to deploy Firestore resources automatically. After the rules/indexes are deployed and verified, merge the Hosting release to `main`.
 
 ## Firebase Hosting rollback
 

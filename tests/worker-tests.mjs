@@ -389,7 +389,8 @@ await t("registerEmployeeCode يخزّن هاشاً (لا نص صريح) مرة 
   const sec = secretOf("tech1"); assert.ok(sec.codeHash.stringValue.length === 64 && sec.salt.stringValue.length === 32);
   assert.ok(!JSON.stringify(sec).includes("7788"), "الكود ظاهر نصاً");
   assert.equal((await call("registerEmployeeCode", { code: "OTHER99" }, "tech1")).status, 409);   // مفيش استبدال
-  assert.equal((await call("registerEmployeeCode", { code: "12" }, "admin1")).status, 400);        // قصير
+  assert.equal((await call("registerEmployeeCode", { code: "ABCDE" }, "admin1")).status, 400);     // أقل من 6
+  assert.equal((await call("registerEmployeeCode", { code: "ABCDEF" }, "admin1")).status, 200);    // الحد الأدنى
   assert.equal((await call("registerEmployeeCode", { code: "EMP-7788" }, "")).status, 401);        // بدون توكن
 });
 await t("migrateEmployeeCodes: للأدمن فقط، ينقل الأكواد القديمة ويحذفها من users، ومتكرر بأمان", async () => {
@@ -420,11 +421,27 @@ await t("نجاح بدون تسجيل دخول: يتغير الباسورد، و
   assert.equal(u.body.localId, "vic"); assert.equal(u.body.password, "NewPass123"); assert.ok(u.body.validSince);
   assert.ok([...store.keys()].every((k) => !k.startsWith("resetAttempts/p_")), "عدّاد الرقم لم يُصفَّر");
 });
+await t("الحسابات الإدارية تُرفض برسالة عامة بعد استهلاك المحاولة", async () => {
+  for (const role of ["admin", "manager", "supervisor", "superadmin", "administrator", "مدير النظام", "مدير نظام", "مدير", "ادمن", "مسؤول"]) {
+    baseSetup();
+    setUser("privileged", role, "active", { phone: PHONE });
+    setAuth("privileged", PHONE);
+    assert.equal((await call("registerEmployeeCode", { code: "EMP-7788" }, "privileged")).status, 200);
+    calls.length = 0;
+
+    const r = await reset1(PHONE, "EMP-7788");
+    assert.equal(r.status, 403, role);
+    assert.equal(r.body.error.message, "رقم الهاتف أو كود الموظف غير صحيح.", role);
+    const attempt = [...store.entries()].find(([key]) => key.startsWith("resetAttempts/p_"));
+    assert.equal(attempt?.[1].n.integerValue, "1", `${role}: المحاولة لم تُحتسب`);
+    assert.ok(!calls.some((c) => c.t === "idt" && c.action === "update"), `${role}: تغيّرت كلمة السر`);
+  }
+});
 await t("يقبل صيغ مختلفة للرقم والكود (أرقام عربية، +20، حروف صغيرة، مسافات)", async () => {
   await setupVictim();
   assert.equal((await reset1("+20 100 123 4567", " emp-7788 ")).status, 200);
-  await setupVictim("٥٥٥٥");
-  assert.equal((await reset1("٠١٠٠١٢٣٤٥٦٧", "5555")).status, 200);
+  await setupVictim("٥٥٥٥٥٥");
+  assert.equal((await reset1("٠١٠٠١٢٣٤٥٦٧", "555555")).status, 200);
 });
 await t("كود خاطئ: رسالة عامة ولا يتغير الباسورد", async () => {
   await setupVictim();
@@ -465,8 +482,8 @@ await t("حد لكل IP: الطلب 41 من نفس الجهاز يُرفض حت�
 await t("مستند users برقم الضحية لحساب آخر لا يستولي على الحساب (ربط الهوية بإيميل الدخول)", async () => {
   await setupVictim();
   setUser("evil", "technician", "active", { phone: PHONE }); setAuth("evil", "01055550000");
-  assert.equal((await call("registerEmployeeCode", { code: "EVIL-1" }, "evil")).status, 200); calls.length = 0;
-  const r = await reset1(PHONE, "EVIL-1"); assert.equal(r.status, 403);
+  assert.equal((await call("registerEmployeeCode", { code: "EVIL11" }, "evil")).status, 200); calls.length = 0;
+  const r = await reset1(PHONE, "EVIL11"); assert.equal(r.status, 403);
   assert.ok(!calls.some((c) => c.t === "idt" && c.action === "update"), "اتغيّر باسورد!");
 });
 await t("حساب مرفوض (rejected) أو بدون كود مسجل لا يمكنه الاستعادة", async () => {

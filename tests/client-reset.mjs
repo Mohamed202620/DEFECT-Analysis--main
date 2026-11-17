@@ -59,6 +59,10 @@ console.log("ثوابت أمنية (فحص ساكن للكود)");
 const users = fs.readFileSync(new URL("../js/services/usersApi.js", import.meta.url), "utf8");
 const rules = fs.readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
 const reqView = fs.readFileSync(new URL("../js/views/RequestsView.js", import.meta.url), "utf8");
+await t("تسجيل كود الموظف يفرض ستة أحرف ويعرض الرسالة بالعربية", () => {
+  assert.match(users, /cleanCode\.length < 6 \|\| cleanCode\.length > 40/);
+  assert.match(users, /كود الموظف يجب أن يكون بين ٦ و٤٠ حرفًا/);
+});
 await t("كود الموظف لا يُكتب في مستند users، ويُسجَّل عبر السيرفر قبل إنشاء المستند", () => {
   const iDoc = users.indexOf('doc(regDb, "users"');
   const payload = users.slice(iDoc, users.indexOf("createdAt", iDoc));
