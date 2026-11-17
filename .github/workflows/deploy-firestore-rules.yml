@@ -1,8 +1,7 @@
 name: Deploy Firestore Rules and Indexes (manual)
 
-# نشر القواعد والفهارس يدوياً فقط (workflow_dispatch). ملف firebase-hosting-main.yml
-# بينشر Hosting فقط، فتغييرات firestore.rules / firestore.indexes.json ما بتوصلش
-# للإنتاج من غير الـ workflow ده. بيحتاج موافقة بيئة "production" قبل ما يوصل للـ credential.
+# Manual rules/indexes-only deployment. Shares a concurrency lock with the
+# production Hosting workflow to prevent overlapping Firebase deployments.
 
 on:
   workflow_dispatch:
@@ -11,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: firestore-rules-main
+  group: firebase-production-deploy
   cancel-in-progress: false
 
 jobs:
@@ -53,8 +52,11 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Firestore rules and indexes
+        shell: bash
         run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NORMALIZED" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          set -euo pipefail
+          credential_file="$RUNNER_TEMP/firebase-production-sa.json"
+          trap 'rm -f "$credential_file"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NORMALIZED" > "$credential_file"
+          export GOOGLE_APPLICATION_CREDENTIALS="$credential_file"
           npx firebase deploy --only firestore:rules,firestore:indexes --project maintenance-defect-system --non-interactive
-          rm -f "$RUNNER_TEMP/sa.json"
