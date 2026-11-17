@@ -1,6 +1,6 @@
 # MSCANCO Release and Recovery Runbook
 
-This runbook is for an authorized release operator. It documents procedures; the commands below have **not** been run against Firebase production. Never use production data or credentials for local Emulator tests.
+This runbook is for an authorized release operator. Commands in this document are procedures; they are not run against Firebase production unless explicitly stated. Never use production data or credentials for local Emulator tests.
 
 ## Pre-release checks
 
@@ -20,39 +20,49 @@ npm audit
 
 Review both audit results. Production-only auditing does not cover development and CI tools; unresolved high or critical findings in either dependency set require remediation or explicit documented risk acceptance before release.
 
-Before approval, verify the release artifact and commit, review the Firestore rules/index diff, check the Firebase Console project and Hosting target through an authorized read-only process, and confirm that the production rules match the reviewed source. Client-side configuration and this repository alone cannot prove the deployed Firebase state.
+Before approval, verify the release artifact and commit, review the Firestore rules/index diff, check the Firebase Console project and Hosting target through an authorized read-only process, and confirm the production rules match the reviewed source. Client-side configuration and this repository alone cannot prove the deployed Firebase state.
 
 ## Deployment approvals
 
 1. Deploy only from a reviewed pull request merged to the protected `main` branch.
-2. Require at least two independent approvals, including a code owner for authorization/rules changes. Require all checks, including `npm run test:rules`, to pass; dismiss stale approvals after new commits.
-3. Require an authorized production environment approval before the main Hosting workflow can access its deploy credential. Limit who can approve and who can modify workflow/branch protections.
+2. Require independent approvals and all required checks, including `npm run test:rules`; dismiss stale approvals after new commits.
+3. Require an authorized production environment approval before either production workflow can access its deploy credential. Limit who can approve and who can modify workflow/branch protections.
 4. Review the exact target project, Hosting site, changed assets, service-worker build ID, rules, indexes, and recovery point immediately before approval.
-5. For rules or indexes, use an explicit project selection and obtain a separate approval from the Firebase owner. Do not infer the active production project from a developer's local `.firebaserc`.
+5. Confirm the explicit production project ID. Do not infer the active production project from a developer's local `.firebaserc`.
 6. GitHub Actions in the deployment workflows are pinned to immutable commit SHAs. Re-verify their upstream source and release tag before changing a pin.
 
-The repository workflows currently trigger on pushes to their named branches. Repository protection and required-environment approvals are GitHub settings, not guaranteed by workflow YAML; an administrator must verify and configure them.
+The repository workflows trigger on pushes to `main` (Hosting) or manual dispatch (Firestore-only). Repository protection and required-environment approvals are GitHub settings, not guaranteed by workflow YAML; an administrator must verify and configure them.
 
-## Publishing Firestore rules and indexes
+## Publishing Firestore rules, indexes, and Hosting
 
-The Hosting workflow deploys Hosting only. Keep rules/indexes changes separate from the application Hosting release: if needed, merge a rules/indexes-only change first (the Hosting guard will stop that commit's Hosting deployment), then run the manual workflow `Deploy Firestore Rules and Indexes (manual)` (`.github/workflows/deploy-firestore-rules.yml`). Wait for its Emulator tests, production approval, and successful deployment; confirm the effective rules/indexes before merging the Hosting release to `main`.
+The main Hosting workflow performs the release in this order:
 
-Keep the rules/indexes deployment separate from the Hosting merge. The main Hosting workflow compares the pushed commit with its parent and fails before deployment if either Firestore file changed in that same commit. Do not bypass this guard or configure Hosting to deploy Firestore resources automatically. After the rules/indexes are deployed and verified, merge the Hosting release to `main`.
+1. Detect whether `firestore.rules` or `firestore.indexes.json` changed in the pushed commit.
+2. Install dependencies and run `npm test`, `npm run test:rules`, and `npm run build`.
+3. Validate that the production service account belongs to `maintenance-defect-system`.
+4. If Firestore rules or indexes changed, deploy only those resources and wait for Firebase CLI success.
+5. Deploy Firebase Hosting to the `main` target.
+
+The Hosting job requires approval of the GitHub `production` environment. A failure in tests, credential validation, Firestore deployment, or Hosting deployment stops the remaining steps. The workflow does not skip rules tests or silently continue to Hosting after a rules deployment failure.
+
+The separate manual workflow, `Deploy Firestore Rules and Indexes (manual)`, remains available for an explicitly requested rules/indexes-only deployment. It runs only from `main`, requires the same production environment approval, runs the Firestore Emulator rules tests, validates the production credential, and deploys only Firestore rules/indexes; it does not deploy Hosting.
+
+Both workflows share the same GitHub Actions concurrency group to prevent overlapping production Firebase deployments. Do not remove the production approval, tests, project validation, failure behavior, or concurrency lock to make a workflow appear green.
 
 ## Firebase Hosting rollback
 
 1. Announce an incident and pause further releases. Record the current Hosting release/version, affected site, commit, and incident owner.
 2. In Firebase Console, open **Hosting → the production site → Release history**.
 3. Select the last known-good release and use **Rollback**. Confirm the site/project shown in the console before approving.
-4. Verify the public site, sign-in, core ticket/PM workflows, and QR flow using approved smoke-test accounts. Record the new rollback release/version and time.
-5. Keep the failing version and logs for diagnosis. Do not delete releases or attempt to rewrite Git history.
+4. Verify the public site, sign-in, core ticket/PM workflows, and QR flow using approved smoke-test accounts. Record the rollback release/version and time.
+5. Keep the failing version and logs for diagnosis. Do not delete releases or rewrite Git history.
 
 Hosting rollback restores hosted files only. It does not roll back Firestore rules, indexes, user data, Cloud Functions, or a Cloudflare Worker.
 
 ## Firestore rules and indexes recovery
 
-1. Identify the last reviewed commit containing the known-good `firestore.rules` and `firestore.indexes.json`. Preserve the current versions for incident analysis.
-2. Ask the Firebase owner to confirm the exact target project and approve the recovery. Do not use an implicit/default project.
+1. Identify the last reviewed commit containing the known-good `firestore.rules` and `firestore.indexes.json`. Preserve current versions for incident analysis.
+2. Ask the Firebase owner to confirm the exact target project and approve recovery. Do not use an implicit/default project.
 3. From a clean checkout of the selected commit, run the Emulator rules suite and inspect the index diff before any production action.
 4. With a separately authorized production credential and explicit project ID, deploy only the needed resources:
 
@@ -63,7 +73,7 @@ Hosting rollback restores hosted files only. It does not roll back Firestore rul
    Omit either resource selector if that resource does not require recovery. Never include Hosting or Functions unless separately approved.
 5. Verify the effective rules and index state in Firebase Console or another authorized read-only method. Keep the deployment result and commit in the incident record.
 
-Rules/index rollback can immediately change which operations clients may perform. Check for index build completion and expected query behavior before closing the incident.
+Rules/index rollback can immediately change which operations clients may perform. Check index build completion and expected query behavior before closing the incident.
 
 ## Firestore data backup and restore
 
@@ -72,7 +82,7 @@ Rules/index rollback can immediately change which operations clients may perform
 - Enable and periodically test Firestore point-in-time recovery and/or scheduled backups for the production database, after the data owner approves retention and cost.
 - Keep on-demand exports in a restricted Cloud Storage bucket with versioning/retention, access logging, and a location appropriate to the Firestore database. A backup in the same failure domain is not sufficient by itself.
 - Before a high-risk migration or release, record the latest successful backup/export ID, timestamp, project, database, retention deadline, and a successful restore-test reference.
-- A Firestore export is a recovery input, not proof of a tested restore. Practice importing into an isolated recovery project and validate record counts and critical relationships.
+- An export is a recovery input, not proof of a tested restore. Practice importing into an isolated recovery project and validate record counts and critical relationships.
 
 ### On-demand export
 
@@ -107,7 +117,7 @@ Never run import/restore commands against production as a test. This repository 
 - Confirm the production Hosting release/version and serving site.
 - Verify Authentication, an authorized ticket lifecycle, PM submission, notification privacy, and QR scan-to-checklist submission with approved test accounts and data.
 - Confirm the reviewed rules/indexes were actually deployed; check rules/indexes separately from the Hosting release.
-- Monitor Firebase/Worker error rates and permission-denied events. Keep the rollback release and backup references available until the release owner closes the window.
+- Monitor Firebase/Worker error rates and permission-denied events. Keep rollback release and backup references available until the release owner closes the window.
 
 ## Sequential record numbers: reset before official launch
 
@@ -132,7 +142,7 @@ The function only writes `counters/*`. It refuses (per type) while any record wi
    npx wrangler deploy --env production
    ```
 
-   (Use the environment that matches production; confirm the target account and Worker name before running.)
+   Use the environment that matches production; confirm the target account and Worker name before running.
 3. Verify Worker health (e.g. `/health` or equivalent), CORS, push/VAPID flow, and secret handling with approved test data. Confirm no secrets were printed in logs.
-4. If the Worker must be taken offline, revert to the previous deployment via the Cloudflare dashboard's version history or `wrangler rollback` (where available) rather than editing code ad hoc.
+4. If the Worker must be taken offline, revert to the previous deployment via Cloudflare dashboard version history or `wrangler rollback` (where available) rather than editing code ad hoc.
 5. Record deployment ID, commit, operator, approver, and verification evidence in the incident record. Worker rollback does not roll back Firestore rules, indexes, Hosting, or data.
