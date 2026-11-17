@@ -32,6 +32,7 @@
 
 import { uploadBase64Images } from "./imageUpload.js";
 import { getOfflineSyncDocumentId } from "./offlineSyncPolicy.js";
+import { stableNotificationId } from "./notificationIds.js";
 import { getCurrentRole } from "../permissions.js";
 import { fetchManagersAndAdminsApi } from "./usersApi.js";
 
@@ -39,6 +40,7 @@ import {
   db,
   collection,
   addDoc,
+  setDoc,
   getDocs,
   getDoc,
   doc,
@@ -87,8 +89,14 @@ export async function saveSuggestionApi(
     const docRef = idempotencyKey
       ? doc(db, "suggestions", getOfflineSyncDocumentId(idempotencyKey))
       : doc(collection(db, "suggestions"));
-    if (idempotencyKey && (await getDoc(docRef)).exists()) {
-      return { status: "success", id: docRef.id, duplicate: true };
+    if (idempotencyKey) {
+      const existing = await getDoc(docRef);
+      if (existing.exists()) {
+        notifyAdminsOfNewSuggestion(docRef.id, existing.data()).catch(error => {
+          console.error("Error notifying admins of duplicate suggestion:", error);
+        });
+        return { status: "success", id: docRef.id, duplicate: true };
+      }
     }
 
     const imageList = Array.isArray(images) ? images : (image ? [image] : []);
@@ -122,7 +130,11 @@ export async function saveSuggestionApi(
     } catch (writeError) {
       if (idempotencyKey) {
         try {
-          if ((await getDoc(docRef)).exists()) {
+          const existing = await getDoc(docRef);
+          if (existing.exists()) {
+            notifyAdminsOfNewSuggestion(docRef.id, existing.data()).catch(error => {
+              console.error("Error notifying admins of duplicate suggestion:", error);
+            });
             return { status: "success", id: docRef.id, duplicate: true };
           }
         } catch (verificationError) {
@@ -305,10 +317,10 @@ async function updateSuggestionWithLog(suggestionId, updateData, logData) {
 // نفس الشكل بالظبط اللي بيستخدمه createNotification في ticketsApi.js:
 // forUid/type/message/read/createdAt)، فقط بحقل suggestionId بدل
 // ticketId عشان نفرّق مصدر الإشعار - بدون أي نظام إشعارات موازٍ
-async function createSuggestionNotification(forUid, { type, message, suggestionId }) {
+async function createSuggestionNotification(forUid, { type, message, suggestionId, deduplicate = false }) {
   if (!forUid) return;
   try {
-    await addDoc(collection(db, "notifications"), {
+    const notification = {
       forUid,
       type,
       message: String(message || "").slice(0, 500),
@@ -316,7 +328,18 @@ async function createSuggestionNotification(forUid, { type, message, suggestionI
       read: false,
       createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
-    });
+    };
+    if (deduplicate && suggestionId) {
+      const notificationId = await stableNotificationId("sn", suggestionId, forUid);
+      const notificationRef = doc(db, "notifications", notificationId);
+      try {
+        await setDoc(notificationRef, notification);
+      } catch (writeError) {
+        if (writeError?.code !== "permission-denied") throw writeError;
+      }
+      return;
+    }
+    await addDoc(collection(db, "notifications"), notification);
   } catch (error) {
     console.error("Error creating suggestion notification:", error);
   }
@@ -364,7 +387,8 @@ async function notifyAdminsOfNewSuggestion(suggestionId, suggestion) {
         createSuggestionNotification(admin.id, {
           type: "new_suggestion",
           message: `مقترح كايزن جديد "${suggestion?.title || ""}"${label}`,
-          suggestionId
+          suggestionId,
+          deduplicate: true
         })
       )
   );

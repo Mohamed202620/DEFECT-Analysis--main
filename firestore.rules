@@ -828,6 +828,65 @@ service cloud.firestore {
     // القراءة فعلياً على مستوى القاعدة لصاحب الإشعار (forUid) أو
     // الأدمن/المدير، ويقيّد التعديل على تحديث حقل read بس من صاحبه.
     // ==========================================================
+    function notificationRecipientIsManagement(uid) {
+      let recipientPath = /databases/$(database)/documents/users/$(uid);
+      return exists(recipientPath)
+          && get(recipientPath).data.status == "active"
+          && get(recipientPath).data.role in ["admin", "manager", "supervisor"];
+    }
+
+    function notificationRecipientIsActive(uid) {
+      let recipientPath = /databases/$(database)/documents/users/$(uid);
+      return exists(recipientPath) && get(recipientPath).data.status == "active";
+    }
+
+    function notificationTicketContextAllowed() {
+      let ticketPath = /databases/$(database)/documents/tickets/$(request.resource.data.ticketId);
+      return request.resource.data.type in [
+            "assigned", "closed", "declined", "new_ticket", "rejected",
+            "resolved", "escalated", "released", "shift_update"
+          ]
+          && request.resource.data.ticketId is string
+          && request.resource.data.ticketId.size() > 0
+          && exists(ticketPath)
+          && (
+            get(ticketPath).data.get("reportedByUid", "") == request.auth.uid
+            || get(ticketPath).data.get("assignedToUid", "") == request.auth.uid
+            || isMaintenanceReviewer()
+          )
+          && (
+            request.resource.data.forUid == get(ticketPath).data.get("reportedByUid", "")
+            || request.resource.data.forUid == get(ticketPath).data.get("assignedToUid", "")
+            || notificationRecipientIsManagement(request.resource.data.forUid)
+            || (
+              request.resource.data.type == "declined"
+              && isMaintenanceReviewer()
+              && notificationRecipientIsActive(request.resource.data.forUid)
+            )
+          );
+    }
+
+    function notificationSuggestionContextAllowed() {
+      let suggestionPath = /databases/$(database)/documents/suggestions/$(request.resource.data.suggestionId);
+      return request.resource.data.type in [
+            "assigned", "implemented", "in_progress", "new_suggestion",
+            "rejected", "resubmitted", "revision_requested", "under_review"
+          ]
+          && request.resource.data.suggestionId is string
+          && request.resource.data.suggestionId.size() > 0
+          && exists(suggestionPath)
+          && (
+            get(suggestionPath).data.get("submittedByUid", "") == request.auth.uid
+            || get(suggestionPath).data.get("assignedToUid", "") == request.auth.uid
+            || isMaintenanceReviewer()
+          )
+          && (
+            request.resource.data.forUid == get(suggestionPath).data.get("submittedByUid", "")
+            || request.resource.data.forUid == get(suggestionPath).data.get("assignedToUid", "")
+            || notificationRecipientIsManagement(request.resource.data.forUid)
+          );
+    }
+
     match /notifications/{notificationId} {
 
       // قراءة (get/list): صاحب الإشعار (forUid) فقط، أو أدمن/مدير
@@ -836,14 +895,10 @@ service cloud.firestore {
                   && (resource.data.forUid == request.auth.uid
                       || isAdmin() || isManagerRole());
 
-      // إنشاء: أي مستخدم مفعّل يقدر يبعت إشعار لمستخدم تاني (زي
-      // إسناد تذكرة/مقترح لفني - createNotification بتتنفذ من جهاز
-      // المُسنِد مش من سيرفر خلفي)، لازم forUid ومحتوى الإشعار
-      // الأساسي موجودين
-      // أمان (C1): كان بيقبل أي type/message/حقول - ده كان قناة Stored XSS.
-      // دلوقتي: حقول محددة فقط، type من قائمة معروفة، message بطول محدود،
-      // وcreatedByUid (لو اتبعت) لازم يكون هو المرسل الفعلي.
+      // إنشاء: اربط الإشعار بتذكرة أو مقترح موجود، واقصر المرسل والمستلم
+      // على أصحاب المورد أو المراجعين/الإدارة النشطين.
       allow create: if isActive()
+                    && request.resource.data.keys().hasAll(["forUid", "type", "message", "read", "createdByUid"])
                     && request.resource.data.keys().hasOnly(
                          ["forUid", "type", "message", "ticketId", "suggestionId", "read", "createdAt", "createdByUid"])
                     && request.resource.data.forUid is string
@@ -852,13 +907,25 @@ service cloud.firestore {
                     && request.resource.data.type in [
                          "assigned", "closed", "declined", "implemented", "in_progress",
                          "new_suggestion", "new_ticket", "rejected", "resolved", "resubmitted",
-                         "revision_requested", "under_review", "escalated", "released", "pattern", "shift_update"
+                         "revision_requested", "under_review", "escalated", "released", "shift_update"
                        ]
                     && request.resource.data.message is string
                     && request.resource.data.message.size() > 0
                     && request.resource.data.message.size() <= 500
-                    && request.resource.data.get("createdByUid", request.auth.uid) == request.auth.uid
-                    && request.resource.data.read == false;
+                    && request.resource.data.createdByUid == request.auth.uid
+                    && request.resource.data.read == false
+                    && (
+                      (
+                        request.resource.data.keys().hasAny(["ticketId"])
+                        && !request.resource.data.keys().hasAny(["suggestionId"])
+                        && notificationTicketContextAllowed()
+                      )
+                      || (
+                        request.resource.data.keys().hasAny(["suggestionId"])
+                        && !request.resource.data.keys().hasAny(["ticketId"])
+                        && notificationSuggestionContextAllowed()
+                      )
+                    );
 
       // تعديل: صاحب الإشعار بس، وبس حقل read (markNotificationReadApi/
       // markAllNotificationsAsRead) - ممنوع أي تعديل تاني على المحتوى

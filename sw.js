@@ -83,6 +83,7 @@ const CORE_ASSETS = [
   './js/services/imageUpload.js',
   './js/services/machineErrorsApi.js',
   './js/services/machinesApi.js',
+  './js/services/notificationIds.js',
   './js/services/offlineQueue.js',
   './js/services/offlineSyncPolicy.js',
   './js/services/pmApi.js',
@@ -325,7 +326,11 @@ self.addEventListener('notificationclick', (e) => {
       }
 
       if (self.clients.openWindow) {
-        return self.clients.openWindow('./');
+        const target = new URL('./', self.location.href);
+        if (data.notificationId) target.searchParams.set('notificationId', data.notificationId);
+        if (data.ticketId) target.searchParams.set('ticketId', data.ticketId);
+        if (data.suggestionId) target.searchParams.set('suggestionId', data.suggestionId);
+        return self.clients.openWindow(target.toString());
       }
 
     })

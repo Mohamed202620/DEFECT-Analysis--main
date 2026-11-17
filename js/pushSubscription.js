@@ -62,18 +62,37 @@ export async function ensurePushSubscription() {
 
 // Called on logout so a shared phone stops receiving the previous user's alerts.
 export async function unregisterPushSubscription() {
+  const uid = localStorage.getItem("userId");
+  let endpoint = "";
   try {
-    if (!isPushSupported()) return;
-    const reg = await navigator.serviceWorker.getRegistration();
-    const sub = reg && (await reg.pushManager.getSubscription());
-    if (!sub) return;
-    await Promise.race([
-      callCloudFunction("unregisterPushSubscription", { endpoint: sub.endpoint }),
-      new Promise((resolve) => setTimeout(resolve, 2000))
-    ]);
-    const uid = localStorage.getItem("userId");
-    if (uid) localStorage.removeItem(REG_KEY_PREFIX + uid);
+    if (isPushSupported()) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && (await reg.pushManager.getSubscription());
+      if (sub) {
+        endpoint = sub.endpoint;
+        try {
+          await sub.unsubscribe();
+        } catch (error) {
+          console.warn("Local push unsubscribe skipped:", error && error.message);
+        }
+      }
+    }
   } catch (error) {
     console.warn("Push unsubscribe skipped:", error && error.message);
+  } finally {
+    if (uid) localStorage.removeItem(REG_KEY_PREFIX + uid);
+  }
+
+  if (!endpoint || navigator.onLine === false) return;
+  let timer;
+  try {
+    await Promise.race([
+      callCloudFunction("unregisterPushSubscription", { endpoint }),
+      new Promise((resolve) => { timer = setTimeout(resolve, 2000); })
+    ]);
+  } catch (error) {
+    console.warn("Remote push unsubscribe skipped:", error && error.message);
+  } finally {
+    clearTimeout(timer);
   }
 }

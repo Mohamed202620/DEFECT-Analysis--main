@@ -568,28 +568,105 @@ test("notification reads and updates stay scoped to the recipient", async () => 
   await assertFails(updateDoc(doc(dbFor("technician"), "notifications/for-reporter"), { read: true }));
 });
 
-test("active users may send only well-formed notifications attributed to themselves", async () => {
-  const reporterDb = dbFor("reporter");
-  await assertSucceeds(setDoc(doc(reporterDb, "notifications/to-manager"), {
-    forUid: "manager",
-    type: "new_ticket",
-    message: "A new ticket was reported",
-    read: false,
-    createdByUid: "reporter"
+test("notification types used by ticket and suggestion workflows require matching participants", async () => {
+  await seed("tickets/notification-ticket", ticket({
+    assignedToUid: "technician",
+    assignedTo: "Technician"
   }));
-  await assertFails(setDoc(doc(reporterDb, "notifications/forged-sender"), {
+  await seed("suggestions/notification-suggestion", {
+    submittedByUid: "reporter",
+    assignedToUid: "technician",
+    status: "in_progress"
+  });
+
+  const create = (id, uid, forUid, type, resource) => setDoc(
+    doc(dbFor(uid), `notifications/${id}`),
+    {
+      forUid,
+      type,
+      message: `Notification: ${type}`,
+      ...resource,
+      read: false,
+      createdByUid: uid,
+      createdAt: "2026-10-11T09:00:00.000Z"
+    }
+  );
+  const ticketNotifications = [
+    ["shift_update", "technician", "manager"],
+    ["new_ticket", "reporter", "manager"],
+    ["assigned", "manager", "technician"],
+    ["declined", "manager", "technician"],
+    ["resolved", "technician", "reporter"],
+    ["closed", "reporter", "technician"],
+    ["rejected", "manager", "technician"],
+    ["released", "admin", "manager"],
+    ["escalated", "manager", "supervisor"]
+  ];
+  for (const [index, [type, uid, forUid]] of ticketNotifications.entries()) {
+    await assertSucceeds(create(`ticket-${index}`, uid, forUid, type, { ticketId: "notification-ticket" }), type);
+  }
+
+  const suggestionNotifications = [
+    ["new_suggestion", "reporter", "manager"],
+    ["resubmitted", "reporter", "manager"],
+    ["under_review", "admin", "reporter"],
+    ["rejected", "admin", "reporter"],
+    ["revision_requested", "admin", "reporter"],
+    ["in_progress", "admin", "reporter"],
+    ["assigned", "admin", "technician"],
+    ["implemented", "technician", "reporter"]
+  ];
+  for (const [index, [type, uid, forUid]] of suggestionNotifications.entries()) {
+    await assertSucceeds(create(`suggestion-${index}`, uid, forUid, type, { suggestionId: "notification-suggestion" }), type);
+  }
+});
+
+test("notifications reject unrelated recipients, unlinked resources, forged creators, and unused types", async () => {
+  await seed("tickets/notification-ticket", ticket({ assignedToUid: "technician" }));
+  await seed("suggestions/notification-suggestion", {
+    submittedByUid: "reporter",
+    assignedToUid: "technician",
+    status: "in_progress"
+  });
+
+  const write = (id, uid, values) => setDoc(
+    doc(dbFor(uid), `notifications/${id}`),
+    { type: "new_ticket", message: "A new ticket was reported", read: false, ...values }
+  );
+  const base = { forUid: "manager", createdByUid: "reporter", ticketId: "notification-ticket" };
+  await assertFails(write("unrelated-recipient", "reporter", { ...base, forUid: "operator" }));
+  await assertFails(write("unrelated-sender", "operator", base));
+  await assertFails(write("missing-resource", "reporter", { forUid: "manager", createdByUid: "reporter" }));
+  await assertFails(write("forged-creator", "reporter", { ...base, createdByUid: "manager" }));
+  await assertFails(write("missing-creator", "reporter", {
     forUid: "manager",
-    type: "new_ticket",
-    message: "A new ticket was reported",
-    read: false,
-    createdByUid: "manager"
+    ticketId: "notification-ticket"
   }));
-  await assertFails(setDoc(doc(reporterDb, "notifications/extra-field"), {
+  await assertFails(write("unused-type", "reporter", {
+    forUid: "manager",
+    createdByUid: "reporter",
+    ticketId: "notification-ticket",
+    type: "pattern"
+  }));
+  await assertFails(write("ticket-type-on-suggestion", "reporter", {
+    forUid: "manager",
+    createdByUid: "reporter",
+    suggestionId: "notification-suggestion",
+    type: "new_ticket"
+  }));
+  await assertFails(write("suggestion-type-on-ticket", "reporter", {
+    forUid: "manager",
+    createdByUid: "reporter",
+    ticketId: "notification-ticket",
+    type: "new_suggestion"
+  }));
+  await assertFails(setDoc(doc(dbFor("reporter"), "notifications/extra-field"), {
     forUid: "manager",
     type: "new_ticket",
     message: "A new ticket was reported",
     read: false,
     createdByUid: "reporter",
+    ticketId: "notification-ticket",
     arbitrary: true
   }));
 });

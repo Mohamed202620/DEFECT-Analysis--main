@@ -22,8 +22,15 @@ const t = async (name, fn) => {
 
 // ---------- escapeHtml ----------
 const { escapeHtml, escapeJsArg, safeUrl } = await import("../js/utils/escapeHtml.js");
+const { stableNotificationId } = await import("../js/services/notificationIds.js");
 const { parseQrPayload } = await import("../js/utils/qrPayload.js");
 console.log("escapeHtml");
+await t("notification retries reuse a stable Worker-compatible ID without crossing recipients", async () => {
+  const first = await stableNotificationId("tn", "ticket-123", "manager-1");
+  assert.equal(first, await stableNotificationId("tn", "ticket-123", "manager-1"));
+  assert.notEqual(first, await stableNotificationId("tn", "ticket-123", "manager-2"));
+  assert.match(first, /^[A-Za-z0-9]{34}$/);
+});
 await t("يهرّب وسوم HTML وعلامات التنصيص", () => {
   assert.equal(escapeHtml(`<img src=x onerror=alert(1)>`), "&lt;img src=x onerror=alert(1)&gt;");
   assert.equal(escapeHtml(`" onmouseover="x`), "&quot; onmouseover=&quot;x");

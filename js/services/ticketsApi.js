@@ -33,6 +33,7 @@ import {
 // usersApi.js (مش من services/api.js) عشان نتجنب Circular Import، بما
 // إن api.js نفسه بيعمل Re-export من ticketsApi.js
 import { fetchManagersAndAdminsApi } from "./usersApi.js";
+import { stableNotificationId } from "./notificationIds.js";
 
 import {
   db,
@@ -172,6 +173,9 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
         // لو المستند موجود بالفعل (إعادة محاولة بعد نجاح ضاع ردّه) نعتبرها نجاح
         const existing = await getDoc(docRef);
         if (existing.exists() && existing.data().reportedByUid === reporterUid) {
+          notifyManagersOfNewTicket(ticketDocId, existing.data()).catch(error => {
+            console.error("Error notifying managers of duplicate ticket:", error);
+          });
           return { status: "success", id: ticketDocId, duplicate: true };
         }
       } catch (_) { /* القراءة مساعدة فقط (قد تفشل أوفلاين) */ }
@@ -192,6 +196,9 @@ export async function saveIssueApi(payload, { skipOfflineQueue = false } = {}) {
         try {
           const again = await getDoc(docRef);
           if (again.exists() && again.data().reportedByUid === reporterUid) {
+            notifyManagersOfNewTicket(ticketDocId, again.data()).catch(error => {
+              console.error("Error notifying managers of duplicate ticket:", error);
+            });
             return { status: "success", id: ticketDocId, duplicate: true };
           }
         } catch (_) { /* نكمل ونرمي الخطأ الأصلي */ }
@@ -1435,16 +1442,32 @@ function triggerPushForNotification(notificationId, forUid) {
   try {
     if (!notificationId || forUid === localStorage.getItem("userId")) return;
     if (navigator.onLine === false || Date.now() < pushSendBackoffUntil) return;
-    callCloudFunction("sendPushNotification", { notificationId }).catch(() => {
-      pushSendBackoffUntil = Date.now() + 10 * 60 * 1000;
-    });
+    const sendWithRetry = async (attempt = 0) => {
+      try {
+        const result = await callCloudFunction("sendPushNotification", { notificationId });
+        if (result?.sent > 0 || !result?.failed) return;
+        if (attempt === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return sendWithRetry(1);
+        }
+        pushSendBackoffUntil = Date.now() + 10 * 60 * 1000;
+      } catch (error) {
+        if (attempt === 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return sendWithRetry(1);
+        }
+        pushSendBackoffUntil = Date.now() + 10 * 60 * 1000;
+        console.warn("Push notification retry failed:", error && error.message);
+      }
+    };
+    sendWithRetry();
   } catch (_) { /* ignore */ }
 }
 
-async function createNotification(forUid, { type, message, ticketId }) {
+async function createNotification(forUid, { type, message, ticketId, deduplicate = false }) {
   if (!forUid) return;
   try {
-    const notifRef = await addDoc(collection(db, "notifications"), {
+    const notification = {
       forUid,
       type,
       // الحد 500 حرف مطابق لقاعدة Firestore (notifications.create)
@@ -1453,7 +1476,19 @@ async function createNotification(forUid, { type, message, ticketId }) {
       read: false,
       createdByUid: localStorage.getItem("userId") || "",
       createdAt: new Date().toISOString()
-    });
+    };
+    if (deduplicate && ticketId) {
+      const notificationId = await stableNotificationId("tn", ticketId, forUid);
+      const notificationRef = doc(db, "notifications", notificationId);
+      try {
+        await setDoc(notificationRef, notification);
+      } catch (writeError) {
+        if (writeError?.code !== "permission-denied") throw writeError;
+      }
+      triggerPushForNotification(notificationId, forUid);
+      return;
+    }
+    const notifRef = await addDoc(collection(db, "notifications"), notification);
     triggerPushForNotification(notifRef && notifRef.id, forUid);
   } catch (error) {
     console.error("Error creating notification:", error);
@@ -1489,7 +1524,8 @@ async function notifyManagersOfNewTicket(ticketId, ticketData) {
       createNotification(manager.id, {
         type: "new_ticket",
         message,
-        ticketId
+        ticketId,
+        deduplicate: true
       })
     )
   );

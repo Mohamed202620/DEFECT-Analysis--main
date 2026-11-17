@@ -27,6 +27,8 @@ async function makeToken(uid, over = {}, key = googleKeys.privateKey) {
 const store = new Map();                 // "users/abc" -> fields (صيغة Firestore JSON)
 const authEmails = new Map();            // uid -> email (حسابات الدخول)
 const calls = [];
+let pushDeliveryStatuses = [];
+let pushDeliveryCount = 0;
 const S = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === "number" ? { integerValue: String(v) } : typeof v === "boolean" ? { booleanValue: v } : { stringValue: String(v) }]));
 const setUser = (id, role, status, extra = {}) => { store.set(`users/${id}`, S({ role, status, name: id, permissions: "", ...extra })); };
 const setAuth = (id, phone) => authEmails.set(id, `${phone}@${DOMAIN}`);
@@ -46,6 +48,11 @@ const matchFilter = (fields, f) => {
 
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
+  if (url.startsWith("https://fcm.googleapis.com/fcm/send/")) {
+    pushDeliveryCount++;
+    const status = pushDeliveryStatuses.shift() ?? 201;
+    return new Response(status === 201 ? "" : "temporary push failure", { status });
+  }
   if (url.includes("identitytoolkit.googleapis.com") && url.includes("accounts:signUp")) {
     const body = JSON.parse(opts.body);
     calls.push({ t: "idt", action: "signUp", body });
@@ -143,14 +150,14 @@ const env = {
 };
 const ORIGIN = "https://maintenance-defect-system.web.app";
 
-async function call(fn, data, tokenOrUid, headers = {}) {
+async function call(fn, data, tokenOrUid, headers = {}, requestEnv = env) {
   const token = tokenOrUid && tokenOrUid.includes(".") ? tokenOrUid : (tokenOrUid ? await makeToken(tokenOrUid) : "");
   const req = new Request(`https://w.example/${fn}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: ORIGIN, ...(token && { Authorization: `Bearer ${token}` }), ...headers },
     body: JSON.stringify({ data })
   });
-  const res = await worker.fetch(req, env);
+  const res = await worker.fetch(req, requestEnv);
   return { status: res.status, body: await res.json() };
 }
 
@@ -540,6 +547,72 @@ await t("push: VAPID header carries a valid ES256 signature", async () => {
   assert.ok(m); assert.equal(m[4], vEnv.VAPID_PUBLIC_KEY);
   assert.equal(JSON.parse(Buffer.from(m[2], "base64url")).aud, "https://fcm.googleapis.com");
   assert.ok(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, kp.publicKey, Buffer.from(m[3], "base64url"), new TextEncoder().encode(`${m[1]}.${m[2]}`)));
+});
+await t("push failure is retryable; a successful delivery prevents further duplicates", async () => {
+  baseSetup();
+  const vapid = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const client = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const vapidPublic = b64u(new Uint8Array(await crypto.subtle.exportKey("raw", vapid.publicKey)));
+  const vapidPrivate = (await crypto.subtle.exportKey("jwk", vapid.privateKey)).d;
+  const clientPublic = b64u(new Uint8Array(await crypto.subtle.exportKey("raw", client.publicKey)));
+  const authSecret = b64u(crypto.getRandomValues(new Uint8Array(16)));
+  const pushEnv = { ...env, VAPID_PUBLIC_KEY: vapidPublic, VAPID_PRIVATE_KEY: vapidPrivate };
+  store.set("notifications/pushattempt123", S({
+    forUid: "admin1",
+    createdByUid: "tech1",
+    type: "assigned",
+    message: "Assigned ticket",
+    ticketId: "ticket-1"
+  }));
+  store.set("pushSubscriptions/subscription1", S({
+    uid: "admin1",
+    endpoint: "https://fcm.googleapis.com/fcm/send/subscription1",
+    p256dh: clientPublic,
+    auth: authSecret
+  }));
+
+  pushDeliveryStatuses = [503, 201];
+  pushDeliveryCount = 0;
+  const failed = await call("sendPushNotification", { notificationId: "pushattempt123" }, "tech1", {}, pushEnv);
+  assert.equal(failed.status, 200);
+  assert.equal(failed.body.result.sent, 0);
+  assert.equal(failed.body.result.failed, 1);
+  assert.equal(store.get("notifications/pushattempt123").pushedAt, undefined);
+
+  const retried = await call("sendPushNotification", { notificationId: "pushattempt123" }, "tech1", {}, pushEnv);
+  assert.equal(retried.status, 200);
+  assert.equal(retried.body.result.sent, 1);
+  assert.ok(store.get("notifications/pushattempt123").pushedAt);
+
+  const duplicate = await call("sendPushNotification", { notificationId: "pushattempt123" }, "tech1", {}, pushEnv);
+  assert.equal(duplicate.body.result.sent, 0);
+  assert.equal(pushDeliveryCount, 2);
+});
+await t("push registrations stop at the delivery limit for each user", async () => {
+  baseSetup();
+  const vapid = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const client = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const pushEnv = {
+    ...env,
+    VAPID_PUBLIC_KEY: b64u(new Uint8Array(await crypto.subtle.exportKey("raw", vapid.publicKey))),
+    VAPID_PRIVATE_KEY: (await crypto.subtle.exportKey("jwk", vapid.privateKey)).d
+  };
+  const p256dh = b64u(new Uint8Array(await crypto.subtle.exportKey("raw", client.publicKey)));
+  const auth = b64u(crypto.getRandomValues(new Uint8Array(16)));
+  for (let i = 0; i < 4; i++) {
+    store.set(`pushSubscriptions/existing${i}`, S({
+      uid: "tech1",
+      endpoint: `https://fcm.googleapis.com/fcm/send/existing${i}`,
+      p256dh,
+      auth
+    }));
+  }
+  const subscription = (endpoint) => ({
+    endpoint: `https://fcm.googleapis.com/fcm/send/${endpoint}`,
+    keys: { p256dh, auth }
+  });
+  assert.equal((await call("registerPushSubscription", { subscription: subscription("fifth") }, "tech1", {}, pushEnv)).status, 200);
+  assert.equal((await call("registerPushSubscription", { subscription: subscription("sixth") }, "tech1", {}, pushEnv)).status, 429);
 });
 await t("push: unconfigured worker answers 503 and nothing else breaks", async () => {
   assert.equal((await call("getPushConfig", {}, "admin1")).status, 503);

@@ -196,6 +196,38 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+function openNotificationFromUrl() {
+  const url = new URL(window.location.href);
+  const notificationId = url.searchParams.get("notificationId") || "";
+  const ticketId = url.searchParams.get("ticketId") || "";
+  const suggestionId = url.searchParams.get("suggestionId") || "";
+  if (!notificationId && !ticketId && !suggestionId) return;
+
+  url.searchParams.delete("notificationId");
+  url.searchParams.delete("ticketId");
+  url.searchParams.delete("suggestionId");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+
+  const open = () => {
+    if (notificationId) markNotificationReadApi(notificationId);
+    if (typeof window.refreshNotificationsBadge === "function") {
+      window.refreshNotificationsBadge();
+    }
+    if (ticketId && typeof window.openTicketDetailsModal === "function") {
+      window.openTicketDetailsModal(ticketId);
+    } else if (suggestionId && typeof window.navigateTo === "function") {
+      window.navigateTo("kaizenBoard");
+    }
+  };
+  if (document.readyState === "complete") {
+    window.setTimeout(open, 0);
+  } else {
+    window.addEventListener("load", open, { once: true });
+  }
+}
+
+openNotificationFromUrl();
+
 // تفعيل تلقائي عند تحميل التطبيق لو المستخدم مسجّل دخوله بالفعل
 // (حالة تحديث الصفحة Refresh - مش أول تسجيل دخول، ده بيتغطى بنداء
 // صريح من authHandlers.js بعد نجاح الدخول مباشرة)

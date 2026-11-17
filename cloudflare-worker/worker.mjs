@@ -604,6 +604,8 @@ async function requireActiveCaller(env, uid) {
 }
 
 // ---------- المعالجات ----------
+const MAX_PUSH_SUBSCRIPTIONS_PER_USER = 5;
+
 const handlers = {
   async getPushConfig(data, caller, env) {
     requirePushConfigured(env);
@@ -621,6 +623,16 @@ const handlers = {
       throw new HttpError(400, "INVALID_ARGUMENT", "Invalid push subscription.");
     }
     const id = await pushSubscriptionId(sub.endpoint);
+    if (!(await fsGetFields(env, `pushSubscriptions/${id}`))) {
+      const currentSubscriptions = await fsRunQuery(env, {
+        from: [{ collectionId: "pushSubscriptions" }],
+        where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: caller } } },
+        limit: MAX_PUSH_SUBSCRIPTIONS_PER_USER
+      });
+      if (currentSubscriptions.length >= MAX_PUSH_SUBSCRIPTIONS_PER_USER) {
+        throw new HttpError(429, "RESOURCE_EXHAUSTED", "Maximum number of push subscriptions reached.");
+      }
+    }
     await fsCommit(env, [{ update: { name: docName(env, `pushSubscriptions/${id}`), fields: {
       uid: { stringValue: caller },
       endpoint: { stringValue: sub.endpoint },
@@ -652,15 +664,10 @@ const handlers = {
     const forUid = strField(n.forUid);
     // Only the creator of a notification can trigger its push, once, to its own recipient.
     if (strField(n.createdByUid) !== caller || !forUid || forUid === caller || n.pushedAt) return { sent: 0 };
-    await fsCommit(env, [{
-      update: { name: docName(env, path), fields: { pushedAt: { stringValue: new Date().toISOString() } } },
-      updateMask: { fieldPaths: ["pushedAt"] },
-      currentDocument: { exists: true }
-    }]);
     const subs = await fsRunQuery(env, {
       from: [{ collectionId: "pushSubscriptions" }],
       where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: forUid } } },
-      limit: 5
+      limit: MAX_PUSH_SUBSCRIPTIONS_PER_USER
     });
     const payload = pushEnc.encode(JSON.stringify({
       type: strField(n.type),
@@ -701,6 +708,13 @@ const handlers = {
         console.error("push send failed", e && e.name, e && e.message);
         failures.push("error");
       }
+    }
+    if (sent > 0) {
+      await fsCommit(env, [{
+        update: { name: docName(env, path), fields: { pushedAt: { stringValue: new Date().toISOString() } } },
+        updateMask: { fieldPaths: ["pushedAt"] },
+        currentDocument: { exists: true }
+      }]);
     }
     return failures.length ? { sent, failed: failures.length, statuses: failures } : { sent };
   },
