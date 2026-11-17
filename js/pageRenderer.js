@@ -28,6 +28,7 @@ import { SuggestionView } from './views/suggestionView.js';
 import { IssueView } from './views/issueView.js';
 import { MaintenanceView } from './views/MaintenanceView.js';
 import { MaintenanceSearchView } from './views/MaintenanceSearchView.js';
+import { UserActivityView } from './views/UserActivityView.js';
 import { SystemView } from './views/SystemView.js';
 import { ErrorScannerView } from './views/ErrorScannerView.js';
 import { KnowledgeBaseView } from './views/KnowledgeBaseView.js';
@@ -88,6 +89,14 @@ case 'maintenanceSearch':
   return hasPermission("maintenance")  
     ? MaintenanceSearchView()  
     : unauthorizedPage("maintenance");  
+
+
+case 'userActivity':  
+
+  // صفحة متابعة نشاط المستخدمين (Admin فقط)
+  return isAdminRole(getCurrentRole())  
+    ? UserActivityView()  
+    : unauthorizedPage("userActivity");  
 
 
 case 'issue':  

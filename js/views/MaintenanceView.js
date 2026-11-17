@@ -4,7 +4,7 @@ import { translations } from "../config.js";
 // homeView.js - عشان أزرار مركز الصيانة تتفق مع نفس منطق الإخفاء
 // المتبع في الرئيسية، بدل الاعتماد بس على حماية المسار (Router) اللي
 // بتمنع الدخول فعلياً لكنها متمنعش ظهور زرار بيؤدي لصفحة "غير مصرح"
-import { hasPermission } from "../permissions.js";
+import { hasPermission, isAdminRole, getCurrentRole } from "../permissions.js";
 
 export const MaintenanceView = () => {
   const currentLang = window.currentLang || "ar";
@@ -28,6 +28,27 @@ export const MaintenanceView = () => {
 
   <!-- شبكة الإجراءات السريعة -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+
+    ${isAdminRole(getCurrentRole()) ? `
+    <!-- متابعة نشاط المستخدمين (Admin فقط) -->
+    <button 
+      type="button"
+      id="maintenanceCardUserActivity"
+      onclick="window.navigateTo('userActivity')" 
+      aria-label="${currentLang === 'en' ? 'User Activity' : 'نشاط المستخدمين'}"
+      class="relative text-start text-white border border-purple-500/40 hover:border-purple-400/70 bg-gradient-to-br from-purple-950/60 via-[#1E293B] to-[#0F172A] p-4 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 active:scale-95 shadow-md hover:shadow-purple-900/30 group overflow-hidden">
+      <span class="absolute top-2 rtl:left-2.5 ltr:right-2.5 text-amber-400 text-base font-black group-hover:scale-125 transition-transform rtl:rotate-180" aria-hidden="true">›</span>
+      <div class="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 flex items-center justify-center text-2xl mb-2 shadow-inner group-hover:scale-110 transition-transform" aria-hidden="true">
+        👥
+      </div>
+      <span class="font-bold text-xs text-white">${currentLang === 'en' ? 'User Activity' : 'نشاط المستخدمين'}</span>
+      <span class="text-[11px] text-slate-300 mt-1 line-clamp-1">${currentLang === 'en' ? 'Monitor online users' : 'متابعة المستخدمين المتصلين'}</span>
+      <span id="onlineUsersBadge" class="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>0 ${currentLang === 'en' ? 'Online' : 'متصل'}</span>
+      </span>
+    </button>
+    ` : ''}
 
     ${hasPermission("maintenance") ? `
     <!-- تسجيل عطل - تصميم الطوارئ البارز -->

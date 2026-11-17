@@ -550,6 +550,26 @@ export const translations = {
       kbDesc: "دليل الإصلاح وحلول المشاكل"
     },
 
+    // مفاتيح خاصة بصفحة "نشاط المستخدمين" (UserActivityView.js)
+    userActivity: {
+      title: "نشاط المستخدمين",
+      subtitle: "حالة الاتصال الفورية وآخر ظهور",
+      noPermissionTitle: "غير مصرح",
+      noPermissionDesc: "المديرون فقط يمكنهم مشاهدة نشاط المستخدمين.",
+      backToMaintenance: "العودة للصيانة",
+      loading: "جاري تحميل النشاط...",
+      noUsers: "لا يوجد نشاط للمستخدمين",
+      loadError: "فشل تحميل النشاط",
+      refresh: "تحديث",
+      online: "متصل",
+      offline: "غير متصل",
+      lastSeen: "آخر ظهور",
+      never: "لم يسبق له الظهور",
+      invalidDate: "تاريخ غير صالح",
+      autoRefresh: "تحديث تلقائي كل 30 ثانية",
+      onlineCount: "متصل",
+    },
+
     // مفاتيح خاصة بصفحة "إدارة النظام" (SystemView.js)
     system: {
       title: "إدارة النظام والتحكم",
@@ -1283,6 +1303,25 @@ export const translations = {
       statsDesc: "Live KPIs, defect flow and MTTR",
       kbTitle: "Knowledge Base",
       kbDesc: "Repair guides and troubleshooting"
+    },
+
+    userActivity: {
+      title: "User Activity",
+      subtitle: "Real-time online status and last seen",
+      noPermissionTitle: "Access Denied",
+      noPermissionDesc: "Only administrators can view user activity.",
+      backToMaintenance: "Back to Maintenance",
+      loading: "Loading activity...",
+      noUsers: "No user activity found",
+      loadError: "Failed to load activity",
+      refresh: "Refresh",
+      online: "Online",
+      offline: "Offline",
+      lastSeen: "Last seen",
+      never: "Never",
+      invalidDate: "Invalid date",
+      autoRefresh: "Auto-refresh every 30s",
+      onlineCount: "Online",
     },
 
     system: {

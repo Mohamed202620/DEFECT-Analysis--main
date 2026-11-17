@@ -28,6 +28,7 @@ const CORE_ASSETS = [
   './assets/icons/icon-512.png',
   './assets/branding/company-banner.png',
   './css/managerDesktop.css', // MGR-DESKTOP
+  './css/tailwind.css', // Tailwind CLI build
   './js/vendor/jsQR.js', // QR-IMPROVE
   // GENERATED_MODULE_ASSETS_START
   './js/amTemplateManager.js',
@@ -89,6 +90,7 @@ const CORE_ASSETS = [
   './js/services/pmApi.js',
   './js/services/suggestionsApi.js',
   './js/services/ticketsApi.js',
+  './js/services/userActivityApi.js',
   './js/services/usersApi.js',
   './js/statistics.js',
   './js/theme.js',
@@ -121,6 +123,7 @@ const CORE_ASSETS = [
   './js/views/RequestsView.js',
   './js/views/StatsView.js',
   './js/views/SystemView.js',
+  './js/views/UserActivityView.js',
   './js/views/homeView.js',
   './js/views/issueView.js',
   './js/views/loginView.js',

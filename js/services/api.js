@@ -133,6 +133,18 @@ export {
   deleteOfficialHolidayApi
 } from "./holidaysApi.js";
 
+export {
+  startHeartbeat,
+  stopHeartbeat,
+  markUserOffline,
+  shouldStopHeartbeat,
+  initUserActivity,
+  fetchAllUserActivity,
+  getOnlineUsersCount,
+  subscribeToUserActivity,
+  cleanupOldActivity
+} from "./userActivityApi.js";
+
 
 
 export {

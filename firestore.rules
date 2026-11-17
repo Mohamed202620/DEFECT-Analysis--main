@@ -404,6 +404,37 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // userActivity - متابعة نشاط المستخدمين (Heartbeat/Presence)
+    // للـ Admin فقط: قراءة جميع السجلات
+    // للمستخدم العادي: كتابة/تحديث سجله الخاص فقط
+    // ==========================================================
+    match /userActivity/{userId} {
+
+      // إنشاء/تحديث سجل النشاط: المستخدم يحدث سجله فقط
+      // الحقول المسموحة: userId, userName, role, lastActivity, lastHeartbeat, isOnline, updatedAt
+      allow create, update: if isActive()
+                            && request.auth.uid == userId
+                            && request.resource.data.keys().hasOnly([
+                                 "userId", "userName", "role", "lastActivity",
+                                 "lastHeartbeat", "isOnline", "updatedAt"
+                               ])
+                            && request.resource.data.userId == request.auth.uid
+                            && request.resource.data.userName is string
+                            && request.resource.data.role is string
+                            && request.resource.data.isOnline is bool;
+
+      // قراءة سجل واحد: صاحبه أو Admin
+      allow get: if isSignedIn()
+                 && (request.auth.uid == userId || isAdmin());
+
+      // قائمة السجلات: Admin فقط (لصفحة متابعة النشاط)
+      allow list: if isActive() && isAdmin();
+
+      // حذف: ممنوع من العميل
+      allow delete: if false;
+    }
+
+    // ==========================================================
     // tickets - دورة حياة التذكرة (بدون رجوع للخلف إلا استثناء واحد)
     // pending(جديد) -> assigned(تم الإسناد) -> in_progress(قيد التنفيذ)
     //   -> resolved(بانتظار تأكيد المُبلغ) -> closed(مغلق) [نهائية]

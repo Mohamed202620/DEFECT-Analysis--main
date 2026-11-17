@@ -10,7 +10,10 @@ import { login, resetPassword } from './auth/login.js';
 
 import {
   fetchUsers,
-  registerUserApi
+  registerUserApi,
+  initUserActivity,
+  markUserOffline,
+  stopHeartbeat
 } from './services/api.js';
 
 import { navigateTo } from './renderCore.js';
@@ -223,6 +226,9 @@ setCurrentPermissions(userPerms);
 
 // تحميل ماكينات القسم المخصص فوراً بعد تسجيل الدخول
 ensureUserAndMachinesLoaded(true).catch(e => console.warn("Failed to load machines on login:", e));
+
+// تهيئة نظام متابعة نشاط المستخدمين
+initUserActivity();
 
 // إضافة (إشعارات المتصفح): تفعيل الاشتراك اللحظي في إشعارات
 // المستخدم فور نجاح تسجيل الدخول (بدون انتظار Refresh للصفحة -
@@ -673,6 +679,10 @@ window.logout =
 async function () {
 
 // إضافة (إشعارات المتصفح): إلغاء الاشتراك اللحظي قبل مسح بيانات
+// إيقاف متابعة النشاط عند تسجيل الخروج
+stopHeartbeat();
+await markUserOffline();
+
 // الجلسة - عشان مايفضلش اشتراك شغال باسم مستخدم سجّل خروجه فعلاً
 try { await unregisterPushSubscription(); } catch (_) { /* best effort */ }
 if (typeof window.stopBrowserNotifications === "function") {
