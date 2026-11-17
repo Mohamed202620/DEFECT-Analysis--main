@@ -78,15 +78,13 @@ jobs:
       - name: Deploy Firestore (if changed), then Hosting
         shell: bash
         env:
-          FIREBASE_SERVICE_ACCOUNT_NORMALIZED: ${{ env.FIREBASE_SERVICE_ACCOUNT_NORMALIZED }}
           FIRESTORE_CHANGED: ${{ steps.firestore_changes.outputs.changed }}
         run: |
           set -euo pipefail
-          credential_file="$RUNNER_TEMP/firebase-production-sa.json"
-          trap 'rm -f "$credential_file"' EXIT
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_NORMALIZED" > "$credential_file"
-          chmod 600 "$credential_file"
-          export GOOGLE_APPLICATION_CREDENTIALS="$credential_file"
+          : "${GOOGLE_APPLICATION_CREDENTIALS:?Validated credential file path is missing}"
+          test -s "$GOOGLE_APPLICATION_CREDENTIALS"
+          chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
 
           if [ "$FIRESTORE_CHANGED" = "true" ]; then
             echo "Deploying Firestore rules and indexes first..."
