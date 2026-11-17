@@ -1,4 +1,5 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { PRODUCTION_FIREBASE_CONFIG } from "../js/firebaseDefaults.js";
 
@@ -20,10 +21,7 @@ function parseServiceAccount(value) {
 
   const parseJson = (json) => {
     const parsed = JSON.parse(json);
-    if (typeof parsed !== "string") {
-      return parsed;
-    }
-
+    if (typeof parsed !== "string") return parsed;
     try {
       return JSON.parse(parsed);
     } catch {
@@ -39,14 +37,12 @@ function parseServiceAccount(value) {
     if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64) || base64.length % 4 === 1) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT is not valid JSON or base64-encoded JSON.");
     }
-
     try {
       serviceAccount = parseJson(Buffer.from(base64, "base64").toString("utf8"));
     } catch {
       throw new Error("FIREBASE_SERVICE_ACCOUNT is not valid JSON or base64-encoded JSON.");
     }
   }
-
   return serviceAccount;
 }
 
@@ -56,7 +52,6 @@ export function validateProductionDeploymentConfig(env = process.env) {
   const missingFields = requiredFields.filter(
     (field) => typeof serviceAccount?.[field] !== "string" || !serviceAccount[field].trim()
   );
-
   if (missingFields.length > 0) {
     throw new Error(
       `FIREBASE_SERVICE_ACCOUNT JSON is missing required field(s): ${missingFields.join(", ")}.`
@@ -64,9 +59,9 @@ export function validateProductionDeploymentConfig(env = process.env) {
   }
 
   serviceAccount.private_key = serviceAccount.private_key
-    .replace(/\\r\\n/g, "\n")
-    .replace(/\\n/g, "\n")
-    .replace(/\\r/g, "\n");
+    .replace(/\\\\r\\\\n/g, "\n")
+    .replace(/\\\\n/g, "\n")
+    .replace(/\\\\r/g, "\n");
 
   if (
     serviceAccount.type !== "service_account" ||
@@ -77,7 +72,6 @@ export function validateProductionDeploymentConfig(env = process.env) {
   ) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT must belong to the production project.");
   }
-
   return JSON.stringify(serviceAccount);
 }
 
@@ -85,14 +79,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const normalizedServiceAccount = validateProductionDeploymentConfig();
     if (process.env.GITHUB_ENV) {
-      const escapedForWorkflowCommand = normalizedServiceAccount
-        .replace(/%/g, "%25")
-        .replace(/\r/g, "%0D")
-        .replace(/\n/g, "%0A");
-      process.stdout.write(`::add-mask::${escapedForWorkflowCommand}\n`);
+      if (!process.env.RUNNER_TEMP) {
+        throw new Error("RUNNER_TEMP is required in GitHub Actions.");
+      }
+      const credentialPath = join(process.env.RUNNER_TEMP, "firebase-production-sa.json");
+      writeFileSync(credentialPath, normalizedServiceAccount, { mode: 0o600 });
       appendFileSync(
         process.env.GITHUB_ENV,
-        `FIREBASE_SERVICE_ACCOUNT_NORMALIZED=${normalizedServiceAccount}\n`
+        `GOOGLE_APPLICATION_CREDENTIALS=${credentialPath}\n`
       );
     }
     console.log("Validated production project and deployer project binding.");
