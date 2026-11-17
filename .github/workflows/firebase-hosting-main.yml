@@ -23,18 +23,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Detect Firestore rules or indexes changes
         id: firestore_changes
         shell: bash
         run: |
-          if git diff --name-only HEAD^ HEAD -- firestore.rules firestore.indexes.json | grep -q .; then
+          base_sha="${{ github.event.before }}"
+          if [[ "$base_sha" =~ ^0+$ ]]; then
+            # On an initial branch push, deploy Firestore conservatively.
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Firestore rules/indexes changed; they will be tested and deployed before Hosting."
+            echo "Initial push detected; Firestore will be deployed conservatively."
+          elif git diff --name-only "$base_sha" "$GITHUB_SHA" -- firestore.rules firestore.indexes.json | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Firestore rules/indexes changed in this push; they will be tested and deployed before Hosting."
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No Firestore rules/indexes changes detected."
+            echo "No Firestore rules/indexes changes detected in this push."
           fi
 
       - name: Set up Java for Firebase Emulator
