@@ -17,7 +17,7 @@ const test = (name, fn) => {
 };
 
 console.log("Production Firebase Hosting isolation");
-test("production configuration contains only the active main Hosting target", async () => {
+test("production workflow deploys sequentially to the only configured main target", async () => {
   const [rc, firebaseConfig, mainWorkflow] = await Promise.all([
     readFile(new URL("../.firebaserc", import.meta.url), "utf8").then(JSON.parse),
     readFile(new URL("../firebase.json", import.meta.url), "utf8").then(JSON.parse),
@@ -32,13 +32,16 @@ test("production configuration contains only the active main Hosting target", as
   ]);
   assert.deepEqual(firebaseConfig.hosting.map(({ target }) => target), ["main"]);
 
-  const projectInputs = [...mainWorkflow.matchAll(/^\s*projectId:\s*(.+)$/gm)].map(([, value]) => value.trim());
-  assert.deepEqual(projectInputs, [PRODUCTION_FIREBASE_CONFIG.projectId]);
   assert.match(mainWorkflow, /Validate production deploy credential project/);
   assert.match(mainWorkflow, /permissions:\s*\n\s+contents: read/);
   assert.match(mainWorkflow, /^  deploy:\n(?:.*\n)*?    environment: production$/m);
-  assert.match(mainWorkflow, /target: main/);
-  assert.match(mainWorkflow, /firebaseServiceAccount:\s*\$\{\{\s*env\.FIREBASE_SERVICE_ACCOUNT_NORMALIZED\s*\}\}/);
+  assert.match(mainWorkflow, /firebase deploy --only firestore:rules,firestore:indexes --project maintenance-defect-system/);
+  assert.match(mainWorkflow, /firebase deploy --only hosting:main --project maintenance-defect-system/);
+  assert.match(mainWorkflow, /GOOGLE_APPLICATION_CREDENTIALS/);
+  assert.match(mainWorkflow, /firebase-production-deploy/);
+  assert.match(mainWorkflow, /fetch-depth: 0/);
+  assert.match(mainWorkflow, /github\.event\.before/);
+  assert.ok(mainWorkflow.indexOf("npm run test:rules") < mainWorkflow.indexOf("Deploy Firestore (if changed), then Hosting"));
 });
 
 test("shared deploy credential must belong to the existing Firebase project", () => {
