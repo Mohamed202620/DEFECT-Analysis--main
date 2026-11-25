@@ -53,6 +53,10 @@ export const SuggestionView = () => {
     const attachedImages = getAttachmentFiles("suggestionImages");
     const documentInput = document.getElementById("kaizenDocuments");
     const attachedDocuments = Array.from(documentInput?.files || []);
+    if (attachedDocuments.length && typeof navigator !== "undefined" && !navigator.onLine) {
+      alert(isEn ? "Document attachments require an internet connection. Please reconnect and submit again." : "رفع المستندات يحتاج اتصالاً بالإنترنت. اتصل بالشبكة ثم أرسل المقترح مرة أخرى.");
+      return;
+    }
 
     const submitBtn = event.target?.querySelector('button[type="submit"]');
     const originalText = submitBtn ? submitBtn.innerHTML : '';
