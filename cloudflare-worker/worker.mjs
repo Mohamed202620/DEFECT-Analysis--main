@@ -1319,7 +1319,10 @@ export default {
       }
       if (path === "downloadKaizenAttachment") {
         const body = await request.json().catch(() => ({}));
-        return downloadKaizenAttachment(env, caller, body.data);
+        const fileResponse = await downloadKaizenAttachment(env, caller, body.data);
+        const headers = new Headers(fileResponse.headers);
+        for (const [key, value] of Object.entries(cors)) headers.set(key, value);
+        return new Response(fileResponse.body, { status: fileResponse.status, headers });
       }
       if (path === "listKaizenAttachments" || path === "deleteKaizenAttachment") {
         const body = await request.json().catch(() => ({}));
