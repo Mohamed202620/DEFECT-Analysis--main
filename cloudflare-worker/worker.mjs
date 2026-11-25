@@ -936,7 +936,7 @@ async function uploadKaizenAttachment(request, caller, env) {
   const context = await getKaizenAttachmentContext(env, caller, suggestionId);
   if (!(file instanceof File)) throw new HttpError(400, "INVALID_ARGUMENT", "لم يتم اختيار ملف.");
   if (file.size < 1 || file.size > KAIZEN_ATTACHMENT_MAX_BYTES) throw new HttpError(413, "INVALID_ARGUMENT", "حجم الملف يجب ألا يتجاوز 10 ميجابايت.");
-  const name = String(file.name || "document").replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 120);
+  const name = String(file.name || "document").replace(/[\u0000-\u001f\u007f\x2f\\]/g, "_").trim().slice(0, 120);
   const ext = name.toLowerCase().match(/\.[a-z0-9]+$/);
   const extension = ext ? ext[0] : "";
   const mime = KAIZEN_ATTACHMENT_TYPES[extension];
