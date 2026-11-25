@@ -121,6 +121,14 @@ globalThis.fetch = async (url, opts = {}) => {
     }
     return J({ writeResults: results });
   }
+  const attachmentCollection = url.match(/documents\\/suggestions\\/([^/]+)\\/attachments(?:\\?|$)/);
+  if (attachmentCollection && (opts.method || "GET") === "GET") {
+    const prefix = "suggestions/" + attachmentCollection[1] + "/attachments/";
+    const docs = [...store.entries()].filter(([p]) => p.startsWith(prefix)).map(([p, fields]) => ({
+      name: "projects/" + PID + "/databases/(default)/documents/" + p, fields
+    }));
+    return J({ documents: docs });
+  }
   const m = url.match(/documents\/([^?]+)/);
   if (m) {
     const path = decodeURIComponent(m[1]); const method = opts.method || "GET";
