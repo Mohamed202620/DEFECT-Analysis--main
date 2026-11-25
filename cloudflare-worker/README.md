@@ -29,6 +29,16 @@ Cloudflare ← Workers & Pages ← `odd-sun-fab8` ← **Edit code** ← احذف
 
 اضغط **Deploy** بعد الحفظ، ثم احذف ملف JSON من الجهاز.
 
+### 3.1) تفعيل تخزين مستندات الكايزن (مطلوب قبل استخدام المرفقات)
+
+1. من Cloudflare افتح **R2 Object Storage** وأنشئ Bucket باسم `kaizen-private-files` (الاسم مطابق لـ `wrangler.jsonc`).
+2. لا تُفعّل Public Development URL ولا Custom Domain للـ Bucket؛ الملفات يجب أن تظل خاصة.
+3. إعداد `wrangler.jsonc` يربط الـ Bucket باسم `KAIZEN_FILES_BUCKET`. بعد إنشاء الـ Bucket انشر Worker من إعدادات المشروع/CLI حتى يظهر الـ binding.
+4. لا تحتاج إضافة API token أو مفتاح R2 داخل الكود؛ الـ Worker يستخدم binding الداخلي.
+5. إذا لم يتم إنشاء الـ Bucket أو ربطه، ستظل بقية وظائف التطبيق تعمل، لكن رفع مستندات الكايزن سيرجع رسالة أن التخزين غير مُعد.
+
+المستندات المدعومة حالياً: PDF وDOCX وXLSX، بحد أقصى 10 MB لكل ملف. تحفظ بيانات الملف فقط في Firestore، بينما محتوى الملف في R2. التنزيل يمر عبر Worker بعد فحص تسجيل الدخول وصلاحية الوصول، ولا توجد روابط عامة دائمة.
+
 ### 4) اختبار الـ Worker
 افتح `https://odd-sun-fab8.mom379339.workers.dev/health` في المتصفح، ويجب أن يظهر `{"ok":true}`.
 
