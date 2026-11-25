@@ -747,6 +747,12 @@ service cloud.firestore {
 
       allow delete: if false;
 
+      // ملفات الكايزن لا تُقرأ أو تُكتب مباشرة من المتصفح.
+      // جميع العمليات تمر عبر Cloudflare Worker بعد التحقق من هوية وصلاحية المستخدم.
+      match /attachments/{attachmentId} {
+        allow read, write: if false;
+      }
+
       // سجل تغييرات المقترح (Logs) - append-only، نفس فكرة
       // tickets/{ticketId}/logs بالضبط
       match /logs/{logId} {
