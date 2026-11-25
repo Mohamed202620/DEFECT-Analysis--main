@@ -871,6 +871,148 @@ async function handleUpload(request, caller, env) {
 }
 
 
+
+// ---------- مرفقات مستندات الكايزن: R2 خاص + metadata في Firestore ----------
+const KAIZEN_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+const KAIZEN_ATTACHMENT_TYPES = {
+  ".pdf": "application/pdf",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+};
+const fsString = (fields, key) => strField(fields && fields[key]);
+const fsInteger = (fields, key) => Number(fields && fields[key] && fields[key].integerValue || 0);
+const fsStringValue = (value) => ({ stringValue: String(value == null ? "" : value) });
+const fsIntegerValue = (value) => ({ integerValue: String(Math.max(0, Number(value) || 0)) });
+
+async function getKaizenAttachmentContext(env, caller, suggestionId) {
+  if (typeof suggestionId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(suggestionId)) {
+    throw new HttpError(400, "INVALID_ARGUMENT", "رقم مقترح الكايزن غير صالح.");
+  }
+  const pair = await Promise.all([
+    getUserDoc(env, caller),
+    fsGetFields(env, "suggestions/" + suggestionId)
+  ]);
+  const user = pair[0], suggestion = pair[1];
+  if (!user || user.status !== "active") throw new HttpError(403, "PERMISSION_DENIED", "الحساب غير مفعّل.");
+  if (!suggestion) throw new HttpError(404, "NOT_FOUND", "مقترح الكايزن غير موجود.");
+  const privileged = user.role === "admin" || user.role === "manager";
+  const owner = fsString(suggestion, "submittedByUid") === caller;
+  const assignee = fsString(suggestion, "assignedToUid") === caller;
+  if (!privileged && !owner && !assignee) throw new HttpError(403, "PERMISSION_DENIED", "ليس لديك صلاحية الوصول إلى مرفقات هذا المقترح.");
+  return { user, privileged };
+}
+
+async function listKaizenAttachments(env, caller, data) {
+  const id = data && data.suggestionId;
+  await getKaizenAttachmentContext(env, caller, id);
+  const res = await fetch(fsBase(env) + "/suggestions/" + encodeURIComponent(id) + "/attachments?pageSize=50", { headers: await authHeaders(env) });
+  if (res.status === 404) return { attachments: [] };
+  if (!res.ok) throw new HttpError(500, "INTERNAL", "تعذّر تحميل مرفقات الكايزن.");
+  const body = await res.json();
+  return { attachments: (body.documents || []).map((doc) => {
+    const f = doc.fields || {};
+    return {
+      id: doc.name.split("/").pop(),
+      name: fsString(f, "name"),
+      contentType: fsString(f, "contentType"),
+      size: fsInteger(f, "size"),
+      uploadedBy: fsString(f, "uploadedBy"),
+      uploadedByUid: fsString(f, "uploadedByUid"),
+      uploadedAt: fsString(f, "uploadedAt")
+    };
+  }) };
+}
+
+async function uploadKaizenAttachment(request, caller, env) {
+  if (!env.KAIZEN_FILES_BUCKET || typeof env.KAIZEN_FILES_BUCKET.put !== "function") {
+    throw new HttpError(503, "UNAVAILABLE", "تخزين مستندات الكايزن غير مُعدّ بعد على السيرفر.");
+  }
+  const form = await request.formData().catch(() => null);
+  if (!form) throw new HttpError(400, "INVALID_ARGUMENT", "صيغة رفع الملف غير صحيحة.");
+  const suggestionId = form.get("suggestionId");
+  const file = form.get("file");
+  const context = await getKaizenAttachmentContext(env, caller, suggestionId);
+  if (!(file instanceof File)) throw new HttpError(400, "INVALID_ARGUMENT", "لم يتم اختيار ملف.");
+  if (file.size < 1 || file.size > KAIZEN_ATTACHMENT_MAX_BYTES) throw new HttpError(413, "INVALID_ARGUMENT", "حجم الملف يجب ألا يتجاوز 10 ميجابايت.");
+  const name = String(file.name || "document").replace(/[\u0000-\u001f\u007f/\\]/g, "_").trim().slice(0, 120);
+  const ext = name.toLowerCase().match(/\.[a-z0-9]+$/);
+  const extension = ext ? ext[0] : "";
+  const mime = KAIZEN_ATTACHMENT_TYPES[extension];
+  if (!mime || file.type !== mime) throw new HttpError(415, "INVALID_ARGUMENT", "الملفات المسموحة فقط: PDF وDOCX وXLSX.");
+  const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  const pdf = extension === ".pdf" && new TextDecoder().decode(head.slice(0, 5)) === "%PDF-";
+  const zip = (extension === ".docx" || extension === ".xlsx") && head[0] === 0x50 && head[1] === 0x4b;
+  if (!pdf && !zip) throw new HttpError(415, "INVALID_ARGUMENT", "محتوى الملف لا يطابق نوعه المعلن.");
+  const attachmentId = crypto.randomUUID();
+  const key = "kaizen/" + suggestionId + "/" + attachmentId;
+  const uploadedAt = new Date().toISOString();
+  await env.KAIZEN_FILES_BUCKET.put(key, file.stream(), {
+    httpMetadata: { contentType: "application/octet-stream" },
+    customMetadata: { suggestionId: suggestionId, attachmentId: attachmentId, uploadedByUid: caller }
+  });
+  try {
+    await fsCommit(env, [{
+      update: {
+        name: docName(env, "suggestions/" + suggestionId + "/attachments/" + attachmentId),
+        fields: {
+          name: fsStringValue(name),
+          contentType: fsStringValue(mime),
+          size: fsIntegerValue(file.size),
+          storageKey: fsStringValue(key),
+          uploadedBy: fsStringValue(context.user.name || ""),
+          uploadedByUid: fsStringValue(caller),
+          uploadedAt: fsStringValue(uploadedAt)
+        }
+      },
+      currentDocument: { exists: false }
+    }]);
+  } catch (error) {
+    await env.KAIZEN_FILES_BUCKET.delete(key).catch(() => {});
+    throw error;
+  }
+  return { id: attachmentId, name: name, contentType: mime, size: file.size, uploadedBy: context.user.name || "", uploadedByUid: caller, uploadedAt: uploadedAt };
+}
+
+async function downloadKaizenAttachment(env, caller, data) {
+  if (!env.KAIZEN_FILES_BUCKET || typeof env.KAIZEN_FILES_BUCKET.get !== "function") throw new HttpError(503, "UNAVAILABLE", "تخزين مستندات الكايزن غير مُعدّ بعد على السيرفر.");
+  const id = data && data.suggestionId, attachmentId = data && data.attachmentId;
+  await getKaizenAttachmentContext(env, caller, id);
+  if (typeof attachmentId !== "string" || !/^[a-f0-9-]{36}$/i.test(attachmentId)) throw new HttpError(400, "INVALID_ARGUMENT", "معرّف المرفق غير صالح.");
+  const fields = await fsGetFields(env, "suggestions/" + id + "/attachments/" + attachmentId);
+  if (!fields) throw new HttpError(404, "NOT_FOUND", "الملف غير موجود.");
+  const key = fsString(fields, "storageKey");
+  if (!key || !key.startsWith("kaizen/" + id + "/")) throw new HttpError(404, "NOT_FOUND", "الملف غير موجود.");
+  const object = await env.KAIZEN_FILES_BUCKET.get(key);
+  if (!object) throw new HttpError(404, "NOT_FOUND", "الملف غير موجود في التخزين.");
+  const name = fsString(fields, "name").replace(/["\r\n]/g, "_");
+  return new Response(object.body, {
+    status: 200,
+    headers: {
+      "Content-Type": fsString(fields, "contentType") || "application/octet-stream",
+      "Content-Length": String(fsInteger(fields, "size")),
+      "Content-Disposition": "attachment; filename*=UTF-8''" + encodeURIComponent(name),
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff"
+    }
+  });
+}
+
+async function deleteKaizenAttachment(env, caller, data) {
+  if (!env.KAIZEN_FILES_BUCKET || typeof env.KAIZEN_FILES_BUCKET.delete !== "function") throw new HttpError(503, "UNAVAILABLE", "تخزين مستندات الكايزن غير مُعدّ بعد على السيرفر.");
+  const id = data && data.suggestionId, attachmentId = data && data.attachmentId;
+  const context = await getKaizenAttachmentContext(env, caller, id);
+  if (typeof attachmentId !== "string" || !/^[a-f0-9-]{36}$/i.test(attachmentId)) throw new HttpError(400, "INVALID_ARGUMENT", "معرّف المرفق غير صالح.");
+  const path = "suggestions/" + id + "/attachments/" + attachmentId;
+  const fields = await fsGetFields(env, path);
+  if (!fields) throw new HttpError(404, "NOT_FOUND", "الملف غير موجود.");
+  if (!context.privileged && fsString(fields, "uploadedByUid") !== caller) throw new HttpError(403, "PERMISSION_DENIED", "حذف المرفق متاح لرافع الملف أو المسؤول فقط.");
+  const key = fsString(fields, "storageKey");
+  if (key && key.startsWith("kaizen/" + id + "/")) await env.KAIZEN_FILES_BUCKET.delete(key);
+  const res = await fetch(fsBase(env) + "/" + path, { method: "DELETE", headers: await authHeaders(env) });
+  if (!res.ok && res.status !== 404) throw new HttpError(500, "INTERNAL", "تعذّر حذف بيانات المرفق.");
+  return { status: "success" };
+}
+
 // ---------- دالة عامة: المستخدم نفسه يغيّر كلمة سره برقم هاتفه + كود الموظف ----------
 const GENERIC_RESET_ERROR = "رقم الهاتف أو كود الموظف غير صحيح.";
 const PHONE_ATTEMPTS = 5;             // محاولات فاشلة لكل رقم
@@ -1169,6 +1311,20 @@ export default {
 
       if (path === "uploadImageViaImgbb") {
         return json({ result: await handleUpload(request, caller, env) }, 200, cors);
+      }
+      if (path === "uploadKaizenAttachment") {
+        return json({ result: await uploadKaizenAttachment(request, caller, env) }, 200, cors);
+      }
+      if (path === "downloadKaizenAttachment") {
+        const body = await request.json().catch(() => ({}));
+        return downloadKaizenAttachment(env, caller, body.data);
+      }
+      if (path === "listKaizenAttachments" || path === "deleteKaizenAttachment") {
+        const body = await request.json().catch(() => ({}));
+        const result = path === "listKaizenAttachments"
+          ? await listKaizenAttachments(env, caller, body.data)
+          : await deleteKaizenAttachment(env, caller, body.data);
+        return json({ result: result }, 200, cors);
       }
 
       const handler = handlers[path];
