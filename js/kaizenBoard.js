@@ -774,8 +774,6 @@ window.uploadKaizenAttachmentFromDetails = async function() {
   finally { input.disabled = false; }
 };
 
-window.downloadKaizenAttachmentFromDetails = async function() {};
-window.deleteKaizenAttachmentFromDetails = async function() {};
 
 /**
  * فتح Modal تفاصيل المقترح - عرض فقط، بيقرأ البيانات من
