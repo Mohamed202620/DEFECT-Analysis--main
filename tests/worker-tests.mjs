@@ -121,7 +121,7 @@ globalThis.fetch = async (url, opts = {}) => {
     }
     return J({ writeResults: results });
   }
-  const attachmentCollection = url.match(/documents\\/suggestions\\/([^/]+)\\/attachments(?:\\?|$)/);
+  const attachmentCollection = url.match(/documents\/suggestions\/([^/]+)\/attachments(?:\?|$)/);
   if (attachmentCollection && (opts.method || "GET") === "GET") {
     const prefix = "suggestions/" + attachmentCollection[1] + "/attachments/";
     const docs = [...store.entries()].filter(([p]) => p.startsWith(prefix)).map(([p, fields]) => ({
