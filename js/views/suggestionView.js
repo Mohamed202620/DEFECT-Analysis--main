@@ -51,6 +51,8 @@ export const SuggestionView = () => {
     // صورة واحدة فقط زي السابق؛ الملفات نفسها اتضغطت وتحققنا من
     // نوعها وحجمها بالفعل داخل attachmentPicker.js وقت اختيارها
     const attachedImages = getAttachmentFiles("suggestionImages");
+    const documentInput = document.getElementById("kaizenDocuments");
+    const attachedDocuments = Array.from(documentInput?.files || []);
 
     const submitBtn = event.target?.querySelector('button[type="submit"]');
     const originalText = submitBtn ? submitBtn.innerHTML : '';
@@ -78,9 +80,20 @@ export const SuggestionView = () => {
         return;
       }
 
+      let attachmentFailures = [];
+      if (result.status === 'success' && attachedDocuments.length) {
+        const { uploadKaizenAttachment } = await import('../services/kaizenAttachmentsApi.js');
+        for (const file of attachedDocuments) {
+          try { await uploadKaizenAttachment(result.id, file); }
+          catch (uploadError) { attachmentFailures.push(file.name + ': ' + uploadError.message); }
+        }
+      }
+      if (documentInput) documentInput.value = '';
       resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
       if (result.status === 'queued') {
         alert(isEn ? '📴 Offline - Suggestion saved locally and will be synced when online' : '📴 لا يوجد اتصال حالياً - تم حفظ المقترح محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت');
+      } else if (attachmentFailures.length) {
+        alert((isEn ? 'Suggestion saved, but some files failed to upload:\n' : 'تم حفظ المقترح لكن فشل رفع بعض الملفات:\n') + attachmentFailures.join('\n'));
       } else {
         alert(isEn ? 'Thank you! Kaizen suggestion submitted successfully ✅' : 'شكرًا لمشاركتك! تم إرسال مقترح الكايزن بنجاح ✅');
       }
@@ -192,6 +205,11 @@ export const SuggestionView = () => {
         <label class="block text-xs font-bold text-slate-200 mb-1">
           ${isEn ? 'Attach Photos (Optional)' : 'إرفاق صور (قبل / بعد)'}
         </label>
+      <div class="mb-2">
+        <label for="kaizenDocuments" class="block text-xs font-bold text-slate-200 mb-1">${isEn ? "Supporting documents (PDF, DOCX, XLSX)" : "مستندات داعمة (PDF / Word / Excel)"}</label>
+        <input id="kaizenDocuments" type="file" multiple accept=".pdf,.docx,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="w-full text-xs text-slate-200 file:mr-2 file:rounded-lg file:border-0 file:bg-blue-600 file:px-3 file:py-2 file:font-bold file:text-white" />
+        <p class="mt-1 text-[10px] text-slate-400">${isEn ? "Up to 10 MB per file. Documents are private." : "حتى 10 ميجابايت لكل ملف. المرفقات خاصة ولا تظهر كرابط عام."}</p>
+      </div>
         ${buildAttachmentPickerHtml("suggestionImages", {
           cameraLabel: isEn ? "📷 Take Photo" : "📷 التقاط صورة",
           galleryLabel: isEn ? "🖼️ From Gallery" : "🖼️ من المعرض",
