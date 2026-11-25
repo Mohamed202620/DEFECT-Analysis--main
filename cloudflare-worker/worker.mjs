@@ -927,6 +927,8 @@ async function uploadKaizenAttachment(request, caller, env) {
   if (!env.KAIZEN_FILES_BUCKET || typeof env.KAIZEN_FILES_BUCKET.put !== "function") {
     throw new HttpError(503, "UNAVAILABLE", "تخزين مستندات الكايزن غير مُعدّ بعد على السيرفر.");
   }
+  const contentLength = Number(request.headers.get("content-length") || 0);
+  if (contentLength > KAIZEN_ATTACHMENT_MAX_BYTES + 128 * 1024) throw new HttpError(413, "INVALID_ARGUMENT", "حجم الطلب يتجاوز الحد المسموح.");
   const form = await request.formData().catch(() => null);
   if (!form) throw new HttpError(400, "INVALID_ARGUMENT", "صيغة رفع الملف غير صحيحة.");
   const suggestionId = form.get("suggestionId");
@@ -1007,9 +1009,9 @@ async function deleteKaizenAttachment(env, caller, data) {
   if (!fields) throw new HttpError(404, "NOT_FOUND", "الملف غير موجود.");
   if (!context.privileged && fsString(fields, "uploadedByUid") !== caller) throw new HttpError(403, "PERMISSION_DENIED", "حذف المرفق متاح لرافع الملف أو المسؤول فقط.");
   const key = fsString(fields, "storageKey");
-  if (key && key.startsWith("kaizen/" + id + "/")) await env.KAIZEN_FILES_BUCKET.delete(key);
   const res = await fetch(fsBase(env) + "/" + path, { method: "DELETE", headers: await authHeaders(env) });
   if (!res.ok && res.status !== 404) throw new HttpError(500, "INTERNAL", "تعذّر حذف بيانات المرفق.");
+  if (key && key.startsWith("kaizen/" + id + "/")) await env.KAIZEN_FILES_BUCKET.delete(key);
   return { status: "success" };
 }
 
