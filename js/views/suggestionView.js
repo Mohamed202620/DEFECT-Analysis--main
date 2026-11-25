@@ -95,7 +95,7 @@ export const SuggestionView = () => {
       if (documentInput) documentInput.value = '';
       resetAttachmentFiles("suggestionImages", isEn ? "No photos attached" : "لا توجد صور مرفقة");
       if (result.status === 'queued') {
-        alert(isEn ? '📴 Offline - Suggestion saved locally and will be synced when online' : '📴 لا يوجد اتصال حالياً - تم حفظ المقترح محلياً وسيتم إرساله تلقائياً عند عودة الإنترنت');
+        alert(isEn ? '📴 Offline - Suggestion saved locally. Document files are not queued; add them from the suggestion details after it syncs.' : '📴 تم حفظ المقترح محلياً للمزامنة لاحقاً. ملفات المستندات لا تُحفظ دون اتصال؛ أضفها من تفاصيل المقترح بعد اكتمال المزامنة.');
       } else if (attachmentFailures.length) {
         alert((isEn ? 'Suggestion saved, but some files failed to upload:\n' : 'تم حفظ المقترح لكن فشل رفع بعض الملفات:\n') + attachmentFailures.join('\n'));
       } else {
