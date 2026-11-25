@@ -662,6 +662,8 @@ function buildKaizenDetailsModalHtml(suggestion) {
           ${imageHtml}
           ${implementationImagesHtml}
 
+          <div class="pt-3 mt-2 border-t border-gray-800"><div class="text-[11px] font-bold text-slate-200 mb-2">📎 المستندات المرفقة</div><div id="kaizenAttachmentsContainer" class="space-y-2 text-[11px] text-slate-300">جاري تحميل المرفقات...</div><label for="kaizenAttachmentUpload" class="block text-[10px] text-slate-300 mt-2 mb-1">إضافة مستند (PDF / DOCX / XLSX - حتى 10MB)</label><input id="kaizenAttachmentUpload" type="file" accept=".pdf,.docx,.xlsx" class="w-full text-[10px] text-slate-300" onchange="window.uploadKaizenAttachmentFromDetails()" data-suggestion-id="${escapeJsArg(suggestion.id)}" /></div>
+
           <!-- السجل الزمني (Timeline) - يُملأ لاحقاً بشكل غير متزامن
           عبر fetchSuggestionLogsApi، من غير ما يعطّل ظهور باقي
           التفاصيل فوراً -->
@@ -741,6 +743,40 @@ async function loadAndRenderKaizenTimeline(suggestionId) {
   `).join("");
 }
 
+async function loadAndRenderKaizenAttachments(suggestionId) {
+  const box = document.getElementById("kaizenAttachmentsContainer");
+  if (!box) return;
+  try {
+    const api = await import("./services/kaizenAttachmentsApi.js");
+    const files = await api.listKaizenAttachments(suggestionId);
+    box.innerHTML = "";
+    if (!files.length) { box.textContent = "لا توجد مستندات مرفقة."; return; }
+    for (const file of files) {
+      const row = document.createElement("div"); row.className = "flex items-center justify-between gap-2 rounded-lg border border-gray-700 p-2";
+      const label = document.createElement("span"); label.className = "min-w-0 flex-1 break-all"; label.textContent = file.name + " · " + (Number(file.size || 0) / 1048576).toFixed(2) + " MB";
+      const download = document.createElement("button"); download.type = "button"; download.className = "rounded bg-blue-600 px-2 py-1 text-white"; download.textContent = "تنزيل";
+      download.addEventListener("click", async () => { try { const blob = await api.downloadKaizenAttachment(suggestionId, file.id); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = file.name; a.click(); URL.revokeObjectURL(url); } catch (e) { alert(e.message); } });
+      const del = document.createElement("button"); del.type = "button"; del.className = "rounded bg-red-700 px-2 py-1 text-white"; del.textContent = "حذف";
+      del.addEventListener("click", async () => { if (!confirm("هل تريد حذف المستند؟")) return; try { await api.deleteKaizenAttachment(suggestionId, file.id); await loadAndRenderKaizenAttachments(suggestionId); } catch (e) { alert(e.message); } });
+      row.append(label, download, del); box.appendChild(row);
+    }
+  } catch (error) { box.textContent = "تعذّر تحميل المرفقات: " + error.message; }
+}
+
+window.uploadKaizenAttachmentFromDetails = async function() {
+  const input = document.getElementById("kaizenAttachmentUpload");
+  const file = input && input.files && input.files[0];
+  if (!file) return;
+  const suggestionId = input.dataset.suggestionId;
+  input.disabled = true;
+  try { const api = await import("./services/kaizenAttachmentsApi.js"); await api.uploadKaizenAttachment(suggestionId, file); input.value = ""; await loadAndRenderKaizenAttachments(suggestionId); }
+  catch (error) { alert("فشل رفع الملف: " + error.message); }
+  finally { input.disabled = false; }
+};
+
+window.downloadKaizenAttachmentFromDetails = async function() {};
+window.deleteKaizenAttachmentFromDetails = async function() {};
+
 /**
  * فتح Modal تفاصيل المقترح - عرض فقط، بيقرأ البيانات من
  * kaizenItemsById (نفس البيانات المعروضة أصلاً في الكارت/اللوحة،
@@ -763,6 +799,7 @@ window.openKaizenSuggestionDetails = function (suggestionId) {
   document.addEventListener("keydown", handleKaizenDetailsEscape);
 
   loadAndRenderKaizenTimeline(suggestionId);
+  loadAndRenderKaizenAttachments(suggestionId);
 
 };
 
