@@ -321,6 +321,64 @@ await t("جسم أكبر من 8MB بدون Content-Length يُرفض أثناء 
   const res = await worker.fetch(req, env); assert.equal(res.status, 413); assert.ok(!calls.some((c) => c.t === "imgbb"));
 });
 
+
+console.log("مرفقات مستندات الكايزن");
+await t("رفع وتنزيل وحذف PDF عبر R2 مع تحقق الصلاحية", async () => {
+  baseSetup();
+  const suggestionId = "kaizen-test-1";
+  store.set("suggestions/" + suggestionId, S({ submittedByUid: "tech1", assignedToUid: "", status: "new" }));
+  const objects = new Map();
+  const bucket = {
+    async put(key, body) { objects.set(key, Buffer.from(await new Response(body).arrayBuffer())); },
+    async get(key) { const bytes = objects.get(key); return bytes ? { body: new Blob([bytes]).stream() } : null; },
+    async delete(key) { objects.delete(key); }
+  };
+  const r2Env = { ...env, KAIZEN_FILES_BUCKET: bucket };
+  const form = new FormData();
+  form.append("suggestionId", suggestionId);
+  form.append("file", new Blob(["%PDF-1.7\nTest PDF"], { type: "application/pdf" }), "report.pdf");
+  const uploadReq = new Request("https://w.example/uploadKaizenAttachment", {
+    method: "POST", body: form, headers: { Origin: ORIGIN, Authorization: "Bearer " + await makeToken("tech1") }
+  });
+  const uploaded = await worker.fetch(uploadReq, r2Env);
+  assert.equal(uploaded.status, 200);
+  const item = (await uploaded.json()).result;
+  assert.equal(item.name, "report.pdf");
+  assert.equal(objects.size, 1);
+  const list = await call("listKaizenAttachments", { suggestionId }, "tech1", {}, r2Env);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.result.attachments.length, 1);
+  const downloadReq = new Request("https://w.example/downloadKaizenAttachment", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + await makeToken("tech1") },
+    body: JSON.stringify({ data: { suggestionId, attachmentId: item.id } })
+  });
+  const downloaded = await worker.fetch(downloadReq, r2Env);
+  assert.equal(downloaded.status, 200);
+  assert.match(await downloaded.text(), /^%PDF-1.7/);
+  const deleted = await call("deleteKaizenAttachment", { suggestionId, attachmentId: item.id }, "tech1", {}, r2Env);
+  assert.equal(deleted.status, 200);
+  assert.equal(objects.size, 0);
+});
+await t("مستخدم غير صاحب المقترح لا يستطيع الوصول لمرفقاته", async () => {
+  baseSetup();
+  store.set("suggestions/private-kaizen", S({ submittedByUid: "tech1", assignedToUid: "" }));
+  const r = await call("listKaizenAttachments", { suggestionId: "private-kaizen" }, "admin1");
+  assert.equal(r.status, 200); // الأدمن له صلاحية إشرافية
+  const outsider = await call("listKaizenAttachments", { suggestionId: "private-kaizen" }, "outsider");
+  assert.equal(outsider.status, 403);
+});
+await t("الملفات غير المدعومة أو التي لا يطابق محتواها امتدادها تُرفض", async () => {
+  baseSetup();
+  store.set("suggestions/kaizen-type-check", S({ submittedByUid: "tech1", assignedToUid: "" }));
+  const bucket = { async put() { throw new Error("must not write"); }, async delete() {} };
+  const form = new FormData();
+  form.append("suggestionId", "kaizen-type-check");
+  form.append("file", new Blob(["not a PDF"], { type: "application/pdf" }), "bad.pdf");
+  const req = new Request("https://w.example/uploadKaizenAttachment", { method: "POST", body: form, headers: { Authorization: "Bearer " + await makeToken("tech1") } });
+  const response = await worker.fetch(req, { ...env, KAIZEN_FILES_BUCKET: bucket });
+  assert.equal(response.status, 415);
+});
+
 console.log("كود الموظف: التسجيل والترحيل");
 await t("تطبيع الكود والهاتف", () => {
   assert.equal(normalizeCode(" ab-١٢٣ 4 "), "AB1234");
